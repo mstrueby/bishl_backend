@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer utilities{
+    .active-link{
+    @apply flex items-center px-4 -mb-1 border-b-2 border-transparent text-red-600 border-red-600
+    }
+}
