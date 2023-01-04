@@ -1,11 +1,24 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import AdmLayout from '../../components/AdmLayout'
 import { CheckCircleIcon, XMarkIcon } from '@heroicons/react/20/solid'
+import Layout from '../../components/Layout'
+import Backend from '../../components/Backend'
+import LmSidebar from '../components/LmSidebar'
 
 // import navigation from './LeagueManager'
 
 const LmClubList = () => {
+  return (
+    <Layout>
+      <Backend
+        sidebar={<LmSidebar />}
+        content={<Content />}
+      />
+    </Layout>
+  )
+}
+
+const Content = () => {
   const [clubs, setClubs] = useState([])
   const [show, setShow] = useState(true)
   const location = useLocation();
@@ -26,8 +39,8 @@ const LmClubList = () => {
   }, [])
 
   return (
-    <AdmLayout>
 
+    <div>
       <div className="border-b border-gray-200 pb-5 sm:flex sm:items-center sm:justify-between">
         <h3 className="text-lg font-medium leading-6 text-gray-900">Vereine</h3>
         <div className="mt-3 sm:mt-0 sm:ml-4">
@@ -95,8 +108,8 @@ const LmClubList = () => {
                           <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
                             <div className="flex items-center">
                               {/* <div className="h-10 w-10 flex-shrink-0">
-                            <img className="h-10 w-10 rounded-full" src={person.image} alt="" />
-                          </div> */}
+                              <img className="h-10 w-10 rounded-full" src={person.image} alt="" />
+                            </div> */}
                               <div className="">
                                 <div className="font-medium text-gray-900">{club.name}</div>
                               </div>
@@ -104,14 +117,14 @@ const LmClubList = () => {
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 text-center">
                             {club.active === true ? (
-                                <span className="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
-                                  Aktiv
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                                  Inaktiv
-                                </span>
-                              )
+                              <span className="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
+                                Aktiv
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                                Inaktiv
+                              </span>
+                            )
                             }
                           </td>
                           <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -131,12 +144,7 @@ const LmClubList = () => {
           </div>
         </div>
       </div>
-
-
-
-
-    </AdmLayout >
-
+    </div>
   )
 }
 

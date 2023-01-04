@@ -2,12 +2,24 @@ import { useState } from 'react'
 import LmClubForm from "../components/LmClubForm";
 import { clubValidator } from "../clubValidators";
 import { useNavigate } from 'react-router-dom';
-import AdmLayout from '../../components/AdmLayout';
+import Layout from '../../components/Layout'
+import Backend from '../../components/Backend';
+import LmSidebar from '../components/LmSidebar'
 
 let BASE_URL = "http://localhost:8000/clubs/"
 
 const LmClubNew = () => {
+  return (
+    <Layout>
+      <Backend
+        sidebar={<LmSidebar />}
+        content={<Content />}
+      />
+    </Layout>
+  )
+}
 
+const Content = () => {
   const [error, setError] = useState([])
   const navigate = useNavigate();
 
@@ -67,15 +79,14 @@ const LmClubNew = () => {
   };
 
   return (
-    <AdmLayout>
+    <div>
       <div className="border-b border-gray-200 pb-5 sm:flex sm:items-center sm:justify-between">
-        <h3 className="text-lg font-medium leading-6 text-gray-900">Neuer Verein</h3>
+        <h2 className="text-lg font-medium leading-6 text-gray-900">Neuer Verein</h2>
       </div>
       <div>
         <LmClubForm {...formProps} />
       </div>
-
-    </AdmLayout >
+    </div >
   );
 }
 

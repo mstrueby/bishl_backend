@@ -1,11 +1,24 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import AdmLayout from '../../components/AdmLayout'
 import { CheckCircleIcon, XMarkIcon } from '@heroicons/react/20/solid'
+import Layout from '../../components/Layout'
+import Backend from '../../components/Backend'
+import LmSidebar from '../components/LmSidebar'
 
 // import navigation from './LeagueManager'
 
-const LmVenues = () => {
+const LmVenueList = () => {
+  return (
+    <Layout>
+      <Backend
+        sidebar={<LmSidebar />}
+        content={<Content />}
+      />
+    </Layout>
+  )
+}
+
+const Content = () => {
   const [venues, setVenues] = useState([])
   const [show, setShow] = useState(true)
   const location = useLocation();
@@ -26,8 +39,7 @@ const LmVenues = () => {
   }, [])
 
   return (
-    <AdmLayout>
-
+    <div>
       <div className="border-b border-gray-200 pb-5 sm:flex sm:items-center sm:justify-between">
         <h3 className="text-lg font-medium leading-6 text-gray-900">Spielstätten</h3>
         <div className="mt-3 sm:mt-0 sm:ml-4">
@@ -41,7 +53,7 @@ const LmVenues = () => {
         </div>
       </div>
 
-      {(show ===true && msg) &&
+      {(show === true && msg) &&
         // <div className="rounded-md bg-green-50 p-4 my-6">
         <div className="rounded-md border-l-4 border-green-400 bg-green-50 p-4 my-6">
           <div className="flex">
@@ -105,14 +117,14 @@ const LmVenues = () => {
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 text-center">
                             {venue.active === true ? (
-                                <span className="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
-                                  Aktiv
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                                  Inaktiv
-                                </span>
-                              )
+                              <span className="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
+                                Aktiv
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                                Inaktiv
+                              </span>
+                            )
                             }
                           </td>
                           <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -132,13 +144,9 @@ const LmVenues = () => {
           </div>
         </div>
       </div>
-
-
-
-
-    </AdmLayout >
+    </div >
 
   )
 }
 
-export default LmVenues
+export default LmVenueList

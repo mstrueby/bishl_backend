@@ -1,13 +1,25 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from "react-router-dom"
-import LmClubForm from "../components/LmClubForm";
-import { clubValidator } from "../clubValidators";
-import Layout from '../../components/Layout';
+import LmClubForm from "../components/LmClubForm"
+import { clubValidator } from "../clubValidators"
+import Layout from '../../components/Layout'
+import Backend from '../../components/Backend'
 import LmSidebar from '../components/LmSidebar'
 
 let BASE_URL = "http://localhost:8000/clubs/"
 
 const LmClubEdit = () => {
+  return (
+    <Layout>
+      <Backend
+        sidebar={<LmSidebar />}
+        content={<Content />}
+      />
+    </Layout>
+  )
+}
+
+const Content = () => {
 
   let { id } = useParams()
   const [club, setClub] = useState({})
@@ -74,21 +86,14 @@ const LmClubEdit = () => {
   }, [id])
 
   return (
-    <Layout>
-      <main className="relative">
-        <div className="mx-auto max-w-screen-xl pb-6 lg:pb-16">
-          <div className="overflow-hidden bg-white">
-            <div className="divide-y divide-gray-200 md:grid md:grid-cols-12 md:divide-y-0 md:divide-x">
-              <LmSidebar />
-              <div className="px-4 md:px-8 py-6 md:col-span-9">
-                <h2>Verein ändern</h2>
-                <LmClubForm {...formProps} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </Layout >
+    <div>
+      <div className="border-b border-gray-200 pb-5 sm:flex sm:items-center sm:justify-between">
+        <h2 className="text-lg font-medium leading-6 text-gray-900">Verein bearbeiten</h2>
+      </div>
+      <div>
+        <LmClubForm {...formProps} />
+      </div>
+    </div >
   );
 }
 

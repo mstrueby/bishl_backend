@@ -12,9 +12,9 @@ const InputText = ({ label, ...props }) => {
                 {label}
             </label>
             <div className="relative mt-1 rounded-md shadow-sm">
-                <input 
+                <input
                     className={meta.touched && meta.error ? classInputErr : classInputDef}
-                    {...field} {...props} 
+                    {...field} {...props}
                 />
                 {meta.touched && meta.error ? (
                     <p className="mt-2 text-sm text-red-600">

@@ -54,11 +54,18 @@ const LmClubForm = ({
                         name="country"
                         type="text"
                     />
+                    <InputText
+                        name="active"
+                        type="text"
+                        label="Aktiv"
+                    />
                     <ButtonPrimary
+                        name="btnPrimary"
                         type="submit"
                         children="Speichern"
                         />
                     <ButtonLight
+                        name="btnLight"
                         type="button"
                         onClick={handleCancel}    
                         children="Abbrechen"
