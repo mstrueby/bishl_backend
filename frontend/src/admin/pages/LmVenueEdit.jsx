@@ -28,6 +28,7 @@ const Content = () => {
   const initialValues = { ...venue }
 
   const onSubmit = async (values, actions) => {
+    console.log(values)
     const response = await fetch(`${BASE_URL}${id}`, {
       method: "PATCH",
       headers: {
