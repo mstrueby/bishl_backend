@@ -1,0 +1,33 @@
+{
+  "name": "bishl",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mstrueby/bishl.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mstrueby/bishl/issues"
+  },
+  "homepage": "https://github.com/mstrueby/bishl#readme",
+  "dependencies": {
+    "@headlessui/react": "^1.7.7",
+    "@heroicons/react": "^2.0.13",
+    "@tailwindcss/forms": "^0.5.3",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^13.4.0",
+    "formik": "^2.2.9",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.6.1",
+    "web-vitals": "^3.1.0",
+    "yup": "^0.32.11"
+  }
+}
