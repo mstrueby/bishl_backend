@@ -5,8 +5,6 @@ import Layout from '../../components/Layout'
 import Backend from '../../components/Backend'
 import LmSidebar from '../components/LmSidebar'
 
-// import navigation from './LeagueManager'
-
 const LmVenueList = () => {
   return (
     <Layout>
