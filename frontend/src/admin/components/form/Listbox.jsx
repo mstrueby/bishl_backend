@@ -1,31 +1,26 @@
-import { useField } from 'formik';
+import { useField, useFormikContext } from 'formik';
 import { useState, Fragment, useEffect } from 'react';
 import { Listbox, Transition } from '@headlessui/react';
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid';
 
-const country = [
-  { name: 'Deutschland', code: 'DE', value: 'DE' },
-  { name: 'Schweiz', code: 'CH', value: 'CH' },
-  { name: 'Österreich', code: 'AT', value: 'AT' },
-  { name: 'Niederlande', code: 'NL', value: 'NL' },
-  { name: 'Dänemark', code: 'DK', value: 'DK' },
-  { name: 'Großbritannien', code: 'GB', value: 'GB' }
-]
-
 const MyListbox = ({ label, ...props }) => {
+  const options = props.options;
+  const name = props.name;
   const [field, meta, helpers] = useField(props);
-  const [selected, setSelected] = useState(country[0]);
+  const [selected, setSelected] = useState(options[0]);
+  const { setFieldValue } = useFormikContext();
 
-  function handleChange() {
-    helpers.setValue({ selected })
-    setSelected();
+  const handleChange = event => {
+    // setFieldValue (name, )
+    // helpers.setValue({ selected })
+    setSelected(event.target);
   }
 
   return (
     <Listbox
-      name={field.name}
+      name={name}
       value={selected}
-      onChange={setSelected}
+      onChange={handleChange}
     >
       {({ open }) => (
         <>
@@ -45,22 +40,22 @@ const MyListbox = ({ label, ...props }) => {
               leaveFrom="opacity-100"
               leaveTo="opacity-0"
             >
-              <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-                {country.map((country) => (
+              <Listbox.Options static className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                {options.map((option) => (
                   <Listbox.Option
-                    key={country.code}
+                    key={option.code}
+                    value={option.value}
                     className={({ active }) =>
                       classNames(
                         active ? 'text-white bg-indigo-600' : 'text-gray-900',
                         'relative cursor-default select-none py-2 pl-8 pr-4'
                       )
                     }
-                    value={country}
                   >
                     {({ selected, active }) => (
                       <>
                         <span className={classNames(selected ? 'font-semibold' : 'font-normal', 'block truncate')}>
-                          {country.name}
+                          {option.name}
                         </span>
 
                         {selected ? (

@@ -5,6 +5,7 @@ import InputText from './form/InputText'
 import ButtonPrimary from './form/ButtonPrimary'
 import ButtonLight from './form/ButtonLight'
 import Toggle from './form/Toggle'
+import MyListbox from './form/Listbox'
 
 const LmClubForm = ({
     initialValues,
@@ -50,10 +51,10 @@ const LmClubForm = ({
                         name="city"
                         type="text"
                     />
-                    <InputText
+                    <MyListbox
                         label="Land"
                         name="country"
-                        type="text"
+                        type=""
                     />
                     <Toggle
                         name="active"

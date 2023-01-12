@@ -5,7 +5,15 @@ import InputText from './form/InputText'
 import ButtonPrimary from './form/ButtonPrimary'
 import ButtonLight from './form/ButtonLight'
 import Toggle from './form/Toggle'
-import Listbox from './form/Listbox'
+import MyListbox from './form/Listbox'
+
+const countries = [
+    { name: 'Deutschland', code: 'DE', value: 'DE' },
+    { name: 'Schweiz', code: 'CH', value: 'CH' },
+    { name: 'Österreich', code: 'AT', value: 'AT' },
+    { name: 'Dänemark', code: 'DK', value: 'DK' },
+    { name: 'Großbritannien', code: 'GB', value: 'GB' }
+]
 
 const LmVenueForm = ({
     initialValues,
@@ -55,9 +63,9 @@ const LmVenueForm = ({
                         type="text"
                         label="Stadt"
                     />
-                    <InputText
+                    <MyListbox
                         name="country"
-                        type="text"
+                        options={countries}
                         label="Land"
                     />
                     <InputText
