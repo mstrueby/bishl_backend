@@ -30,7 +30,7 @@ const Content = () => {
     street: '',
     zipCode: '',
     city: '',
-    country: 'Deutschland',
+    country: '',
     latitude: '',
     longitude: '',
     active: false,

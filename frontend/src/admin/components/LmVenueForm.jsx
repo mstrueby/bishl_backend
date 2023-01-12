@@ -8,11 +8,11 @@ import Toggle from './form/Toggle'
 import MyListbox from './form/Listbox'
 
 const countries = [
-    { name: 'Deutschland', code: 'DE', value: 'DE' },
-    { name: 'Schweiz', code: 'CH', value: 'CH' },
-    { name: 'Österreich', code: 'AT', value: 'AT' },
-    { name: 'Dänemark', code: 'DK', value: 'DK' },
-    { name: 'Großbritannien', code: 'GB', value: 'GB' }
+    { key: 'DE', value: 'Deutschland' },
+    { key: 'CH', value: 'Schweiz' },
+    { key: 'AT', value: 'Österreich' },
+    { key: 'DK', value: 'Dänemark' },
+    { key: 'GB', value: 'Großbritannien' }
 ]
 
 const LmVenueForm = ({
@@ -96,7 +96,6 @@ const LmVenueForm = ({
                         children="Abbrechen"
                     />
                 </Form>
-
             </Formik>
         </>
     )

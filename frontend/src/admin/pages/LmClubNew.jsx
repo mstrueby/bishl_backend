@@ -29,7 +29,7 @@ const Content = () => {
     street: '',
     zipCode: '',
     city: '',
-    country: 'Deutschland',
+    country: '',
     email: '',
     dateOfFoundation: '',
     website: '',

@@ -7,6 +7,14 @@ import ButtonLight from './form/ButtonLight'
 import Toggle from './form/Toggle'
 import MyListbox from './form/Listbox'
 
+const countries = [
+    { key: 'DE', value: 'Deutschland' },
+    { key: 'CH', value: 'Schweiz' },
+    { key: 'AT', value: 'Österreich' },
+    { key: 'DK', value: 'Dänemark' },
+    { key: 'GB', value: 'Großbritannien' }
+]
+
 const LmClubForm = ({
     initialValues,
     onSubmit,
@@ -27,39 +35,39 @@ const LmClubForm = ({
             >
                 <Form>
                     <InputText
-                        label="Name"
                         name="name"
                         type="text"
+                        label="Name"
                     />
                     <InputText
-                        label="Anschrift (c/o)"
                         name="addressName"
                         type="text"
+                        label="Anschrift (c/o)"
                     />
                     <InputText
-                        label="Straße"
                         name="street"
                         type="text"
+                        label="Straße"
                     />
                     <InputText
-                        label="PLZ"
                         name="zipCode"
                         type="text"
+                        label="PLZ"
                     />
                     <InputText
-                        label="City"
                         name="city"
                         type="text"
+                        label="City"
                     />
                     <MyListbox
-                        label="Land"
                         name="country"
-                        type=""
+                        options={countries}
+                        label="Land"
                     />
                     <Toggle
                         name="active"
-                        label="Aktiv"
                         type="checkbox"
+                        label="Aktiv"
                     />
                     <ButtonPrimary
                         name="btnPrimary"
