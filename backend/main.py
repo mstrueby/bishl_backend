@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import uvicorn
 from routers.venues import router as venues_router
 from routers.clubs import router as clubs_router
+from routers.teams import router as teams_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
@@ -35,6 +36,7 @@ async def shutdown_db_client():
 
 app.include_router(venues_router, prefix="/venues", tags=["venues"])
 app.include_router(clubs_router, prefix="/clubs", tags=["clubs"])
+app.include_router(teams_router, prefix="/teams", tags=["teams"])
 
 if __name__ == "__main__":
     uvicorn.run("main:app", reload=True)

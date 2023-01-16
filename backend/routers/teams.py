@@ -8,7 +8,7 @@ router = APIRouter()
 
 # list all teams
 @router.get("/", response_description="List all teams")
-async def list_venues(
+async def list_teams(
     request: Request,
     # active: bool=True,
     page: int=1,
@@ -25,7 +25,7 @@ async def list_venues(
 
 # create new team
 @router.post("/", response_description="Add new team")
-async def create_team(request: Request, team: TeamBase# = Body(...)):
+async def create_team(request: Request, team: TeamBase = Body(...)):
     team = jsonable_encoder(team)
     new_team = await request.app.mongodb["teams"].insert_one(team)
     created_team = await request.app.mongodb["teams"].find_one(
@@ -48,7 +48,7 @@ async def get_team(id: str, request: Request):
 async def update_team(
     request: Request,
     id: str,
-    team: ClubUpdate = Body(...)
+    team: TeamUpdate = Body(...)
     ):
     await request.app.mongodb['teams'].update_one(
         {"_id": id}, {"$set": team.dict(exclude_unset=True)}
