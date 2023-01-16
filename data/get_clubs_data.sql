@@ -6,7 +6,7 @@ select
 	address_three as street,
     zip_code as zipCode,
 	city,
-	'Germany' as country,
+	'Deutschland' as country,
     email,
     founded_date as dateOfFoundation,
 	description,

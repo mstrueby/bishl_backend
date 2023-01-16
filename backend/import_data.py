@@ -7,7 +7,7 @@ import certifi
 
 # dotenv environment variables
 from dotenv import dotenv_values
-from models import VenueBase, ClubBase
+from models import VenueBase, ClubBase, TeamBase
 
 config = dotenv_values(".env")
 collection = sys.argv[1]
@@ -43,7 +43,9 @@ match collection:
                 db_collection.insert_one(venue)
 
             except ValueError as e:
+                print("ERROR at ", rec['name'])
                 print(e)
+                exit()
 
     case "clubs":
         print("Delete all records in {}".format(collection))
@@ -60,6 +62,26 @@ match collection:
                 club = jsonable_encoder(ClubBase(**rec))  
                 print("Inserting: ", club)
                 db_collection.insert_one(club)
+
+            except ValueError as e:
+                print("ERROR at ", rec['name'])
+                print(e)
+                exit()
+            
+    case "teams":
+        print("Delete all records in {}".format(collection))
+        db_collection.delete_many({})
+        for rec in name_records:
+            try:
+                rec['teamNumber'] = int(rec['teamNumber']) if rec['teamNumber'] else None
+                rec['email'] = str(rec['email']) if rec['email'] else None
+                rec['extern'] = bool(rec['extern'])
+                rec['active'] = bool(rec['active'])
+                rec['legacyId'] = int(rec['legacyId'])
+
+                team = jsonable_encoder(TeamBase(**rec))  
+                print("Inserting: ", team)
+                db_collection.insert_one(team)
 
             except ValueError as e:
                 print("ERROR at ", rec['name'])

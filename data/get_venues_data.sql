@@ -6,7 +6,7 @@ select
 	address_one as street,
 	zip_code as zipCode,
 	city,
-	'Germany' as country,
+	'Deutschland' as country,
 	latitude,
 	longitude,
 	image,
