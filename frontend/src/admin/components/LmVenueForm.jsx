@@ -83,18 +83,19 @@ const LmVenueForm = ({
                         type="checkbox"
                         label="Aktiv"
                     />
-
-                    <ButtonPrimary
-                        name="btnPrimary"
-                        type="submit"
-                        children="Speichern"
-                    />
-                    <ButtonLight
-                        name="btnLight"
-                        type="button"
-                        onClick={handleCancel}
-                        children="Abbrechen"
-                    />
+                    <div className="mt-4 flex justify-end py-4 px-4 sm:px-6">
+                        <ButtonLight
+                            name="btnLight"
+                            type="button"
+                            onClick={handleCancel}
+                            children="Abbrechen"
+                        />
+                        <ButtonPrimary
+                            name="btnPrimary"
+                            type="submit"
+                            children="Speichern"
+                        />
+                    </div>
                 </Form>
             </Formik>
         </>

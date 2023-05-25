@@ -1,8 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
-  BrowserRouter, 
-  Routes, 
+  BrowserRouter,
+  Routes,
   Route,
 } from "react-router-dom";
 
@@ -16,6 +16,7 @@ import LmClubNew from './admin/pages/LmClubNew'
 import LmVenueList from './admin/pages/LmVenueList'
 import LmVenueEdit from './admin/pages/LmVenueEdit'
 import LmVenueNew from './admin/pages/LmVenueNew'
+import LmTeamList from './admin/pages/LmTeamList'
 
 
 import './index.css';
@@ -30,7 +31,7 @@ root.render(
         <Route path="/" element={<App />} />
         <Route path="venues" element={<Venues />} />
         <Route path="venues/:id" element={<Venue />} />
-        
+
         <Route path="admin/leaguemanager" element={<LmDashboard />} />
 
         <Route path="admin/clubs" element={<LmClubList />} />
@@ -40,6 +41,8 @@ root.render(
         <Route path="admin/venues" element={<LmVenueList />} />
         <Route path="admin/venues/:id" element={<LmVenueEdit />} />
         <Route path="admin/venues/new" element={<LmVenueNew />} />
+
+        <Route path="admin/teams" element={<LmTeamList />} />
 
       </Routes>
     </BrowserRouter>
