@@ -41,5 +41,5 @@ app.include_router(venues_router, prefix="/venues", tags=["venues"])
 app.include_router(clubs_router, prefix="/clubs", tags=["clubs"])
 app.include_router(teams_router, prefix="/teams", tags=["teams"])
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", reload=True)
+#if __name__ == "__main__":
+#    uvicorn.run("main:app", reload=True)
