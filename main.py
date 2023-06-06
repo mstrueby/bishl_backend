@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-
-from decouple import config
+import os
 from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
 import uvicorn
@@ -10,9 +9,13 @@ from routers.teams import router as teams_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
+#from decouple import config
+#DB_URL = config('DB_URL', cast=str)
+#DB_NAME = config('DB_NAME', cast=str)
 
-DB_URL = config('DB_URL', cast=str)
-DB_NAME = config('DB_NAME', cast=str)
+DB_URL = os.getenv("DB_URL")
+DB_NAME = os.getenv("DB_NAME")
+
 origins = ["*"]
 
 app = FastAPI()
