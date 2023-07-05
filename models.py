@@ -175,21 +175,35 @@ class Matchday(BaseModel):
   end_date: date = None
   matches: List[Matches] = None
   standings: List[Standings] = None
-# --------
 
-class SeasonBase(MongoBaseModel):
-  tournament: str = Field(...)
-  year: int = Field(...)
+class Tournaments(BaseModel):
+  name: str = Field(...)
+  create_table: bool = Field(...)
+  published: bool = Field(...)
   matchdays: List[Matchday] = None
   matches: List[Matches] = None
   standings: List[Standings] = None
+  
+# --------
+
+class SeasonBase(MongoBaseModel):
+  name: str = Field(...)
+  year: int = Field(...)
+  alias: str = Field(...)
+  age_group: str = Field(...)
+  published: bool = False
+  active: bool = False
+  tournaments: List[Tournaments] = None
 
 class SeasonDB(SeasonBase):
   pass
 
 class SeasonUpdate(MongoBaseModel):
-  tournament: Optional[str] = None
+  name: Optional[str] = None
   year: Optional[int] = None
-  matchdays: Optional[List] = None
-  standings: Optional[List] = None
-  matches: Optional[List] = None
+  alias: Optional[str] = None
+  age_group: Optional[str] = None
+  published: Optional[bool] = None
+  active: Optional[bool] = None
+  tournaments: Optional[List[Tournaments]] = None
+  
