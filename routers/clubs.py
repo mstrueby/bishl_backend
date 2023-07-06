@@ -1,3 +1,4 @@
+import os
 from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -14,7 +15,7 @@ async def list_venues(
     page: int=1,
     ) -> List[ClubDB]:
 
-    RESULTS_PER_PAGE = 50
+    RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
     skip = (page - 1) * RESULTS_PER_PAGE
     # query = {"active":active}
     query = {}
