@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional
 from fastapi import APIRouter, Request, Body, status, HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -17,7 +18,7 @@ async def list_seasons(
   year: Optional[int] = None,
 ) -> List[SeasonDB]:
 
-  RESULTS_PER_PAGE = 50
+  RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
   # query = {"active":active}
   query = {}
