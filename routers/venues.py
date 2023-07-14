@@ -17,7 +17,6 @@ async def list_venues(
 ) -> List[VenueDB]:
 
   RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
-  print(RESULTS_PER_PAGE)
   skip = (page - 1) * RESULTS_PER_PAGE
   # query = {"active":active}
   query = {}
