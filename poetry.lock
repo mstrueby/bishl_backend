@@ -73,6 +73,18 @@ trio = ["trio (>=0.14,<0.23)"]
 wmi = ["wmi (>=1.5.1,<2.0.0)"]
 
 [[package]]
+name = "email-validator"
+version = "2.0.0.post2"
+description = "A robust email address syntax and deliverability validation library."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+dnspython = ">=2.0.0"
+idna = ">=2.0.0"
+
+[[package]]
 name = "exceptiongroup"
 version = "1.1.1"
 description = "Backport of PEP 654 (exception groups)"
@@ -257,7 +269,7 @@ standard = ["colorama (>=0.4)", "httptools (>=0.5.0)", "python-dotenv (>=0.13)",
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "d5580e64d311205591f7d8105ace0dfd233ad5c498346ce2b0983a5b7b1ae4eb"
+content-hash = "004930b8fe2fedba9398cc7ddee5694bfa12e7ba3452867be32817ba8760ba85"
 
 [metadata.files]
 anyio = []
@@ -266,6 +278,7 @@ certifi = []
 click = []
 colorama = []
 dnspython = []
+email-validator = []
 exceptiongroup = []
 fastapi = []
 h11 = []

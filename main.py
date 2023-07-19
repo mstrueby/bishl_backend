@@ -7,6 +7,7 @@ from routers.venues import router as venues_router
 from routers.clubs import router as clubs_router
 from routers.teams import router as teams_router
 from routers.seasons import router as seasons_router
+from routers.users import router as users_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
@@ -42,6 +43,7 @@ app.include_router(venues_router, prefix="/venues", tags=["venues"])
 app.include_router(clubs_router, prefix="/clubs", tags=["clubs"])
 app.include_router(teams_router, prefix="/teams", tags=["teams"])
 app.include_router(seasons_router, prefix="/seasons", tags=["seasons"])
+app.include_router(users_router, prefix="/users", tags=["users"])
 
 #if __name__ == "__main__":
 #    uvicorn.run("main:app", reload=True)
