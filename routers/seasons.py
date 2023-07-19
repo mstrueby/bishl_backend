@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Request, Body, status, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from models import SeasonBase, SeasonDB, SeasonUpdate
+from models.seasons import SeasonBase, SeasonDB, SeasonUpdate
 
 router = APIRouter()
 
