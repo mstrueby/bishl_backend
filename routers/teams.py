@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from models import TeamBase, TeamDB, TeamUpdate
+from models.teams import TeamBase, TeamDB, TeamUpdate
 
 router = APIRouter()
 
