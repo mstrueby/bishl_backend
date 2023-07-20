@@ -1,12 +1,13 @@
 import os
 from typing import List
-from fastapi import APIRouter, Request, Body, status, HTTPException
+from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from models.venues import VenueBase, VenueDB, VenueUpdate
+from authentication import AuthHandler
 
 router = APIRouter()
-
+auth = AuthHandler()
 
 # list all venues
 @router.get("/", response_description="List all venues")
@@ -28,7 +29,11 @@ async def list_venues(
 
 # create new venue
 @router.post("/", response_description="Add new venue")
-async def create_venue(request: Request, venue: VenueBase = Body(...)):
+async def create_venue(
+  request: Request, 
+  venue: VenueBase = Body(...),
+  userId = Depends(auth.auth_wrapper),  
+):
   venue = jsonable_encoder(venue)
   new_venue = await request.app.mongodb["venues"].insert_one(venue)
   created_venue = await request.app.mongodb["venues"].find_one(
@@ -49,20 +54,25 @@ async def get_venue(id: str, request: Request):
 
 # Update venue
 @router.patch("/{id}", response_description="Update venue")
-async def update_venue(request: Request,
-                       id: str,
-                       venue: VenueUpdate = Body(...)):
+async def update_venue(
+  request: Request,
+  id: str,
+  venue: VenueUpdate = Body(...),
+  userId = Depends(auth.auth_wrapper),
+):
   await request.app.mongodb['venues'].update_one(
     {"_id": id}, {"$set": venue.dict(exclude_unset=True)})
-  if (venue := await request.app.mongodb['venues'].find_one({"_id":
-                                                             id})) is not None:
+  if (venue := await request.app.mongodb['venues'].find_one({"_id": id})) is not None:
     return VenueDB(**venue)
   raise HTTPException(status_code=404, detail=f"Venue with {id} not found")
 
 
 # Delete venue
 @router.delete("/{id}", response_description="Delete venue")
-async def delete_venue(request: Request, id: str):
+async def delete_venue(
+  request: Request, id: str,
+  userId = Depends(auth.auth_wrapper),
+):
   result = await request.app.mongodb['venues'].delete_one({"_id": id})
   if result.deleted_count == 1:
     return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
