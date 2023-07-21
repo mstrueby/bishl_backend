@@ -10,7 +10,7 @@ auth = AuthHandler()
 
 # register user
 @router.post("/register", response_description="Register a new user")
-async def register(request: Request, newUser: UserBase = Body(...)) -> CurrentUser:
+async def register(request: Request, newUser: UserBase = Body(...)) -> UserBase:
   
   # hash the password before inserting into the database
   newUser.password = auth.get_password_hash(newUser.password)
@@ -26,11 +26,6 @@ async def register(request: Request, newUser: UserBase = Body(...)) -> CurrentUs
               status_code=status.HTTP_409_CONFLICT,
               detail=f"Email {newUser['email']} is already registered",
           )
-#      if existing_user.get("username") == newUser["username"]:
-#          raise HTTPException(
-#              status_code=status.HTTP_409_CONFLICT,
-#              detail=f"Username {newUser['username']} is already registered",
-#          )
 
   # insert the new user into the database
   result = await request.app.mongodb["users"].insert_one(newUser)
@@ -44,17 +39,8 @@ async def register(request: Request, newUser: UserBase = Body(...)) -> CurrentUs
 
 # login user
 @router.post("/login", response_description="Login a user")
-async def login(request: Request, loginUser: LoginBase = Body(...)) -> CurrentUser:
+async def login(request: Request, loginUser: LoginBase = Body(...)) -> str:
   
-  # check for existing user or email
-#  existing_user = await request.app.mongodb["users"].find_one(
-#      {
-#          "$or": [
-#              {"email": loginUser.email},
-#              {"username": loginUser.username}
-#              ]
-#      }
-#  )
   existing_user = await request.app.mongodb["users"].find_one({"email": loginUser.email})
   if (existing_user is None) or (
     not auth.verify_password(loginUser.password, existing_user["password"])
@@ -62,19 +48,27 @@ async def login(request: Request, loginUser: LoginBase = Body(...)) -> CurrentUs
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Incorrect email and/or password",
-        headers={"WWW-Authenticate": "Bearer"})
+        headers={"WWW-Authenticate": "Bearer"}
+    )
 
   token = auth.encode_token(existing_user["_id"])
-  return JSONResponse(status_code=status.HTTP_200_OK, content={"token": token})
+  
+  response = CurrentUser(**existing_user).dict()
+  response["id"] = existing_user["_id"]
+  
+  return JSONResponse(
+    status_code=status.HTTP_200_OK, 
+    content={"token": token, "user": response}
+  )
 
 
 # get current user
 @router.get("/me", response_description="Get current user")
-async def me(request: Request, userId=Depends(auth.auth_wrapper)) -> CurrentUser:
+async def me(request: Request, userId=Depends(auth.auth_wrapper)) -> str:
   user = await request.app.mongodb["users"].find_one( {"_id": userId} )
-  result = CurrentUser(**user).dict()
-  result["id"] = userId
-  return JSONResponse(status_code=status.HTTP_200_OK, content=result)
+  response = CurrentUser(**user).dict()
+  response["id"] = userId
+  return JSONResponse(status_code=status.HTTP_200_OK, content=response)
 
 
 # logout user
