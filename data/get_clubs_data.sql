@@ -9,7 +9,7 @@ select
 	'Deutschland' as country,
     email,
     founded_date as dateOfFoundation,
-	description,
+	-- description,
     website,
     ishd_id as ishdId,
 	case published when 1 then 'True' else '' end as active,

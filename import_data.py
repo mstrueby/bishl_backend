@@ -2,16 +2,19 @@
 
 import csv
 import sys
+import os
 from fastapi.encoders import jsonable_encoder
 import certifi
 
 # dotenv environment variables
 from dotenv import dotenv_values
-from models import VenueBase, ClubBase, TeamBase
+from models.clubs import ClubBase
+from models.venues import VenueBase
+from models.teams import TeamBase
 
 config = dotenv_values(".env")
 collection = sys.argv[1]
-filename = "../data/{}.csv".format(collection)
+filename = "data/{}.csv".format(collection)
 
 # read csv
 with open(filename, encoding='utf-8') as f:
@@ -22,8 +25,8 @@ with open(filename, encoding='utf-8') as f:
 from pymongo import MongoClient
 client = MongoClient()
 
-client = MongoClient(config['DB_URL'], tlsCAFile=certifi.where())
-db = client[config['DB_NAME']]
+client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
+db = client[os.environ['DB_NAME']]
 db_collection = db[collection]
 
 match collection:
