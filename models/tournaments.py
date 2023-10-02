@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import date
-from pydantic import Field, BaseModel, HttpUrl, EmailStr
+from pydantic import Field, BaseModel, HttpUrl
 from typing import Optional, List
 
 
@@ -28,16 +28,18 @@ class MongoBaseModel(BaseModel):
     json_encoders = {ObjectId: str}
     
 
-# Tournaments
-# ------------
 
 # sub documents
+  
 class Standings(BaseModel):
   team: str = Field(...)
   games_played: int = Field(...)
   goals_for: int = Field(...)
   goals_against: int = Field(...)
   points: int = Field(...)
+
+
+# ------------
 
 class Matches(BaseModel):
   match_id: str = Field(...)
@@ -48,43 +50,55 @@ class Matches(BaseModel):
   home_score: int = None
   away_score: int = None
   start_time: date = None
+  published: bool = Field(...)
   
-class Matchday(BaseModel):
+class Matchdays(BaseModel):
   matchday_name: str = Field(...)
   matchday_type: str = Field(...)
   start_date: date = None
   end_date: date = None
-  matches: List[Matches] = None
-  standings: List[Standings] = None
-
-class Tournaments(BaseModel):
-  name: str = Field(...)
-  create_table: bool = Field(...)
   published: bool = Field(...)
-  matchdays: List[Matchday] = None
   matches: List[Matches] = None
   standings: List[Standings] = None
   
+class Rounds(BaseModel):
+  name: str = Field(...)
+  create_standings: bool = Field(...)
+  create_stats: bool = Field(...)
+  published: bool = Field(...)
+  matchdays: List[Matchdays] = None
+  standings: List[Standings] = None
+
+class Seasons(BaseModel):
+  year: int = Field(...)
+  published: bool = Field(...)
+  rounds: List[Rounds] = None
+
+
 # --------
 
-class SeasonBase(MongoBaseModel):
+class TournamentBase(MongoBaseModel):
   name: str = Field(...)
-  year: int = Field(...)
   alias: str = Field(...)
+  tiny_name: str = Field(...)
   age_group: str = Field(...)
   published: bool = False
   active: bool = False
-  tournaments: List[Tournaments] = None
+  external: bool = False
+  website: HttpUrl = None
+  seasons: List[Seasons] = None
 
-class SeasonDB(SeasonBase):
+class TournamentDB(TournamentBase):
   pass
 
-class SeasonUpdate(MongoBaseModel):
+class TournamentUpdate(MongoBaseModel):
   name: Optional[str] = None
-  year: Optional[int] = None
   alias: Optional[str] = None
+  tiny_name: Optional[str] = None
   age_group: Optional[str] = None
   published: Optional[bool] = None
   active: Optional[bool] = None
-  tournaments: Optional[List[Tournaments]] = None
+  external: Optional[bool] = None
+  website: Optional[HttpUrl] = None
+  seasons: Optional[List[Seasons]] = None
   
