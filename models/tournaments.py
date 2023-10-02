@@ -26,7 +26,6 @@ class MongoBaseModel(BaseModel):
 
   class Config:
     json_encoders = {ObjectId: str}
-    
 
 
 # sub documents
