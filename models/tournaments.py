@@ -52,10 +52,12 @@ class Matches(BaseModel):
   published: bool = Field(...)
   
 class Matchdays(BaseModel):
-  matchday_name: str = Field(...)
-  matchday_type: str = Field(...)
+  name: str = Field(...)
+  type: str = Field(...) # make enum, "Playoffs", "Round Robin"
   start_date: date = None
   end_date: date = None
+  create_standings: bool = Field(...)
+  create_stats: bool = Field(...)
   published: bool = Field(...)
   matches: List[Matches] = None
   standings: List[Standings] = None
@@ -86,6 +88,7 @@ class TournamentBase(MongoBaseModel):
   external: bool = False
   website: HttpUrl = None
   seasons: List[Seasons] = None
+  legacy_id: int = None
 
 class TournamentDB(TournamentBase):
   pass
