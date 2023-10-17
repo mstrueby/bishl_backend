@@ -48,6 +48,8 @@ class Matches(BaseModel):
   venue: str = None
   home_score: int = None
   away_score: int = None
+  overtime: bool = None
+  shootout: bool = None
   start_time: date = None
   published: bool = Field(...)
   

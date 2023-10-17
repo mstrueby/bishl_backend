@@ -184,6 +184,34 @@ match collection:
         print("ERROR at ", rec['t_tiny_name'], '/', rec['season_year'], '/', rec['r_name'], '/', rec['name'])
         print(e)
         exit()
+
+    # add MATCHES
+    with open("data/data_matches.csv", encoding='utf-8') as f:
+      csv_reader = csv.DictReader(f)
+      name_records = list(csv_reader)
+      
+    for rec in name_records:
+      try:
+        rec['season_year'] = int(rec['season_year'])
+        rec['home_score'] = int(rec['home_score'])
+        rec['away_score'] = int(rec['away_score'])
+        rec['overtime'] = bool(rec['overtime'])
+        rec['shootout'] = bool(rec['shootout'])
+        rec['published'] = bool(rec['published'])
+        rec['start_time'] = datetime.strptime(rec['start_time'], '%Y-%m-%d %H:%M:%S') if rec['start_time'] else None
+
+        db_collection=db["tournaments"]
+        filter= {'tiny_name': rec['t_tiny_name']}
+        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays.$[md].matches" : { "match_id" : rec['match_id'], "home_team": rec['home_team'], "away_team": rec['away_team'], "status": rec['status'], "venue": rec['venue'], "home_score": rec['home_score'], "away_score": rec['home_score'], "away_score": rec['away_score'], "overtime": rec['overtime'], "shootout": rec['shootout'],  "start_time": rec['start_time'], "published" : rec['published'] } } }
+        array_filters=[{"y.year" : rec['season_year']}, {"r.name" : rec['r_name']}, {"md.name" : rec['md_name']}]
+        
+        print("Inserting Matches: ", filter, '/', new_value)
+        db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
+
+      except ValueError as e:
+        print("ERROR at ", rec['t_tiny_name'], '/', rec['season_year'], '/', rec['r_name'], '/', rec['md_name'], '/', rec['match_id'])
+        print(e)
+        exit()
         
   case _:
     print("Unknown parameter value!")

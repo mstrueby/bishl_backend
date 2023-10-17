@@ -189,7 +189,38 @@ order by seasonyear desc, startdate;
     set g.round=s.shortname
     where id_fk_championship in (26)
     and g.seasonyear=2023
-  
+
+
+-- get MATCHES data
+-- -----------------
+select
+  cs.py_code as t_tiny_name,
+  g.SeasonYear as season_year,
+  cs.py_round as r_name,
+  COALESCE(g.Round, 'ALL_GAMES') as md_name,
+  g.id_tblGame as match_id,
+  th.Name as home_team,
+  ta.Name as away_team,
+  gs.Name as status,
+  s.Name as venue,
+  st.GoalsH as home_scrore,
+  st.GoalsA as away_score,
+  g.IsOvertime,
+  g.IsShootout,
+  g.startdate as start_time,
+  'True' as published
+from tblgame as g
+join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
+join tblgamestatus as gs on g.id_fk_GameStatus=gs.id_tblGameStatus
+join tblstadium as s on g.id_fk_Stadium=s.id_tblStadium
+join tblteamseason as th on g.id_fk_TeamHome=th.id_fk_Team and g.SeasonYear=th.SeasonYear
+join tblteamseason as ta on g.id_fk_TeamAway=ta.id_fk_Team and g.SeasonYear=ta.SeasonYear
+left join tblgamestats as st on g.id_tblgame = st.id_fk_game
+where g.SeasonYear in (2023)
+and cs.id_tblchampionship not in (-1, 46)
+and id_fk_gamestatus in (2,4)
+
+
   -- data preparation
 SELECT * FROM `tblchampionship` where name like '%Playoffs%'
 update  `tblchampionship` set py_round='Playoffs' where name like '%Playoffs%'
