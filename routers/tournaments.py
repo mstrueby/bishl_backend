@@ -31,11 +31,11 @@ async def list_tournaments(
   return results
 
 
-# get tournament by ID
+# get tournament by ID or TINY_NAME
 @router.get("/{id}", response_description="Get a single tournament")
 async def get_tournament(id: str, request: Request):
   if (tournament := await
-      request.app.mongodb["tournaments"].find_one({"_id": id})) is not None:
+      request.app.mongodb["tournaments"].find_one({"$or": [{"_id": id},{"tiny_name": id}]})) is not None:
     return TournamentDB(**tournament)
   raise HTTPException(status_code=404, detail=f"Tournament with {id} not found")
 
