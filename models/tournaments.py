@@ -68,6 +68,8 @@ class Rounds(BaseModel):
   name: str = Field(...)
   create_standings: bool = Field(...)
   create_stats: bool = Field(...)
+  start_date: date = None
+  end_date: date = None
   published: bool = Field(...)
   matchdays: List[Matchdays] = None
   standings: List[Standings] = None
