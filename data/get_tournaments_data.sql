@@ -75,21 +75,25 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
 
 -- get ROUNDS data
 -- -----------------------
-select distinct
-  tcs.SeasonYear as season_year,
-  cs.py_code as t_tiny_name,
-  cs.py_round as name,
-  case cs.CreateTable when 1 then 'True' else '' end as create_standings, 
-  cs.CreateTableByRound,
-  'True' as create_stats,
-  'True' as published
-from tblteamchampionship tcs
-join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
-where 1=1
-and tcs.SeasonYear in (2022, 2023)
-and cs.IsExtern=0
-and cs.id_fk_AgeGroup>0
-ORDER BY 1,2,3
+  select distinct
+    tcs.SeasonYear as season_year,
+    cs.py_code as t_tiny_name,
+    cs.py_round as name,
+    case cs.CreateTable when 1 then 'True' else '' end as create_standings, 
+    cs.CreateTableByRound,
+    min(date(g.StartDate)) as start_date,
+    max(date(g.StartDate)) as end_date,
+    'True' as create_stats,
+    'True' as published
+  from tblteamchampionship tcs
+  join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
+  join tblgame g on tcs.SeasonYear=g.SeasonYear and cs.id_tblChampionship=g.id_fk_Championship
+  where 1=1
+  and tcs.SeasonYear in (2022, 2023)
+  and cs.IsExtern=0
+  and cs.id_fk_AgeGroup>0
+  group by tcs.SeasonYear, cs.py_code, cs.py_round, cs.CreateTable, cs.CreateTableByRound
+  ORDER BY 1,2,3
 
 
 -- get MATCHDAYS data
@@ -100,7 +104,7 @@ select
   COALESCE(g.Round, 'ALL_GAMES') as name,
   case when cs.py_round = 'Playoffs' then 'Playoffs' else 'Round Robin' end as type,
   date(min(g.startdate)) as start_date,
-  case when date(max(g.startdate)) > date(min(g.startdate)) then date(max(g.startdate)) else '' end as end_date,
+  date(max(g.startdate)) as end_date,
   case when cs.CreateTableByRound = 1 then 'True' else '' end as create_standings,
   '' as create_stats,
   'True' as published
@@ -216,7 +220,7 @@ join tblstadium as s on g.id_fk_Stadium=s.id_tblStadium
 join tblteamseason as th on g.id_fk_TeamHome=th.id_fk_Team and g.SeasonYear=th.SeasonYear
 join tblteamseason as ta on g.id_fk_TeamAway=ta.id_fk_Team and g.SeasonYear=ta.SeasonYear
 left join tblgamestats as st on g.id_tblgame = st.id_fk_game
-where g.SeasonYear in (2023)
+where g.SeasonYear in (2022,2023)
 and cs.id_tblchampionship not in (-1, 46)
 and id_fk_gamestatus in (2,4)
 

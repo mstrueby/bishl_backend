@@ -144,10 +144,12 @@ match collection:
         rec['create_standings'] = bool(rec['create_standings'])
         rec['create_stats'] = bool(rec['create_stats'])
         rec['published'] = bool(rec['published'])
+        rec['start_date'] = datetime.strptime(rec['start_date'], '%Y-%m-%d') if rec['start_date'] else None
+        rec['end_date'] = datetime.strptime(rec['end_date'], '%Y-%m-%d') if rec['end_date'] else None
 
         db_collection=db["tournaments"]
         filter= {'tiny_name': rec['t_tiny_name']}
-        new_value={"$push" : { "seasons.$[year].rounds" : { "name" : rec['name'], "create_standings" : rec['create_standings'], "create_stats" : rec['create_stats'], "published" : rec['published'] } } }
+        new_value={"$push" : { "seasons.$[year].rounds" : { "name" : rec['name'], "create_standings" : rec['create_standings'], "create_stats" : rec['create_stats'], "published" : rec['published'], "start_date" : rec['start_date'], "end_date" : rec['end_date'] } } }
         array_filters=[{"year.year" : rec['season_year']}]
         
         print("Inserting Round: ", filter, '/', new_value)
