@@ -76,23 +76,25 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
 -- get ROUNDS data
 -- -----------------------
   select distinct
-    tcs.SeasonYear as season_year,
-    cs.py_code as t_tiny_name,
-    cs.py_round as name,
-    case cs.CreateTable when 1 then 'True' else '' end as create_standings, 
-    cs.CreateTableByRound,
-    min(date(g.StartDate)) as start_date,
-    max(date(g.StartDate)) as end_date,
-    'True' as create_stats,
-    'True' as published
-  from tblteamchampionship tcs
-  join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
-  join tblgame g on tcs.SeasonYear=g.SeasonYear and cs.id_tblChampionship=g.id_fk_Championship
-  where 1=1
-  and tcs.SeasonYear in (2022, 2023)
-  and cs.IsExtern=0
-  and cs.id_fk_AgeGroup>0
-  group by tcs.SeasonYear, cs.py_code, cs.py_round, cs.CreateTable, cs.CreateTableByRound
+      tcs.SeasonYear as season_year,
+      cs.py_code as t_tiny_name,
+      cs.py_round as name,
+      case cs.CreateTable and cs.CreateTableByRound=0 when 1 then 'True' else '' end as create_standings, 
+      cs.py_md_type as matchdays_type,
+      cs.py_md_sort as matchdays_sorted_by,
+      cs.CreateTableByRound,
+      min(date(g.StartDate)) as start_date,
+      max(date(g.StartDate)) as end_date,
+      'True' as create_stats,
+      'True' as published
+    from tblteamchampionship tcs
+    join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
+    join tblgame g on tcs.SeasonYear=g.SeasonYear and cs.id_tblChampionship=g.id_fk_Championship
+    where 1=1
+    and tcs.SeasonYear in (2022, 2023)
+    and cs.IsExtern=0
+    and cs.id_fk_AgeGroup>0
+    group by tcs.SeasonYear, cs.py_code, cs.py_round, cs.CreateTable, cs.CreateTableByRound  
   ORDER BY 1,2,3
 
 
@@ -207,10 +209,10 @@ select
   ta.Name as away_team,
   gs.Name as status,
   s.Name as venue,
-  st.GoalsH as home_scrore,
+  st.GoalsH as home_score,
   st.GoalsA as away_score,
-  g.IsOvertime,
-  g.IsShootout,
+  g.IsOvertime as overtime,
+  g.IsShootout as shootout,
   g.startdate as start_time,
   'True' as published
 from tblgame as g
