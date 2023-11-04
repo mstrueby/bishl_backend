@@ -29,7 +29,8 @@ class MongoBaseModel(BaseModel):
 
 
 # sub documents
-  
+
+
 class Standings(BaseModel):
   team: str = Field(...)
   games_played: int = Field(...)
@@ -39,6 +40,7 @@ class Standings(BaseModel):
 
 
 # ------------
+
 
 class Matches(BaseModel):
   match_id: str = Field(...)
@@ -52,10 +54,11 @@ class Matches(BaseModel):
   shootout: bool = None
   start_time: date = None
   published: bool = Field(...)
-  
+
+
 class Matchdays(BaseModel):
   name: str = Field(...)
-  type: str = Field(...) # make enum, "Playoffs", "Round Robin"
+  type: str = Field(...)  # make enum, "Playoffs", "Round Robin"
   start_date: date = None
   end_date: date = None
   create_standings: bool = Field(...)
@@ -63,16 +66,20 @@ class Matchdays(BaseModel):
   published: bool = Field(...)
   matches: List[Matches] = None
   standings: List[Standings] = None
-  
+
+
 class Rounds(BaseModel):
   name: str = Field(...)
   create_standings: bool = Field(...)
   create_stats: bool = Field(...)
+  matchdays_type: str = Field(...)
+  matchdays_sorted_by: str = Field(...)
   start_date: date = None
   end_date: date = None
   published: bool = Field(...)
   matchdays: List[Matchdays] = None
   standings: List[Standings] = None
+
 
 class Seasons(BaseModel):
   year: int = Field(...)
@@ -81,6 +88,7 @@ class Seasons(BaseModel):
 
 
 # --------
+
 
 class TournamentBase(MongoBaseModel):
   name: str = Field(...)
@@ -94,8 +102,10 @@ class TournamentBase(MongoBaseModel):
   seasons: List[Seasons] = None
   legacy_id: int = None
 
+
 class TournamentDB(TournamentBase):
   pass
+
 
 class TournamentUpdate(MongoBaseModel):
   name: Optional[str] = None
@@ -107,4 +117,3 @@ class TournamentUpdate(MongoBaseModel):
   external: Optional[bool] = None
   website: Optional[HttpUrl] = None
   seasons: Optional[List[Seasons]] = None
-  

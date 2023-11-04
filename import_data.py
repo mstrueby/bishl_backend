@@ -149,7 +149,7 @@ match collection:
 
         db_collection=db["tournaments"]
         filter= {'tiny_name': rec['t_tiny_name']}
-        new_value={"$push" : { "seasons.$[year].rounds" : { "name" : rec['name'], "create_standings" : rec['create_standings'], "create_stats" : rec['create_stats'], "published" : rec['published'], "start_date" : rec['start_date'], "end_date" : rec['end_date'] } } }
+        new_value={"$push" : { "seasons.$[year].rounds" : { "name" : rec['name'], "create_standings" : rec['create_standings'], "create_stats" : rec['create_stats'], "published" : rec['published'], "start_date" : rec['start_date'], "end_date" : rec['end_date'], "matchdays_type" : rec['matchdays_type'], "matchdays_sorted_by" : rec['matchdays_sorted_by'] } } }
         array_filters=[{"year.year" : rec['season_year']}]
         
         print("Inserting Round: ", filter, '/', new_value)
