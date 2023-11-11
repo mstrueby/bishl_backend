@@ -16,3 +16,17 @@ select
 	id as legacyId
 from jos_bishl_club
 
+-- get Venues
+
+select
+  name,
+  shortname as shortName,
+  addressline1 as street,
+  postalcode as zipCode,
+  city,
+  'Deutschland' as country,
+  lat as latitude,
+  lng as longitude,
+  case isactive when 1 then 'True' else '' end as active,
+  id_tblstadium as legacyId
+from tblstadium v

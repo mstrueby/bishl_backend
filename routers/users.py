@@ -69,9 +69,3 @@ async def me(request: Request, userId=Depends(auth.auth_wrapper)) -> str:
   response = CurrentUser(**user).dict()
   response["id"] = userId
   return JSONResponse(status_code=status.HTTP_200_OK, content=response)
-
-
-# logout user
-@router.post("/logout", response_description="Logout a user")
-async def logout(request: Request) -> str:
-  return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Successfully logged out"})

@@ -34,6 +34,7 @@ class MongoBaseModel(BaseModel):
 
 class VenueBase(MongoBaseModel):
   name: str = Field(...)
+  alias: str = Field(...)
   shortName: str = Field(...)
   street: str = Field(...)
   zipCode: str = Field(...)
@@ -53,6 +54,7 @@ class VenueDB(VenueBase):
 
 class VenueUpdate(MongoBaseModel):
   name: Optional[str] = None
+  alias: Optional[str] = None
   shortName: Optional[str] = None
   street: Optional[str] = None
   zipCode: Optional[str] = None

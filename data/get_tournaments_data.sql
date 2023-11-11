@@ -3,20 +3,18 @@
 select 
 	cs.name as name,
   replace(
-	replace(
-	replace(
-	replace(
-	replace(
-	replace(
-	replace(
-	lower(trim(cs.name)), ' ', '-')
-	, 'ü', 'ue')
-	, 'ö', 'oe')
-	, 'ä' ,'ae')
-	, 'ß', 'ss')
-	, '`', '-')
-	, '.', '')
-   as alias,
+    replace(
+      replace(
+        replace(  
+          replace(
+            replace(
+              replace(lower(trim(cs.name)), ' ', '-')
+	          , 'ü', 'ue')
+          , 'ö', 'oe')
+        , 'ä' ,'ae')
+      , 'ß', 'ss')
+    , '`', '-')
+  , '.', '') as alias,
   cs.Code as tiny_name,
   ag.Name as age_group,
   'True' as published,
