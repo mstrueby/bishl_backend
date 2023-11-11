@@ -1,17 +1,27 @@
 -- get Venues
 
 select
-	name,
-	short_name as shortName,
-	address_one as street,
-	zip_code as zipCode,
-	city,
-	'Deutschland' as country,
-	latitude,
-	longitude,
-	image,
-	description,
-	case published when 1 then 'True' else '' end as active,
-	id as legacyId
-from jos_bishl_venue v
-
+  name,
+  replace(
+      replace(
+          replace(
+              replace(  
+                  replace(
+                      replace(
+                          replace(lower(trim(v.name)), ' ', '-')
+                          , 'ü', 'ue')
+                      , 'ö', 'oe')
+                  , 'ä' ,'ae')
+              , 'ß', 'ss')
+          , '`', '-')
+      , '.', '') as alias,
+  shortname as shortName,
+  addressline1 as street,
+  postalcode as zipCode,
+  city,
+  'Deutschland' as country,
+  lat as latitude,
+  lng as longitude,
+  case isactive when 1 then 'True' else '' end as active,
+  id_tblstadium as legacyId
+from tblstadium v

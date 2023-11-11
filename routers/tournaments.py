@@ -1,11 +1,14 @@
 import os
 from typing import List, Optional
-from fastapi import APIRouter, Request, Body, status, HTTPException
+from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
+from authentication import AuthHandler
 
 router = APIRouter()
+auth = AuthHandler()
+
 
 # list all tournaments
 @router.get("/", response_description="List all tournaments")
@@ -27,7 +30,9 @@ async def list_tournaments(
     query["year"] = year
   full_query = request.app.mongodb["tournaments"].find(query).sort(
     "year", -1).skip(skip).limit(RESULTS_PER_PAGE)
-  results = [TournamentDB(**raw_tournament) async for raw_tournament in full_query]
+  results = [
+    TournamentDB(**raw_tournament) async for raw_tournament in full_query
+  ]
   return results
 
 
@@ -35,16 +40,23 @@ async def list_tournaments(
 @router.get("/{alias}", response_description="Get a single tournament")
 async def get_tournament(alias: str, request: Request):
   if (tournament := await
-      request.app.mongodb["tournaments"].find_one({"alias": alias})) is not None:
+      request.app.mongodb["tournaments"].find_one({"alias":
+                                                   alias})) is not None:
     return TournamentDB(**tournament)
-  raise HTTPException(status_code=404, detail=f"Tournament with alias {alias} not found")
+  raise HTTPException(status_code=404,
+                      detail=f"Tournament with alias {alias} not found")
 
 
 # create new tournament
 @router.post("/", response_description="Add new tournament")
-async def create_tournament(request: Request, tournament: TournamentBase = Body(...)):
+async def create_tournament(
+    request: Request,
+    tournament: TournamentBase = Body(...),
+    userId=Depends(auth.auth_wrapper),
+):
   tournament = jsonable_encoder(tournament)
-  new_tournament = await request.app.mongodb["tournaments"].insert_one(tournament)
+  new_tournament = await request.app.mongodb["tournaments"].insert_one(
+    tournament)
   created_tournament = await request.app.mongodb["tournaments"].find_one(
     {"_id": new_tournament.inserted_id})
   return JSONResponse(status_code=status.HTTP_201_CREATED,
@@ -52,22 +64,29 @@ async def create_tournament(request: Request, tournament: TournamentBase = Body(
 
 
 # update tournament
-@router.patch("/{id}", response_description="Update tournament")
+@router.patch("/{alias}", response_description="Update tournament")
 async def update_tournament(request: Request,
-                        id: str,
-                        tournament: TournamentUpdate = Body(...)):
+                            alias: str,
+                            tournament: TournamentUpdate = Body(...),
+                            user_id=Depends(auth.auth_wrapper)):
   await request.app.mongodb['tournaments'].update_one(
-    {"_id": id}, {"$set": tournament.dict(exclude_unset=True)})
+    {"alias": alias}, {"$set": tournament.dict(exclude_unset=True)})
   if (tournament := await
-      request.app.mongodb['tournaments'].find_one({"_id": id})) is not None:
+      request.app.mongodb['tournaments'].find_one({"alias":
+                                                   alias})) is not None:
     return TournamentDB(**tournament)
-  raise HTTPException(status_code=404, detail=f"Tournament with {id} not found")
+  raise HTTPException(status_code=404,
+                      detail=f"Tournament with alias {alias} not found")
 
 
 # delete tournament
-@router.delete("/{id}", response_description="Delete tournament")
-async def delete_tournament(request: Request, id: str):
-  result = await request.app.mongodb['tournaments'].delete_one({"_id": id})
+@router.delete("/{alias}", response_description="Delete tournament")
+async def delete_tournament(request: Request,
+                            alias: str,
+                            user_id=Depends(auth.auth_wrapper)):
+  result = await request.app.mongodb['tournaments'].delete_one(
+    {"alias": alias})
   if result.deleted_count == 1:
     return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
-  raise HTTPException(status_code=404, detail=f"Tournament with {id} not found")
+  raise HTTPException(status_code=404,
+                      detail=f"Tournament with alias {alias} not found")

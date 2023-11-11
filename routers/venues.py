@@ -9,6 +9,7 @@ from authentication import AuthHandler
 router = APIRouter()
 auth = AuthHandler()
 
+
 # list all venues
 @router.get("/", response_description="List all venues")
 async def list_venues(
@@ -30,9 +31,9 @@ async def list_venues(
 # create new venue
 @router.post("/", response_description="Add new venue")
 async def create_venue(
-  request: Request, 
-  venue: VenueBase = Body(...),
-  userId = Depends(auth.auth_wrapper),  
+    request: Request,
+    venue: VenueBase = Body(...),
+    userId=Depends(auth.auth_wrapper),
 ):
   venue = jsonable_encoder(venue)
   new_venue = await request.app.mongodb["venues"].insert_one(venue)
@@ -44,36 +45,41 @@ async def create_venue(
 
 
 # get venue by ID
-@router.get("/{id}", response_description="Get a single venue")
-async def get_venue(id: str, request: Request):
-  if (venue := await request.app.mongodb["venues"].find_one({"_id":
-                                                             id})) is not None:
+@router.get("/{alias}", response_description="Get a single venue")
+async def get_venue(alias: str, request: Request):
+  if (venue := await
+      request.app.mongodb["venues"].find_one({"alias": alias})) is not None:
     return VenueDB(**venue)
-  raise HTTPException(status_code=404, detail=f"Venue with {id} not found")
+  raise HTTPException(status_code=404,
+                      detail=f"Venue with alias {alias} not found")
 
 
 # Update venue
-@router.patch("/{id}", response_description="Update venue")
+@router.patch("/{alias}", response_description="Update venue")
 async def update_venue(
-  request: Request,
-  id: str,
-  venue: VenueUpdate = Body(...),
-  userId = Depends(auth.auth_wrapper),
+    request: Request,
+    alias: str,
+    venue: VenueUpdate = Body(...),
+    userId=Depends(auth.auth_wrapper),
 ):
   await request.app.mongodb['venues'].update_one(
-    {"_id": id}, {"$set": venue.dict(exclude_unset=True)})
-  if (venue := await request.app.mongodb['venues'].find_one({"_id": id})) is not None:
+    {"alias": alias}, {"$set": venue.dict(exclude_unset=True)})
+  if (venue := await
+      request.app.mongodb['venues'].find_one({"alias": alias})) is not None:
     return VenueDB(**venue)
-  raise HTTPException(status_code=404, detail=f"Venue with {id} not found")
+  raise HTTPException(status_code=404,
+                      detail=f"Venue with alias {alias} not found")
 
 
 # Delete venue
-@router.delete("/{id}", response_description="Delete venue")
+@router.delete("/{alias}", response_description="Delete venue")
 async def delete_venue(
-  request: Request, id: str,
-  userId = Depends(auth.auth_wrapper),
+    request: Request,
+    alias: str,
+    userId=Depends(auth.auth_wrapper),
 ):
-  result = await request.app.mongodb['venues'].delete_one({"_id": id})
+  result = await request.app.mongodb['venues'].delete_one({"alias": alias})
   if result.deleted_count == 1:
     return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
-  raise HTTPException(status_code=404, detail=f"Venue with {id} not found")
+  raise HTTPException(status_code=404,
+                      detail=f"Venue with alias {alias} not found")
