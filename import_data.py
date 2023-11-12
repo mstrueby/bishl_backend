@@ -37,8 +37,8 @@ match collection:
     db_collection.delete_many({})
     for rec in name_records:
       try:
-        rec['latitude'] = float(rec['latitude'])
-        rec['longitude'] = float(rec['longitude'])
+        #rec['latitude'] = float(rec['latitude'])
+        #rec['longitude'] = float(rec['longitude'])
         rec['active'] = bool(rec['active'])
         rec['legacyId'] = int(rec['legacyId'])
 

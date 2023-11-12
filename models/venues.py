@@ -40,8 +40,8 @@ class VenueBase(MongoBaseModel):
   zipCode: str = Field(...)
   city: str = Field(...)
   country: str = Field(...)
-  latitude: float = Field(...)
-  longitude: float = Field(...)
+  latitude: str = Field(...)
+  longitude: str = Field(...)
   image: str = None
   description: str = None
   active: bool = False
@@ -60,8 +60,8 @@ class VenueUpdate(MongoBaseModel):
   zipCode: Optional[str] = None
   city: Optional[str] = None
   country: Optional[str] = None
-  latitude: Optional[float] = None
-  longitude: Optional[float] = None
+  latitude: Optional[str] = None
+  longitude: Optional[str] = None
   image: Optional[str] = None
   description: Optional[str] = None
   active: Optional[bool] = None
