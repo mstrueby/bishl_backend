@@ -25,3 +25,4 @@ select
   case isactive when 1 then 'True' else '' end as active,
   id_tblstadium as legacyId
 from tblstadium v
+where v.id_tblstadium >0
