@@ -5,6 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from models.venues import VenueBase, VenueDB, VenueUpdate
 from authentication import AuthHandler
+from pymongo.errors import DuplicateKeyError  # Added import here
 
 router = APIRouter()
 auth = AuthHandler()
@@ -36,12 +37,16 @@ async def create_venue(
     userId=Depends(auth.auth_wrapper),
 ):
   venue = jsonable_encoder(venue)
-  new_venue = await request.app.mongodb["venues"].insert_one(venue)
-  created_venue = await request.app.mongodb["venues"].find_one(
-    {"_id": new_venue.inserted_id})
 
-  return JSONResponse(status_code=status.HTTP_201_CREATED,
-                      content=created_venue)
+  try:
+    new_venue = await request.app.mongodb["venues"].insert_one(venue)
+    created_venue = await request.app.mongodb["venues"].find_one(
+      {"_id": new_venue.inserted_id})
+    return JSONResponse(status_code=status.HTTP_201_CREATED,
+                        content=created_venue)
+  except DuplicateKeyError:
+    raise HTTPException(status_code=400,
+                        detail=f"Venue {venue['name']} already exists.")
 
 
 # get venue by ID
@@ -62,14 +67,22 @@ async def update_venue(
     venue: VenueUpdate = Body(...),
     userId=Depends(auth.auth_wrapper),
 ):
-  await request.app.mongodb['venues'].update_one(
-    {"alias": alias}, {"$set": venue.dict(exclude_unset=True)})
-  if (venue := await
-      request.app.mongodb['venues'].find_one({"alias": alias})) is not None:
-    return VenueDB(**venue)
-  raise HTTPException(status_code=404,
-                      detail=f"Venue with alias {alias} not found")
+  try:
+    update_result = await request.app.mongodb['venues'].update_one(
+      {"alias": alias}, {"$set": venue.dict(exclude_unset=True)})
 
+    if update_result.modified_count == 1:
+      if (updated_venue := await request.app.mongodb['venues'].find_one({"alias": alias})) is not None:
+        return VenueDB(**updated_venue)
+
+    if (existing_venue := await request.app.mongodb['venues'].find_one({"alias": alias})) is not None:
+      return existing_venue
+
+    raise HTTPException(status_code=404, detail=f"Venue with alias {alias} not found")
+  
+  except DuplicateKeyError:
+    raise HTTPException(status_code=400, detail=f"Update failed: another venue with name {venue.name} already exists.")
+    
 
 # Delete venue
 @router.delete("/{alias}", response_description="Delete venue")
