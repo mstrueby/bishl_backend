@@ -34,17 +34,18 @@ class MongoBaseModel(BaseModel):
 
 class ClubBase(MongoBaseModel):
   name: str = Field(...)
+  alias: str = Field(...)
   addressName: str = None
   street: str = None
   zipCode: str = None
   city: str = None
   country: str = Field(...)
   email: EmailStr = None
-  dateOfFoundation: date = None
+  yearOfFoundation: int = None
   description: str = None
   website: HttpUrl = None
   ishdId: int = None
-  active: bool = False
+  published: bool = False
   legacyId: int = None
 
 
@@ -54,15 +55,16 @@ class ClubDB(ClubBase):
 
 class ClubUpdate(MongoBaseModel):
   name: Optional[str] = None
+  alias: Optional[str] = None
   addressName: Optional[str] = None
   street: Optional[str] = None
   zipCode: Optional[str] = None
   city: Optional[str] = None
   country: Optional[str] = None
   email: Optional[EmailStr] = None
-  dateOfFoundation: Optional[date] = None
+  yearOfFoundation: Optional[int] = None
   description: Optional[str] = None
   website: Optional[HttpUrl] = None
   ishdId: Optional[int] = None
-  active: Optional[bool] = False
+  published: Optional[bool] = False
   legacyId: Optional[int] = None
