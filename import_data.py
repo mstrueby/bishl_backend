@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from fastapi.encoders import jsonable_encoder
 import certifi
+from urllib.parse import urlparse
 
 # dotenv environment variables
 from dotenv import dotenv_values
@@ -13,6 +14,14 @@ from models.clubs import ClubBase
 from models.venues import VenueBase
 from models.teams import TeamBase
 from models.tournaments import TournamentBase
+
+def is_valid_url(url):
+  try:
+      result = urlparse(url)
+      # Checking if the URL has the scheme and netloc attributes which are part of a valid URL.
+      return all([result.scheme, result.netloc])
+  except Exception:
+      return False
 
 config = dotenv_values(".env")
 collection = sys.argv[1]
@@ -57,10 +66,13 @@ match collection:
     for rec in name_records:
       try:
         rec['email'] = str(rec['email']) if rec['email'] else None
-        rec['dateOfFoundation'] = str(rec['dateOfFoundation']) if rec['dateOfFoundation'] else None
+        #rec['dateOfFoundation'] = datetime.strptime(rec['dateOfFoundation'], '%Y-%m-%d') if rec['dateOfFoundation'] else None
+        rec['yearOfFoundation'] = int(rec['yearOfFoundation']) if rec['yearOfFoundation'] else None
+
+        #rec['website'] = is_valid_url(rec['website']) if rec['website'] else None
         rec['website'] = str(rec['website']) if rec['website'] else None
         rec['ishdId'] = int(rec['ishdId']) if rec['ishdId'] else None
-        rec['active'] = bool(rec['active'])
+        rec['published'] = bool(rec['published'])
         rec['legacyId'] = int(rec['legacyId'])
 
         club = jsonable_encoder(ClubBase(**rec))  
@@ -219,3 +231,4 @@ match collection:
     print("Unknown parameter value!")
     
 print("SUCCESS")
+

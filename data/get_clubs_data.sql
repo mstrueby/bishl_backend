@@ -1,32 +1,29 @@
 -- get Clubs
-
 select
-	name,
-	concat(address_one, char(10), address_two) as addressName,
-	address_three as street,
-    zip_code as zipCode,
-	city,
-	'Deutschland' as country,
-    email,
-    founded_date as dateOfFoundation,
-	-- description,
-    website,
-    ishd_id as ishdId,
-	case published when 1 then 'True' else '' end as active,
-	id as legacyId
-from jos_bishl_club
-
--- get Venues
-
-select
-  name,
-  shortname as shortName,
-  addressline1 as street,
-  postalcode as zipCode,
-  city,
-  'Deutschland' as country,
-  lat as latitude,
-  lng as longitude,
-  case isactive when 1 then 'True' else '' end as active,
-  id_tblstadium as legacyId
-from tblstadium v
+    c.name,
+    replace(
+    replace(
+      replace(
+        replace(  
+          replace(
+            replace(
+              replace(lower(trim(c.name)), ' ', '-')
+              , 'ü', 'ue')
+            , 'ö', 'oe')
+          , 'ä' ,'ae')
+        , 'ß', 'ss')
+      , '`', '-')
+    , '.', '') as alias,
+    concat(c.AddressLine1, ', ' , c.AddressLine2) as addressName,
+    c.AddressLine3 as street,
+    c.PostalCode as zipCode,
+    c.City,
+    'Deutschland' as country,
+    c.EMail as email,
+    year(c.DateFounded) as yearOfFoundation,    
+    c.WebPage as website,
+    c.ISHDID as ishdId,
+    case c.IsActive when 1 then 'True' else '' end as published,
+    c.id_tblClub as legacyId
+from tblclub c
+where c.id_tblClub>0

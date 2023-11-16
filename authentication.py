@@ -1,4 +1,5 @@
 import jwt
+import os
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
@@ -18,7 +19,7 @@ class AuthHandler:
 
   def encode_token(self, user_id):
     payLoad = {
-      "exp": datetime.utcnow() + timedelta(days=0, minutes=35),
+      "exp": datetime.utcnow() + timedelta(days=0, minutes= int(os.environ['API_TIMEOUT_MIN'])),
       "iat": datetime.utcnow(),
       "sub": user_id,
     }
