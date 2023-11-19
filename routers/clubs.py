@@ -36,6 +36,7 @@ async def create_club(
     userId=Depends(auth.auth_wrapper),
 ):
   club = jsonable_encoder(club)
+
   try:
     new_club = await request.app.mongodb["clubs"].insert_one(club)
     created_club = await request.app.mongodb["clubs"].find_one(
