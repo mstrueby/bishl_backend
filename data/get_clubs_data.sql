@@ -23,7 +23,7 @@ select
     year(c.DateFounded) as yearOfFoundation,    
     c.WebPage as website,
     c.ISHDID as ishdId,
-    case c.IsActive when 1 then 'True' else '' end as published,
+    case c.IsActive when 1 then 'True' else '' end as active,
     c.id_tblClub as legacyId
 from tblclub c
 where c.id_tblClub>0

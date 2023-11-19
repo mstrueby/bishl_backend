@@ -72,7 +72,7 @@ match collection:
         #rec['website'] = is_valid_url(rec['website']) if rec['website'] else None
         rec['website'] = str(rec['website']) if rec['website'] else None
         rec['ishdId'] = int(rec['ishdId']) if rec['ishdId'] else None
-        rec['published'] = bool(rec['published'])
+        rec['active'] = bool(rec['active'])
         rec['legacyId'] = int(rec['legacyId'])
 
         club = jsonable_encoder(ClubBase(**rec))  

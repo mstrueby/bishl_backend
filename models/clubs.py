@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import date
-from pydantic import Field, BaseModel, HttpUrl, EmailStr
+from pydantic import Field, BaseModel, HttpUrl, EmailStr, validator
 from typing import Optional, List
 
 
@@ -45,8 +45,17 @@ class ClubBase(MongoBaseModel):
   description: str = None
   website: HttpUrl = None
   ishdId: int = None
-  published: bool = False
+  active: bool = False
   legacyId: int = None
+
+  @validator('email',
+             'website',
+             'yearOfFoundation',
+             'ishdId',
+             pre=True,
+             always=True)
+  def empty_str_to_none(cls, v):
+    return None if v == "" else v
 
 
 class ClubDB(ClubBase):
@@ -66,5 +75,9 @@ class ClubUpdate(MongoBaseModel):
   description: Optional[str] = None
   website: Optional[HttpUrl] = None
   ishdId: Optional[int] = None
-  published: Optional[bool] = False
+  active: Optional[bool] = False
   legacyId: Optional[int] = None
+
+  @validator('email', 'website', 'yearOfFoundation', 'ishdId', pre=True, always=True)
+  def empty_str_to_none(cls, v):
+      return None if v == "" else v
