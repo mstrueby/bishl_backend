@@ -47,6 +47,7 @@ class ClubBase(MongoBaseModel):
   ishdId: int = None
   active: bool = False
   legacyId: int = None
+  logo: str = None
 
   @validator('email',
              'website',
@@ -77,6 +78,7 @@ class ClubUpdate(MongoBaseModel):
   ishdId: Optional[int] = None
   active: Optional[bool] = False
   legacyId: Optional[int] = None
+  logo: Optional[str] = None
 
   @validator('email', 'website', 'yearOfFoundation', 'ishdId', pre=True, always=True)
   def empty_str_to_none(cls, v):
