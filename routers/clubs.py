@@ -52,24 +52,22 @@ async def list_venues(
 # create new club
 @router.post("/", response_description="Add new club")
 async def create_club(
-  request: Request,
-  #club: ClubBase = Body(...),
-  name: str = Form("name"),
-  alias: str = Form("alias"),
-  addressName: Optional[str] = Form(None),
-  street: Optional[str] = Form(None),
-  zipCode: Optional[str] = Form(None),
-  city: Optional[str] = Form(None),
-  country: str = Form("country"),
-  email: Optional[str] = Form(None),
-  yearOfFoundation: Optional[int] = Form(None),
-  description: Optional[str] = Form(None),
-  website: Optional[str] = Form(None),
-  ishdId: Optional[int] = Form(None),
-  active: Optional[bool] = Form(False),
-  logo: Optional[UploadFile] = File(None),
-  
-  userId=Depends(auth.auth_wrapper),
+    request: Request,
+    name: str = Form(...),
+    alias: str = Form(...),
+    addressName: Optional[str] = Form(None),
+    street: Optional[str] = Form(None),
+    zipCode: Optional[str] = Form(None),
+    city: Optional[str] = Form(None),
+    country: str = Form(...),
+    email: Optional[str] = Form(None),
+    yearOfFoundation: Optional[int] = Form(None),
+    description: Optional[str] = Form(None),
+    website: Optional[str] = Form(None),
+    ishdId: Optional[int] = Form(None),
+    active: Optional[bool] = Form(False),
+    logo: Optional[UploadFile] = File(None),
+    userId=Depends(auth.auth_wrapper),
 ):
   if logo:
     result = cloudinary.uploader.upload(
@@ -93,8 +91,7 @@ async def create_club(
     city=city,
     country=country,
     email=email,
-    # if yearOfFoundation is empty, set it to None
-    yearOfFoundation = yearOfFoundation,
+    yearOfFoundation=yearOfFoundation,
     description=description,
     website=website,
     ishdId=ishdId,
@@ -127,36 +124,37 @@ async def get_club(alias: str, request: Request):
 # Update club
 @router.patch("/{id}", response_description="Update club")
 async def update_club(
-  request: Request,
-  id: str,
-  #club: ClubBase = Body(...),
-  name: str = Form("name"),
-  alias: str = Form("alias"),
-  addressName: str = Form("addressName"),
-  street: str = Form("street"),
-  zipCode: str = Form("zipCode"),
-  city: str = Form("city"),
-  country: str = Form("country"),
-  email: str = Form("email"),
-  yearOfFoundation: int = Form("yearOfFoundation"),
-  description: str = Form("description"),
-  website: str = Form("website"),
-  ishdId: int = Form("ishdId"),
-  active: bool = Form("active"),
-  logo: UploadFile = File(...),
-
-  userId=Depends(auth.auth_wrapper),
+    request: Request,
+    id: str,
+    name: str = Form(...),
+    alias: str = Form(...),
+    addressName: Optional[str] = Form(None),
+    street: Optional[str] = Form(None),
+    zipCode: Optional[str] = Form(None),
+    city: Optional[str] = Form(None),
+    country: str = Form(...),
+    email: Optional[str] = Form(None),
+    yearOfFoundation: Optional[int] = Form(None),
+    description: Optional[str] = Form(None),
+    website: Optional[str] = Form(None),
+    ishdId: Optional[int] = Form(None),
+    active: Optional[bool] = Form(False),
+    logo: Optional[UploadFile] = File(None),
+    userId=Depends(auth.auth_wrapper),
 ):
-  result = cloudinary.uploader.upload(
-    logo.file,
-    folder="logos",
-    public_id=f"{alias}",
-    overwrite=True,
-    crop="scale",
-    height=300,
-  )
-  url = result.get("url")
-  
+  if logo:
+    result = cloudinary.uploader.upload(
+      logo.file,
+      folder="logos",
+      public_id=f"{alias}",
+      overwrite=True,
+      crop="scale",
+      height=300,
+    )
+    url = result.get("url")
+  else:
+    url = None
+
   club = ClubDB(
     name=name,
     alias=alias,
@@ -174,12 +172,15 @@ async def update_club(
     logo=url,
   )
   club = jsonable_encoder(club)
-  
+
   exisitng_club = await request.app.mongodb["clubs"].find_one({"_id": id})
   if exisitng_club is None:
     raise HTTPException(status_code=404, detail=f"Club with id {id} not found")
   #Exclude unchanged data
-  club_to_update = {k: v for k, v in club.items() if v != exisitng_club.get(k) and k != '_id'}
+  club_to_update = {
+    k: v
+    for k, v in club.items() if v != exisitng_club.get(k) and k != '_id'
+  }
   if not club_to_update:
     return ClubDB(**exisitng_club)
   try:
@@ -196,6 +197,9 @@ async def update_club(
     raise HTTPException(
       status_code=400,
       detail=f"Club with name {club.get('name', '')} already exists.")
+  except Exception as e:
+    raise HTTPException(status_code=500,
+                        detail=f"An unexpected error occurred: {str(e)}")
 
 
 # Delete club
