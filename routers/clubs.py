@@ -142,36 +142,44 @@ async def update_club(
     logo: Optional[UploadFile] = File(None),
     userId=Depends(auth.auth_wrapper),
 ):
+  print("logo: " + str(logo))
+
   if logo:
     result = cloudinary.uploader.upload(
       logo.file,
       folder="logos",
       public_id=f"{alias}",
       overwrite=True,
-      crop="scale",
-      height=300,
+      crop="fit",
+      height=200,
     )
     url = result.get("url")
   else:
     url = None
 
-  club = ClubDB(
-    name=name,
-    alias=alias,
-    addressName=addressName,
-    street=street,
-    zipCode=zipCode,
-    city=city,
-    country=country,
-    email=email,
-    yearOfFoundation=yearOfFoundation,
-    description=description,
-    website=website,
-    ishdId=ishdId,
-    active=active,
-    logo=url,
-  )
+  print("url: " + str(url))
+  club_data = {
+    "name": name,
+    "alias": alias,
+    "addressName": addressName,
+    "street": street,
+    "zipCode": zipCode,
+    "city": city,
+    "country": country,
+    "email": email,
+    "yearOfFoundation": yearOfFoundation,
+    "description": description,
+    "website": website,
+    "ishdId": ishdId,
+    "active": active,
+    # If url is None, do not include it in club_data
+  }
+  if url is not None:
+    club_data["logo"] = url
+
+  club = ClubDB(**club_data)
   club = jsonable_encoder(club)
+  print("club: " + str(club))
 
   exisitng_club = await request.app.mongodb["clubs"].find_one({"_id": id})
   if exisitng_club is None:
@@ -181,6 +189,12 @@ async def update_club(
     k: v
     for k, v in club.items() if v != exisitng_club.get(k) and k != '_id'
   }
+  
+  # If logo was not updated, remove it from the update
+  if url is None and 'logo' in club_to_update:
+    del club_to_update['logo']
+    
+  print('club_to_update: ' + str(club_to_update))
   if not club_to_update:
     return ClubDB(**exisitng_club)
   try:

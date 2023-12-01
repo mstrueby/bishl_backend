@@ -1,6 +1,6 @@
 -- get Clubs
 select
-    c.name,
+    trim(c.name) as name,
     replace(
     replace(
       replace(
