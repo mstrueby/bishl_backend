@@ -3,6 +3,7 @@
 import csv
 import sys
 import os
+import json
 from datetime import datetime
 from fastapi.encoders import jsonable_encoder
 import certifi
@@ -23,7 +24,7 @@ def is_valid_url(url):
   except Exception:
       return False
 
-config = dotenv_values(".env")
+#config = dotenv_values(".env")
 collection = sys.argv[1]
 filename = "data/data_{}.csv".format(collection)
 
@@ -74,6 +75,7 @@ match collection:
         rec['ishdId'] = int(rec['ishdId']) if rec['ishdId'] else None
         rec['active'] = bool(rec['active'])
         rec['legacyId'] = int(rec['legacyId'])
+        rec['teams'] = list(rec['teams']) if rec['teams'] else []
 
         club = jsonable_encoder(ClubBase(**rec))  
         print("Inserting: ", club)
@@ -83,15 +85,40 @@ match collection:
         print("ERROR at ", rec['name'])
         print(e)
         exit()
-          
+
+    # add teams
+    with open("data/data_teams.csv", encoding='utf-8') as f:
+      csv_reader = csv.DictReader(f)
+      name_records = list(csv_reader)
+
+    for rec in name_records:
+      try:
+        rec['teamNumber'] = int(rec['teamNumber'])
+        rec['active'] = bool(rec['active'])
+        rec['external'] = bool(rec['external'])
+        rec['legacyId'] = int(rec['legacyId'])
+        
+        db_collection=db["clubs"]
+        filter= {'alias': rec['clubAlias']}
+        new_values = { "$push" : {  "teams" : { "name": rec['name'], "alias": rec['alias'], "fullName": rec['fullName'], "shortName": rec['shortName'], "tinyName": rec['tinyName'], "ageGroup": rec['ageGroup'], "teamNumber": rec['teamNumber'], "active" : rec['active'], "external" : rec['external'], "ishdid": rec['ishdId'], "legacyId": rec['legacyId'] } } }
+
+        print("Inserting Team: ", filter, '/', new_values)
+        db_collection.update_one(filter, new_values)
+
+      except ValueError as e:
+        print("ERROR at ", rec['clubAlias'], '/', rec['name'])
+        print(e)
+        exit()
+
+
   case "teams":
     print("Delete all records in {}".format(collection))
     db_collection.delete_many({})
     for rec in name_records:
       try:
         rec['teamNumber'] = int(rec['teamNumber']) if rec['teamNumber'] else None
-        rec['email'] = str(rec['email']) if rec['email'] else None
-        rec['extern'] = bool(rec['extern'])
+        #rec['email'] = str(rec['email']) if rec['email'] else None
+        rec['extern'] = bool(rec['external'])
         rec['active'] = bool(rec['active'])
         rec['legacyId'] = int(rec['legacyId'])
 
@@ -112,7 +139,7 @@ match collection:
         rec['published'] = bool(rec['published'])
         rec['active'] = bool(rec['active'])
         rec['external'] = bool(rec['external'])
-        rec['legacy_id'] = int(rec['legacy_id'])
+        rec['legacyId'] = int(rec['legacyId'])
         rec['seasons'] = list(rec['seasons']) if rec['seasons'] else []
         
         tournament = jsonable_encoder(TournamentBase(**rec))
@@ -131,17 +158,17 @@ match collection:
     
     for rec in name_records:
       try:
-        rec['season_year'] = int(rec['season_year'])
+        rec['seasonYear'] = int(rec['seasonYear'])
 
         db_collection=db["tournaments"]
-        filter= {'tiny_name': rec['t_tiny_name']}
-        new_values = { "$push" : {  "seasons" : { "year": rec['season_year'], "published" : True } } }
+        filter= {'tinyName': rec['t_tinyName']}
+        new_values = { "$push" : {  "seasons" : { "year": rec['seasonYear'], "published" : True } } }
         
         print("Inserting Season: ", filter, '/', new_values)
         db_collection.update_one(filter, new_values)
 
       except ValueError as e:
-        print("ERROR at ", rec['t_tiny_name'], '/', rec['season_year'])
+        print("ERROR at ", rec['t_tinyName'], '/', rec['seasonYear'])
         print(e)
         exit()
 
@@ -152,23 +179,23 @@ match collection:
       
     for rec in name_records:
       try:
-        rec['season_year'] = int(rec['season_year'])
-        rec['create_standings'] = bool(rec['create_standings'])
-        rec['create_stats'] = bool(rec['create_stats'])
+        rec['seasonYear'] = int(rec['seasonYear'])
+        rec['createStandings'] = bool(rec['createStandings'])
+        rec['createStats'] = bool(rec['createStats'])
         rec['published'] = bool(rec['published'])
-        rec['start_date'] = datetime.strptime(rec['start_date'], '%Y-%m-%d') if rec['start_date'] else None
-        rec['end_date'] = datetime.strptime(rec['end_date'], '%Y-%m-%d') if rec['end_date'] else None
+        rec['startDate'] = datetime.strptime(rec['startDate'], '%Y-%m-%d') if rec['startDate'] else None
+        rec['endDate'] = datetime.strptime(rec['endDate'], '%Y-%m-%d') if rec['endDate'] else None
 
         db_collection=db["tournaments"]
-        filter= {'tiny_name': rec['t_tiny_name']}
-        new_value={"$push" : { "seasons.$[year].rounds" : { "name" : rec['name'], "create_standings" : rec['create_standings'], "create_stats" : rec['create_stats'], "published" : rec['published'], "start_date" : rec['start_date'], "end_date" : rec['end_date'], "matchdays_type" : rec['matchdays_type'], "matchdays_sorted_by" : rec['matchdays_sorted_by'] } } }
-        array_filters=[{"year.year" : rec['season_year']}]
+        filter= {'tinyName': rec['t_tinyName']}
+        new_value={"$push" : { "seasons.$[year].rounds" : { "name" : rec['name'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'], "startDate" : rec['startDate'], "endDate" : rec['endDate'], "matchdaysType" : rec['matchdaysType'], "matchdaysSortedBy" : rec['matchdaysSortedBy'] } } }
+        array_filters=[{"year.year" : rec['seasonYear']}]
         
         print("Inserting Round: ", filter, '/', new_value)
         db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
 
       except ValueError as e:
-        print("ERROR at ", rec['t_tiny_name'], '/', rec['season_year'], '/', rec['name'])
+        print("ERROR at ", rec['t_tinyName'], '/', rec['seasonYear'], '/', rec['name'])
         print(e)
         exit()
 
@@ -179,23 +206,23 @@ match collection:
       
     for rec in name_records:
       try:
-        rec['season_year'] = int(rec['season_year'])
-        rec['create_standings'] = bool(rec['create_standings'])
-        rec['create_stats'] = bool(rec['create_stats'])
+        rec['seasonYear'] = int(rec['seasonYear'])
+        rec['createStandings'] = bool(rec['createStandings'])
+        rec['createStats'] = bool(rec['createStats'])
         rec['published'] = bool(rec['published'])
-        rec['start_date'] = datetime.strptime(rec['start_date'], '%Y-%m-%d') if rec['start_date'] else None
-        rec['end_date'] = datetime.strptime(rec['end_date'], '%Y-%m-%d') if rec['end_date'] else None
+        rec['startDate'] = datetime.strptime(rec['startDate'], '%Y-%m-%d') if rec['startDate'] else None
+        rec['endDate'] = datetime.strptime(rec['endDate'], '%Y-%m-%d') if rec['endDate'] else None
 
         db_collection=db["tournaments"]
-        filter= {'tiny_name': rec['t_tiny_name']}
-        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays" : { "name" : rec['name'], "type": rec['type'], "start_date": rec['start_date'], "end_date": rec['end_date'], "create_standings" : rec['create_standings'], "create_stats" : rec['create_stats'], "published" : rec['published'] } } }
-        array_filters=[{"y.year" : rec['season_year']}, {"r.name" : rec['r_name']}]
+        filter= {'tinyName': rec['t_tinyName']}
+        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays" : { "name" : rec['name'], "type": rec['type'], "startDate": rec['startDate'], "endDate": rec['endDate'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'] } } }
+        array_filters=[{"y.year" : rec['seasonYear']}, {"r.name" : rec['r_name']}]
         
         print("Inserting Matchday: ", filter, '/', new_value)
         db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
 
       except ValueError as e:
-        print("ERROR at ", rec['t_tiny_name'], '/', rec['season_year'], '/', rec['r_name'], '/', rec['name'])
+        print("ERROR at ", rec['t_tinyName'], '/', rec['seasonYear'], '/', rec['r_name'], '/', rec['name'])
         print(e)
         exit()
 
@@ -206,24 +233,48 @@ match collection:
       
     for rec in name_records:
       try:
-        rec['season_year'] = int(rec['season_year'])
-        rec['home_score'] = int(rec['home_score'])
-        rec['away_score'] = int(rec['away_score'])
+        rec['seasonYear'] = int(rec['seasonYear'])
+        rec['homeScore'] = int(rec['homeScore'])
+        rec['awayScore'] = int(rec['awayScore'])
         rec['overtime'] = bool(rec['overtime'])
         rec['shootout'] = bool(rec['shootout'])
         rec['published'] = bool(rec['published'])
-        rec['start_time'] = datetime.strptime(rec['start_time'], '%Y-%m-%d %H:%M:%S') if rec['start_time'] else None
+        rec['startTime'] = datetime.strptime(rec['startTime'], '%Y-%m-%d %H:%M:%S') if rec['startTime'] else None
+        if isinstance(rec['homeTeam'], str):
+          try:
+              rec['homeTeam'] = json.loads(rec['homeTeam'].replace("'", "\""))
+          except json.JSONDecodeError as e:
+              print("ERROR: homeTeam cannot be decoded into dictionary for matchId", rec['matchId'])
+              print(e)
+              continue 
+        # Check that `homeTeam` is now a dict
+        if not isinstance(rec['homeTeam'], dict):
+            print("ERROR: homeTeam is not a dictionary for matchId", rec['matchId'])
+            continue  # Skip to the next record or handle error as needed
 
+        if isinstance(rec['awayTeam'], str):
+          try:
+              rec['awayTeam'] = json.loads(rec['awayTeam'].replace("'", "\""))
+          except json.JSONDecodeError as e:
+              print("ERROR: awayTeam cannot be decoded into dictionary for matchId", rec['matchId'])
+              print(e)
+              continue 
+        # Check that `awayTeam` is now a dict
+        if not isinstance(rec['awayTeam'], dict):
+            print("ERROR: awayTeam is not a dictionary for matchId", rec['matchId'])
+            continue  # Skip to the next record or handle error as needed
+
+        
         db_collection=db["tournaments"]
-        filter= {'tiny_name': rec['t_tiny_name']}
-        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays.$[md].matches" : { "match_id" : rec['match_id'], "home_team": rec['home_team'], "away_team": rec['away_team'], "status": rec['status'], "venue": rec['venue'], "home_score": rec['home_score'], "away_score": rec['home_score'], "away_score": rec['away_score'], "overtime": rec['overtime'], "shootout": rec['shootout'],  "start_time": rec['start_time'], "published" : rec['published'] } } }
-        array_filters=[{"y.year" : rec['season_year']}, {"r.name" : rec['r_name']}, {"md.name" : rec['md_name']}]
+        filter= {'tinyName': rec['t_tinyName']}
+        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays.$[md].matches" : { "matchId" : rec['matchId'], "homeTeam": rec['homeTeam'], "awayTeam": rec['awayTeam'], "status": rec['status'], "venue": rec['venue'], "homeScore": rec['homeScore'], "awayScore": rec['awayScore'], "overtime": rec['overtime'], "shootout": rec['shootout'],  "startTime": rec['startTime'], "published" : rec['published'] } } }
+        array_filters=[{"y.year" : rec['seasonYear']}, {"r.name" : rec['r_name']}, {"md.name" : rec['md_name']}]
         
         print("Inserting Matches: ", filter, '/', new_value)
         db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
 
       except ValueError as e:
-        print("ERROR at ", rec['t_tiny_name'], '/', rec['season_year'], '/', rec['r_name'], '/', rec['md_name'], '/', rec['match_id'])
+        print("ERROR at ", rec['t_tinyName'], '/', rec['seasonYear'], '/', rec['r_name'], '/', rec['md_name'], '/', rec['match_id'])
         print(e)
         exit()
         

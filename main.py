@@ -15,8 +15,8 @@ import certifi
 #DB_URL = config('DB_URL', cast=str)
 #DB_NAME = config('DB_NAME', cast=str)
 
-DB_URL = os.getenv("DB_URL")
-DB_NAME = os.getenv("DB_NAME")
+DB_URL = os.environ["DB_URL"]
+DB_NAME = os.environ["DB_NAME"]
 
 origins = ["*"]
 

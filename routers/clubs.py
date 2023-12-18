@@ -12,16 +12,16 @@ from fastapi import (
   UploadFile,
 )
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from models.clubs import ClubBase, ClubDB, ClubUpdate
 from authentication import AuthHandler
 from pymongo.errors import DuplicateKeyError
 import cloudinary
 import cloudinary.uploader
 
-CLOUD_NAME = os.getenv("CLDY_CLOUD_NAME")
-API_KEY = os.getenv("CLDY_API_KEY")
-API_SECRET = os.getenv("CLDY_API_SECRET")
+CLOUD_NAME = os.environ["CLDY_CLOUD_NAME"]
+API_KEY = os.environ["CLDY_API_KEY"]
+API_SECRET = os.environ["CLDY_API_SECRET"]
 cloudinary.config(
   cloud_name=CLOUD_NAME,
   api_key=API_KEY,
@@ -76,7 +76,7 @@ async def create_club(
       public_id=f"{alias}",
       overwrite=True,
       crop="scale",
-      height=300,
+      height=200,
     )
     url = result.get("url")
   else:
@@ -142,7 +142,7 @@ async def update_club(
     logo: Optional[UploadFile] = File(None),
     userId=Depends(auth.auth_wrapper),
 ):
-  print("logo: " + str(logo))
+  #print("logo: " + str(logo))
 
   if logo:
     result = cloudinary.uploader.upload(
@@ -157,7 +157,7 @@ async def update_club(
   else:
     url = None
 
-  print("url: " + str(url))
+  #print("url: " + str(url))
   club_data = {
     "name": name,
     "alias": alias,
@@ -179,7 +179,7 @@ async def update_club(
 
   club = ClubDB(**club_data)
   club = jsonable_encoder(club)
-  print("club: " + str(club))
+  #print("club: " + str(club))
 
   exisitng_club = await request.app.mongodb["clubs"].find_one({"_id": id})
   if exisitng_club is None:
@@ -194,7 +194,7 @@ async def update_club(
   if url is None and 'logo' in club_to_update:
     del club_to_update['logo']
     
-  print('club_to_update: ' + str(club_to_update))
+  #print('club_to_update: ' + str(club_to_update))
   if not club_to_update:
     return ClubDB(**exisitng_club)
   try:
@@ -225,6 +225,6 @@ async def delete_club(
 ):
   result = await request.app.mongodb['clubs'].delete_one({"alias": alias})
   if result.deleted_count == 1:
-    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=404,
                       detail=f"Club with alias {alias} not found")
