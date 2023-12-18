@@ -2,7 +2,7 @@ import os
 from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from models.venues import VenueBase, VenueDB, VenueUpdate
 from authentication import AuthHandler
 from pymongo.errors import DuplicateKeyError
@@ -100,6 +100,6 @@ async def delete_venue(
 ):
   result = await request.app.mongodb['venues'].delete_one({"alias": alias})
   if result.deleted_count == 1:
-    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=404,
                       detail=f"Venue with alias {alias} not found")

@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import date
-from pydantic import Field, BaseModel, HttpUrl
+from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List
 
 
@@ -33,36 +33,45 @@ class MongoBaseModel(BaseModel):
 
 class Standings(BaseModel):
   team: str = Field(...)
-  games_played: int = Field(...)
-  goals_for: int = Field(...)
-  goals_against: int = Field(...)
+  gamesPlayed: int = Field(...)
+  goalsFor: int = Field(...)
+  goalsAgainst: int = Field(...)
   points: int = Field(...)
 
 
 # ------------
+class Teams(BaseModel):
+  fullName: str = Field(...)
+  shortName: str = Field(...)
+  tinyName: str = Field(...)
+  logo: HttpUrl = None
 
+  @validator('logo', pre=True, always=True)
+  def empty_str_to_none(cls, v):
+      return None if v == "" else v
 
+  
 class Matches(BaseModel):
-  match_id: str = Field(...)
-  home_team: str = Field(...)
-  away_team: str = Field(...)
+  matchId: str = Field(...)
+  homeTeam: Teams = Field(...)
+  awayTeam: Teams = Field(...)
   status: str = Field(...)
   venue: str = None
-  home_score: int = None
-  away_score: int = None
+  homeScore: int = None
+  awayScore: int = None
   overtime: bool = None
   shootout: bool = None
-  start_time: date = None
+  startTime: date = None
   published: bool = Field(...)
 
 
 class Matchdays(BaseModel):
   name: str = Field(...)
   type: str = Field(...)  # make enum, "Playoffs", "Round Robin"
-  start_date: date = None
-  end_date: date = None
-  create_standings: bool = Field(...)
-  create_stats: bool = Field(...)
+  startDate: date = None
+  endDate: date = None
+  createStandings: bool = Field(...)
+  createStats: bool = Field(...)
   published: bool = Field(...)
   matches: List[Matches] = None
   standings: List[Standings] = None
@@ -70,12 +79,12 @@ class Matchdays(BaseModel):
 
 class Rounds(BaseModel):
   name: str = Field(...)
-  create_standings: bool = Field(...)
-  create_stats: bool = Field(...)
-  matchdays_type: str = Field(...)
-  matchdays_sorted_by: str = Field(...)
-  start_date: date = None
-  end_date: date = None
+  createStandings: bool = Field(...)
+  createStats: bool = Field(...)
+  matchdaysType: str = Field(...)
+  matchdaysSortedBy: str = Field(...)
+  startDate: date = None
+  endDate: date = None
   published: bool = Field(...)
   matchdays: List[Matchdays] = None
   standings: List[Standings] = None
@@ -93,15 +102,14 @@ class Seasons(BaseModel):
 class TournamentBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  tiny_name: str = Field(...)
-  age_group: str = Field(...)
+  tinyName: str = Field(...)
+  ageGroup: str = Field(...)
   published: bool = False
   active: bool = False
   external: bool = False
   website: HttpUrl = None
   seasons: List[Seasons] = None
-  legacy_id: int = None
-
+  legacyId: int = None
 
 class TournamentDB(TournamentBase):
   pass
@@ -110,8 +118,8 @@ class TournamentDB(TournamentBase):
 class TournamentUpdate(MongoBaseModel):
   name: Optional[str] = None
   alias: Optional[str] = None
-  tiny_name: Optional[str] = None
-  age_group: Optional[str] = None
+  tinyName: Optional[str] = None
+  ageGroup: Optional[str] = None
   published: Optional[bool] = None
   active: Optional[bool] = None
   external: Optional[bool] = None

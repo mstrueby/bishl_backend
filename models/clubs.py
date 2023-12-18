@@ -32,6 +32,21 @@ class MongoBaseModel(BaseModel):
 # ------------
 
 
+# sub documents
+class Teams(BaseModel):
+  name: str = Field(...)
+  alias: str = Field(...)
+  fullName: str = Field(...)
+  shortName: str = None
+  tinyName: str = None
+  ageGroup: str = Field(...)
+  teamNumber: int = Field(...)
+  active: bool = False
+  external: bool = False
+  ishdId: str = None
+  legacyId: int = None
+
+
 class ClubBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
@@ -46,13 +61,15 @@ class ClubBase(MongoBaseModel):
   website: HttpUrl = None
   ishdId: int = None
   active: bool = False
+  teams: List[Teams] = None
   legacyId: int = None
-  logo: str = None
+  logo: HttpUrl = None
 
   @validator('email',
              'website',
              'yearOfFoundation',
              'ishdId',
+             'logo',
              pre=True,
              always=True)
   def empty_str_to_none(cls, v):
@@ -77,9 +94,11 @@ class ClubUpdate(MongoBaseModel):
   website: Optional[HttpUrl] = None
   ishdId: Optional[int] = None
   active: Optional[bool] = False
+  teams: Optional[List[Teams]] = None
   legacyId: Optional[int] = None
   logo: Optional[str] = None
 
-  @validator('email', 'website', 'yearOfFoundation', 'ishdId', pre=True, always=True)
+  
+  @validator('email', 'website', 'yearOfFoundation', 'ishdId', 'logo', pre=True, always=True)
   def empty_str_to_none(cls, v):
       return None if v == "" else v
