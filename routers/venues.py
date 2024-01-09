@@ -18,7 +18,6 @@ async def list_venues(
   # active: bool=True,
   page: int = 1,
 ) -> List[VenueDB]:
-
   RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
   # query = {"active":active}
@@ -29,6 +28,16 @@ async def list_venues(
   return results
 
 
+# get venue by Alias
+@router.get("/{alias}", response_description="Get a single venue")
+async def get_venue(alias: str, request: Request):
+  if (venue := await
+      request.app.mongodb["venues"].find_one({"alias": alias})) is not None:
+    return VenueDB(**venue)
+  raise HTTPException(status_code=404,
+                      detail=f"Venue with alias {alias} not found")
+
+
 # create new venue
 @router.post("/", response_description="Add new venue")
 async def create_venue(
@@ -37,6 +46,8 @@ async def create_venue(
     userId=Depends(auth.auth_wrapper),
 ):
   venue = jsonable_encoder(venue)
+
+  # DB processing
   try:
     new_venue = await request.app.mongodb["venues"].insert_one(venue)
     created_venue = await request.app.mongodb["venues"].find_one(
@@ -46,16 +57,6 @@ async def create_venue(
   except DuplicateKeyError:
     raise HTTPException(status_code=400,
                         detail=f"Venue {venue['name']} already exists.")
-
-
-# get venue by Alias
-@router.get("/{alias}", response_description="Get a single venue")
-async def get_venue(alias: str, request: Request):
-  if (venue := await
-      request.app.mongodb["venues"].find_one({"alias": alias})) is not None:
-    return VenueDB(**venue)
-  raise HTTPException(status_code=404,
-                      detail=f"Venue with alias {alias} not found")
 
 
 # Update venue
@@ -72,10 +73,14 @@ async def update_venue(
     raise HTTPException(status_code=404,
                         detail=f"Venue with id {id} not found")
   # Exclude unchanged data
-  venue_to_update = {k: v for k, v in venue.items() if v != existing_venue.get(k)}
+  venue_to_update = {
+    k: v
+    for k, v in venue.items() if v != existing_venue.get(k)
+  }
 
   if not venue_to_update:
-    return VenueDB(**existing_venue)  # No update needed as no values have changed
+    return VenueDB(
+      **existing_venue)  # No update needed as no values have changed
   try:
     update_result = await request.app.mongodb['venues'].update_one(
       {"_id": id}, {"$set": venue_to_update})
@@ -83,12 +88,16 @@ async def update_venue(
       if (updated_venue := await
           request.app.mongodb['venues'].find_one({"_id": id})) is not None:
         return VenueDB(**updated_venue)
-    return VenueDB(**existing_venue)  # No update occurred if no attributes had different values
+    return VenueDB(
+      **existing_venue
+    )  # No update occurred if no attributes had different values
   except DuplicateKeyError:
     raise HTTPException(
       status_code=400,
-      detail=
-      f"Venue with name {venue.get('name', '')} already exists.")
+      detail=f"Venue with name {venue.get('name', '')} already exists.")
+  except Exception as e:
+    raise HTTPException(status_code=500,
+                        detail=f"An unexpected error occurred: {str(e)}")
 
 
 # Delete venue

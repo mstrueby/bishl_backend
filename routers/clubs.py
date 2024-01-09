@@ -19,6 +19,7 @@ from pymongo.errors import DuplicateKeyError
 import cloudinary
 import cloudinary.uploader
 
+# Cloudinary Image processing
 CLOUD_NAME = os.environ["CLDY_CLOUD_NAME"]
 API_KEY = os.environ["CLDY_API_KEY"]
 API_SECRET = os.environ["CLDY_API_SECRET"]
@@ -47,6 +48,16 @@ async def list_venues(
     "name", 1).skip(skip).limit(RESULTS_PER_PAGE)
   results = [ClubDB(**raw_club) async for raw_club in full_query]
   return results
+
+
+# get club by Alias
+@router.get("/{alias}", response_description="Get a single club")
+async def get_club(alias: str, request: Request):
+  if (club := await
+      request.app.mongodb["clubs"].find_one({"alias": alias})) is not None:
+    return ClubDB(**club)
+  raise HTTPException(status_code=404,
+                      detail=f"Club with alias {alias} not found")
 
 
 # create new club
@@ -100,6 +111,7 @@ async def create_club(
   )
   club = jsonable_encoder(club)
 
+  # DB processing
   try:
     new_club = await request.app.mongodb["clubs"].insert_one(club)
     created_club = await request.app.mongodb["clubs"].find_one(
@@ -109,16 +121,6 @@ async def create_club(
   except DuplicateKeyError:
     raise HTTPException(status_code=400,
                         detail=f"Club {club['name']} already exists.")
-
-
-# get club by Alias
-@router.get("/{alias}", response_description="Get a single club")
-async def get_club(alias: str, request: Request):
-  if (club := await
-      request.app.mongodb["clubs"].find_one({"alias": alias})) is not None:
-    return ClubDB(**club)
-  raise HTTPException(status_code=404,
-                      detail=f"Club with alias {alias} not found")
 
 
 # Update club
@@ -189,22 +191,20 @@ async def update_club(
     k: v
     for k, v in club.items() if v != exisitng_club.get(k) and k != '_id'
   }
-  
+
   # If logo was not updated, remove it from the update
   if url is None and 'logo' in club_to_update:
     del club_to_update['logo']
-    
+
   #print('club_to_update: ' + str(club_to_update))
   if not club_to_update:
     return ClubDB(**exisitng_club)
   try:
-
     update_result = await request.app.mongodb["clubs"].update_one(
       {"_id": id}, {"$set": club_to_update})
     if update_result.modified_count == 1:
       if (updatd_club := await
           request.app.mongodb["clubs"].find_one({"_id": id})) is not None:
-
         return ClubDB(**updatd_club)
     return ClubDB(**exisitng_club)
   except DuplicateKeyError:
