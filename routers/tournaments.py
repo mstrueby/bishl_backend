@@ -1,9 +1,9 @@
 import os
 from typing import List, Optional
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
+from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
+from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate, Seasons
 from authentication import AuthHandler
 from pymongo.errors import DuplicateKeyError
 
@@ -64,6 +64,41 @@ async def create_tournament(
       detail=f"Tournament {tournament['name']} already exists.")
 
 
+@router.post('/{tournament_id}/seasons',
+             response_description="Add new season to tournament")
+async def add_season(
+    request: Request,
+    tournament_id: str = Path(
+      ..., description="The ID of the tournament to add a season to"),
+    season: Seasons = Body(..., description="Season data"),
+    user_id: str = Depends(auth.auth_wrapper),
+):
+  season = jsonable_encoder(season)
+  tournament = await request.app.mongodb['tournaments'].find_one(
+    {"_id": tournament_id})
+  if not tournament:
+    raise HTTPException(status_code=404, detail="Tournament not found")
+  # Check for existing season with the same year as the one to add
+  existing_seasons = tournament.get('seasons', [])
+  if any(existing_season['year'] == season['year']
+         for existing_season in existing_seasons):
+    raise HTTPException(
+      status_code=409,
+      detail=
+      f"Season with year {season['year']} already exists in this tournament.")
+  # Here you'd append the new season data to the tournament's seasons array
+  updated_tournament = await request.app.mongodb['tournaments'].update_one(
+    {"_id": tournament_id}, {"$push": {
+      "seasons": season
+    }})
+  if not updated_tournament.acknowledged:
+    raise HTTPException(status_code=500, detail="Season could not be added")
+
+  # Return the updated tournament
+  return await request.app.mongodb['tournaments'].find_one(
+    {"_id": tournament_id})
+
+
 # update tournament
 @router.patch("/{id}", response_description="Update tournament")
 async def update_tournament(request: Request,
@@ -79,20 +114,26 @@ async def update_tournament(request: Request,
     raise HTTPException(status_code=404,
                         detail=f"Tournament with id {id} not found")
   # Exclude unchanged data
-  tournament_to_update = {k: v for k, v in tournament.items()
-                          if v != existing_tournament.get(k)}
+  tournament_to_update = {
+    k: v
+    for k, v in tournament.items() if v != existing_tournament.get(k)
+  }
   if not tournament_to_update:
     print("no update needed")
-    return TournamentDB(**existing_tournament)  # No update needed as no values have changed
+    return TournamentDB(
+      **existing_tournament)  # No update needed as no values have changed
   try:
     print("to update", tournament_to_update)
     update_result = await request.app.mongodb['tournaments'].update_one(
       {"_id": id}, {"$set": tournament_to_update})
     if update_result.modified_count == 1:
       if (updated_tournament := await
-          request.app.mongodb['tournaments'].find_one({"_id": id})) is not None:
+          request.app.mongodb['tournaments'].find_one({"_id":
+                                                       id})) is not None:
         return TournamentDB(**updated_tournament)
-    return TournamentDB(**existing_tournament)  # No update occurred if no attributes had different values
+    return TournamentDB(
+      **existing_tournament
+    )  # No update occurred if no attributes had different values
   except DuplicateKeyError:
     raise HTTPException(
       status_code=400,
