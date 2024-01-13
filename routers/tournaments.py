@@ -11,7 +11,7 @@ router = APIRouter()
 auth = AuthHandler()
 
 
-# list all tournaments
+# get all tournaments
 @router.get("/", response_description="List all tournaments")
 async def list_tournaments(
   request: Request,
@@ -30,7 +30,7 @@ async def list_tournaments(
   return results
 
 
-# get tournament by Alias
+# get one tournament by Alias
 @router.get("/{alias}", response_description="Get a single tournament")
 async def get_tournament(alias: str, request: Request):
   if (tournament := await
@@ -62,41 +62,6 @@ async def create_tournament(
     raise HTTPException(
       status_code=400,
       detail=f"Tournament {tournament['name']} already exists.")
-
-
-@router.post('/{tournament_id}/seasons',
-             response_description="Add new season to tournament")
-async def add_season(
-    request: Request,
-    tournament_id: str = Path(
-      ..., description="The ID of the tournament to add a season to"),
-    season: Seasons = Body(..., description="Season data"),
-    user_id: str = Depends(auth.auth_wrapper),
-):
-  season = jsonable_encoder(season)
-  tournament = await request.app.mongodb['tournaments'].find_one(
-    {"_id": tournament_id})
-  if not tournament:
-    raise HTTPException(status_code=404, detail="Tournament not found")
-  # Check for existing season with the same year as the one to add
-  existing_seasons = tournament.get('seasons', [])
-  if any(existing_season['year'] == season['year']
-         for existing_season in existing_seasons):
-    raise HTTPException(
-      status_code=409,
-      detail=
-      f"Season with year {season['year']} already exists in this tournament.")
-  # Here you'd append the new season data to the tournament's seasons array
-  updated_tournament = await request.app.mongodb['tournaments'].update_one(
-    {"_id": tournament_id}, {"$push": {
-      "seasons": season
-    }})
-  if not updated_tournament.acknowledged:
-    raise HTTPException(status_code=500, detail="Season could not be added")
-
-  # Return the updated tournament
-  return await request.app.mongodb['tournaments'].find_one(
-    {"_id": tournament_id})
 
 
 # update tournament
