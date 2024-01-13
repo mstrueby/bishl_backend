@@ -7,6 +7,7 @@ from routers.venues import router as venues_router
 from routers.clubs import router as clubs_router
 from routers.teams import router as teams_router
 from routers.tournaments import router as tournaments_router
+from routers.seasons import router as seasons_router
 from routers.users import router as users_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
@@ -22,27 +23,34 @@ origins = ["*"]
 
 app = FastAPI()
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+  CORSMiddleware,
+  allow_origins=origins,
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
 )
 
-@app.on_event("startup")
 
+@app.on_event("startup")
 async def startup_db_client():
-    app.mongodb_client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
-    app.mongodb = app.mongodb_client[DB_NAME]
+  app.mongodb_client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
+  app.mongodb = app.mongodb_client[DB_NAME]
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    app.mongodb_client.close()
+  app.mongodb_client.close()
+
 
 app.include_router(venues_router, prefix="/venues", tags=["venues"])
 app.include_router(clubs_router, prefix="/clubs", tags=["clubs"])
 app.include_router(teams_router, prefix="/teams", tags=["teams"])
-app.include_router(tournaments_router, prefix="/tournaments", tags=["tournaments"])
+app.include_router(tournaments_router,
+                   prefix="/tournaments",
+                   tags=["tournaments"])
+app.include_router(seasons_router,
+                   prefix="/tournaments/{tournament_alias}/seasons",
+                   tags=["seasons"])
 app.include_router(users_router, prefix="/users", tags=["users"])
 
 #if __name__ == "__main__":
