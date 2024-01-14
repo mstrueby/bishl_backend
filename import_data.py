@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi.encoders import jsonable_encoder
 import certifi
 from urllib.parse import urlparse
+from bson import ObjectId
 
 # dotenv environment variables
 from dotenv import dotenv_values
@@ -159,10 +160,10 @@ match collection:
     for rec in name_records:
       try:
         rec['seasonYear'] = int(rec['seasonYear'])
-
+        season_id = ObjectId()
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
-        new_values = { "$push" : {  "seasons" : { "year": rec['seasonYear'], "published" : True } } }
+        new_values = { "$push" : {  "seasons" : { "_id": str(season_id), "year": rec['seasonYear'], "published" : True } } }
         
         print("Inserting Season: ", filter, '/', new_values)
         db_collection.update_one(filter, new_values)
