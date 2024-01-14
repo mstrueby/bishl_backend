@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate, Seasons
+from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate, SeasonBase
 from authentication import AuthHandler
 from pymongo.errors import DuplicateKeyError
 
@@ -72,7 +72,7 @@ async def update_tournament(request: Request,
                             user_id=Depends(auth.auth_wrapper)):
   print("input: ", tournament)
   tournament = tournament.dict(exclude_unset=True)
-  print("exclude unset", tournament)
+  print("exclude unset: ", tournament)
   existing_tournament = await request.app.mongodb['tournaments'].find_one(
     {"_id": id})
   if existing_tournament is None:
@@ -88,7 +88,7 @@ async def update_tournament(request: Request,
     return TournamentDB(
       **existing_tournament)  # No update needed as no values have changed
   try:
-    print("to update", tournament_to_update)
+    print("to update: ", tournament_to_update)
     update_result = await request.app.mongodb['tournaments'].update_one(
       {"_id": id}, {"$set": tournament_to_update})
     if update_result.modified_count == 1:

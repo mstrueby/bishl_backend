@@ -90,11 +90,18 @@ class Rounds(BaseModel):
   standings: List[Standings] = None
 
 
-class Seasons(BaseModel):
+class SeasonBase(MongoBaseModel):
   year: int = Field(...)
   published: bool = Field(...)
   rounds: List[Rounds] = None
 
+class SeasonDB(SeasonBase):
+  pass
+  
+class SeasonUpdate(MongoBaseModel):
+  year: Optional[int] = None
+  published: Optional[bool] = None
+  rounds: Optional[List[Rounds]] = None
 
 # --------
 
@@ -108,7 +115,7 @@ class TournamentBase(MongoBaseModel):
   active: bool = False
   external: bool = False
   website: HttpUrl = None
-  seasons: List[Seasons] = None
+  seasons: List[SeasonBase] = None
   legacyId: int = None
 
 class TournamentDB(TournamentBase):
@@ -124,4 +131,4 @@ class TournamentUpdate(MongoBaseModel):
   active: Optional[bool] = None
   external: Optional[bool] = None
   website: Optional[HttpUrl] = None
-  seasons: Optional[List[Seasons]] = None
+  seasons: Optional[List[SeasonBase]] = None
