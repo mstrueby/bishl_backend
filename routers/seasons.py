@@ -1,7 +1,7 @@
 # filename: routers/seasons.py
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
 from fastapi.responses import Response, JSONResponse
-from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate, TournamentDB
+from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
 from authentication import AuthHandler
 from fastapi.encoders import jsonable_encoder
 
@@ -14,12 +14,15 @@ auth = AuthHandler()
 async def get_seasons_for_tournament(
   request: Request,
   tournament_alias: str = Path(
-    ..., description="The ALIAS of the tournament to list the seasons for"),
+    ..., description="The alias of the tournament to list the seasons for"),
 ):
   exclusion_projection = {"seasons.rounds.matchdays": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
-    return tournament.get("seasons", [])
+    seasons = [
+      SeasonDB(**season) for season in (tournament.get("seasons") or [])
+    ]
+    return seasons
   raise HTTPException(
     status_code=404,
     detail=f"Tournament with alias {tournament_alias} not found")
@@ -30,7 +33,7 @@ async def get_seasons_for_tournament(
 async def get_season(
     request: Request,
     tournament_alias: str = Path(
-      ..., description="The ALIAS of the tournament to list the seasons for"),
+      ..., description="The alias of the tournament to list the seasons for"),
     season_year: int = Path(..., description="The year of the season to get"),
 ):
   exclusion_projection = {"seasons.rounds.matchdays": 0}
@@ -38,7 +41,7 @@ async def get_season(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
     for season in tournament.get("seasons", []):
       if season.get("year") == season_year:
-        return season
+        return SeasonDB(**season)
     raise HTTPException(
       status_code=404,
       detail=
@@ -51,18 +54,16 @@ async def get_season(
 async def add_season(
     request: Request,
     tournament_alias: str = Path(
-      ..., description="The ALIAS of the tournament to add a season to"),
-    season: SeasonUpdate = Body(..., description="Season data"),
+      ..., description="The alias of the tournament to add a season to"),
+    season: SeasonBase = Body(..., description="Season data"),
     user_id: str = Depends(auth.auth_wrapper),
 ):
   print("add season")
   season = jsonable_encoder(season)
-  tournament = await request.app.mongodb['tournaments'].find_one(
-    {"alias": tournament_alias})
-
-  if not tournament:
+  # Check if the tournament exists
+  if (tournament := await request.app.mongodb['tournaments'].find_one(
+    {"alias": tournament_alias})) is None:
     raise HTTPException(status_code=404, detail="Tournament not found")
-
   # Check for existing season with the same year as the one to add
   existing_seasons = tournament.get('seasons', [])
   if any(existing_season['year'] == season['year']
@@ -80,8 +81,11 @@ async def add_season(
   if not updated_tournament.acknowledged:
     raise HTTPException(status_code=500, detail="Season could not be added")
 
-  # Return the new season
-  return JSONResponse(status_code=status.HTTP_201_CREATED, content=season)
+  # Create a SeasonDB instance for the response
+  season_response = SeasonDB(**season)
+  # Return the new season wrapped in the SeasonDB model with HTTP 201 status code
+  return JSONResponse(status_code=status.HTTP_201_CREATED,
+                      content=jsonable_encoder(season_response))
 
 
 # update season in tournament
@@ -120,10 +124,10 @@ async def update_season(
     )
 
   # Encode season data for MongoDB
-  #season = jsonable_encoder(season)
+  season = jsonable_encoder(season)
   #print("encoded season: ", season)
 
-  # Prepare the update excluding unchanged data - modification starts here
+  # Prepare the update by excluding unchanged data
   update_data = {"$set": {}}
   for field in season:
     if field != "_id" and season[field] != tournament["seasons"][
@@ -163,7 +167,7 @@ async def update_season(
         # Appropriate error handling or default response if no seasons found
         raise HTTPException(status_code=404,
                             detail="Updated season data is unavailable")
-        
+
   else:
     # If no changes, just return the existing season data without updating
     print("no update needed")
@@ -184,8 +188,8 @@ async def delete_one_season(
     request: Request,
     tournament_alias: str = Path(
       ...,
-      description="The ALIAS of the tournament to delete the season from"),
-    season_id: str = Path(..., description="The ID of the season to delete"),
+      description="The alias of the tournament to delete the season from"),
+    season_id: str = Path(..., description="The id of the season to delete"),
     userId: str = Depends(auth.auth_wrapper),
 ):
   print("delete season")
