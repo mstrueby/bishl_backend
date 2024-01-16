@@ -159,8 +159,8 @@ match collection:
     
     for rec in name_records:
       try:
-        rec['seasonYear'] = int(rec['seasonYear'])
         season_id = ObjectId()
+        rec['seasonYear'] = int(rec['seasonYear'])
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
         new_values = { "$push" : {  "seasons" : { "_id": str(season_id), "year": rec['seasonYear'], "published" : True } } }
@@ -180,6 +180,7 @@ match collection:
       
     for rec in name_records:
       try:
+        round_id = ObjectId()
         rec['seasonYear'] = int(rec['seasonYear'])
         rec['createStandings'] = bool(rec['createStandings'])
         rec['createStats'] = bool(rec['createStats'])
@@ -189,7 +190,7 @@ match collection:
 
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
-        new_value={"$push" : { "seasons.$[year].rounds" : { "name" : rec['name'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'], "startDate" : rec['startDate'], "endDate" : rec['endDate'], "matchdaysType" : rec['matchdaysType'], "matchdaysSortedBy" : rec['matchdaysSortedBy'] } } }
+        new_value={"$push" : { "seasons.$[year].rounds" : { "_id": str(round_id), "name" : rec['name'], "alias": rec['alias'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'], "startDate" : rec['startDate'], "endDate" : rec['endDate'], "matchdaysType" : rec['matchdaysType'], "matchdaysSortedBy" : rec['matchdaysSortedBy'] } } }
         array_filters=[{"year.year" : rec['seasonYear']}]
         
         print("Inserting Round: ", filter, '/', new_value)
@@ -207,6 +208,7 @@ match collection:
       
     for rec in name_records:
       try:
+        matchday_id = ObjectId()
         rec['seasonYear'] = int(rec['seasonYear'])
         rec['createStandings'] = bool(rec['createStandings'])
         rec['createStats'] = bool(rec['createStats'])
@@ -216,7 +218,7 @@ match collection:
 
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
-        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays" : { "name" : rec['name'], "type": rec['type'], "startDate": rec['startDate'], "endDate": rec['endDate'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'] } } }
+        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays" : { "_id": str(matchday_id), "name" : rec['name'], "type": rec['type'], "startDate": rec['startDate'], "endDate": rec['endDate'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'] } } }
         array_filters=[{"y.year" : rec['seasonYear']}, {"r.name" : rec['r_name']}]
         
         print("Inserting Matchday: ", filter, '/', new_value)
@@ -234,6 +236,7 @@ match collection:
       
     for rec in name_records:
       try:
+        match_id = ObjectId()
         rec['seasonYear'] = int(rec['seasonYear'])
         rec['homeScore'] = int(rec['homeScore'])
         rec['awayScore'] = int(rec['awayScore'])
@@ -268,7 +271,7 @@ match collection:
         
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
-        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays.$[md].matches" : { "matchId" : rec['matchId'], "homeTeam": rec['homeTeam'], "awayTeam": rec['awayTeam'], "status": rec['status'], "venue": rec['venue'], "homeScore": rec['homeScore'], "awayScore": rec['awayScore'], "overtime": rec['overtime'], "shootout": rec['shootout'],  "startTime": rec['startTime'], "published" : rec['published'] } } }
+        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays.$[md].matches" : { "_id": str(match_id) , "matchId" : rec['matchId'], "homeTeam": rec['homeTeam'], "awayTeam": rec['awayTeam'], "status": rec['status'], "venue": rec['venue'], "homeScore": rec['homeScore'], "awayScore": rec['awayScore'], "overtime": rec['overtime'], "shootout": rec['shootout'],  "startTime": rec['startTime'], "published" : rec['published'] } } }
         array_filters=[{"y.year" : rec['seasonYear']}, {"r.name" : rec['r_name']}, {"md.name" : rec['md_name']}]
         
         print("Inserting Matches: ", filter, '/', new_value)
