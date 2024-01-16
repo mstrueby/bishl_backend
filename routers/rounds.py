@@ -121,24 +121,27 @@ async def update_round(
   round = round.dict(exclude_unset=True)
   print("excluded unset: ", round)
   # Check if the tournament exists
-  if (tournament := await request.app.mongodb['tournaments'].find_one(
-    {"alias": tournament_alias})) is None:
+  tournament = await request.app.mongodb['tournaments'].find_one(
+    {"alias": tournament_alias})
+  if tournament is None:
     raise HTTPException(
       status_code=404,
       detail=f"Tournament with alias {tournament_alias} not found")
-  print("tournament: ", tournament)
   # Check if the season exists
-  if (season := next(
-    (s for s in tournament["seasons"] if s["year"] == season_year),
-      None)) is None:
+  season_index = next(
+    (i
+     for i, s in enumerate(tournament["seasons"]) if s["year"] == season_year),
+    None)
+  if season_index is None:
     raise HTTPException(
       status_code=404,
       detail=f"Season {season_year} not found in tournament {tournament_alias}"
     )
-  print("season: ", season)
+  print("season_index: ", season_index)
   # Find the index of the round in the season
-  round_index = next((i for i, r in enumerate(season.get("rounds", []))
-                      if r.get("_id") == round_id), None)
+  round_index = next(
+    (i for i, r in enumerate(tournament["seasons"][season_index].get(
+      "rounds", [])) if r.get("_id") == round_id), None)
   print("round_index: ", round_index)
   if round_index is None:
     raise HTTPException(
@@ -150,10 +153,10 @@ async def update_round(
   #round_json = jsonable_encoder(round)
   update_data = {"$set": {}}
   for field in round:
-    if field != "_id" and round[field] != season.get(
-        "rounds")[round_index].get(field):
+    if field != "_id" and round[field] != tournament["seasons"][season_index][
+        "rounds"][round_index].get(field):
       update_data["$set"][
-        f"seasons.{season_year}.rounds.{round_index}.{field}"] = round[field]
+        f"seasons.{season_index}.rounds.{round_index}.{field}"] = round[field]
   print("update data", update_data)
 
   # Update the round in the season
@@ -186,7 +189,8 @@ async def update_round(
       if updated_round:
         # Format the response using the RoundDB model, excluding matches data
         updated_round["_id"] = str(updated_round["_id"])
-        round_response = jsonable_encoder(RoundDB(**updated_round).dict(exclude={'matches'}))
+        round_response = jsonable_encoder(
+          RoundDB(**updated_round).dict(exclude={'matches'}))
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=round_response)
       else:
@@ -198,10 +202,18 @@ async def update_round(
   else:
     print("no update needed")
     # return round without matches
-    #return JSONResponse(status_code=status.HTTP_200_OK,
-    #                    content=RoundDB(**season.get(
-    #                      "rounds")[round_index]).dict(exclude={'matches'}))
-    
+    round_data = tournament.get("seasons")[season_index].get(
+      "rounds")[round_index]
+    # The `dict()` method on Pydantic models like `RoundDB` should automatically apply the correct encoding.
+    # Use `jsonable_encoder` from FastAPI which handles MongoDB-specific types like `ObjectId`.
+    # Exclude 'matchdays' from the round data before encoding
+    if 'matchdays' in round_data and isinstance(round_data['matchdays'], list):
+      for matchday in round_data['matchdays']:
+          if 'matches' in matchday and isinstance(matchday['matches'], list):
+              del matchday['matches']
+    response_content = jsonable_encoder(round_data)
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=response_content)
 
 
 # delete round from a season

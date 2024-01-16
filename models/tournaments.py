@@ -51,7 +51,7 @@ class Teams(BaseModel):
       return None if v == "" else v
 
   
-class Matches(BaseModel):
+class MatcheBase(MongoBaseModel):
   matchId: str = Field(...)
   homeTeam: Teams = Field(...)
   awayTeam: Teams = Field(...)
@@ -64,8 +64,22 @@ class Matches(BaseModel):
   startTime: date = None
   published: bool = Field(...)
 
+class MatchDB(MatcheBase):
+  pass
 
-class Matchdays(BaseModel):
+class MatchUpdate(MongoBaseModel):
+  homeTeam: Optional[Teams] = None
+  awayTeam: Optional[Teams] = None
+  status: Optional[str] = None
+  venue: Optional[str] = None
+  homeScore: Optional[int] = None
+  awayScore: Optional[int] = None
+  overtime: Optional[bool] = None
+  shootout: Optional[bool] = None
+  startTime: Optional[date] = None
+  published: Optional[bool] = None
+
+class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
   type: str = Field(...)  # make enum, "Playoffs", "Round Robin"
   startDate: date = None
@@ -73,12 +87,26 @@ class Matchdays(BaseModel):
   createStandings: bool = Field(...)
   createStats: bool = Field(...)
   published: bool = Field(...)
-  matches: List[Matches] = None
+  matches: List[MatcheBase] = None
   standings: List[Standings] = None
 
+class MatchdayDB(MatchdayBase):
+  pass
 
-class Rounds(BaseModel):
+class MatchdayUpdate(MongoBaseModel):
+  name: Optional[str] = None
+  type: Optional[str] = None
+  startDate: Optional[date] = None
+  endDate: Optional[date] = None
+  createStandings: Optional[bool] = None
+  createStats: Optional[bool] = None
+  published: Optional[bool] = None
+  matches: Optional[List[MatcheBase]] = None
+  standings: Optional[List[Standings]] = None
+
+class RoundBase(MongoBaseModel):
   name: str = Field(...)
+  alias: str = Field(...)
   createStandings: bool = Field(...)
   createStats: bool = Field(...)
   matchdaysType: str = Field(...)
@@ -86,14 +114,29 @@ class Rounds(BaseModel):
   startDate: date = None
   endDate: date = None
   published: bool = Field(...)
-  matchdays: List[Matchdays] = None
+  matchdays: List[MatchdayBase] = None
   standings: List[Standings] = None
 
+class RoundDB(RoundBase):
+  pass
+
+class RoundUpdate(MongoBaseModel):
+  name: Optional[str] = None
+  alias: Optional[str] = None
+  createStandings: Optional[bool] = None
+  createStats: Optional[bool] = None
+  matchdaysType: Optional[str] = None
+  matchdaysSortedBy: Optional[str] = None
+  startDate: Optional[date] = None
+  endDate: Optional[date] = None
+  published: Optional[bool] = None
+  matchdays: Optional[List[MatchdayBase]] = None
+  standings: Optional[List[Standings]] = None
 
 class SeasonBase(MongoBaseModel):
   year: int = Field(...)
   published: bool = Field(...)
-  rounds: List[Rounds] = None
+  rounds: List[RoundBase] = None
 
 class SeasonDB(SeasonBase):
   pass
@@ -101,7 +144,7 @@ class SeasonDB(SeasonBase):
 class SeasonUpdate(MongoBaseModel):
   year: Optional[int] = None
   published: Optional[bool] = None
-  rounds: Optional[List[Rounds]] = None
+  rounds: Optional[List[RoundBase]] = None
 
 # --------
 

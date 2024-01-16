@@ -1,9 +1,9 @@
 import os
-from typing import List, Optional
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
+from typing import List
+from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate, SeasonBase
+from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
 from authentication import AuthHandler
 from pymongo.errors import DuplicateKeyError
 

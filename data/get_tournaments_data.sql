@@ -77,6 +77,7 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
       tcs.SeasonYear as seasonYear,
       cs.py_code as t_tinyName,
       cs.py_round as name,
+      cs.py_round_alias as alias,
       case cs.CreateTable and cs.CreateTableByRound=0 when 1 then 'True' else '' end as createStandings, 
       cs.py_md_type as matchdaysType,
       cs.py_md_sort as matchdaysSortedBy,
