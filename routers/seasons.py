@@ -162,7 +162,7 @@ async def update_season(
           for round in season_data["rounds"]:
             if "matchdays" in round:
               del round["matchdays"]
-        return season_data
+        return JSONResponse(status_code=status.HTTP_200_OK,content=season_data)
       else:
         # Appropriate error handling or default response if no seasons found
         raise HTTPException(status_code=404,
