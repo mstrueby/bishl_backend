@@ -23,7 +23,8 @@ async def get_rounds_for_season(
     for season in tournament.get("seasons", []):
       if season.get("year") == season_year:
         rounds = [RoundDB(**round) for round in (season.get("rounds") or [])]
-        return rounds
+        return JSONResponse(status_code=status.HTTP_200_OK,
+                            content=jsonable_encoder(rounds))
     raise HTTPException(
       status_code=404,
       detail=f"Season {season_year} not found in tournament {tournament_alias}"
@@ -50,7 +51,9 @@ async def get_round(
       if season.get("year") == season_year:
         for round in season.get("rounds", []):
           if round.get("alias") == round_alias:
-            return RoundDB(**round)
+            round_response = RoundDB(**round)
+            return JSONResponse(status_code=status.HTTP_200_OK,
+                                content=jsonable_encoder(round_response))
         raise HTTPException(
           status_code=404,
           detail=
@@ -112,7 +115,8 @@ async def add_round(
         })
       # update_tournament has only one season of tournament
       if updated_tournament and 'seasons' in updated_tournament:
-        season_data = updated_tournament['seasons'][0]  # we have only one season
+        season_data = updated_tournament['seasons'][
+          0]  # we have only one season
         # loop through rounds
         new_round = next((r for r in season_data.get('rounds', [])
                           if r['alias'] == round.alias), None)
@@ -209,8 +213,10 @@ async def update_round(
       if result.modified_count == 0:
         raise HTTPException(
           status_code=404,
-          detail=f"Update: Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}.")
-    
+          detail=
+          f"Update: Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}."
+        )
+
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:
@@ -228,8 +234,7 @@ async def update_round(
   if tournament and "seasons" in tournament:
     season = tournament["seasons"][0]
     round = next(
-      (r
-       for r in season.get("rounds", []) if str(r.get("_id")) == round_id),
+      (r for r in season.get("rounds", []) if str(r.get("_id")) == round_id),
       None)
     if round:
       if 'matchdays' in round and round['matchdays'] is not None:
@@ -237,15 +242,20 @@ async def update_round(
           if 'matches' in matchday:
             del matchday['matches']
       round_response = RoundDB(**round)
-      return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(round_response))
+      return JSONResponse(status_code=status.HTTP_200_OK,
+                          content=jsonable_encoder(round_response))
     else:
       raise HTTPException(
         status_code=404,
-        detail=f"Fetch: Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}")
+        detail=
+        f"Fetch: Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}"
+      )
   else:
     raise HTTPException(
       status_code=404,
-      detail=f"Fetch: Season {season_year} not found in tournament {tournament_alias}")
+      detail=
+      f"Fetch: Season {season_year} not found in tournament {tournament_alias}"
+    )
 
 
 # delete round from a season
