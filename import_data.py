@@ -218,7 +218,7 @@ match collection:
 
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
-        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays" : { "_id": str(matchday_id), "name" : rec['name'], "type": rec['type'], "startDate": rec['startDate'], "endDate": rec['endDate'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'] } } }
+        new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays" : { "_id": str(matchday_id), "name" : rec['name'], "alias": rec['alias'], "type": rec['type'], "startDate": rec['startDate'], "endDate": rec['endDate'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'] } } }
         array_filters=[{"y.year" : rec['seasonYear']}, {"r.name" : rec['r_name']}]
         
         print("Inserting Matchday: ", filter, '/', new_value)

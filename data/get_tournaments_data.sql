@@ -103,6 +103,7 @@ select
   cs.py_code as t_tinyName,
   cs.py_round as r_name,
   COALESCE(g.Round, 'ALL_GAMES') as name,
+  COALESCE(g.py_md_alias, 'all_games') as alias,
   case when cs.py_round = 'Playoffs' then 'Playoffs' else 'Round Robin' end as type,
   date(min(g.startdate)) as startDate,
   date(max(g.startdate)) as endDate,
@@ -117,6 +118,23 @@ and id_fk_gamestatus in (2,4)
 group by g.SeasonYear,cs.id_tblchampionship,cs.name,cs.py_code,cs.py_round,g.Round
 order by g.seasonYear, cs.py_code, cs.py_round, g.round, cs.CreateTableByRound
 
+-- alias
+  update `tblgame` 
+  set py_md_alias=
+    replace(
+      replace(
+        replace(
+          replace(  
+            replace(
+              replace(
+                replace(lower(trim(coalesce(Round, 'ALL_GAMES')), ' ', '-')
+                , 'ü', 'ue')
+            , 'ö', 'oe')
+          , 'ä' ,'ae')
+        , 'ß', 'ss')
+      , '`', '-')
+    , '.', '')
+   where SeasonYear in (2022, 2023)
 
 -- fix matchdays (youth leagues)
 -- mini: 45

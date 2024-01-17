@@ -81,6 +81,7 @@ class MatchUpdate(MongoBaseModel):
 
 class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
+  alias: str = Field(...)
   type: str = Field(...)  # make enum, "Playoffs", "Round Robin"
   startDate: date = None
   endDate: date = None
@@ -95,6 +96,7 @@ class MatchdayDB(MatchdayBase):
 
 class MatchdayUpdate(MongoBaseModel):
   name: Optional[str] = None
+  alias: Optional[str] = None
   type: Optional[str] = None
   startDate: Optional[date] = None
   endDate: Optional[date] = None
