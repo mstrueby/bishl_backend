@@ -93,7 +93,7 @@ async def add_round(
   # Add the round to the season
   try:
     round_data = jsonable_encoder(round)
-    updated_tournament = await request.app.mongodb['tournaments'].update_one(
+    result = await request.app.mongodb['tournaments'].update_one(
       {
         "alias": tournament_alias,
         "seasons.year": season_year
@@ -101,7 +101,7 @@ async def add_round(
         "seasons.$.rounds": round_data
       }})
     # get inserted round
-    if updated_tournament.modified_count == 1:
+    if result.modified_count == 1:
       updated_tournament = await request.app.mongodb['tournaments'].find_one(
         {
           "alias": tournament_alias,
@@ -110,10 +110,9 @@ async def add_round(
           "_id": 0,
           "seasons.$": 1
         })
-      # update_tournament has complete season of tournament
+      # update_tournament has only one season of tournament
       if updated_tournament and 'seasons' in updated_tournament:
-        season_data = updated_tournament['seasons'][
-          0]  # we have only one season
+        season_data = updated_tournament['seasons'][0]  # we have only one season
         # loop through rounds
         new_round = next((r for r in season_data.get('rounds', [])
                           if r['alias'] == round.alias), None)
@@ -201,13 +200,13 @@ async def update_round(
     print("do update")
     try:
       # Update the round in the tournament's season
-      updated_tournament = await request.app.mongodb['tournaments'].update_one(
+      result = await request.app.mongodb['tournaments'].update_one(
         {
           "alias": tournament_alias,
           "seasons.year": season_year,
           "seasons.rounds._id": round_id
         }, update_data)
-      if updated_tournament.modified_count == 0:
+      if result.modified_count == 0:
         raise HTTPException(
           status_code=404,
           detail=f"Update: Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}.")

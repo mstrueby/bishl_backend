@@ -44,8 +44,7 @@ async def get_season(
         return SeasonDB(**season)
     raise HTTPException(
       status_code=404,
-      detail=
-      f"Season with year {season_year} not found in tournament {tournament_alias}"
+      detail=f"Season {season_year} not found in tournament {tournament_alias}"
     )
 
 
@@ -59,38 +58,61 @@ async def add_season(
     user_id: str = Depends(auth.auth_wrapper),
 ):
   print("add season")
-  season = jsonable_encoder(season)
   # Check if the tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias})) is None:
     raise HTTPException(status_code=404, detail="Tournament not found")
   # Check for existing season with the same year as the one to add
-  existing_seasons = tournament.get('seasons', [])
-  if any(existing_season['year'] == season['year']
-         for existing_season in existing_seasons):
+  if any(s.get("year") == season.year for s in tournament.get("seasons", [])):
     raise HTTPException(
       status_code=409,
-      detail=
-      f"Season with year {season['year']} already exists in this tournament.")
-
+      detail=f"Season {season.year} already exists in tournament {tournament_alias}"
+    )
+    
   # Here you'd append the new season data to the tournament's seasons array
-  updated_tournament = await request.app.mongodb['tournaments'].update_one(
-    {"alias": tournament_alias}, {"$push": {
-      "seasons": season
-    }})
-  if not updated_tournament.acknowledged:
-    raise HTTPException(status_code=500, detail="Season could not be added")
-
-  # Create a SeasonDB instance for the response
-  season_response = SeasonDB(**season)
-  # Return the new season wrapped in the SeasonDB model with HTTP 201 status code
-  return JSONResponse(status_code=status.HTTP_201_CREATED,
-                      content=jsonable_encoder(season_response))
-
+  try:
+    season_data = jsonable_encoder(season)
+    result = await request.app.mongodb['tournaments'].update_one(
+      {
+        "alias": tournament_alias
+      }, {"$push": {
+        "seasons": season_data
+      }})
+    if result.modified_count == 1:
+      # get inserted season
+      updated_tournament = await request.app.mongodb['tournaments'].find_one(
+        {
+          "alias": tournament_alias,
+          "seasons.year": season.year
+        },
+        {
+          "_id": 0,
+          "seasons.$": 1
+        }
+      )
+      # updated_tournament has only one season
+      if updated_tournament and "seasons" in updated_tournament:
+        season = updated_tournament["seasons"][0]
+        season_response = SeasonDB(**season)
+        return JSONResponse(status_code=status.HTTP_201_CREATED, content=jsonable_encoder(season_response))
+      else:
+        raise HTTPException(
+          status_code=404,
+          detail=f"Season {season.year} not found in tournament {tournament_alias}"
+        )
+    else:
+      raise HTTPException(
+        status_code=404,
+        detail=f"Season {season.year} or tournament {tournament_alias} not found"
+      )
+  
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+    
 
 # update season in tournament
 @router.patch('/{season_id}',
-              response_description="Update season in tournament")
+              response_description="Update a season in tournament")
 async def update_season(
     request: Request,
     season_id: str,
@@ -120,7 +142,7 @@ async def update_season(
     raise HTTPException(
       status_code=404,
       detail=
-      f"Season with id {season_id} not found in tournament with alias {tournament_alias}"
+      f"Season with id {season_id} not found in tournament {tournament_alias}"
     )
 
   # Encode season data for MongoDB
@@ -138,47 +160,47 @@ async def update_season(
   # Proceed with the update only if there are changes
   if update_data["$set"]:
     print("do update")
-    # Update season in tournament - existing code
-    update_result = await request.app.mongodb['tournaments'].update_one(
-      {
-        "_id": tournament["_id"],
-        f"seasons.{season_index}._id": season_id
-      }, update_data)
-    # Check if the database operation was successful - existing code
-    if update_result.modified_count == 1:
-      updated_season = await request.app.mongodb['tournaments'].find_one(
-        {"alias": tournament_alias}, {
-          '_id': 0,
-          "seasons": {
-            "$elemMatch": {
-              "_id": season_id
-            }
-          }
-        })
-      # Dive into the rounds of the updated season and remove matchdays from each round
-      if "seasons" in updated_season and updated_season["seasons"]:
-        season_data = updated_season["seasons"][0]
-        if "rounds" in season_data and season_data["rounds"] is not None:
-          for round in season_data["rounds"]:
-            if "matchdays" in round:
-              del round["matchdays"]
-        return JSONResponse(status_code=status.HTTP_200_OK,content=season_data)
-      else:
-        # Appropriate error handling or default response if no seasons found
-        raise HTTPException(status_code=404,
-                            detail="Updated season data is unavailable")
-
+    # Update season in tournament
+    try:
+      
+      result = await request.app.mongodb['tournaments'].update_one(
+        {
+          "_id": tournament["_id"],
+          f"seasons.{season_index}._id": season_id
+        }, update_data)
+      if result.modified_count == 0:
+        raise HTTPException(
+          status_code=404,
+          detail=f"Update: Season with id {season_id} not found in tournament {tournament_alias}"
+        )
+    except Exception as e:
+      raise HTTPException(status_code=500, detail=str(e))
+  
   else:
-    # If no changes, just return the existing season data without updating
-    print("no update needed")
-    season_without_matchdays = tournament["seasons"][season_index]
-    print("season_without_matchdays: ", season_without_matchdays)
-    if 'rounds' in season_without_matchdays and season_without_matchdays[
-        "rounds"] is not None:
-      for round in season_without_matchdays["rounds"]:
+    print("no update")
+    
+  # Fetch the current season data
+  tournament = await request.app.mongodb['tournaments'].find_one(
+    {"alias": tournament_alias}, {
+      '_id': 0,
+      "seasons": {
+        "$elemMatch": {
+          "_id": season_id
+        }
+      }
+    })
+  if tournament and "seasons" in tournament:
+    season = tournament["seasons"][0]
+    if "rounds" in season and season["rounds"] is not None:
+      for round in season["rounds"]:
         if "matchdays" in round:
           del round["matchdays"]
-    return season_without_matchdays
+    season_response = SeasonDB(**season)
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(season_response))
+  else:
+    raise HTTPException(status_code=404,
+                        detail=f"Fetch: Season with id {season_id} not found in tournament {tournament_alias}")
 
 
 # delete season from tournament
