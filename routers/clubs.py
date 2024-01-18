@@ -3,7 +3,6 @@ from typing import List, Optional
 from fastapi import (
   APIRouter,
   Request,
-  Body,
   status,
   HTTPException,
   Depends,
@@ -13,7 +12,7 @@ from fastapi import (
 )
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from models.clubs import ClubBase, ClubDB, ClubUpdate
+from models.clubs import ClubDB
 from authentication import AuthHandler
 from pymongo.errors import DuplicateKeyError
 import cloudinary
@@ -35,7 +34,7 @@ auth = AuthHandler()
 
 # list all clubs
 @router.get("/", response_description="List all clubs")
-async def list_venues(
+async def list_clubs(
   request: Request,
   # active: bool=True,
   page: int = 1,
@@ -116,11 +115,18 @@ async def create_club(
     new_club = await request.app.mongodb["clubs"].insert_one(club)
     created_club = await request.app.mongodb["clubs"].find_one(
       {"_id": new_club.inserted_id})
-    return JSONResponse(status_code=status.HTTP_201_CREATED,
-                        content=created_club)
+    if created_club:
+      return JSONResponse(status_code=status.HTTP_201_CREATED,
+                          content=jsonable_encoder(ClubDB(**created_club)))
+    else:
+      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                          detail="Failed to create club")
   except DuplicateKeyError:
     raise HTTPException(status_code=400,
                         detail=f"Club {club['name']} already exists.")
+  except Exception as e:
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=str(e))
 
 
 # Update club

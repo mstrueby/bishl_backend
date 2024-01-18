@@ -52,11 +52,16 @@ async def create_venue(
     new_venue = await request.app.mongodb["venues"].insert_one(venue)
     created_venue = await request.app.mongodb["venues"].find_one(
       {"_id": new_venue.inserted_id})
-    return JSONResponse(status_code=status.HTTP_201_CREATED,
-                        content=created_venue)
+    if created_venue:
+      return JSONResponse(status_code=status.HTTP_201_CREATED,
+                          content=jsonable_encoder(VenueDB(**created_venue)))
+    else:
+      raise HTTPException(status_code=500, detail="Failed to create venue")
   except DuplicateKeyError:
     raise HTTPException(status_code=400,
                         detail=f"Venue {venue['name']} already exists.")
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
 
 
 # Update venue

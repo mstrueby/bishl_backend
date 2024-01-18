@@ -33,7 +33,7 @@ class MongoBaseModel(BaseModel):
 
 
 # sub documents
-class Teams(BaseModel):
+class TeamBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
   fullName: str = Field(...)
@@ -46,6 +46,21 @@ class Teams(BaseModel):
   ishdId: str = None
   legacyId: int = None
 
+class TeamDB(TeamBase):
+  pass
+
+class TeamUpdate(MongoBaseModel):
+  name: Optional[str] = None
+  alias: Optional[str] = None
+  fullName: Optional[str] = None
+  shortName: Optional[str] = None
+  tinyName: Optional[str] = None
+  ageGroup: Optional[str] = None
+  teamNumber: Optional[int] = None
+  active: Optional[bool] = None
+  external: Optional[bool] = None
+  ishdId: Optional[str] = None
+  legacyId: Optional[int] = None
 
 class ClubBase(MongoBaseModel):
   name: str = Field(...)
@@ -61,7 +76,7 @@ class ClubBase(MongoBaseModel):
   website: HttpUrl = None
   ishdId: int = None
   active: bool = False
-  teams: List[Teams] = None
+  teams: List[TeamBase] = None
   legacyId: int = None
   logo: HttpUrl = None
 
@@ -94,7 +109,7 @@ class ClubUpdate(MongoBaseModel):
   website: Optional[HttpUrl] = None
   ishdId: Optional[int] = None
   active: Optional[bool] = False
-  teams: Optional[List[Teams]] = None
+  teams: Optional[List[TeamBase]] = None
   legacyId: Optional[int] = None
   logo: Optional[str] = None
 
