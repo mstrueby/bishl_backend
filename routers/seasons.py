@@ -217,15 +217,12 @@ async def delete_one_season(
     season_id: str = Path(..., description="The id of the season to delete"),
     userId: str = Depends(auth.auth_wrapper),
 ):
-  print("delete season")
-  # Attempt to delete the season
   delete_result = await request.app.mongodb['tournaments'].update_one(
     {"alias": tournament_alias}, {"$pull": {
       "seasons": {
         "_id": season_id
       }
     }})
-
   if delete_result.modified_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
