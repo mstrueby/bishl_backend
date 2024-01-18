@@ -270,7 +270,6 @@ async def delete_round(
     round_id: str = Path(..., description="The id of the round to delete"),
     user_id: str = Depends(auth.auth_wrapper),
 ):
-  print("delete round")
   delete_result = await request.app.mongodb['tournaments'].update_one(
     {
       "alias": tournament_alias,
@@ -280,9 +279,6 @@ async def delete_round(
         "_id": round_id
       }
     }})
-
-  print("delete result:", delete_result)
-
   if delete_result.modified_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
