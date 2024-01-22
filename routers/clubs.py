@@ -134,13 +134,13 @@ async def create_club(
 async def update_club(
     request: Request,
     id: str,
-    name: str = Form(...),
-    alias: str = Form(...),
+    name: str = Form(None),
+    alias: str = Form(None),
     addressName: Optional[str] = Form(None),
     street: Optional[str] = Form(None),
     zipCode: Optional[str] = Form(None),
     city: Optional[str] = Form(None),
-    country: str = Form(...),
+    country: str = Form(None),
     email: Optional[str] = Form(None),
     yearOfFoundation: Optional[int] = Form(None),
     description: Optional[str] = Form(None),
@@ -150,7 +150,7 @@ async def update_club(
     logo: Optional[UploadFile] = File(None),
     userId=Depends(auth.auth_wrapper),
 ):
-  #print("logo: " + str(logo))
+  print("logo: " + str(logo))
 
   if logo:
     result = cloudinary.uploader.upload(
@@ -165,8 +165,7 @@ async def update_club(
   else:
     url = None
 
-  #print("url: " + str(url))
-  club_data = {
+  club = {
     "name": name,
     "alias": alias,
     "addressName": addressName,
@@ -183,11 +182,9 @@ async def update_club(
     # If url is None, do not include it in club_data
   }
   if url is not None:
-    club_data["logo"] = url
+    club["logo"] = url
 
-  club = ClubDB(**club_data)
-  club = jsonable_encoder(club)
-  #print("club: " + str(club))
+  print("club: ", club)
 
   exisitng_club = await request.app.mongodb["clubs"].find_one({"_id": id})
   if exisitng_club is None:
@@ -195,17 +192,18 @@ async def update_club(
   #Exclude unchanged data
   club_to_update = {
     k: v
-    for k, v in club.items() if v != exisitng_club.get(k) and k != '_id'
+    for k, v in club.items() if v is not None and v != exisitng_club.get(k)
   }
 
   # If logo was not updated, remove it from the update
   if url is None and 'logo' in club_to_update:
     del club_to_update['logo']
 
-  #print('club_to_update: ' + str(club_to_update))
   if not club_to_update:
+    print("No update needed")
     return ClubDB(**exisitng_club)
   try:
+    print('club_to_update: ' + str(club_to_update))
     update_result = await request.app.mongodb["clubs"].update_one(
       {"_id": id}, {"$set": club_to_update})
     if update_result.modified_count == 1:
@@ -216,7 +214,7 @@ async def update_club(
   except DuplicateKeyError:
     raise HTTPException(
       status_code=400,
-      detail=f"Club with name {club.get('name', '')} already exists.")
+      detail=f"Club {club.get('name', '')} already exists.")
   except Exception as e:
     raise HTTPException(status_code=500,
                         detail=f"An unexpected error occurred: {str(e)}")
