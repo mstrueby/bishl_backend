@@ -103,7 +103,7 @@ async def update_tournament(request: Request,
     raise HTTPException(
       status_code=400,
       detail=
-      f"Tournament with name {tournament.get('name', '')} already exists.")
+      f"Tournament {tournament.get('name', '')} already exists.")
   except Exception as e:
     raise HTTPException(status_code=500,
                         detail=f"An unexpected error occurred: {str(e)}")
