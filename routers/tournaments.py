@@ -13,32 +13,33 @@ auth = AuthHandler()
 
 # get all tournaments
 @router.get("/", response_description="List all tournaments")
-async def list_tournaments(
-  request: Request,
-  # active: bool=True,
-  page: int = 1,
-) -> List[TournamentDB]:
-  RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
-  skip = (page - 1) * RESULTS_PER_PAGE
-  # query = {"active":active}
+async def get_tournaments(request: Request, ):
+  exclusion_projection = {"seasons.rounds": 0}
   query = {}
-  full_query = request.app.mongodb["tournaments"].find(query).sort(
-    "name", 1).skip(skip).limit(RESULTS_PER_PAGE)
-  results = [
-    TournamentDB(**raw_tournament) async for raw_tournament in full_query
-  ]
-  return results
+  full_query = request.app.mongodb["tournaments"].find(
+    query, projection=exclusion_projection).sort("name", 1)
+  if (tournaments :=
+      [TournamentDB(**tournament)
+       async for tournament in full_query]) is not None:
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(tournaments))
+  raise HTTPException(status_code=404, detail="No tournaments found")
 
 
 # get one tournament by Alias
-@router.get("/{alias}", response_description="Get a single tournament")
-async def get_tournament(alias: str, request: Request):
-  if (tournament := await
-      request.app.mongodb["tournaments"].find_one({"alias":
-                                                   alias})) is not None:
+@router.get("/{tournament_alias}",
+            response_description="Get a single tournament")
+async def get_tournament(
+  request: Request,
+  tournament_alias: str,
+):
+  exclusion_projection = {"seasons.rounds": 0}
+  if (tournament := await request.app.mongodb["tournaments"].find_one(
+    {"alias": tournament_alias}, exclusion_projection)) is not None:
     return TournamentDB(**tournament)
-  raise HTTPException(status_code=404,
-                      detail=f"Tournament with alias {alias} not found")
+  raise HTTPException(
+    status_code=404,
+    detail=f"Tournament with alias {tournament_alias} not found")
 
 
 # create new tournament
@@ -54,8 +55,9 @@ async def create_tournament(
   try:
     new_tournament = await request.app.mongodb["tournaments"].insert_one(
       tournament)
+    exclusioin_projection = {"seasons.rounds": 0}
     created_tournament = await request.app.mongodb["tournaments"].find_one(
-      {"_id": new_tournament.inserted_id})
+      {"_id": new_tournament.inserted_id}, exclusioin_projection)
     return JSONResponse(status_code=status.HTTP_201_CREATED,
                         content=created_tournament)
   except DuplicateKeyError:
@@ -83,30 +85,34 @@ async def update_tournament(request: Request,
     k: v
     for k, v in tournament.items() if v != existing_tournament.get(k)
   }
-  if not tournament_to_update:
-    print("no update needed")
-    return TournamentDB(
-      **existing_tournament)  # No update needed as no values have changed
-  try:
-    print("to update: ", tournament_to_update)
-    update_result = await request.app.mongodb['tournaments'].update_one(
-      {"_id": id}, {"$set": tournament_to_update})
-    if update_result.modified_count == 1:
-      if (updated_tournament := await
-          request.app.mongodb['tournaments'].find_one({"_id":
-                                                       id})) is not None:
-        return TournamentDB(**updated_tournament)
-    return TournamentDB(
-      **existing_tournament
-    )  # No update occurred if no attributes had different values
-  except DuplicateKeyError:
-    raise HTTPException(
-      status_code=400,
-      detail=
-      f"Tournament {tournament.get('name', '')} already exists.")
-  except Exception as e:
-    raise HTTPException(status_code=500,
-                        detail=f"An unexpected error occurred: {str(e)}")
+  if tournament_to_update:
+    try:
+      print("to update: ", tournament_to_update)
+      update_result = await request.app.mongodb['tournaments'].update_one(
+        {"_id": id}, {"$set": tournament_to_update})
+      if update_result.modified_count == 0:
+        raise HTTPException(
+          status_code=404, detail=f"Update: Tournament with id {id} not found")
+    except DuplicateKeyError:
+      raise HTTPException(
+        status_code=400,
+        detail=f"Tournament {tournament.get('name', '')} already exists.")
+    except Exception as e:
+      raise HTTPException(status_code=500,
+                          detail=f"An unexpected error occurred: {str(e)}")
+  else:
+    print("no update")
+
+  exclusion_projection = {"seasons.rounds": 0}
+  updated_tournament = await request.app.mongodb['tournaments'].find_one(
+    {"_id": id}, exclusion_projection)
+  if updated_tournament is not None:
+    tournament_respomse = TournamentDB(**updated_tournament)
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(tournament_respomse))
+  else:
+    raise HTTPException(status_code=404,
+                        detail=f"Fetch: Tournament with id {id} not found")
 
 
 # delete tournament
