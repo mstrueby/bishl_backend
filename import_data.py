@@ -160,16 +160,16 @@ match collection:
     for rec in name_records:
       try:
         season_id = ObjectId()
-        rec['seasonYear'] = int(rec['seasonYear'])
+        #rec['seasonYear'] = int(rec['seasonYear'])
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
-        new_values = { "$push" : {  "seasons" : { "_id": str(season_id), "year": rec['seasonYear'], "published" : True } } }
+        new_values = { "$push" : {  "seasons" : { "_id": str(season_id), "name": rec['name'], "alias": rec['alias'], "published" : True } } }
         
         print("Inserting Season: ", filter, '/', new_values)
         db_collection.update_one(filter, new_values)
 
       except ValueError as e:
-        print("ERROR at ", rec['t_tinyName'], '/', rec['seasonYear'])
+        print("ERROR at ", rec['t_tinyName'], '/', rec['name'])
         print(e)
         exit()
 
@@ -181,7 +181,7 @@ match collection:
     for rec in name_records:
       try:
         round_id = ObjectId()
-        rec['seasonYear'] = int(rec['seasonYear'])
+        #rec['seasonYear'] = int(rec['seasonYear'])
         rec['createStandings'] = bool(rec['createStandings'])
         rec['createStats'] = bool(rec['createStats'])
         rec['published'] = bool(rec['published'])
@@ -190,14 +190,14 @@ match collection:
 
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
-        new_value={"$push" : { "seasons.$[year].rounds" : { "_id": str(round_id), "name" : rec['name'], "alias": rec['alias'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'], "startDate" : rec['startDate'], "endDate" : rec['endDate'], "matchdaysType" : rec['matchdaysType'], "matchdaysSortedBy" : rec['matchdaysSortedBy'] } } }
-        array_filters=[{"year.year" : rec['seasonYear']}]
+        new_value={"$push" : { "seasons.$[s].rounds" : { "_id": str(round_id), "name" : rec['name'], "alias": rec['alias'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'], "startDate" : rec['startDate'], "endDate" : rec['endDate'], "matchdaysType" : rec['matchdaysType'], "matchdaysSortedBy" : rec['matchdaysSortedBy'] } } }
+        array_filters=[{"s.alias" : rec['s_alias']}]
         
         print("Inserting Round: ", filter, '/', new_value)
         db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
 
       except ValueError as e:
-        print("ERROR at ", rec['t_tinyName'], '/', rec['seasonYear'], '/', rec['name'])
+        print("ERROR at ", rec['t_tinyName'], '/', rec['s_alias'], '/', rec['name'])
         print(e)
         exit()
 
@@ -209,7 +209,7 @@ match collection:
     for rec in name_records:
       try:
         matchday_id = ObjectId()
-        rec['seasonYear'] = int(rec['seasonYear'])
+        #rec['seasonYear'] = int(rec['seasonYear'])
         rec['createStandings'] = bool(rec['createStandings'])
         rec['createStats'] = bool(rec['createStats'])
         rec['published'] = bool(rec['published'])
@@ -219,13 +219,13 @@ match collection:
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
         new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays" : { "_id": str(matchday_id), "name" : rec['name'], "alias": rec['alias'], "type": rec['type'], "startDate": rec['startDate'], "endDate": rec['endDate'], "createStandings" : rec['createStandings'], "createStats" : rec['createStats'], "published" : rec['published'] } } }
-        array_filters=[{"y.year" : rec['seasonYear']}, {"r.name" : rec['r_name']}]
+        array_filters=[{"y.alias" : rec['s_alias']}, {"r.name" : rec['r_name']}]
         
         print("Inserting Matchday: ", filter, '/', new_value)
         db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
 
       except ValueError as e:
-        print("ERROR at ", rec['t_tinyName'], '/', rec['seasonYear'], '/', rec['r_name'], '/', rec['name'])
+        print("ERROR at ", rec['t_tinyName'], '/', rec['s_alias'], '/', rec['r_name'], '/', rec['name'])
         print(e)
         exit()
 
@@ -237,7 +237,7 @@ match collection:
     for rec in name_records:
       try:
         match_id = ObjectId()
-        rec['seasonYear'] = int(rec['seasonYear'])
+        #rec['seasonYear'] = int(rec['seasonYear'])
         rec['homeScore'] = int(rec['homeScore'])
         rec['awayScore'] = int(rec['awayScore'])
         rec['overtime'] = bool(rec['overtime'])
@@ -272,13 +272,13 @@ match collection:
         db_collection=db["tournaments"]
         filter= {'tinyName': rec['t_tinyName']}
         new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays.$[md].matches" : { "_id": str(match_id) , "matchId" : rec['matchId'], "homeTeam": rec['homeTeam'], "awayTeam": rec['awayTeam'], "status": rec['status'], "venue": rec['venue'], "homeScore": rec['homeScore'], "awayScore": rec['awayScore'], "overtime": rec['overtime'], "shootout": rec['shootout'],  "startTime": rec['startTime'], "published" : rec['published'] } } }
-        array_filters=[{"y.year" : rec['seasonYear']}, {"r.name" : rec['r_name']}, {"md.name" : rec['md_name']}]
+        array_filters=[{"y.alias" : rec['s_alias']}, {"r.name" : rec['r_name']}, {"md.name" : rec['md_name']}]
         
         print("Inserting Matches: ", filter, '/', new_value)
         db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
 
       except ValueError as e:
-        print("ERROR at ", rec['t_tinyName'], '/', rec['seasonYear'], '/', rec['r_name'], '/', rec['md_name'], '/', rec['match_id'])
+        print("ERROR at ", rec['t_tinyName'], '/', rec['s_alias'], '/', rec['r_name'], '/', rec['md_name'], '/', rec['match_id'])
         print(e)
         exit()
         

@@ -16,14 +16,14 @@ async def get_matchdays_for_round(
     tournament_alias: str = Path(
       ...,
       description="The alias of the tournament to list the matchdays for"),
-    season_year: int = Path(..., description="The year of the season to get"),
+    season_alias: str = Path(..., description="The alias of the season to get"),
     round_alias: str = Path(..., description="The alias of the round to get"),
 ):
   exclusion_projection = {}  # display all matches
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
     for season in tournament.get("seasons", []):
-      if season.get("year") == season_year:
+      if season.get("alias") == season_alias:
         for round in season.get("rounds", []):
           if round.get("alias") == round_alias:
             matchdays = [
@@ -35,12 +35,12 @@ async def get_matchdays_for_round(
         raise HTTPException(
           status_code=404,
           detail=
-          f"Round with name {round_alias} not found in season {season_year} of tournament {tournament_alias}"
+          f"Round with name {round_alias} not found in season {season_alias} of tournament {tournament_alias}"
         )
     raise HTTPException(
       status_code=404,
       detail=
-      f"Season with year {season_year} not found in tournament {tournament_alias}"
+      f"Season {season_alias} not found in tournament {tournament_alias}"
     )
   raise HTTPException(
     status_code=404,
@@ -54,7 +54,7 @@ async def get_matchday(
   request: Request,
   tournament_alias: str = Path(
     ..., description="The ALIAS of the tournament to list the matchdays for"),
-  season_year: int = Path(..., description="The year of the season to get"),
+  season_alias: str = Path(..., description="The alias of the season to get"),
   round_alias: str = Path(..., description="The alias of the round to get"),
   matchday_alias: str = Path(...,
                              description="The alias of the matchday to get"),
@@ -63,7 +63,7 @@ async def get_matchday(
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
     for season in tournament.get("seasons", []):
-      if season.get("year") == season_year:
+      if season.get("alias") == season_alias:
         for round in season.get("rounds", []):
           if round.get("alias") == round_alias:
             for matchday in round.get("matchdays", []):
@@ -75,7 +75,7 @@ async def get_matchday(
             raise HTTPException(
               status_code=404,
               detail=
-              f"Matchday {matchday_alias} not found in round {round_alias} of season {season_year} of tournament {tournament_alias}"
+              f"Matchday {matchday_alias} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
             )
 
 
@@ -85,7 +85,7 @@ async def add_matchday(
     request: Request,
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to add the matchday to"),
-    season_year: int = Path(..., description="The year of the season to add"),
+    season_alias: str = Path(..., description="The alias of the season to add"),
     round_alias: str = Path(..., description="The alias of the round to add"),
     matchday: MatchdayBase = Body(..., description="The matchday to add"),
     user_id: str = Depends(auth.auth_wrapper),
@@ -98,9 +98,9 @@ async def add_matchday(
                         detail=f"Tournament {tournament_alias} not found")
   # check if season exists
   if (season := next(s for s in tournament["seasons"]
-                     if s.get("year") == season_year)) is None:
+                     if s.get("alias") == season_alias)) is None:
     raise HTTPException(status_code=404,
-                        detail=f"Season {season_year} not found")
+                        detail=f"Season {season_alias} not found")
   # check if round exists
   if (round := next(
       r for r in season["rounds"] if r.get("alias") == round_alias)) is None:
@@ -113,7 +113,7 @@ async def add_matchday(
     raise HTTPException(
       status_code=404,
       detail=
-      f"Matchday {matchday.alias} already exists in round {round_alias} in seasion {season_year} of tournament {tournament_alias}"
+      f"Matchday {matchday.alias} already exists in round {round_alias} in seasion {season_alias} of tournament {tournament_alias}"
     )
 
   # add matchday to round
@@ -125,7 +125,7 @@ async def add_matchday(
         "seasons.$[s].rounds.$[r].matchdays": matchday_data
       }
     }
-    array_filters = [{"s.year": season_year}, {"r.alias": round_alias}]
+    array_filters = [{"s.alias": season_alias}, {"r.alias": round_alias}]
     result = await request.app.mongodb['tournaments'].update_one(
       filter=filter,
       update=new_values,
@@ -136,7 +136,7 @@ async def add_matchday(
       updated_tournament = await request.app.mongodb['tournaments'].find_one(
         {
           "alias": tournament_alias,
-          "seasons.year": season_year,
+          "seasons.alias": season_alias,
         }, {
           "_id": 0,
           "seasons.$": 1
@@ -165,8 +165,8 @@ async def update_matchday(
     tournament_alias: str = Path(
       ...,
       description="The alias of the tournament to update the matchday of"),
-    season_year: int = Path(...,
-                            description="The year of the season to update"),
+    season_alias: str = Path(...,
+                            description="The alias of the season to update"),
     round_alias: str = Path(...,
                             description="The alias of the round to update"),
     matchday: MatchdayUpdate = Body(..., description="The matchday to update"),
@@ -184,12 +184,12 @@ async def update_matchday(
   # check if season exists
   season_index = next(
     (i
-     for i, s in enumerate(tournament["seasons"]) if s["year"] == season_year),
+     for i, s in enumerate(tournament["seasons"]) if s["alias"] == season_alias),
     None)
   if season_index is None:
     raise HTTPException(
       status_code=404,
-      detail=f"Season {season_year} not found in tournament {tournament_alias}"
+      detail=f"Season {season_alias} not found in tournament {tournament_alias}"
     )
   print("season_index: ", season_index)
   # check if round exists
@@ -201,7 +201,7 @@ async def update_matchday(
     raise HTTPException(
       status_code=404,
       detail=
-      f"Round {round_alias} not found in season {season_year} of tournament {tournament_alias}"
+      f"Round {round_alias} not found in season {season_alias} of tournament {tournament_alias}"
     )
   # check if matchday exists
   round = tournament["seasons"][season_index]["rounds"][round_index]
@@ -213,7 +213,7 @@ async def update_matchday(
     raise HTTPException(
       status_code=404,
       detail=
-      f"Matchday {matchday_id} not found in round {round_alias} of season {season_year} of tournament {tournament_alias}"
+      f"Matchday {matchday_id} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
     )
 
   # update matchday
@@ -234,7 +234,7 @@ async def update_matchday(
       result = await request.app.mongodb['tournaments'].update_one(
         {
           "alias": tournament_alias,
-          "seasons.year": season_year,
+          "seasons.alias": season_alias,
           "seasons.rounds.alias": round_alias,
           "seasons.rounds.matchdays._id": matchday_id
         }, update_data)
@@ -242,7 +242,7 @@ async def update_matchday(
         raise HTTPException(
           status_code=404,
           detail=
-          f"Matchday {matchday_id} not found in round {round_alias} of season {season_year} of tournament {tournament_alias}"
+          f"Matchday {matchday_id} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
         )
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -253,7 +253,7 @@ async def update_matchday(
   tournament = await request.app.mongodb['tournaments'].find_one(
     {
       "alias": tournament_alias,
-      "seasons.year": season_year,
+      "seasons.alias": season_alias,
     }, {
       "_id": 0,
       "seasons.$": 1
@@ -273,7 +273,7 @@ async def update_matchday(
         raise HTTPException(
           status_code=404,
           detail=
-          f"Fetch: Matchday {matchday_id} not found in round {round_alias} of season {season_year} of tournament {tournament_alias}"
+          f"Fetch: Matchday {matchday_id} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
         )
 
 
@@ -285,8 +285,8 @@ async def delete_matchday(
     tournament_alias: str = Path(
       ...,
       description="The alias of the tournament to delete the matchday of"),
-    season_year: int = Path(...,
-                            description="The year of the season to delete"),
+    season_alias: str = Path(...,
+                            description="The alias of the season to delete"),
     round_alias: str = Path(...,
                             description="The alias of the round to delete"),
     matchday_id: str = Path(...,
@@ -296,7 +296,7 @@ async def delete_matchday(
   result = await request.app.mongodb['tournaments'].update_one(
     {
       "alias": tournament_alias,
-      "seasons.year": season_year,
+      "seasons.alias": season_alias,
       "seasons.rounds.alias": round_alias,
       "seasons.rounds.matchdays._id": matchday_id
     }, {"$pull": {
@@ -305,7 +305,7 @@ async def delete_matchday(
       }
     }},
     array_filters=[{
-      "s.year": season_year
+      "s.alias": season_alias
     }, {
       "r.alias": round_alias
     }])
@@ -315,5 +315,5 @@ async def delete_matchday(
     raise HTTPException(
       status_code=404,
       detail=
-      f"Matchday with id {matchday_id} not found in round {round_alias} of season {season_year} of tournament {tournament_alias}"
+      f"Matchday with id {matchday_id} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
     )

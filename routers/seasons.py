@@ -30,24 +30,24 @@ async def get_seasons_for_tournament(
 
 
 # get one season of a tournament
-@router.get('/{season_year}', response_description="Get a single season")
+@router.get('/{season_alias}', response_description="Get a single season")
 async def get_season(
     request: Request,
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to list the seasons for"),
-    season_year: int = Path(..., description="The year of the season to get"),
+    season_alias: str = Path(..., description="The alias of the season to get"),
 ):
   exclusion_projection = {"seasons.rounds.matchdays": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
     for season in tournament.get("seasons", []):
-      if season.get("year") == season_year:
+      if season.get("alias") == season_alias:
         season_response = SeasonDB(**season)
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(season_response))
     raise HTTPException(
       status_code=404,
-      detail=f"Season {season_year} not found in tournament {tournament_alias}"
+      detail=f"Season {season_alias} not found in tournament {tournament_alias}"
     )
 
 
@@ -65,12 +65,12 @@ async def add_season(
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias})) is None:
     raise HTTPException(status_code=404, detail="Tournament not found")
-  # Check for existing season with the same year as the one to add
-  if any(s.get("year") == season.year for s in tournament.get("seasons", [])):
+  # Check for existing season with the same alias as the one to add
+  if any(s.get("alias") == season.alias for s in tournament.get("seasons", [])):
     raise HTTPException(
       status_code=409,
       detail=
-      f"Season {season.year} already exists in tournament {tournament_alias}")
+      f"Season {season.alias} already exists in tournament {tournament_alias}")
 
   # Here you'd append the new season data to the tournament's seasons array
   try:
@@ -84,7 +84,7 @@ async def add_season(
       updated_tournament = await request.app.mongodb['tournaments'].find_one(
         {
           "alias": tournament_alias,
-          "seasons.year": season.year
+          "seasons.alias": season.alias
         }, {
           "_id": 0,
           "seasons.$": 1
@@ -99,12 +99,12 @@ async def add_season(
         raise HTTPException(
           status_code=404,
           detail=
-          f"Season {season.year} not found in tournament {tournament_alias}")
+          f"Season {season.alias} not found in tournament {tournament_alias}")
     else:
       raise HTTPException(
         status_code=404,
         detail=
-        f"Season {season.year} or tournament {tournament_alias} not found")
+        f"Season {season.alias} or tournament {tournament_alias} not found")
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
