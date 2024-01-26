@@ -136,7 +136,8 @@ class RoundUpdate(MongoBaseModel):
   standings: Optional[List[Standings]] = None
 
 class SeasonBase(MongoBaseModel):
-  year: int = Field(...)
+  name: str = Field(...)
+  alias: str = Field(...)
   published: bool = Field(...)
   rounds: List[RoundBase] = None
 
@@ -144,7 +145,8 @@ class SeasonDB(SeasonBase):
   pass
   
 class SeasonUpdate(MongoBaseModel):
-  year: Optional[int] = None
+  name: Optional[str] = None
+  alias: Optional[str] = None
   published: Optional[bool] = None
   rounds: Optional[List[RoundBase]] = None
 

@@ -15,19 +15,19 @@ async def get_rounds_for_season(
     request: Request,
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to list the rounds for"),
-    season_year: int = Path(..., description="The year of the season to get"),
+    season_alias: str = Path(..., description="The alias of the season to get"),
 ):
   exclusion_projection = {"seasons.rounds.matchdays.matches": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
     for season in tournament.get("seasons", []):
-      if season.get("year") == season_year:
+      if season.get("alias") == season_alias:
         rounds = [RoundDB(**round) for round in (season.get("rounds") or [])]
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(rounds))
     raise HTTPException(
       status_code=404,
-      detail=f"Season {season_year} not found in tournament {tournament_alias}"
+      detail=f"Season {season_alias} not found in tournament {tournament_alias}"
     )
   raise HTTPException(
     status_code=404,
@@ -41,14 +41,14 @@ async def get_round(
     tournament_alias: str = Path(
       ...,
       description="The alias of the tournament to list the matchdays for"),
-    season_year: int = Path(..., description="The year of the season to get"),
+    season_alias: str = Path(..., description="The alias of the season to get"),
     round_alias: str = Path(..., description="The alias of the round to get"),
 ):
   exclusion_projection = {"seasons.rounds.matchdays.matches": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
     for season in tournament.get("seasons", []):
-      if season.get("year") == season_year:
+      if season.get("alias") == season_alias:
         for round in season.get("rounds", []):
           if round.get("alias") == round_alias:
             round_response = RoundDB(**round)
@@ -57,7 +57,7 @@ async def get_round(
         raise HTTPException(
           status_code=404,
           detail=
-          f"Round with name {round_alias} not found in season {season_year} of tournament {tournament_alias}"
+          f"Round with name {round_alias} not found in season {season_alias} of tournament {tournament_alias}"
         )
 
 
@@ -67,7 +67,7 @@ async def add_round(
     request: Request,
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to add the round to"),
-    season_year: int = Path(..., description="The year of the season to add"),
+    season_alias: str = Path(..., description="The alias of the season to add"),
     round: RoundBase = Body(..., description="The data of the round to add"),
     user_id: str = Depends(auth.auth_wrapper),
 ):
@@ -80,18 +80,18 @@ async def add_round(
       detail=f"Tournament with alias {tournament_alias} not found")
   # Check if the season exists
   if (season := next(
-    (s for s in tournament["seasons"] if s["year"] == season_year),
+    (s for s in tournament["seasons"] if s["alias"] == season_alias),
       None)) is None:
     raise HTTPException(
       status_code=404,
-      detail=f"Season {season_year} not found in tournament {tournament_alias}"
+      detail=f"Season {season_alias} not found in tournament {tournament_alias}"
     )
   # Check if the round already exists
   if any(r.get("alias") == round.alias for r in season.get("rounds", [])):
     raise HTTPException(
       status_code=409,
       detail=
-      f"Round with alias {round.alias} already exists in season {season_year} of tournament {tournament_alias}"
+      f"Round with alias {round.alias} already exists in season {season_alias} of tournament {tournament_alias}"
     )
   # Add the round to the season
   try:
@@ -99,7 +99,7 @@ async def add_round(
     result = await request.app.mongodb['tournaments'].update_one(
       {
         "alias": tournament_alias,
-        "seasons.year": season_year
+        "seasons.alias": season_alias
       }, {"$push": {
         "seasons.$.rounds": round_data
       }})
@@ -108,7 +108,7 @@ async def add_round(
       updated_tournament = await request.app.mongodb['tournaments'].find_one(
         {
           "alias": tournament_alias,
-          "seasons.year": season_year
+          "seasons.alias": season_alias
         }, {
           "_id": 0,
           "seasons.$": 1
@@ -132,12 +132,12 @@ async def add_round(
         raise HTTPException(
           status_code=404,
           detail=
-          f"Season {season_year} not found in tournament {tournament_alias}")
+          f"Season {season_alias} not found in tournament {tournament_alias}")
     else:
       raise HTTPException(
         status_code=404,
         detail=
-        f"Season {season_year} or tournament {tournament_alias} not found")
+        f"Season {season_alias} or tournament {tournament_alias} not found")
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -150,8 +150,8 @@ async def update_round(
     round_id: str = Path(..., description="The id of the round to update"),
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to update the round in"),
-    season_year: int = Path(
-      ..., description="The year of the season to update the round in"),
+    season_alias: str = Path(
+      ..., description="The alias of the season to update the round in"),
     round: RoundUpdate = Body(...,
                               description="The data of the round to update"),
     user_id: str = Depends(auth.auth_wrapper),
@@ -169,12 +169,12 @@ async def update_round(
   # Check if the season exists
   season_index = next(
     (i
-     for i, s in enumerate(tournament["seasons"]) if s["year"] == season_year),
+     for i, s in enumerate(tournament["seasons"]) if s["alias"] == season_alias),
     None)
   if season_index is None:
     raise HTTPException(
       status_code=404,
-      detail=f"Season {season_year} not found in tournament {tournament_alias}"
+      detail=f"Season {season_alias} not found in tournament {tournament_alias}"
     )
   print("season_index: ", season_index)
   # Find the index of the round in the season
@@ -186,7 +186,7 @@ async def update_round(
     raise HTTPException(
       status_code=404,
       detail=
-      f"Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}"
+      f"Round with id {round_id} not found in season {season_alias} of tournament {tournament_alias}"
     )
 
   # Prepare the update by excluding unchanged data
@@ -207,14 +207,14 @@ async def update_round(
       result = await request.app.mongodb['tournaments'].update_one(
         {
           "alias": tournament_alias,
-          "seasons.year": season_year,
+          "seasons.alias": season_alias,
           "seasons.rounds._id": round_id
         }, update_data)
       if result.modified_count == 0:
         raise HTTPException(
           status_code=404,
           detail=
-          f"Update: Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}."
+          f"Update: Round with id {round_id} not found in season {season_alias} of tournament {tournament_alias}."
         )
 
     except Exception as e:
@@ -226,7 +226,7 @@ async def update_round(
   tournament = await request.app.mongodb['tournaments'].find_one(
     {
       "alias": tournament_alias,
-      "seasons.year": season_year
+      "seasons.alias": season_alias
     }, {
       "_id": 0,
       "seasons.$": 1
@@ -248,13 +248,13 @@ async def update_round(
       raise HTTPException(
         status_code=404,
         detail=
-        f"Fetch: Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}"
+        f"Fetch: Round with id {round_id} not found in season {season_alias} of tournament {tournament_alias}"
       )
   else:
     raise HTTPException(
       status_code=404,
       detail=
-      f"Fetch: Season {season_year} not found in tournament {tournament_alias}"
+      f"Fetch: Season {season_alias} not found in tournament {tournament_alias}"
     )
 
 
@@ -265,15 +265,15 @@ async def delete_round(
     request: Request,
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to delete the round from"),
-    season_year: int = Path(
-      ..., description="The year of the season to delete the round from"),
+    season_alias: str = Path(
+      ..., description="The alias of the season to delete the round from"),
     round_id: str = Path(..., description="The id of the round to delete"),
     user_id: str = Depends(auth.auth_wrapper),
 ):
   delete_result = await request.app.mongodb['tournaments'].update_one(
     {
       "alias": tournament_alias,
-      "seasons.year": season_year
+      "seasons.alias": season_alias
     }, {"$pull": {
       "seasons.$.rounds": {
         "_id": round_id
@@ -285,5 +285,5 @@ async def delete_round(
   raise HTTPException(
     status_code=404,
     detail=
-    f"Round with id {round_id} not found in season {season_year} of tournament {tournament_alias}"
+    f"Round with id {round_id} not found in season {season_alias} of tournament {tournament_alias}"
   )

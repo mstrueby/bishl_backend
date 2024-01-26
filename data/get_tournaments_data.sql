@@ -47,15 +47,28 @@ db.tournaments.updateMany({}, { $set: { seasons: [{year: 2023, published: true }
 
 -- get SEASONS data
 -- -----------------------
-select distinct
-  tcs.SeasonYear as seasonYear,
-  cs.py_code as t_tinyName
-from tblteamchampionship tcs
-join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
-where 1=1
-and tcs.SeasonYear in (2022, 2023)
-and cs.IsExtern=0
-and cs.id_fk_AgeGroup>0
+  select distinct
+    tcs.SeasonYear as name,
+    replace(
+      replace(
+        replace(
+          replace(  
+            replace(
+              replace(
+                replace(lower(trim(tcs.SeasonYear)), ' ', '-')
+              , 'ü', 'ue')
+            , 'ö', 'oe')
+          , 'ä' ,'ae')
+        , 'ß', 'ss')
+      , '`', '-')
+    , '.', '') as alias,
+    cs.py_code as t_tinyName
+  from tblteamchampionship tcs
+  join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
+  where 1=1
+  and tcs.SeasonYear in (2022, 2023)
+  and cs.IsExtern=0
+  and cs.id_fk_AgeGroup>0
 
 db.tournaments.updateOne( {tiny_name: "SL"}, { $push: { seasons: {year:2023, published:true} } } )
 db.tournaments.updateOne( {tiny_name: "BAM"}, { $push: { seasons: {year:2022, published:true} } } )
@@ -74,7 +87,7 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
 -- get ROUNDS data
 -- -----------------------
   select distinct
-      tcs.SeasonYear as seasonYear,
+      tcs.SeasonYear as s_alias,
       cs.py_code as t_tinyName,
       cs.py_round as name,
       cs.py_round_alias as alias,
@@ -99,7 +112,7 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
 
 -- get MATCHDAYS data
 select
-	g.SeasonYear as seasonYear,
+	g.SeasonYear as s_alias,
   cs.py_code as t_tinyName,
   cs.py_round as r_name,
   COALESCE(g.Round, 'ALL_GAMES') as name,
@@ -220,7 +233,7 @@ order by seasonyear desc, startdate;
 -- with history (joining tblteamseason)
 select
   cs.py_code as t_tinyName,
-  g.SeasonYear as seasonYear,
+  g.SeasonYear as s_alias,
   cs.py_round as r_name,
   COALESCE(g.Round, 'ALL_GAMES') as md_name,
   g.id_tblGame as matchId,
