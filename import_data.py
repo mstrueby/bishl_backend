@@ -94,6 +94,7 @@ match collection:
 
     for rec in name_records:
       try:
+        team_id = ObjectId()
         rec['teamNumber'] = int(rec['teamNumber'])
         rec['active'] = bool(rec['active'])
         rec['external'] = bool(rec['external'])
@@ -101,7 +102,7 @@ match collection:
         
         db_collection=db["clubs"]
         filter= {'alias': rec['clubAlias']}
-        new_values = { "$push" : {  "teams" : { "name": rec['name'], "alias": rec['alias'], "fullName": rec['fullName'], "shortName": rec['shortName'], "tinyName": rec['tinyName'], "ageGroup": rec['ageGroup'], "teamNumber": rec['teamNumber'], "active" : rec['active'], "external" : rec['external'], "ishdid": rec['ishdId'], "legacyId": rec['legacyId'] } } }
+        new_values = { "$push" : {  "teams" : { "_id": str(team_id), "name": rec['name'], "alias": rec['alias'], "fullName": rec['fullName'], "shortName": rec['shortName'], "tinyName": rec['tinyName'], "ageGroup": rec['ageGroup'], "teamNumber": rec['teamNumber'], "active" : rec['active'], "external" : rec['external'], "ishdid": rec['ishdId'], "legacyId": rec['legacyId'] } } }
 
         print("Inserting Team: ", filter, '/', new_values)
         db_collection.update_one(filter, new_values)

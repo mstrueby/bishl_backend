@@ -107,3 +107,7 @@ start = "pylsp"
 [deployment]
 run = ["sh", "-c", "uvicorn main:app --host 0.0.0.0"]
 deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 8000
+externalPort = 80

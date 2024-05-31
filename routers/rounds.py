@@ -156,9 +156,8 @@ async def update_round(
                               description="The data of the round to update"),
     user_id: str = Depends(auth.auth_wrapper),
 ):
-  print("update round: ", round)
   round = round.dict(exclude_unset=True)
-  print("excluded unset: ", round)
+  print("round: ", round)
   # Check if the tournament exists
   tournament = await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias})
@@ -201,7 +200,7 @@ async def update_round(
 
   # Update the round in the season
   if update_data.get("$set"):
-    print("do update")
+    print("to update: ", update_data)
     try:
       # Update the round in the tournament's season
       result = await request.app.mongodb['tournaments'].update_one(
