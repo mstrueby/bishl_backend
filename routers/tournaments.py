@@ -72,9 +72,11 @@ async def update_tournament(request: Request,
                             id: str,
                             tournament: TournamentUpdate = Body(...),
                             user_id=Depends(auth.auth_wrapper)):
-  print("input: ", tournament)
+  print("tournament pre exclude: ", tournament)
   tournament = tournament.dict(exclude_unset=True)
-  print("exclude unset: ", tournament)
+  tournament.pop("id", None)
+  print("tournament: ", tournament)
+
   existing_tournament = await request.app.mongodb['tournaments'].find_one(
     {"_id": id})
   if existing_tournament is None:
@@ -101,7 +103,7 @@ async def update_tournament(request: Request,
       raise HTTPException(status_code=500,
                           detail=f"An unexpected error occurred: {str(e)}")
   else:
-    print("no update")
+    print("No update needed")
 
   exclusion_projection = {"seasons.rounds": 0}
   updated_tournament = await request.app.mongodb['tournaments'].find_one(
