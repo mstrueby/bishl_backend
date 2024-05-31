@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
 #import uvicorn
+from routers.root import router as root_router
 from routers.venues import router as venues_router
 from routers.clubs import router as clubs_router
 from routers.teams import router as teams_router
@@ -43,7 +44,7 @@ async def startup_db_client():
 async def shutdown_db_client():
   app.mongodb_client.close()
 
-
+app.include_router(root_router, prefix="", tags=["root"])
 app.include_router(venues_router, prefix="/venues", tags=["venues"])
 app.include_router(clubs_router, prefix="/clubs", tags=["clubs"])
 app.include_router(teams_router, prefix="/teams", tags=["teams"])
