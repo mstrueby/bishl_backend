@@ -73,6 +73,9 @@ async def update_venue(
     userId=Depends(auth.auth_wrapper),
 ):
   venue = venue.dict(exclude_unset=True)
+  venue.pop("id", None)
+  
+  print("venue: ", venue)
   existing_venue = await request.app.mongodb['venues'].find_one({"_id": id})
   if existing_venue is None:
     raise HTTPException(status_code=404,
@@ -84,18 +87,18 @@ async def update_venue(
   }
 
   if not venue_to_update:
+    print("No update needed")
     return VenueDB(
       **existing_venue)  # No update needed as no values have changed
   try:
+    print('venue_to_update: ' + str(venue_to_update))
     update_result = await request.app.mongodb['venues'].update_one(
       {"_id": id}, {"$set": venue_to_update})
     if update_result.modified_count == 1:
       if (updated_venue := await
           request.app.mongodb['venues'].find_one({"_id": id})) is not None:
         return VenueDB(**updated_venue)
-    return VenueDB(
-      **existing_venue
-    )  # No update occurred if no attributes had different values
+    return VenueDB(**existing_venue)
   except DuplicateKeyError:
     raise HTTPException(
       status_code=400,

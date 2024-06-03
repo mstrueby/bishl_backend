@@ -1,7 +1,6 @@
 from bson import ObjectId
-from datetime import date
-from pydantic import Field, BaseModel, HttpUrl, EmailStr
-from typing import Optional, List
+from pydantic import Field, BaseModel, validator
+from typing import Optional
 
 
 class PyObjectId(ObjectId):
@@ -26,7 +25,7 @@ class MongoBaseModel(BaseModel):
 
   class Config:
     json_encoders = {ObjectId: str}
-    
+
 
 # Venues
 # ------------
@@ -47,21 +46,61 @@ class VenueBase(MongoBaseModel):
   active: bool = False
   legacyId: int = None
 
+  @validator('image', 'description', pre=True, always=True)
+  def empty_str_to_none(cls, v):
+    return None if v == "" else v
+
+  @validator('name',
+             'alias',
+             'shortName',
+             'street',
+             'zipCode',
+             'city',
+             'country',
+             'latitude',
+             'longitude',
+             pre=True,
+             always=True)
+  def prevent_null_value(cls, v):
+    if v is None or v == "":
+      raise ValueError("Field cannot be null or empty string")
+    return v
+
 
 class VenueDB(VenueBase):
   pass
 
 
 class VenueUpdate(MongoBaseModel):
-  name: Optional[str] = None
-  alias: Optional[str] = None
-  shortName: Optional[str] = None
-  street: Optional[str] = None
-  zipCode: Optional[str] = None
-  city: Optional[str] = None
-  country: Optional[str] = None
-  latitude: Optional[str] = None
-  longitude: Optional[str] = None
+  name: Optional[str] = "DEFAULT"
+  alias: Optional[str] = "DEFAULT"
+  shortName: Optional[str] = "DEFAULT"
+  street: Optional[str] = "DEFAULT"
+  zipCode: Optional[str] = "DEFAULT"
+  city: Optional[str] = "DEFAULT"
+  country: Optional[str] = "DEFAULT"
+  latitude: Optional[str] = "DEFAULT"
+  longitude: Optional[str] = "DEFAULT"
   image: Optional[str] = None
   description: Optional[str] = None
-  active: Optional[bool] = None
+  active: Optional[bool] = False
+
+  @validator('image', 'description', pre=True, always=True)
+  def empty_str_to_none(cls, v):
+    return None if v == "" else v
+
+  @validator('name',
+             'alias',
+             'shortName',
+             'street',
+             'zipCode',
+             'city',
+             'country',
+             'latitude',
+             'longitude',
+             pre=True,
+             always=True)
+  def prevent_null_value(cls, v):
+    if v is None or v == "":
+      raise ValueError("Field cannot be null or empty string")
+    return v
