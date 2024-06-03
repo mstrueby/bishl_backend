@@ -25,4 +25,4 @@ select
   case isactive when 1 then 'True' else '' end as active,
   id_tblstadium as legacyId
 from tblstadium v
-where v.id_tblstadium >0
+where v.id_tblstadium >0 and v.id_tblstadium not in (5,9,10)
