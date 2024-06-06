@@ -1,5 +1,5 @@
 from bson import ObjectId
-from datetime import date
+#from datetime import date
 from pydantic import Field, BaseModel, HttpUrl, EmailStr, validator
 from typing import Optional, List
 
@@ -37,8 +37,8 @@ class TeamBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
   fullName: str = Field(...)
-  shortName: str = None
-  tinyName: str = None
+  shortName: str = Field(...)
+  tinyName: str = Field(...)
   ageGroup: str = Field(...)
   teamNumber: int = Field(...)
   active: bool = False
@@ -46,22 +46,52 @@ class TeamBase(MongoBaseModel):
   ishdId: str = None
   legacyId: int = None
 
+  @validator('ishdId', pre=True, always=True)
+  def empty_str_to_none(cls, v):
+    return None if v == "" else v
+  
+  @validator('name', 'alias', 'fullName', 'shortName', 'tinyName', 'ageGroup', pre=True, always=True)
+  def prevent_null_value(cls, v):
+    if v is None or v == "":
+      raise ValueError("Field cannot be null or empty string")
+    return v
+
+@validator('teamNumber', pre=True, always=True)
+def int_must_be_positive(cls, v):
+  if v < 1 or v is None:
+    raise ValueError("Field must be positive")
+
 class TeamDB(TeamBase):
   pass
 
 class TeamUpdate(MongoBaseModel):
-  name: Optional[str] = None
-  alias: Optional[str] = None
-  fullName: Optional[str] = None
-  shortName: Optional[str] = None
-  tinyName: Optional[str] = None
-  ageGroup: Optional[str] = None
-  teamNumber: Optional[int] = None
-  active: Optional[bool] = None
-  external: Optional[bool] = None
+  name: Optional[str] = "DEFAULT"
+  alias: Optional[str] = "DEFAULT"
+  fullName: Optional[str] = "DEFAULT"
+  shortName: Optional[str] = "DEFAULT"
+  tinyName: Optional[str] = "DEFAULT"
+  ageGroup: Optional[str] = "DEFAULT"
+  teamNumber: Optional[int] = 1
+  active: Optional[bool] = False
+  external: Optional[bool] = False
   ishdId: Optional[str] = None
   legacyId: Optional[int] = None
 
+  @validator('ishdId', pre=True, always=True)
+  def empty_str_to_none(cls, v):
+    return None if v == "" else v
+
+  @validator('name', 'alias', 'fullName', 'shortName', 'tinyName', 'ageGroup', pre=True, always=True)
+  def prevent_null_value(cls, v):
+    if v is None or v == "":
+      raise ValueError("Field cannot be null or empty string")
+    return v
+
+  @validator('teamNumber', pre=True, always=True)
+  def int_must_be_positive(cls, v):
+    if v < 1 or v is None:
+      raise ValueError("Field must be positive")
+      
 class ClubBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
@@ -90,19 +120,24 @@ class ClubBase(MongoBaseModel):
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
-
+  @validator('name', 'alias', 'country', pre=True, always=True)
+  def prevent_null_value(cls, v):
+    if v is None or v == "":
+      raise ValueError("Field cannot be null or empty string")
+    return v
+    
 class ClubDB(ClubBase):
   pass
 
 
 class ClubUpdate(MongoBaseModel):
-  name: Optional[str] = None
-  alias: Optional[str] = None
+  name: Optional[str] = "DEFAULT"
+  alias: Optional[str] = "DEFAULT"
   addressName: Optional[str] = None
   street: Optional[str] = None
   zipCode: Optional[str] = None
   city: Optional[str] = None
-  country: Optional[str] = None
+  country: Optional[str] = "DEFAULT"
   email: Optional[EmailStr] = None
   yearOfFoundation: Optional[int] = None
   description: Optional[str] = None
@@ -114,6 +149,16 @@ class ClubUpdate(MongoBaseModel):
   logo: Optional[str] = None
 
   
-  @validator('email', 'website', 'yearOfFoundation', 'ishdId', 'logo', pre=True, always=True)
+  @validator('email',
+     'website',
+     'logo',
+     pre=True,
+     always=True)
   def empty_str_to_none(cls, v):
-      return None if v == "" else v
+    return None if v == "" else v
+
+  @validator('name', 'alias', 'country', pre=True, always=True)
+  def prevent_null_value(cls, v):
+    if v is None or v == "":
+      raise ValueError("Field cannot be null or empty string")
+    return v

@@ -278,7 +278,7 @@ async def update_matchday(
 
 
 # delete matchday of a round
-@router.delete('/{matchday_id}',
+@router.delete('/{matchday_alias}',
                response_description="Delete a matchday of a round")
 async def delete_matchday(
     request: Request,
@@ -289,8 +289,8 @@ async def delete_matchday(
                             description="The alias of the season to delete"),
     round_alias: str = Path(...,
                             description="The alias of the round to delete"),
-    matchday_id: str = Path(...,
-                            description="The ID of the matchday to delete"),
+    matchday_alias: str = Path(...,
+                            description="The alias of the matchday to delete"),
     user_id: str = Depends(auth.auth_wrapper),
 ):
   result = await request.app.mongodb['tournaments'].update_one(
@@ -298,10 +298,10 @@ async def delete_matchday(
       "alias": tournament_alias,
       "seasons.alias": season_alias,
       "seasons.rounds.alias": round_alias,
-      "seasons.rounds.matchdays._id": matchday_id
+      "seasons.rounds.matchdays.alias": matchday_alias
     }, {"$pull": {
       "seasons.$[s].rounds.$[r].matchdays": {
-        "_id": matchday_id
+        "alias": matchday_alias
       }
     }},
     array_filters=[{
@@ -315,5 +315,5 @@ async def delete_matchday(
     raise HTTPException(
       status_code=404,
       detail=
-      f"Matchday with id {matchday_id} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
+      f"Matchday with alias {matchday_alias} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
     )

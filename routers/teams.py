@@ -1,71 +1,212 @@
-import os
-from typing import List
-from fastapi import APIRouter, Request, Body, status, HTTPException
+# filename: routers/teams.py
+from fastapi import APIRouter, Request, Body, status, HTTPException, Path, Depends
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
-from models.teams import TeamBase, TeamDB, TeamUpdate
+from fastapi.responses import JSONResponse, Response
+from models.clubs import TeamBase, TeamDB, TeamUpdate
+from authentication import AuthHandler
 
 router = APIRouter()
+auth = AuthHandler()
 
-# list all teams
-@router.get("/", response_description="List all teams")
-async def list_teams(
-    request: Request,
-    # active: bool=True,
-    page: int=1,
-    ) -> List[TeamDB]:
 
-    RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
-    skip = (page - 1) * RESULTS_PER_PAGE
-    # query = {"active":active}
-    query = {}
-    full_query = request.app.mongodb["teams"].find(query).sort("name",1).skip(skip).limit(RESULTS_PER_PAGE)
-    results = [TeamDB(**raw_team) async for raw_team in full_query]
-    return results
+# list all teams of one club
+@router.get("/", response_description="List all teams of one club")
+async def list_teams_of_one_club(
+        request: Request,
+        club_alias: str = Path(..., description="Club alias to list teams"),
+):
+    if (club := await
+            request.app.mongodb["clubs"].find_one({"alias":
+                                                   club_alias})) is not None:
+        teams = [TeamDB(**team) for team in (club.get("teams") or [])]
+        return JSONResponse(status_code=status.HTTP_200_OK,
+                            content=jsonable_encoder(teams))
+    raise HTTPException(status_code=404,
+                        detail=f"Club with alias {club_alias} not found")
+
+
+# get one team of a club
+@router.get("/{team_alias}", response_description="Get one team of a club")
+async def get_team(
+        request: Request,
+        club_alias: str = Path(..., description="Club alias to get team"),
+        team_alias: str = Path(..., description="Team alias to get"),
+):
+    if (club := await
+            request.app.mongodb["clubs"].find_one({"alias":
+                                                   club_alias})) is not None:
+        for team in club.get("teams", []):
+            if team.get("alias") == team_alias:
+                team_response = TeamDB(**team)
+                return JSONResponse(status_code=status.HTTP_200_OK,
+                                    content=jsonable_encoder(team_response))
+        raise HTTPException(
+            status_code=404,
+            detail=
+            f"Team with alias {team_alias} not found for club {club_alias}")
 
 
 # create new team
-@router.post("/", response_description="Add new team")
-async def create_team(request: Request, team: TeamBase = Body(...)):
-    team = jsonable_encoder(team)
-    new_team = await request.app.mongodb["teams"].insert_one(team)
-    created_team = await request.app.mongodb["teams"].find_one(
-        {"_id": new_team.inserted_id}
-    )
+@router.post("/", response_description="Add new team to a club")
+async def create_team(
+        request: Request,
+        club_alias: str = Path(...,
+                               description="Club alias to create team for"),
+        team: TeamBase = Body(..., description="Team data"),
+        user_id: str = Depends(auth.auth_wrapper),
+):
+    print("create team")
+    # check if club exists
+    if (club := await request.app.mongodb["clubs"].find_one(
+        {"alias": club_alias})) is None:
+        raise HTTPException(status_code=404,
+                            detail=f"Club with alias {club_alias} not found")
+    # check if team already exists
+    if any(t.get("alias") == team.alias for t in club.get("teams", [])):
+        raise HTTPException(
+            status_code=409,
+            detail=
+            f"Team with alias {team.alias} already exists for club {club_alias}"
+        )
 
-    return JSONResponse(status_code=status.HTTP_201_CREATED, content=created_team)
+    # add team to club
+    try:
+        team_data = jsonable_encoder(team)
+        result = await request.app.mongodb["clubs"].update_one(
+            {"alias": club_alias}, {"$push": {
+                "teams": team_data
+            }})
+        if result.modified_count == 1:
+            # get inserted team
+            updated_club = await request.app.mongodb["clubs"].find_one(
+                {
+                    "alias": club_alias,
+                    "teams.alias": team.alias
+                }, {
+                    "_id": 0,
+                    "teams.$": 1
+                })
+            if updated_club and "teams" in updated_club:
+                team = updated_club["teams"][0]
+                team_response = TeamDB(**team)
+                return JSONResponse(status_code=status.HTTP_201_CREATED,
+                                    content=jsonable_encoder(team_response))
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=
+                    f"Team with alias {team.alias} not found in club {club_alias}"
+                )
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=
+                f"Team with alias {team.alias} not or club {club_alias} not found"
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# get team by ID
-@router.get("/{id}", response_description="Get a single team")
-async def get_team(id: str, request: Request):
-    if (team := await request.app.mongodb["teams"].find_one({"_id": id})) is not None:
-        return TeamDB(**team)
-    raise HTTPException(status_code=404, detail=f"Club with {id} not found")
-
-
-# Update team
-@router.patch("/{id}", response_description="Update team")
+# Update team in club
+@router.patch("/{team_id}", response_description="Update team")
 async def update_team(
-    request: Request,
-    id: str,
-    team: TeamUpdate = Body(...)
-    ):
-    await request.app.mongodb['teams'].update_one(
-        {"_id": id}, {"$set": team.dict(exclude_unset=True)}
-    )
-    if (team := await request.app.mongodb['teams'].find_one({"_id": id})) is not None:
-        return TeamDB(**team)
-    raise HTTPException(status_code=404, detail=f"Club with {id} not found")
+        request: Request,
+        team_id: str,
+        club_alias: str = Path(...,
+                               description="Club alias to update team for"),
+        team: TeamUpdate = Body(..., description="Team data"),
+        user_id: str = Depends(auth.auth_wrapper),
+):
+    print("input team: ", team)
+    team = team.dict(exclude_unset=True)
+    print("exclude unset: ", team)
+
+    # check if club exists
+    club = await request.app.mongodb["clubs"].find_one({"alias": club_alias})
+    if not club:
+        raise HTTPException(status_code=404,
+                            detail=f"Club with alias {club_alias} not found")
+
+    # Find the index of the team to be updated
+    team_index = next(
+        (index for (index, d) in enumerate(club["teams"]) if d["_id"] == team_id),
+        None)
+    if team_index is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Team with id {team_id} not found in club {club_alias}")
+
+    team = jsonable_encoder(team)
+
+    # prepare the update by excluding unchanged data
+    update_data = {"$set": {}}
+    for field in team:
+        if field != "_id" and team[field] != club["teams"][team_index].get(
+                field):
+            update_data["$set"][f"teams.{team_index}.{field}"] = team[field]
+    print("updated data: ", update_data)
+
+    # Update the team in the club
+    if update_data["$set"]:
+        print("do update")
+        try:
+            result = await request.app.mongodb["clubs"].update_one(
+                {
+                    "_id": club["_id"],
+                    f"teams.{team_index}._id": team_id
+                }, update_data)
+            if result.modified_count == 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail=
+                    f"Update: Team with id {team_id} not found in club {club_alias}"
+                )
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    else:
+        print("do not update")
+
+    # Get the updated team from the club
+    club = await request.app.mongodb["clubs"].find_one({"alias": club_alias}, {
+        "_id": 0,
+        "teams": {
+            "$elemMatch": {
+                "_id": team_id
+            }
+        }
+    })
+    if club and "teams" in club:
+        team = club["teams"][0]
+        team_response = TeamDB(**team)
+        return JSONResponse(status_code=status.HTTP_200_OK,
+                            content=jsonable_encoder(team_response))
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Fetch: Team with id {team_id} not found in club {club_alias}")
 
 
 # Delete team
-@router.delete("/{id}", response_description="Delete team")
+@router.delete("/{team_alias}", response_description="Delete team")
 async def delete_team(
-    request: Request,
-    id: str
-    ):
-    result = await request.app.mongodb['teams'].delete_one({"_id": id})
-    if result.deleted_count == 1:
-        return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
-    raise HTTPException(status_code=404, detail=f"Club with {id} not found")
+        request: Request,
+        club_alias: str = Path(...,
+                               description="Club alias to delete team from"),
+        team_alias: str = Path(..., description="Team alias to delete"),
+        user_id: str = Depends(auth.auth_wrapper),
+):
+    delete_result = await request.app.mongodb["clubs"].update_one(
+        {"alias": club_alias}, {"$pull": {
+            "teams": {
+                "alias": team_alias
+            }
+        }})
+    if delete_result.modified_count == 1:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Team with alias {team_alias} not found in club {club_alias}")

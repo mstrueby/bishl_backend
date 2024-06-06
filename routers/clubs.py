@@ -12,7 +12,7 @@ from fastapi import (
 )
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from models.clubs import ClubDB
+from models.clubs import ClubBase, ClubDB, ClubUpdate
 from authentication import AuthHandler
 from pymongo.errors import DuplicateKeyError
 import cloudinary
@@ -109,6 +109,7 @@ async def create_club(
     logo=url,
   )
   club = jsonable_encoder(club)
+  print("add club: ", club)
 
   # DB processing
   try:
@@ -184,16 +185,28 @@ async def update_club(
   if url is not None:
     club["logo"] = url
 
+  try:
+    club = ClubUpdate(**club)
+    club = club.dict(exclude_unset=True)
+    club.pop("id", None)
+  except:
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Invalid club data")
+      
   print("club: ", club)
 
-  exisitng_club = await request.app.mongodb["clubs"].find_one({"_id": id})
-  if exisitng_club is None:
+  existing_club = await request.app.mongodb["clubs"].find_one({"_id": id})
+  if existing_club is None:
     raise HTTPException(status_code=404, detail=f"Club with id {id} not found")
+  #del club_to_update["_id"]
+  #club_to_update = ClubBase(**club)
   #Exclude unchanged data
   club_to_update = {
     k: v
-    for k, v in club.items() if v is not None and v != exisitng_club.get(k)
+    for k, v in club.items() if v != existing_club.get(k)
   }
+  #club_to_update = club_to_update.dict(exclude_unset=True)
+
 
   # If logo was not updated, remove it from the update
   if url is None and 'logo' in club_to_update:
@@ -201,16 +214,16 @@ async def update_club(
 
   if not club_to_update:
     print("No update needed")
-    return ClubDB(**exisitng_club)
+    return ClubDB(**existing_club)
   try:
     print('club_to_update: ' + str(club_to_update))
     update_result = await request.app.mongodb["clubs"].update_one(
       {"_id": id}, {"$set": club_to_update})
     if update_result.modified_count == 1:
-      if (updatd_club := await
+      if (updated_club := await
           request.app.mongodb["clubs"].find_one({"_id": id})) is not None:
-        return ClubDB(**updatd_club)
-    return ClubDB(**exisitng_club)
+        return ClubDB(**updated_club)
+    return ClubDB(**existing_club)
   except DuplicateKeyError:
     raise HTTPException(
       status_code=400,

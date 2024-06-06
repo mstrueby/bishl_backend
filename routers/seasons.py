@@ -32,10 +32,10 @@ async def get_seasons_for_tournament(
 # get one season of a tournament
 @router.get('/{season_alias}', response_description="Get a single season")
 async def get_season(
-    request: Request,
-    tournament_alias: str = Path(
-      ..., description="The alias of the tournament to list the seasons for"),
-    season_alias: str = Path(..., description="The alias of the season to get"),
+  request: Request,
+  tournament_alias: str = Path(
+    ..., description="The alias of the tournament to list the seasons for"),
+  season_alias: str = Path(..., description="The alias of the season to get"),
 ):
   exclusion_projection = {"seasons.rounds.matchdays": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
@@ -53,7 +53,7 @@ async def get_season(
 
 # add new season to tournament
 @router.post('/', response_description="Add new season to tournament")
-async def add_season(
+async def create_season(
     request: Request,
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to add a season to"),
@@ -64,9 +64,12 @@ async def add_season(
   # Check if the tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias})) is None:
-    raise HTTPException(status_code=404, detail="Tournament not found")
+    raise HTTPException(
+      status_code=404,
+      detail=f"Tournament with alias {tournament_alias} not found")
   # Check for existing season with the same alias as the one to add
-  if any(s.get("alias") == season.alias for s in tournament.get("seasons", [])):
+  if any(
+      s.get("alias") == season.alias for s in tournament.get("seasons", [])):
     raise HTTPException(
       status_code=409,
       detail=
@@ -119,7 +122,7 @@ async def update_season(
     tournament_alias: str = Path(
       ..., description="The ALIAS of the tournament to update the season in"),
     season: SeasonUpdate = Body(..., description="Season data to update"),
-    userId: str = Depends(auth.auth_wrapper),
+    user_id: str = Depends(auth.auth_wrapper),
 ):
 
   print("input season: ", season)
@@ -161,7 +164,6 @@ async def update_season(
     print("do update")
     # Update season in tournament
     try:
-
       result = await request.app.mongodb['tournaments'].update_one(
         {
           "_id": tournament["_id"],
@@ -207,20 +209,20 @@ async def update_season(
 
 
 # delete season from tournament
-@router.delete('/{season_id}',
+@router.delete('/{season_alias}',
                response_description="Delete a single season from a tournament")
-async def delete_one_season(
+async def delete_season(
     request: Request,
     tournament_alias: str = Path(
       ...,
       description="The alias of the tournament to delete the season from"),
-    season_id: str = Path(..., description="The id of the season to delete"),
-    userId: str = Depends(auth.auth_wrapper),
+    season_alias: str = Path(..., description="The alias of the season to delete"),
+    user_id: str = Depends(auth.auth_wrapper),
 ):
   delete_result = await request.app.mongodb['tournaments'].update_one(
     {"alias": tournament_alias}, {"$pull": {
       "seasons": {
-        "_id": season_id
+        "alias": season_alias
       }
     }})
   if delete_result.modified_count == 1:
@@ -229,4 +231,4 @@ async def delete_one_season(
   raise HTTPException(
     status_code=404,
     detail=
-    f"Season with id {season_id} not found in tournament {tournament_alias}")
+    f"Season with alias {season_alias} not found in tournament {tournament_alias}")

@@ -258,7 +258,7 @@ async def update_round(
 
 
 # delete round from a season
-@router.delete('/{round_id}',
+@router.delete('/{round_alias}',
                response_description="Delete a single round from a season")
 async def delete_round(
     request: Request,
@@ -266,7 +266,7 @@ async def delete_round(
       ..., description="The alias of the tournament to delete the round from"),
     season_alias: str = Path(
       ..., description="The alias of the season to delete the round from"),
-    round_id: str = Path(..., description="The id of the round to delete"),
+    round_alias: str = Path(..., description="The alias of the round to delete"),
     user_id: str = Depends(auth.auth_wrapper),
 ):
   delete_result = await request.app.mongodb['tournaments'].update_one(
@@ -275,7 +275,7 @@ async def delete_round(
       "seasons.alias": season_alias
     }, {"$pull": {
       "seasons.$.rounds": {
-        "_id": round_id
+        "alias": round_alias
       }
     }})
   if delete_result.modified_count == 1:
@@ -284,5 +284,5 @@ async def delete_round(
   raise HTTPException(
     status_code=404,
     detail=
-    f"Round with id {round_id} not found in season {season_alias} of tournament {tournament_alias}"
+    f"Round with alias {round_alias} not found in season {season_alias} of tournament {tournament_alias}"
   )
