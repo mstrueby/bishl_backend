@@ -47,7 +47,7 @@ async def shutdown_db_client():
 app.include_router(root_router, prefix="", tags=["root"])
 app.include_router(venues_router, prefix="/venues", tags=["venues"])
 app.include_router(clubs_router, prefix="/clubs", tags=["clubs"])
-app.include_router(teams_router, prefix="/teams", tags=["teams"])
+app.include_router(teams_router, prefix="/clubs/{club_alias}/teams", tags=["teams"])
 app.include_router(tournaments_router,
                    prefix="/tournaments",
                    tags=["tournaments"])
