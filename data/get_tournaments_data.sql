@@ -95,8 +95,10 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
       cs.py_md_type as matchdaysType,
       cs.py_md_sort as matchdaysSortedBy,
       cs.CreateTableByRound,
-      min(date(g.StartDate)) as startDate,
-      max(date(g.StartDate)) as endDate,
+      -- min(date(g.StartDate)) as startDate,
+      -- max(date(g.StartDate)) as endDate,
+      min(g.StartDate) as startDate,
+      max(g.StartDate) as endDate,
       'True' as createStats,
       'True' as published
     from tblteamchampionship tcs
@@ -118,9 +120,11 @@ select
   COALESCE(g.Round, 'ALL_GAMES') as name,
   COALESCE(g.py_md_alias, 'all_games') as alias,
   case when cs.py_round = 'Playoffs' then 'Playoffs' else 'Round Robin' end as type,
-  date(min(g.startdate)) as startDate,
-  date(max(g.startdate)) as endDate,
-  case when cs.CreateTableByRound = 1 then 'True' else '' end as createStandings,
+  --date(min(g.startdate)) as startDate,
+  --date(max(g.startdate)) as endDate,
+  min(g.startdate) as startDate,
+  max(g.startdate) as endDate,
+case when cs.CreateTableByRound = 1 then 'True' else '' end as createStandings,
   '' as createStats,
   'True' as published
 from tblgame as g

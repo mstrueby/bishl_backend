@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse, Response
 from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from authentication import AuthHandler
 from fastapi.encoders import jsonable_encoder
+from utils import parse_datetime, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
@@ -118,7 +119,7 @@ async def add_matchday(
 
   # add matchday to round
   try:
-    matchday_data = jsonable_encoder(matchday)
+    matchday_data = my_jsonable_encoder(matchday)
     filter = {"alias": tournament_alias}
     new_values = {
       "$push": {

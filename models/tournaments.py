@@ -1,5 +1,5 @@
 from bson import ObjectId
-from datetime import date
+from datetime import datetime, date
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List
 
@@ -51,7 +51,7 @@ class Teams(BaseModel):
     return None if v == "" else v
 
 
-class MatcheBase(MongoBaseModel):
+class MatchBase(MongoBaseModel):
   matchId: str = Field(...)
   homeTeam: Teams = Field(...)
   awayTeam: Teams = Field(...)
@@ -61,24 +61,24 @@ class MatcheBase(MongoBaseModel):
   awayScore: int = None
   overtime: bool = None
   shootout: bool = None
-  startTime: date = None
+  startTime: datetime = None
   published: bool = False
 
 
-class MatchDB(MatcheBase):
+class MatchDB(MatchBase):
   pass
 
 
 class MatchUpdate(MongoBaseModel):
-  homeTeam: Optional[Teams] = None
-  awayTeam: Optional[Teams] = None
+  homeTeam: Optional[Teams] = {}
+  awayTeam: Optional[Teams] = {}
   status: Optional[str] = None
   venue: Optional[str] = None
   homeScore: Optional[int] = None
   awayScore: Optional[int] = None
   overtime: Optional[bool] = None
   shootout: Optional[bool] = None
-  startTime: Optional[date] = None
+  startTime: Optional[datetime] = None
   published: Optional[bool] = False
 
 
@@ -86,13 +86,13 @@ class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
   type: str = Field(...)  # make enum, "Playoffs", "Round Robin"
-  startDate: date = None
-  endDate: date = None
+  startDate: datetime = None
+  endDate: datetime = None
   createStandings: bool = False
   createStats: bool = False
   published: bool = False
-  matches: List[MatcheBase] = None
-  standings: List[Standings] = None
+  matches: List[MatchBase] = []
+  standings: List[Standings] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def empty_str_to_none(cls, v):
@@ -113,13 +113,14 @@ class MatchdayUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
   type: Optional[str] = "DEFAULT"
-  startDate: Optional[date] = None
-  endDate: Optional[date] = None
+  startDate: Optional[datetime] = None
+  endDate: Optional[datetime] = None
   createStandings: Optional[bool] = False
   createStats: Optional[bool] = False
   published: Optional[bool] = False
-  matches: Optional[List[MatcheBase]] = None
-  standings: Optional[List[Standings]] = None
+  matches: Optional[List[MatchBase]] = []
+  standings: Optional[List[Standings]] = []
+
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def empty_str_to_none(cls, v):
@@ -139,11 +140,11 @@ class RoundBase(MongoBaseModel):
   createStats: bool = False
   matchdaysType: str = Field(...)
   matchdaysSortedBy: str = Field(...)
-  startDate: date = None
-  endDate: date = None
+  startDate: datetime = None
+  endDate: datetime = None
   published: bool = False
-  matchdays: List[MatchdayBase] = None
-  standings: List[Standings] = None
+  matchdays: List[MatchdayBase] = []
+  standings: List[Standings] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def empty_str_to_none(cls, v):
@@ -167,11 +168,11 @@ class RoundUpdate(MongoBaseModel):
   createStats: Optional[bool] = False
   matchdaysType: Optional[str] = "DEFAULT"
   matchdaysSortedBy: Optional[str] = "DEFAULT"
-  startDate: Optional[date] = None
-  endDate: Optional[date] = None
+  startDate: Optional[datetime] = None
+  endDate: Optional[datetime] = None
   published: Optional[bool] = False
-  matchdays: Optional[List[MatchdayBase]] = None
-  standings: Optional[List[Standings]] = None
+  matchdays: Optional[List[MatchdayBase]] = []
+  standings: Optional[List[Standings]] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def empty_str_to_none(cls, v):
@@ -188,7 +189,7 @@ class SeasonBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
   published: bool = False
-  rounds: List[RoundBase] = None
+  rounds: List[RoundBase] = []
 
   @validator('name', 'alias', pre=True, always=True)
   def prevent_null_value(cls, v):
@@ -204,7 +205,7 @@ class SeasonUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
   published: Optional[bool] = False
-  rounds: Optional[List[RoundBase]] = None
+  rounds: Optional[List[RoundBase]] = []
   
   @validator('name', 'alias', pre=True, always=True)
   def prevent_null_value(cls, v):
