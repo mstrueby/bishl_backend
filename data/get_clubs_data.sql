@@ -24,7 +24,7 @@ SELECT
   c.py_alias as clubAlias,
   concat(t.teamNumber, '. ', ag.Name) as name,
   -- t.py_alias as teamAlias,
-  replace(lower(concat(ag.name,'-',t.teamNumberRoman)), 'ü', 'ue') as alias,
+  t.py_alias as alias,
   t.name as fullName,
   t.shortName as shortName, 
   t.tinyName as tinyName, 
@@ -59,6 +59,21 @@ update tblclub
       , 'ß', 'ss')
     , '`', '-')
   , '.', '')
+
+update tblteam
+  set py_alias=replace(
+    replace(
+      replace(
+        replace(  
+          replace(
+            replace(
+              replace(lower(trim( ISHDID )), ' ', '-')
+              , 'ü', 'ue')
+            , 'ö', 'oe')
+          , 'ä' ,'ae')
+        , 'ß', 'ss')
+      , '`', '-')
+    , '.', '')
   
 update tblteam t
 inner join tblclub c on t.id_fk_Club=c.id_tblClub

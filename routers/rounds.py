@@ -4,10 +4,11 @@ from fastapi.responses import JSONResponse, Response
 from models.tournaments import RoundBase, RoundDB, RoundUpdate
 from authentication import AuthHandler
 from fastapi.encoders import jsonable_encoder
+from datetime import datetime
+from utils import my_jsonable_encoder, parse_datetime
 
 router = APIRouter()
 auth = AuthHandler()
-
 
 # get all rounds of a season
 @router.get('/', response_description="List all rounds for a season")
@@ -71,7 +72,7 @@ async def add_round(
     round: RoundBase = Body(..., description="The data of the round to add"),
     user_id: str = Depends(auth.auth_wrapper),
 ):
-  print("add round")
+  print("add round, data: ", round)
   # Check if the tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias})) is None:
@@ -95,7 +96,8 @@ async def add_round(
     )
   # Add the round to the season
   try:
-    round_data = jsonable_encoder(round)
+    round_data = my_jsonable_encoder(round)
+    print("round_data: ", round_data)
     result = await request.app.mongodb['tournaments'].update_one(
       {
         "alias": tournament_alias,
@@ -115,8 +117,7 @@ async def add_round(
         })
       # update_tournament has only one season of tournament
       if updated_tournament and 'seasons' in updated_tournament:
-        season_data = updated_tournament['seasons'][
-          0]  # we have only one season
+        season_data = updated_tournament['seasons'][0]  # we have only one season
         # loop through rounds
         new_round = next((r for r in season_data.get('rounds', [])
                           if r['alias'] == round.alias), None)
