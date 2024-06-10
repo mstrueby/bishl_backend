@@ -10,6 +10,14 @@ auth = AuthHandler()
 
 # Config document
 configs: List[Config] = [  # Use List[Config] for type hinting
+  Config(key="COUNTRY",
+         name="Land",
+         value=[
+           ConfigValue(key="DE", value="Deutschland", sortOrder=1),
+           ConfigValue(key="CH", value="Schweiz", sortOrder=2),
+           ConfigValue(key="AT", value="Österreich", sortOrder=3),
+           ConfigValue(key="DK", value="Dänemark", sortOrder=4),
+         ]),
   Config(key="AGEGROUP",
          name="Altersklasse",
          value=[
