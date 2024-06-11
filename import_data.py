@@ -271,8 +271,8 @@ match collection:
         new_value={"$push" : { "seasons.$[y].rounds.$[r].matchdays.$[md].matches" : my_jsonable_encoder(match)}  }
         array_filters=[{"y.alias" : rec['s_alias']}, {"r.name" : rec['r_name']}, {"md.name" : rec['md_name']}]
         
-        print("Inserting Matches: ", filter, '/', rec['matchId'])
-        db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
+        #print("Inserting Matches: ", filter, '/', rec['matchId'])
+        #db_collection.update_one(filter, new_value, array_filters=array_filters, upsert=False)
         
         #print("Match: ", match)
         #exit()
