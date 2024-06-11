@@ -13,6 +13,7 @@ from routers.seasons import router as seasons_router
 from routers.rounds import router as rounds_router
 from routers.matchdays import router as matchdays_router
 from routers.users import router as users_router
+from routers.matches import router as matches_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
@@ -58,6 +59,7 @@ app.include_router(seasons_router,
                    tags=["seasons"])
 app.include_router(rounds_router, prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds", tags=["rounds"])
 app.include_router(matchdays_router, prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays", tags=["matchdays"])
+app.include_router(matches_router, prefix="/matches", tags=["matches"])
 app.include_router(users_router, prefix="/users", tags=["users"])
 
 #if __name__ == "__main__":

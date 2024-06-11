@@ -225,7 +225,7 @@ class TournamentBase(MongoBaseModel):
   active: bool = False
   external: bool = False
   website: HttpUrl = None
-  seasons: List[SeasonBase] = None
+  seasons: List[SeasonBase] = []
   legacyId: int = None
 
   @validator('website', pre=True, always=True)
