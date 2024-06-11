@@ -11,7 +11,7 @@ def parse_datetime(datetime_str):
 def my_jsonable_encoder(obj):
     result = {}
     for field_name, val in obj.__dict__.items():
-        print(field_name, "##", val, "##", dict)
+        #print(field_name, "/", val, "/", dict)
         if field_name == "id":
             # If the field name is 'id', use '_id' as the key instead.
             result["_id"] = str(val)

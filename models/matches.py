@@ -52,8 +52,6 @@ class MatchMatchday(BaseModel):
 
 
 class MatchTeam(BaseModel):
-  name: str = Field(...)
-  alias: str = Field(...)
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
