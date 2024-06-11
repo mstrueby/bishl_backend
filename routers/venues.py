@@ -30,7 +30,7 @@ async def list_venues(
 
 # get venue by Alias
 @router.get("/{alias}", response_description="Get a single venue")
-async def get_venue(alias: str, request: Request):
+async def get_venue(alias: str, request: Request) -> VenueDB:
   if (venue := await
       request.app.mongodb["venues"].find_one({"alias": alias})) is not None:
     return VenueDB(**venue)
@@ -44,7 +44,7 @@ async def create_venue(
     request: Request,
     venue: VenueBase = Body(...),
     userId=Depends(auth.auth_wrapper),
-):
+) -> VenueDB:
   venue = jsonable_encoder(venue)
 
   # DB processing
@@ -71,7 +71,7 @@ async def update_venue(
     id: str,
     venue: VenueUpdate = Body(...),
     userId=Depends(auth.auth_wrapper),
-):
+) -> VenueDB:
   venue = venue.dict(exclude_unset=True)
   venue.pop("id", None)
   
@@ -114,7 +114,7 @@ async def delete_venue(
     request: Request,
     alias: str,
     userId=Depends(auth.auth_wrapper),
-):
+) -> None:
   result = await request.app.mongodb['venues'].delete_one({"alias": alias})
   if result.deleted_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)

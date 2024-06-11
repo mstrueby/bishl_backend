@@ -92,8 +92,8 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
       cs.py_round as name,
       cs.py_round_alias as alias,
       case cs.CreateTable and cs.CreateTableByRound=0 when 1 then 'True' else '' end as createStandings, 
-      cs.py_md_type as matchdaysType,
-      cs.py_md_sort as matchdaysSortedBy,
+      cs.py_md_type as matchdaysType, -- Spieltag, Turnier, Runde, Gruppe
+      cs.py_md_sort as matchdaysSortedBy, -- Startdatum, Name
       cs.CreateTableByRound,
       -- min(date(g.StartDate)) as startDate,
       -- max(date(g.StartDate)) as endDate,
