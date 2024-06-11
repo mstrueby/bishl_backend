@@ -1,4 +1,5 @@
 # filename: routers/rounds.py
+from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
 from fastapi.responses import JSONResponse, Response
 from models.tournaments import RoundBase, RoundDB, RoundUpdate
@@ -17,7 +18,7 @@ async def get_rounds_for_season(
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to list the rounds for"),
     season_alias: str = Path(..., description="The alias of the season to get"),
-):
+) -> List[RoundDB]:
   exclusion_projection = {"seasons.rounds.matchdays.matches": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
@@ -44,7 +45,7 @@ async def get_round(
       description="The alias of the tournament to list the matchdays for"),
     season_alias: str = Path(..., description="The alias of the season to get"),
     round_alias: str = Path(..., description="The alias of the round to get"),
-):
+) -> RoundDB:
   exclusion_projection = {"seasons.rounds.matchdays.matches": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
@@ -71,7 +72,7 @@ async def add_round(
     season_alias: str = Path(..., description="The alias of the season to add"),
     round: RoundBase = Body(..., description="The data of the round to add"),
     user_id: str = Depends(auth.auth_wrapper),
-):
+) -> RoundDB:
   print("add round, data: ", round)
   # Check if the tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
@@ -156,7 +157,7 @@ async def update_round(
     round: RoundUpdate = Body(...,
                               description="The data of the round to update"),
     user_id: str = Depends(auth.auth_wrapper),
-):
+) -> RoundDB:
   round = round.dict(exclude_unset=True)
   print("round: ", round)
   # Check if the tournament exists
@@ -269,7 +270,7 @@ async def delete_round(
       ..., description="The alias of the season to delete the round from"),
     round_alias: str = Path(..., description="The alias of the round to delete"),
     user_id: str = Depends(auth.auth_wrapper),
-):
+) -> None:
   delete_result = await request.app.mongodb['tournaments'].update_one(
     {
       "alias": tournament_alias,

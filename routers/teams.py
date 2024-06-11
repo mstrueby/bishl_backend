@@ -1,4 +1,5 @@
 # filename: routers/teams.py
+from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Path, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
@@ -14,7 +15,7 @@ auth = AuthHandler()
 async def list_teams_of_one_club(
         request: Request,
         club_alias: str = Path(..., description="Club alias to list teams"),
-):
+) -> List[TeamDB]:
     if (club := await
             request.app.mongodb["clubs"].find_one({"alias":
                                                    club_alias})) is not None:
@@ -31,7 +32,7 @@ async def get_team(
         request: Request,
         club_alias: str = Path(..., description="Club alias to get team"),
         team_alias: str = Path(..., description="Team alias to get"),
-):
+) -> TeamDB:
     if (club := await
             request.app.mongodb["clubs"].find_one({"alias":
                                                    club_alias})) is not None:
@@ -54,7 +55,7 @@ async def create_team(
                                description="Club alias to create team for"),
         team: TeamBase = Body(..., description="Team data"),
         user_id: str = Depends(auth.auth_wrapper),
-):
+) -> TeamDB:
     print("create team")
     # check if club exists
     if (club := await request.app.mongodb["clubs"].find_one(
@@ -117,7 +118,7 @@ async def update_team(
                                description="Club alias to update team for"),
         team: TeamUpdate = Body(..., description="Team data"),
         user_id: str = Depends(auth.auth_wrapper),
-):
+) -> TeamDB:
     print("input team: ", team)
     team = team.dict(exclude_unset=True)
     print("exclude unset: ", team)
@@ -197,7 +198,7 @@ async def delete_team(
                                description="Club alias to delete team from"),
         team_alias: str = Path(..., description="Team alias to delete"),
         user_id: str = Depends(auth.auth_wrapper),
-):
+) -> None:
     delete_result = await request.app.mongodb["clubs"].update_one(
         {"alias": club_alias}, {"$pull": {
             "teams": {

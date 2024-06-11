@@ -51,7 +51,7 @@ async def list_clubs(
 
 # get club by Alias
 @router.get("/{alias}", response_description="Get a single club")
-async def get_club(alias: str, request: Request):
+async def get_club(alias: str, request: Request) -> ClubDB:
   if (club := await
       request.app.mongodb["clubs"].find_one({"alias": alias})) is not None:
     return ClubDB(**club)
@@ -78,7 +78,7 @@ async def create_club(
     active: Optional[bool] = Form(False),
     logo: Optional[UploadFile] = File(None),
     userId=Depends(auth.auth_wrapper),
-):
+) -> ClubDB:
   if logo:
     result = cloudinary.uploader.upload(
       logo.file,
@@ -150,7 +150,7 @@ async def update_club(
     active: Optional[bool] = Form(False),
     logo: Optional[UploadFile] = File(None),
     userId=Depends(auth.auth_wrapper),
-):
+) -> ClubDB:
   print("logo: " + str(logo))
 
   if logo:
@@ -239,7 +239,7 @@ async def delete_club(
     request: Request,
     alias: str,
     userId=Depends(auth.auth_wrapper),
-):
+) -> None:
   result = await request.app.mongodb['clubs'].delete_one({"alias": alias})
   if result.deleted_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)

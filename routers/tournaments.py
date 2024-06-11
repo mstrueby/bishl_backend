@@ -1,4 +1,5 @@
 # filename: routers/tournaments.py
+from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
@@ -12,7 +13,7 @@ auth = AuthHandler()
 
 # get all tournaments
 @router.get("/", response_description="List all tournaments")
-async def get_tournaments(request: Request, ):
+async def get_tournaments(request: Request, ) -> List[TournamentDB]:
   exclusion_projection = {"seasons.rounds": 0}
   query = {}
   full_query = request.app.mongodb["tournaments"].find(
@@ -31,7 +32,7 @@ async def get_tournaments(request: Request, ):
 async def get_tournament(
   request: Request,
   tournament_alias: str,
-):
+) -> TournamentDB:
   exclusion_projection = {"seasons.rounds": 0}
   if (tournament := await request.app.mongodb["tournaments"].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
@@ -47,7 +48,7 @@ async def create_tournament(
     request: Request,
     tournament: TournamentBase = Body(...),
     user_id=Depends(auth.auth_wrapper),
-):
+) -> TournamentDB:
   tournament = jsonable_encoder(tournament)
 
   # DB processing
@@ -67,10 +68,12 @@ async def create_tournament(
 
 # update tournament
 @router.patch("/{tournament_id}", response_description="Update tournament")
-async def update_tournament(request: Request,
-                            tournament_id: str,
-                            tournament: TournamentUpdate = Body(...),
-                            user_id=Depends(auth.auth_wrapper)):
+async def update_tournament(
+  request: Request,
+  tournament_id: str,
+  tournament: TournamentUpdate = Body(...),
+  user_id=Depends(auth.auth_wrapper)
+) -> TournamentDB:
   print("tournament pre exclude: ", tournament)
   tournament = tournament.dict(exclude_unset=True)
   tournament.pop("id", None)
@@ -120,12 +123,13 @@ async def update_tournament(request: Request,
 
 # delete tournament
 @router.delete("/{tournament_alias}", response_description="Delete tournament")
-async def delete_tournament(request: Request,
-                            tournament_alias: str,
-                            user_id=Depends(auth.auth_wrapper)):
+async def delete_tournament(
+  request: Request, tournament_alias: str,
+  user_id=Depends(auth.auth_wrapper)) -> None:
   result = await request.app.mongodb['tournaments'].delete_one(
     {"alias": tournament_alias})
   if result.deleted_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-  raise HTTPException(status_code=404,
-                      detail=f"Tournament with alias {tournament_alias} not found")
+  raise HTTPException(
+    status_code=404,
+    detail=f"Tournament with alias {tournament_alias} not found")
