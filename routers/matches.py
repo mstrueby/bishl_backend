@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate
 from authentication import AuthHandler
 from pymongo.errors import DuplicateKeyError
+from utils import my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
@@ -31,7 +32,7 @@ async def create_match(
   match: MatchBase = Body(...),
   #userId=Depends(auth.auth_wrapper),
 ) -> MatchDB:
-  match = jsonable_encoder(match)
+  match = my_jsonable_encoder(match)
   print(match)
   try:
     new_match = await request.app.mongodb["matches"].insert_one(match)

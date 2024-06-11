@@ -35,8 +35,7 @@ class MongoBaseModel(BaseModel):
 class MatchTournament(BaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-
-
+  
 class MatchSeason(BaseModel):
   name: str = Field(...)
   alias: str = Field(...)
@@ -63,7 +62,7 @@ class MatchTeam(BaseModel):
 
 class MatchHead(BaseModel):
   matchId: int = 0
-  tournamant: MatchTournament = None
+  tournament: MatchTournament = None
   season: MatchSeason = None
   round: MatchRound = None
   matchday: MatchMatchday = None
@@ -75,7 +74,7 @@ class MatchHead(BaseModel):
   awayScore: int = None
   overtime: bool = False
   shootout: bool = False
-  startTime: datetime = None
+  startDate: datetime = None
   published: bool = False
 
 
@@ -132,7 +131,7 @@ class PenaltyEvent(MongoBaseModel):
 
 class MatchBase(MongoBaseModel):
   matchHead: MatchHead = Field(...)
-  roster: Roster = {}
+  roster: Dict[str, List[RosterPlayer]] = {}
   scoreEvents: List[ScoreEvent] = []
   penaltyEvents: List[PenaltyEvent] = []
 
