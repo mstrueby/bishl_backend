@@ -2,6 +2,7 @@ from bson import ObjectId
 from datetime import datetime, date
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List
+from models.matches import MatchBase
 
 
 class PyObjectId(ObjectId):
@@ -49,20 +50,6 @@ class Teams(BaseModel):
   @validator('logo', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
-
-
-class MatchBase(MongoBaseModel):
-  matchId: str = Field(...)
-  homeTeam: Teams = Field(...)
-  awayTeam: Teams = Field(...)
-  status: str = Field(...)
-  venue: str = None
-  homeScore: int = None
-  awayScore: int = None
-  overtime: bool = None
-  shootout: bool = None
-  startTime: datetime = None
-  published: bool = False
 
 
 class MatchDB(MatchBase):
