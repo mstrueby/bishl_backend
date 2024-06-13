@@ -70,6 +70,13 @@ class MatchTeam(BaseModel):
   logo: HttpUrl = None,
   roster: List[RosterPlayer] = []
 
+class MatchTeamUpdate(BaseModel):
+  fullName: Optional[str] = "DEFAULT"
+  shortName: Optional[str] = "DEFAULT"
+  tinyName: Optional[str] = "DEFAULT"
+  logo: Optional[HttpUrl] = None,
+  roster: Optional[List[RosterPlayer]] = []
+
 
 class EventPlayer(BaseModel):
   firstName: str = Field(...)
@@ -131,13 +138,13 @@ class MatchDB(MatchBase):
 
 
 class MatchUpdate(MongoBaseModel):
-  matchId: Optional[int] = 0
+  matchId: Optional[int] = None
   tournament: Optional[MatchTournament] = None
   season: Optional[MatchSeason] = None
   round: Optional[MatchRound] = None
   matchday: Optional[MatchMatchday] = None
-  homeTeam: Optional[MatchTeam] = None
-  awayTeam: Optional[MatchTeam] = None
+  homeTeam: Optional[MatchTeamUpdate] = None
+  awayTeam: Optional[MatchTeamUpdate] = None
   status: Optional[str] = "DEFAULT"
   venue: Optional[str] = None
   homeScore: Optional[int] = None
