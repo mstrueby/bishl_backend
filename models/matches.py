@@ -62,13 +62,37 @@ class RosterPlayer(BaseModel):
   assists: int = 0
   penaltyMinutes: int = 0
 
+class EventPlayer(BaseModel):
+  firstName: str = Field(...)
+  lastName: str = Field(...)
+  jerseyNumber: int = 0
+  
+class ScoreSheet(MongoBaseModel):
+  matchTime: time = Field(...)
+  goalPlayer: EventPlayer = Field(...)
+  assistPlayer: Optional[EventPlayer] = None
+  isPPG: bool = False
+  isSHG: bool = False
+  isGWG: bool = False
+
+
+class PenaltySheet(MongoBaseModel):
+  matchTimeStart: time = Field(...)
+  matchTimeEnd: time = None
+  penaltyPlayer: EventPlayer = Field(...)
+  penaltyCode: str = Field(...)
+  penaltyMinutes: int = Field(...)
+  isGM: bool = False
+  isMP: bool = False
 
 class MatchTeam(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
-  logo: HttpUrl = None,
+  logo: HttpUrl = None
   roster: List[RosterPlayer] = []
+  scoreSheet: List[ScoreSheet] = []
+  penaltySheet: List[PenaltySheet] = []
 
 class MatchTeamUpdate(BaseModel):
   fullName: Optional[str] = "DEFAULT"
@@ -76,39 +100,6 @@ class MatchTeamUpdate(BaseModel):
   tinyName: Optional[str] = "DEFAULT"
   logo: Optional[HttpUrl] = None,
   roster: Optional[List[RosterPlayer]] = []
-
-
-class EventPlayer(BaseModel):
-  firstName: str = Field(...)
-  lastName: str = Field(...)
-  jerseyNumber: int = 0
-
-
-# --- sub documents with _id (updateable and deleteable)
-
-
-
-
-class ScoreEvent(MongoBaseModel):
-  matchTime: time = Field(...)
-  team: MatchTeam = Field(...)
-  goalPlayer: EventPlayer = Field(...)
-  assistPlayer: Optional[EventPlayer] = None
-  isGWG: bool = False
-  isPPG: bool = False
-  isSHG: bool = False
-
-
-class PenaltyEvent(MongoBaseModel):
-  matchTimeStart: time = Field(...)
-  matchTimeEnd: time = None
-  team: MatchTeam = Field(...)
-  penaltyPlayer: EventPlayer = Field(...)
-  penaltyCode: str = Field(...)
-  penaltyMinutes: int = Field(...)
-  isGM: bool = False
-  isMP: bool = False
-
 
 # --- main document
 
@@ -129,8 +120,6 @@ class MatchBase(MongoBaseModel):
   shootout: bool = False
   startDate: datetime = None
   published: bool = False
-  scoreEvents: List[ScoreEvent] = []
-  penaltyEvents: List[PenaltyEvent] = []
 
 
 class MatchDB(MatchBase):
@@ -153,5 +142,3 @@ class MatchUpdate(MongoBaseModel):
   shootout: Optional[bool] = False
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
-  scoreEvents: Optional[List[ScoreEvent]] = None
-  penaltyEvents: Optional[List[PenaltyEvent]] = None
