@@ -50,30 +50,25 @@ class MatchMatchday(BaseModel):
   name: str = Field(...)
   alias: str = Field(...)
 
+class RosterPlayer(BaseModel):
+  firstName: str = Field(...)
+  lastName: str = Field(...)
+  jerseyNumber: int = Field(...)
+  position: str = Field(...)
+  isCaptain: bool = False
+  isAssistant: bool = False
+  passNumber: str = Field(...)
+  goals: int = 0
+  assists: int = 0
+  penaltyMinutes: int = 0
+
 
 class MatchTeam(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
-  logo: HttpUrl = None
-
-
-class MatchHead(BaseModel):
-  matchId: int = 0
-  tournament: MatchTournament = None
-  season: MatchSeason = None
-  round: MatchRound = None
-  matchday: MatchMatchday = None
-  homeTeam: MatchTeam = None
-  awayTeam: MatchTeam = None
-  status: str = Field(...)
-  venue: str = None
-  homeScore: int = None
-  awayScore: int = None
-  overtime: bool = False
-  shootout: bool = False
-  startDate: datetime = None
-  published: bool = False
+  logo: HttpUrl = None,
+  roster: List[RosterPlayer] = []
 
 
 class EventPlayer(BaseModel):
@@ -85,22 +80,6 @@ class EventPlayer(BaseModel):
 # --- sub documents with _id (updateable and deleteable)
 
 
-class RosterPlayer(MongoBaseModel):
-  firstName: str = Field(...)
-  lastName: str = Field(...)
-  jerseyNumber: int = Field(...)
-  position: str = Field(...)
-  isCaptain: bool = False
-  isAssitant: bool = False
-  passNumber: str = Field(...)
-  goals: int = 0
-  assists: int = 0
-  penaltyMinutes: int = 0
-
-
-class Roster(BaseModel):
-  home: List[RosterPlayer] = []
-  away: List[RosterPlayer] = []
 
 
 class ScoreEvent(MongoBaseModel):
@@ -128,8 +107,21 @@ class PenaltyEvent(MongoBaseModel):
 
 
 class MatchBase(MongoBaseModel):
-  matchHead: MatchHead = Field(...)
-  roster: Dict[str, List[RosterPlayer]] = {}
+  matchId: int = 0
+  tournament: MatchTournament = None
+  season: MatchSeason = None
+  round: MatchRound = None
+  matchday: MatchMatchday = None
+  homeTeam: MatchTeam = None
+  awayTeam: MatchTeam = None
+  status: str = Field(...)
+  venue: str = None
+  homeScore: int = None
+  awayScore: int = None
+  overtime: bool = False
+  shootout: bool = False
+  startDate: datetime = None
+  published: bool = False
   scoreEvents: List[ScoreEvent] = []
   penaltyEvents: List[PenaltyEvent] = []
 
@@ -139,7 +131,20 @@ class MatchDB(MatchBase):
 
 
 class MatchUpdate(MongoBaseModel):
-  matchHead: Optional[MatchHead] = None
-  roster: Optional[Roster] = None
+  matchId: Optional[int] = 0
+  tournament: Optional[MatchTournament] = None
+  season: Optional[MatchSeason] = None
+  round: Optional[MatchRound] = None
+  matchday: Optional[MatchMatchday] = None
+  homeTeam: Optional[MatchTeam] = None
+  awayTeam: Optional[MatchTeam] = None
+  status: Optional[str] = "DEFAULT"
+  venue: Optional[str] = None
+  homeScore: Optional[int] = None
+  awayScore: Optional[int] = None
+  overtime: Optional[bool] = False
+  shootout: Optional[bool] = False
+  startDate: Optional[datetime] = None
+  published: Optional[bool] = False
   scoreEvents: Optional[List[ScoreEvent]] = None
   penaltyEvents: Optional[List[PenaltyEvent]] = None

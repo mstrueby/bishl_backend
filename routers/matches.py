@@ -30,33 +30,44 @@ async def create_match(
   match: MatchBase = Body(...),
   #userId=Depends(auth.auth_wrapper),
 ) -> MatchDB:
-  print("match: ", match)
   matchData = my_jsonable_encoder(match)
   print("matchData: ", matchData)
-
-
+  
+  # remove some attibutes from match
+  matchHeader = matchData.copy()
+  print("matchData 2 : ", matchData)
+  
+  matchHeader['homeTeam'].pop('roster', None)
+  matchHeader['awayTeam'].pop('roster', None)
+  matchHeader.pop('scoreEvents', None)
+  matchHeader.pop('penaltyEvents', None)
+  print("reduced match: ", matchHeader)
+  
+  # renew matchData, because is some how modified by copy()
+  matchData = my_jsonable_encoder(match)
+  
   try:
     
     # First: add match to matchday in tournament
-    filter = {"alias": match.matchHead.tournament.alias}
+    filter = {"alias": match.tournament.alias}
     update = {
       "$push": {
-        "seasons.$[s].rounds.$[r].matchdays.$[md].matches": my_jsonable_encoder(match.matchHead)
+        "seasons.$[s].rounds.$[r].matchdays.$[md].matches": (matchHeader)
       }
     }
     arrayFilters = [
       {
-        "s.alias": match.matchHead.season.alias
+        "s.alias": match.season.alias
       },
       {
-        "r.alias": match.matchHead.round.alias
+        "r.alias": match.round.alias
       },
       {
-        "md.alias": match.matchHead.matchday.alias
+        "md.alias": match.matchday.alias
       },
     ]
     print("do update")
-    print("update: ", update)
+    print("update tournament: ", update)
     print("arryFilters: ", arrayFilters)
     result = await request.app.mongodb["tournaments"].update_one(
       filter=filter,
@@ -67,14 +78,18 @@ async def create_match(
       raise HTTPException(
         status_code=404,
         detail=
-        f"Matchday with alias {match.matchHead.matchday.alias} not found in round {match.matchHead.round.alias} of season {match.matchHead.season.alias} of tournament {match.matchHead.tournament.alias}"
+        f"Matchday with alias {match.matchday.alias} not found in round {match.round.alias} of season {match.season.alias} of tournament {match.tournament.alias}"
       )
 
     # Second: add match to collection matches
-    print("insert into matches")
+    print("insert into matches") 
+    print("matchData: ", matchData)
+    
     result = await request.app.mongodb["matches"].insert_one(matchData)
     newMatch = await request.app.mongodb["matches"].find_one(
       {"_id": result.inserted_id})
+
+    # lastly: return complete match document
     if newMatch:
       newMatchModel = MatchDB(**newMatch)
       return JSONResponse(status_code=status.HTTP_201_CREATED,
