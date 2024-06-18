@@ -14,6 +14,8 @@ from routers.rounds import router as rounds_router
 from routers.matchdays import router as matchdays_router
 from routers.users import router as users_router
 from routers.matches import router as matches_router
+from routers.roster import router as roster_router
+from routers.scores import router as scores_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
@@ -60,6 +62,8 @@ app.include_router(seasons_router,
 app.include_router(rounds_router, prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds", tags=["rounds"])
 app.include_router(matchdays_router, prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays", tags=["matchdays"])
 app.include_router(matches_router, prefix="/matches", tags=["matches"])
+app.include_router(roster_router, prefix="/matches/{match_id}/{team_flag}/roster", tags=["roster"])
+app.include_router(scores_router, prefix="/matches/{match_id}/{team_flag}/scores", tags=["scores"])
 app.include_router(users_router, prefix="/users", tags=["users"])
 
 #if __name__ == "__main__":

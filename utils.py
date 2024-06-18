@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
