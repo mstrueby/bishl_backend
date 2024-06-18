@@ -35,7 +35,8 @@ class MongoBaseModel(BaseModel):
 class MatchTournament(BaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  
+
+
 class MatchSeason(BaseModel):
   name: str = Field(...)
   alias: str = Field(...)
@@ -50,10 +51,15 @@ class MatchMatchday(BaseModel):
   name: str = Field(...)
   alias: str = Field(...)
 
-class RosterPlayer(BaseModel):
+
+class EventPlayer(BaseModel):
   firstName: str = Field(...)
   lastName: str = Field(...)
-  jerseyNumber: int = Field(...)
+  jerseyNumber: int = 0
+
+
+class RosterPlayer(BaseModel):
+  player: EventPlayer = Field(...)
   position: str = Field(...)
   isCaptain: bool = False
   isAssistant: bool = False
@@ -62,21 +68,30 @@ class RosterPlayer(BaseModel):
   assists: int = 0
   penaltyMinutes: int = 0
 
-class EventPlayer(BaseModel):
-  firstName: str = Field(...)
-  lastName: str = Field(...)
-  jerseyNumber: int = 0
-  
-class ScoreSheet(MongoBaseModel):
-  matchTime: time = Field(...)
+
+class ScoresBase(MongoBaseModel):
+  matchSeconds: int = Field(...)
   goalPlayer: EventPlayer = Field(...)
-  assistPlayer: Optional[EventPlayer] = None
+  assistPlayer: EventPlayer = None
   isPPG: bool = False
   isSHG: bool = False
   isGWG: bool = False
 
 
-class PenaltySheet(MongoBaseModel):
+class ScoresDB(ScoresBase):
+  pass
+
+
+class ScoresUpdate(MongoBaseModel):
+  matchSeconds: Optional[int] = 0
+  goalPlayer: Optional[EventPlayer] = {}
+  assistPlayer: Optional[EventPlayer] = None
+  isPPG: Optional[bool] = False
+  isSHG: Optional[bool] = False
+  isGWG: Optional[bool] = False
+
+
+class PenaltiesBase(MongoBaseModel):
   matchTimeStart: time = Field(...)
   matchTimeEnd: time = None
   penaltyPlayer: EventPlayer = Field(...)
@@ -85,21 +100,37 @@ class PenaltySheet(MongoBaseModel):
   isGM: bool = False
   isMP: bool = False
 
+class PenaltiesDB(PenaltiesBase):
+  pass
+
+class PenaltiesUpdate(MongoBaseModel):
+  matchTimeStart: Optional[time] = None
+  matchTimeEnd: Optional[time] = None
+  penaltyPlayer: Optional[EventPlayer] = {}
+  penaltyCode: Optional[str] = None
+  penaltyMinutes: Optional[int] = 0
+  isGM: Optional[bool] = False
+  isMP: Optional[bool] = False
+
 class MatchTeam(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
   logo: HttpUrl = None
   roster: List[RosterPlayer] = []
-  scoreSheet: List[ScoreSheet] = []
-  penaltySheet: List[PenaltySheet] = []
+  scores: List[ScoresBase] = []
+  penalties: List[PenaltiesBase] = []
+
 
 class MatchTeamUpdate(BaseModel):
   fullName: Optional[str] = "DEFAULT"
   shortName: Optional[str] = "DEFAULT"
   tinyName: Optional[str] = "DEFAULT"
-  logo: Optional[HttpUrl] = None,
+  logo: Optional[HttpUrl] = None
   roster: Optional[List[RosterPlayer]] = []
+  scores: Optional[List[ScoresBase]] = None
+  penalties: Optional[List[PenaltiesBase]] = []
+
 
 # --- main document
 
@@ -110,8 +141,8 @@ class MatchBase(MongoBaseModel):
   season: MatchSeason = None
   round: MatchRound = None
   matchday: MatchMatchday = None
-  homeTeam: MatchTeam = None
-  awayTeam: MatchTeam = None
+  home: MatchTeam = None
+  away: MatchTeam = None
   status: str = Field(...)
   venue: str = None
   homeScore: int = None
@@ -132,8 +163,8 @@ class MatchUpdate(MongoBaseModel):
   season: Optional[MatchSeason] = None
   round: Optional[MatchRound] = None
   matchday: Optional[MatchMatchday] = None
-  homeTeam: Optional[MatchTeamUpdate] = None
-  awayTeam: Optional[MatchTeamUpdate] = None
+  home: Optional[MatchTeamUpdate] = None
+  away: Optional[MatchTeamUpdate] = None
   status: Optional[str] = "DEFAULT"
   venue: Optional[str] = None
   homeScore: Optional[int] = None
