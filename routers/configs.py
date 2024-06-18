@@ -30,7 +30,7 @@ configs: List[Config] = [  # Use List[Config] for type hinting
            ConfigValue(key="U8", value="U8", sortOrder=7)
          ]),
   Config(key="MATCHDAYSTYPE",
-         name="Matchdays Type",
+         name="Spieltagtyp",
          value=[
            ConfigValue(key="MATCHDAY", value="Spieltag", sortOrder=1),
            ConfigValue(key="TOURNAMENT", value="Turnier", sortOrder=2),
@@ -42,7 +42,53 @@ configs: List[Config] = [  # Use List[Config] for type hinting
          value=[
            ConfigValue(key="NAME", value="Name", sortOrder=1),
            ConfigValue(key="STARTDATE", value="Startdatum", sortOrder=2)
-         ])
+         ]),
+  Config(key="MATCHSTATUS",
+         name="Spielstatus",
+         value=[
+           ConfigValue(key="SCHEDULED", value="angesetzt", sortOrder=1),
+           ConfigValue(key="INPROGRESS", value="Live", sortOrder=2),
+           ConfigValue(key="FINISHED", value="Beendet", sortOrder=3),
+           ConfigValue(key="CANCELLED", value="Abgesagt", sortOrder=4),
+           ConfigValue(key="FORFEITED", value="Gewertet", sortOrder=5),
+         ]),
+  Config(key="PENALTYCODE",
+         name="Penalty Code",
+         value= [
+           ConfigValue(key="A", value="Behinderung", sortOrder=1),
+           ConfigValue(key="B", value="Unerlaubter Körperangriff", sortOrder=2),
+           ConfigValue(key="C", value="Übertriebene Härte", sortOrder=3),
+           ConfigValue(key="D", value="Cross-Check", sortOrder=4),
+           ConfigValue(key="E", value="Halten", sortOrder=5),
+           ConfigValue(key="F", value="Stockstich", sortOrder=6),
+           ConfigValue(key="G", value="Stockschlag", sortOrder=7),
+           ConfigValue(key="H", value="Beinstellen", sortOrder=8),
+           ConfigValue(key="I", value="Haken", sortOrder=9),
+           ConfigValue(key="J", value="Hoher Stock", sortOrder=10),
+           ConfigValue(key="K", value="Ellbogencheck", sortOrder=11),
+           ConfigValue(key="L", value="Check von Hinten", sortOrder=12),
+           ConfigValue(key="M", value="Bandencheck", sortOrder=13),
+           ConfigValue(key="N", value="Stockendstoß", sortOrder=14),
+           ConfigValue(key="O", value="Kniecheck", sortOrder=15),
+           ConfigValue(key="P", value="Kopfstoß", sortOrder=16),
+           ConfigValue(key="Q", value="Check gegen Kopf- und Nackenbereich", sortOrder=17),
+           ConfigValue(key="R", value="Fußtritt", sortOrder=18),
+           ConfigValue(key="W", value="Wechselfehler", sortOrder=19),
+           ConfigValue(key="X", value="Spielverzögerung", sortOrder=20),
+           ConfigValue(key="Y", value="Vergehen von Torhütern", sortOrder=21),
+           ConfigValue(key="X", value="Kopf- und Nackencheck", sortOrder=22),
+           ConfigValue(key="ZA", value="Bankstrafe, Fehlverhalten", sortOrder=23),
+           ConfigValue(key="ZB", value="Vergehen auf der Strafbank", sortOrder=24),
+           ConfigValue(key="ZC", value="Vergehen im Zusammenhang mit Ausrüstung", sortOrder=25)
+         ]),
+  Config(key="PLAYERPOSITION",
+         name="Spielerposition",
+         value=[
+           ConfigValue(key="C", value="Captain", sortOrder=1),
+           ConfigValue(key="A", value="Assistant", sortOrder=2),
+           ConfigValue(key="G", value="Goalie", sortOrder=3),
+           ConfigValue(key="F", value="Feldspieler", sortOrder=4),
+         ]),
 ]
 
 

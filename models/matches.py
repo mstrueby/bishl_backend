@@ -60,9 +60,7 @@ class EventPlayer(BaseModel):
 
 class RosterPlayer(BaseModel):
   player: EventPlayer = Field(...)
-  position: str = Field(...)
-  isCaptain: bool = False
-  isAssistant: bool = False
+  playerPosition: Dict[str, str] = Field(...)
   passNumber: str = Field(...)
   goals: int = 0
   assists: int = 0
@@ -95,7 +93,7 @@ class PenaltiesBase(MongoBaseModel):
   matchSecondsStart: int = Field(...)
   matchSecondsEnd: int = None
   penaltyPlayer: EventPlayer = Field(...)
-  penaltyCode: str = Field(...)
+  penaltyCode: Dict[str, str] = Field(...)
   penaltyMinutes: int = Field(...)
   isGM: bool = False
   isMP: bool = False
@@ -107,7 +105,7 @@ class PenaltiesUpdate(MongoBaseModel):
   matchSecondsStart: Optional[int] = None
   matchSecondsEnd: Optional[int] = None
   penaltyPlayer: Optional[EventPlayer] = {}
-  penaltyCode: Optional[str] = None
+  penaltyCode: Optional[Dict[str, str]] = None
   penaltyMinutes: Optional[int] = 0
   isGM: Optional[bool] = False
   isMP: Optional[bool] = False
@@ -143,7 +141,7 @@ class MatchBase(MongoBaseModel):
   matchday: MatchMatchday = None
   home: MatchTeam = None
   away: MatchTeam = None
-  matchStatus: str = Field(...)
+  matchStatus: Dict[str, str] = Field(...)
   venue: str = None
   homeScore: int = None
   awayScore: int = None
@@ -165,7 +163,7 @@ class MatchUpdate(MongoBaseModel):
   matchday: Optional[MatchMatchday] = None
   home: Optional[MatchTeamUpdate] = None
   away: Optional[MatchTeamUpdate] = None
-  matchStatus: Optional[str] = "DEFAULT"
+  matchStatus: Optional[Dict[str, str]] = None
   venue: Optional[str] = None
   homeScore: Optional[int] = None
   awayScore: Optional[int] = None
