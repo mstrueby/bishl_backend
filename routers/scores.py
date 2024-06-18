@@ -27,9 +27,6 @@ async def get_score_object(mongodb, match_id: str, team_flag: str,
     Returns:
     - A dictionary containing the score object
     """
-  # Convert IDs to ObjectId
-  #match_object_id = ObjectId(match_id)
-  #score_object_id = ObjectId(score_id)
 
   # Validate team_flag
   if team_flag not in ["home", "away"]:
@@ -57,9 +54,9 @@ async def get_score_object(mongodb, match_id: str, team_flag: str,
   return ScoresDB(**return_data)
 
 
-# get scoresheet of a team
+# get score_sheet of a team
 @router.get("/", response_description="Get score sheet")
-async def get_scoresheet(
+async def get_score_sheet(
     request: Request,
     match_id: str = Path(..., description="The ID of the match"),
     team_flag: str = Path(..., description="The team flag (home/away)"),
@@ -76,7 +73,7 @@ async def get_scoresheet(
     scores = match.get(team_flag, {}).get("scores", [])
 
     if not isinstance(scores, list):
-        raise HTTPException(status_code=500, detail="Unexpected data structure in scoresheet")
+        raise HTTPException(status_code=500, detail="Unexpected data structure in scoreSheet")
 
     score_entries = [ScoresDB(**score) for score in scores]
 
