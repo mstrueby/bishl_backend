@@ -92,8 +92,8 @@ class ScoresUpdate(MongoBaseModel):
 
 
 class PenaltiesBase(MongoBaseModel):
-  matchTimeStart: time = Field(...)
-  matchTimeEnd: time = None
+  matchSecondsStart: int = Field(...)
+  matchSecondsEnd: int = None
   penaltyPlayer: EventPlayer = Field(...)
   penaltyCode: str = Field(...)
   penaltyMinutes: int = Field(...)
@@ -104,8 +104,8 @@ class PenaltiesDB(PenaltiesBase):
   pass
 
 class PenaltiesUpdate(MongoBaseModel):
-  matchTimeStart: Optional[time] = None
-  matchTimeEnd: Optional[time] = None
+  matchSecondsStart: Optional[int] = None
+  matchSecondsEnd: Optional[int] = None
   penaltyPlayer: Optional[EventPlayer] = {}
   penaltyCode: Optional[str] = None
   penaltyMinutes: Optional[int] = 0
@@ -143,7 +143,7 @@ class MatchBase(MongoBaseModel):
   matchday: MatchMatchday = None
   home: MatchTeam = None
   away: MatchTeam = None
-  status: str = Field(...)
+  matchStatus: str = Field(...)
   venue: str = None
   homeScore: int = None
   awayScore: int = None
@@ -165,7 +165,7 @@ class MatchUpdate(MongoBaseModel):
   matchday: Optional[MatchMatchday] = None
   home: Optional[MatchTeamUpdate] = None
   away: Optional[MatchTeamUpdate] = None
-  status: Optional[str] = "DEFAULT"
+  matchStatus: Optional[str] = "DEFAULT"
   venue: Optional[str] = None
   homeScore: Optional[int] = None
   awayScore: Optional[int] = None

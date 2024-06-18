@@ -16,6 +16,7 @@ from routers.users import router as users_router
 from routers.matches import router as matches_router
 from routers.roster import router as roster_router
 from routers.scores import router as scores_router
+from routers.penalties import router as penalties_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
@@ -64,6 +65,7 @@ app.include_router(matchdays_router, prefix="/tournaments/{tournament_alias}/sea
 app.include_router(matches_router, prefix="/matches", tags=["matches"])
 app.include_router(roster_router, prefix="/matches/{match_id}/{team_flag}/roster", tags=["roster"])
 app.include_router(scores_router, prefix="/matches/{match_id}/{team_flag}/scores", tags=["scores"])
+app.include_router(penalties_router, prefix="/matches/{match_id}/{team_flag}/penalties", tags=["penalties"])
 app.include_router(users_router, prefix="/users", tags=["users"])
 
 #if __name__ == "__main__":
