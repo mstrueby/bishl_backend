@@ -8,6 +8,19 @@ def parse_date(date_str):
 def parse_datetime(datetime_str):
     return datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S') if datetime_str else None
 
+
+def parse_time_to_seconds(time_str):
+    if not time_str:
+        return 0
+    minutes, seconds = map(int, time_str.split(':'))
+    return minutes * 60 + seconds
+
+
+def parse_time_from_seconds(seconds):
+    minutes = seconds // 60
+    seconds = seconds % 60
+    return f"{minutes}:{seconds:02d}"
+
 def my_jsonable_encoder(obj):
     result = {}
     for field_name, val in obj.__dict__.items():

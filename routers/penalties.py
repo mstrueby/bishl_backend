@@ -6,15 +6,14 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler
-from pymongo.errors import DuplicateKeyError
-from utils import my_jsonable_encoder
+from utils import parse_time_to_seconds, parse_time_from_seconds
 
 router = APIRouter()
 auth = AuthHandler()
 
 
 async def get_penalty_object(mongodb, match_id: str, team_flag: str,
-                           penalty_id: str) -> PenaltiesDB:
+                             penalty_id: str) -> PenaltiesDB:
   """
     Retrieve a single penalty object from the specified match and team.
 
@@ -43,41 +42,57 @@ async def get_penalty_object(mongodb, match_id: str, team_flag: str,
     })
 
   if not penalty or not penalty.get(
-      team_flag or "penalties" not in penalty.get(
-        team_flag)):
+      team_flag or "penalties" not in penalty.get(team_flag)):
     raise HTTPException(
       status_code=404,
       detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
 
   return_data = penalty[team_flag]["penalties"][0]
-  #print("penalty: ", penalty)
+
+  # Parse matchSeconds to a string format
+  if 'matchSecondsStart' in return_data:
+    return_data['matchSecondsStart'] = parse_time_from_seconds(
+      return_data['matchSecondsStart'])
+  if 'matchSecondsEnd' in return_data and return_data[
+      'matchSecondsEnd'] is not None:
+    return_data['matchSecondsEnd'] = parse_time_from_seconds(
+      return_data['matchSecondsEnd'])
   return PenaltiesDB(**return_data)
 
 
 # get penalty sheet of a team
 @router.get("/", response_description="Get penalty sheet")
 async def get_penalty_sheet(
-    request: Request,
-    match_id: str = Path(..., description="The ID of the match"),
-    team_flag: str = Path(..., description="The team flag (home/away)"),
+  request: Request,
+  match_id: str = Path(..., description="The ID of the match"),
+  team_flag: str = Path(..., description="The team flag (home/away)"),
 ) -> List[PenaltiesDB]:
-    team_flag = team_flag.lower()
-    if team_flag not in ["home", "away"]:
-        raise HTTPException(status_code=400, detail="Invalid team flag")
+  team_flag = team_flag.lower()
+  if team_flag not in ["home", "away"]:
+    raise HTTPException(status_code=400, detail="Invalid team flag")
 
-    match = await request.app.mongodb["matches"].find_one({"_id": match_id})
-    if match is None:
-        raise HTTPException(status_code=404, detail=f"Match with ID {match_id} not found")
+  match = await request.app.mongodb["matches"].find_one({"_id": match_id})
+  if match is None:
+    raise HTTPException(status_code=404,
+                        detail=f"Match with ID {match_id} not found")
 
-    # Get penalty sheet from match document
-    penalties = match.get(team_flag, {}).get("penalties", [])
+  # Get penalty sheet from match document
+  penalties = match.get(team_flag, {}).get("penalties", [])
 
-    if not isinstance(penalties, list):
-        raise HTTPException(status_code=500, detail="Unexpected data structure in penaltySheet")
+  if not isinstance(penalties, list):
+    raise HTTPException(status_code=500,
+                        detail="Unexpected data structure in penaltySheet")
 
-    penalty_entries = [PenaltiesDB(**penalty) for penalty in penalties]
+  for penalty in penalties:
+    if 'matchSecondsStart' in penalty:
+      penalty['matchSecondsStart'] = parse_time_from_seconds(penalty['matchSecondsStart'])
+    if 'matchSecondsEnd' in penalty and penalty['matchSecondsEnd'] is not None:
+      penalty['matchSecondsEnd'] = parse_time_from_seconds(penalty['matchSecondsEnd'])
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(penalty_entries)) 
+  penalty_entries = [PenaltiesDB(**penalty) for penalty in penalties]
+
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(penalty_entries))
 
 
 # create one penalty
@@ -99,23 +114,32 @@ async def create_penalty(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
-  penalty_data = jsonable_encoder(penalty)
-  new_penalty_id = str(ObjectId())
-  penalty_data['_id'] = new_penalty_id
-  print("penalty_data: ", penalty_data)
-
   try:
+    penalty_data = {}
+    new_penalty_id = str(ObjectId())
+    penalty_data["_id"] = new_penalty_id
+    penalty_data.update(penalty.dict())
+    penalty_data.pop("id")
+
+    penalty_data["matchSecondsStart"] = parse_time_to_seconds(
+      penalty_data["matchSecondsStart"])
+    if penalty_data["matchSecondsEnd"] is not None:
+      penalty_data["matchSecondsEnd"] = parse_time_to_seconds(
+        penalty_data['matchSecondsEnd'])
+    penalty_data = jsonable_encoder(penalty_data)
+
     update_result = await request.app.mongodb["matches"].update_one(
-      {"_id": match_id},
-      {"$push": {
+      {"_id": match_id}, {"$push": {
         f"{team_flag}.penalties": penalty_data
       }})
     if update_result.modified_count == 0:
       raise HTTPException(status_code=500, detail="Failed to update match")
 
     # Use the reusable function to return the new penalty
-    new_penalty = await get_penalty_object(request.app.mongodb, match_id, team_flag, new_penalty_id)
-    return JSONResponse(status_code=status.HTTP_201_CREATED, content=jsonable_encoder(new_penalty))
+    new_penalty = await get_penalty_object(request.app.mongodb, match_id,
+                                           team_flag, new_penalty_id)
+    return JSONResponse(status_code=status.HTTP_201_CREATED,
+                        content=jsonable_encoder(new_penalty))
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -131,9 +155,11 @@ async def get_one_penalty(
 ) -> PenaltiesDB:
   team_flag = team_flag.lower()
   # Use the reusable function to return the penalty
-  penalty = await get_penalty_object(request.app.mongodb, match_id, team_flag, penalty_id)
+  penalty = await get_penalty_object(request.app.mongodb, match_id, team_flag,
+                                     penalty_id)
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(penalty))
+
 
 # update one penalty
 @router.patch("/{penalty_id}", response_description="Patch one penalty")
@@ -168,7 +194,15 @@ async def patch_one_penalty(
       detail=f"Penalty with id {penalty_id} not found in match {match_id}")
 
   # Update data
-  penalty_data = jsonable_encoder(penalty.dict(exclude_unset=True))
+  penalty_data = penalty.dict(exclude_unset=True)
+  if 'matchSecondsStart' in penalty_data:
+    penalty_data['matchSecondsStart'] = parse_time_to_seconds(
+      penalty_data['matchSecondsStart'])
+  if 'matchSecondsEnd' in penalty_data:
+    penalty_data['matchSecondsEnd'] = parse_time_to_seconds(
+      penalty_data['matchSecondsEnd'])
+  penalty_data = jsonable_encoder(penalty_data)
+
   update_data = {"$set": {}}
   for key, value in penalty_data.items():
     if current_penalty.get(key) != value:
@@ -182,7 +216,9 @@ async def patch_one_penalty(
           f"{team_flag}.penalties._id": penalty_id
         }, update_data)
       if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
+        raise HTTPException(
+          status_code=404,
+          detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -190,8 +226,10 @@ async def patch_one_penalty(
     print("No update data")
 
   # Use the reusable function to return the updated penalty
-  updated_penalty = await get_penalty_object(request.app.mongodb, match_id, team_flag, penalty_id)
-  return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(updated_penalty))
+  updated_penalty = await get_penalty_object(request.app.mongodb, match_id,
+                                             team_flag, penalty_id)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(updated_penalty))
 
 
 # delete one penalty
@@ -230,10 +268,14 @@ async def delete_one_penalty(
         "_id": match_id,
         f"{team_flag}.penalties._id": penalty_id
       }, {"$pull": {
-        f"{team_flag}.penalties": {"_id": penalty_id}
+        f"{team_flag}.penalties": {
+          "_id": penalty_id
+        }
       }})
     if result.modified_count == 0:
-      raise HTTPException(status_code=404, detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
+      raise HTTPException(
+        status_code=404,
+        detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
     else:
       return Response(status_code=status.HTTP_204_NO_CONTENT)
 

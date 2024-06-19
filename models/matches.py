@@ -68,7 +68,7 @@ class RosterPlayer(BaseModel):
 
 
 class ScoresBase(MongoBaseModel):
-  matchSeconds: int = Field(...)
+  matchSeconds: str = Field(...)
   goalPlayer: EventPlayer = Field(...)
   assistPlayer: EventPlayer = None
   isPPG: bool = False
@@ -81,7 +81,7 @@ class ScoresDB(ScoresBase):
 
 
 class ScoresUpdate(MongoBaseModel):
-  matchSeconds: Optional[int] = 0
+  matchSeconds: Optional[str] = "00:00"
   goalPlayer: Optional[EventPlayer] = {}
   assistPlayer: Optional[EventPlayer] = None
   isPPG: Optional[bool] = False
@@ -90,8 +90,8 @@ class ScoresUpdate(MongoBaseModel):
 
 
 class PenaltiesBase(MongoBaseModel):
-  matchSecondsStart: int = Field(...)
-  matchSecondsEnd: int = None
+  matchSecondsStart: str = Field(...)
+  matchSecondsEnd: str = None
   penaltyPlayer: EventPlayer = Field(...)
   penaltyCode: Dict[str, str] = Field(...)
   penaltyMinutes: int = Field(...)
@@ -102,8 +102,8 @@ class PenaltiesDB(PenaltiesBase):
   pass
 
 class PenaltiesUpdate(MongoBaseModel):
-  matchSecondsStart: Optional[int] = None
-  matchSecondsEnd: Optional[int] = None
+  matchSecondsStart: Optional[str] = "00:00"
+  matchSecondsEnd: Optional[str] = None
   penaltyPlayer: Optional[EventPlayer] = {}
   penaltyCode: Optional[Dict[str, str]] = None
   penaltyMinutes: Optional[int] = 0

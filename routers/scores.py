@@ -6,8 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler
-from pymongo.errors import DuplicateKeyError
-from utils import my_jsonable_encoder
+from utils import parse_time_to_seconds, parse_time_from_seconds
 
 router = APIRouter()
 auth = AuthHandler()
@@ -42,42 +41,53 @@ async def get_score_object(mongodb, match_id: str, team_flag: str,
       f"{team_flag}.scores.$": 1
     })
 
-  if not score or not score.get(
-      team_flag or "scores" not in score.get(
-        team_flag)):
+  if not score or not score.get(team_flag
+                                or "scores" not in score.get(team_flag)):
     raise HTTPException(
       status_code=404,
       detail=f"Score with ID {score_id} not found in match {match_id}")
 
   return_data = score[team_flag]["scores"][0]
-  #print("score: ", score)
+
+  # Parse matchSeconds to a string format
+  if 'matchSeconds' in return_data:
+    return_data['matchSeconds'] = parse_time_from_seconds(
+      return_data['matchSeconds'])
   return ScoresDB(**return_data)
 
 
-# get score_sheet of a team
+# get score sheet of a team
 @router.get("/", response_description="Get score sheet")
 async def get_score_sheet(
-    request: Request,
-    match_id: str = Path(..., description="The ID of the match"),
-    team_flag: str = Path(..., description="The team flag (home/away)"),
+  request: Request,
+  match_id: str = Path(..., description="The ID of the match"),
+  team_flag: str = Path(..., description="The team flag (home/away)"),
 ) -> List[ScoresDB]:
-    team_flag = team_flag.lower()
-    if team_flag not in ["home", "away"]:
-        raise HTTPException(status_code=400, detail="Invalid team flag")
+  team_flag = team_flag.lower()
+  if team_flag not in ["home", "away"]:
+    raise HTTPException(status_code=400, detail="Invalid team flag")
 
-    match = await request.app.mongodb["matches"].find_one({"_id": match_id})
-    if match is None:
-        raise HTTPException(status_code=404, detail=f"Match with ID {match_id} not found")
+  match = await request.app.mongodb["matches"].find_one({"_id": match_id})
+  if match is None:
+    raise HTTPException(status_code=404,
+                        detail=f"Match with ID {match_id} not found")
 
-    # Get score sheet from match document
-    scores = match.get(team_flag, {}).get("scores", [])
+  # Get score sheet from match document
+  scores = match.get(team_flag, {}).get("scores", [])
 
-    if not isinstance(scores, list):
-        raise HTTPException(status_code=500, detail="Unexpected data structure in scoreSheet")
+  if not isinstance(scores, list):
+    raise HTTPException(status_code=500,
+                        detail="Unexpected data structure in scoreSheet")
 
-    score_entries = [ScoresDB(**score) for score in scores]
+  # Parse matchSeconds to a string format
+  for score in scores:
+    if 'matchSeconds' in score:
+      score['matchSeconds'] = parse_time_from_seconds(score['matchSeconds'])
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(score_entries)) 
+  score_entries = [ScoresDB(**score) for score in scores]
+
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(score_entries))
 
 
 # create one score
@@ -99,23 +109,29 @@ async def create_score(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
-  score_data = jsonable_encoder(score)
-  new_score_id = str(ObjectId())
-  score_data['_id'] = new_score_id
-  print("score_data: ", score_data)
-
   try:
+    score_data = {}
+    new_score_id = str(ObjectId())
+    score_data['_id'] = new_score_id
+    score_data.update(score.dict())
+    score_data.pop('id')
+
+    score_data['matchSeconds'] = parse_time_to_seconds(
+      score_data['matchSeconds'])
+    score_data = jsonable_encoder(score_data)
+
     update_result = await request.app.mongodb["matches"].update_one(
-      {"_id": match_id},
-      {"$push": {
+      {"_id": match_id}, {"$push": {
         f"{team_flag}.scores": score_data
       }})
     if update_result.modified_count == 0:
       raise HTTPException(status_code=500, detail="Failed to update match")
 
     # Use the reusable function to return the new score
-    new_score = await get_score_object(request.app.mongodb, match_id, team_flag, new_score_id)
-    return JSONResponse(status_code=status.HTTP_201_CREATED, content=jsonable_encoder(new_score))
+    new_score = await get_score_object(request.app.mongodb, match_id,
+                                       team_flag, new_score_id)
+    return JSONResponse(status_code=status.HTTP_201_CREATED,
+                        content=jsonable_encoder(new_score))
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -131,9 +147,11 @@ async def get_one_score(
 ) -> ScoresDB:
   team_flag = team_flag.lower()
   # Use the reusable function to return the score
-  score = await get_score_object(request.app.mongodb, match_id, team_flag, score_id)
+  score = await get_score_object(request.app.mongodb, match_id, team_flag,
+                                 score_id)
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(score))
+
 
 # update one score
 @router.patch("/{score_id}", response_description="Patch one score")
@@ -168,7 +186,12 @@ async def patch_one_score(
       detail=f"Score with id {score_id} not found in match {match_id}")
 
   # Update data
-  score_data = jsonable_encoder(score.dict(exclude_unset=True))
+  score_data = score.dict(exclude_unset=True)
+  if 'matchSeconds' in score_data:
+    score_data['matchSeconds'] = parse_time_to_seconds(
+      score_data['matchSeconds'])
+  score_data = jsonable_encoder(score_data)
+
   update_data = {"$set": {}}
   for key, value in score_data.items():
     if current_score.get(key) != value:
@@ -182,7 +205,9 @@ async def patch_one_score(
           f"{team_flag}.scores._id": score_id
         }, update_data)
       if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail=f"Score with ID {score_id} not found in match {match_id}")
+        raise HTTPException(
+          status_code=404,
+          detail=f"Score with ID {score_id} not found in match {match_id}")
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -190,8 +215,10 @@ async def patch_one_score(
     print("No update data")
 
   # Use the reusable function to return the updated score
-  updated_score = await get_score_object(request.app.mongodb, match_id, team_flag, score_id)
-  return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(updated_score))
+  updated_score = await get_score_object(request.app.mongodb, match_id,
+                                         team_flag, score_id)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(updated_score))
 
 
 # delete one score
@@ -230,12 +257,16 @@ async def delete_one_score(
         "_id": match_id,
         f"{team_flag}.scores._id": score_id
       }, {"$pull": {
-        f"{team_flag}.scores": {"_id": score_id}
+        f"{team_flag}.scores": {
+          "_id": score_id
+        }
       }})
     if result.modified_count == 0:
-      raise HTTPException(status_code=404, detail=f"Score with ID {score_id} not found in match {match_id}")
+      raise HTTPException(
+        status_code=404,
+        detail=f"Score with ID {score_id} not found in match {match_id}")
     else:
       return Response(status_code=status.HTTP_204_NO_CONTENT)
-      
+
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
