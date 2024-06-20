@@ -2,11 +2,9 @@
 from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from models.matches import RosterPlayer
 from authentication import AuthHandler
-from pymongo.errors import DuplicateKeyError
-from utils import my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
