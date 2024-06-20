@@ -39,7 +39,11 @@ async def create_match(
   print("match_data 2 : ", match_data)
 
   match_header['home'].pop('roster', None)
+  match_header['home'].pop('scores', None)
+  match_header['home'].pop('penalties', None)
   match_header['away'].pop('roster', None)
+  match_header['away'].pop('scores', None)
+  match_header['away'].pop('penalties', None)
   match_header.pop('tournament', None)
   match_header.pop('season', None)
   match_header.pop('round', None)
@@ -143,8 +147,16 @@ async def update_match(
         match_header.update(match_to_update)
         if 'home' in match_header and 'roster' in match_header['home']:
           match_header['home'].pop('roster')
+        if 'home' in match_header and 'scores' in match_header['home']:
+          match_header['home'].pop('scores')
+        if 'home' in match_header and 'penalties' in match_header['home']:
+          match_header['home'].pop('penalties')
         if 'away' in match_header and 'roster' in match_header['away']:
           match_header['away'].pop('roster')
+        if 'away' in match_header and 'scores' in match_header['away']:
+          match_header['away'].pop('scores')
+        if 'away' in match_header and 'penalties' in match_header['away']:
+          match_header['away'].pop('penalties')
         if 'tournament' in match_header:
           match_header.pop('tournament')
         if 'season' in match_header:
