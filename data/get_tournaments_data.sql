@@ -1,7 +1,7 @@
 -- get TOURNAMENT data
 -- -----------------------
 select 
-	cs.name as name,
+  cs.name as name,
   replace(
     replace(
       replace(
@@ -9,24 +9,40 @@ select
           replace(
             replace(
               replace(lower(trim(cs.name)), ' ', '-')
-	          , 'ü', 'ue')
+            , 'ü', 'ue')
           , 'ö', 'oe')
         , 'ä' ,'ae')
       , 'ß', 'ss')
     , '`', '-')
   , '.', '') as alias,
   cs.Code as tinyName,
-  ag.Name as ageGroup,
+  json_object("key", ag.py_key, "value", ag.py_value) as ageGroup,
   'True' as published,
   'True' as active,
-  '' as external,
-  '' as seasons,
+  -- '' as external,
+  json_object(
+    'numOfPeriods', cs.NumOfPeriods,
+    'periodLengthMin', cs.PeriodLength,
+    'pointsWinReg', cs.PointsWinReg,
+    'pointsLossReg', cs.PointsLossReg,
+    'pointsDrawReg', cs.PointsTie,
+    'overtime', case when cs.IsOvertime = 1 then 'True' else 'False' end,
+    'numOfPeriodsOvertime', cs.NumOfPeriodsOT,
+    'periodLengthMinOvertime', cs.PeriodLengthOT,
+    'pointsWinOvertime', cs.PointsWinOT,
+    'pointsLossOvertime', cs.PointsLossOT,
+    'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end,
+    'pointsWinShootout', cs.PointsWinSO,
+    'pointsLossShootout', cs.PointsLossSO
+  ) as defaultSettings,
+  -- '' as seasons,
   id_tblChampionship as legacyId
 from tblchampionship cs
 join tblagegroup ag on cs.id_fk_AgeGroup=ag.id_tblAgeGroup
-where cs.IsActive=1 and py_doc='tournament'
-
-
+where 1=1
+  -- and cs.IsActive=1 
+  and py_doc='tournament'
+  and cs.id_tblChampionship in (45,14,10,35,26,28,27)
 
 
 
