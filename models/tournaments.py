@@ -1,7 +1,7 @@
 from bson import ObjectId
 from datetime import datetime, date
 from pydantic import Field, BaseModel, HttpUrl, validator
-from typing import Optional, List
+from typing import Optional, List, Dict
 from models.matches import MatchBase
 
 
@@ -40,7 +40,6 @@ class Standings(BaseModel):
   points: int = Field(...)
 
 
-# ------------
 class Teams(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
@@ -50,6 +49,25 @@ class Teams(BaseModel):
   @validator('logo', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
+
+
+class Settings(BaseModel):
+  numOfPeriods: int = None
+  periodLengthMin: int = None
+  pointsWinReg: int = None
+  pointsLossReg: int = None
+  pointsDrawReg: int = None
+  overtime: bool = None
+  numOfPeriodsOvertime: int = None
+  periodLengthMinOvertime: int = None
+  pointsWinOvertime: int = None
+  pointsLossOvertime: int = None
+  shootout: bool = None
+  pointsWinShootout: int = None
+  pointsLossShootout: int = None
+
+
+# ------------
 
 
 class MatchDB(MatchBase):
@@ -77,6 +95,7 @@ class MatchdayBase(MongoBaseModel):
   endDate: datetime = None
   createStandings: bool = False
   createStats: bool = False
+  settings: Settings = None
   published: bool = False
   matches: List[MatchBase] = []
   standings: List[Standings] = []
@@ -104,10 +123,10 @@ class MatchdayUpdate(MongoBaseModel):
   endDate: Optional[datetime] = None
   createStandings: Optional[bool] = False
   createStats: Optional[bool] = False
+  settings: Optional[Settings] = None
   published: Optional[bool] = False
   matches: Optional[List[MatchBase]] = []
   standings: Optional[List[Standings]] = []
-
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def empty_str_to_none(cls, v):
@@ -129,6 +148,7 @@ class RoundBase(MongoBaseModel):
   matchdaysSortedBy: str = Field(...)
   startDate: datetime = None
   endDate: datetime = None
+  settings: Settings = None
   published: bool = False
   matchdays: List[MatchdayBase] = []
   standings: List[Standings] = []
@@ -137,12 +157,17 @@ class RoundBase(MongoBaseModel):
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
-  @validator('name', 'alias', 'matchdaysType', 'matchdaysSortedBy', pre=True, always=True)
+  @validator('name',
+             'alias',
+             'matchdaysType',
+             'matchdaysSortedBy',
+             pre=True,
+             always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
-  
+
 
 class RoundDB(RoundBase):
   pass
@@ -157,6 +182,7 @@ class RoundUpdate(MongoBaseModel):
   matchdaysSortedBy: Optional[str] = "DEFAULT"
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
+  settings: Optional[Settings] = None
   published: Optional[bool] = False
   matchdays: Optional[List[MatchdayBase]] = []
   standings: Optional[List[Standings]] = []
@@ -165,12 +191,17 @@ class RoundUpdate(MongoBaseModel):
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
-  @validator('name', 'alias', 'matchdaysType', 'matchdaysSortedBy', pre=True, always=True)
+  @validator('name',
+             'alias',
+             'matchdaysType',
+             'matchdaysSortedBy',
+             pre=True,
+             always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
-  
+
 
 class SeasonBase(MongoBaseModel):
   name: str = Field(...)
@@ -183,7 +214,8 @@ class SeasonBase(MongoBaseModel):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
-  
+
+
 class SeasonDB(SeasonBase):
   pass
 
@@ -193,13 +225,14 @@ class SeasonUpdate(MongoBaseModel):
   alias: Optional[str] = "DEFAULT"
   published: Optional[bool] = False
   rounds: Optional[List[RoundBase]] = []
-  
+
   @validator('name', 'alias', pre=True, always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
-  
+
+
 # --------
 
 
@@ -207,24 +240,35 @@ class TournamentBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
   tinyName: str = Field(...)
-  ageGroup: str = Field(...)
+  ageGroup: Dict[str, str] = Field(...)
   published: bool = False
   active: bool = False
   external: bool = False
   website: HttpUrl = None
-  seasons: List[SeasonBase] = []
+  defaultSettings: Settings = None
+  seasons: List[SeasonBase] = None
   legacyId: int = None
 
   @validator('website', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
-  @validator('name', 'alias', 'tinyName', 'ageGroup', pre=True, always=True)
+  @validator('name', 'alias', 'tinyName', pre=True, always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
-    
+
+  @validator('ageGroup', pre=True, always=True)
+  def validate_age_group(cls, v):
+    if not isinstance(v, dict):
+      raise ValueError('ageGroup must be a dictionary')
+    for key, value in v.items():
+      if not isinstance(key, str) or not isinstance(value, str):
+        raise ValueError(
+          'ageGroup must be a dictionary with string key-value pairs')
+    return v
+
 
 class TournamentDB(TournamentBase):
   pass
@@ -234,11 +278,12 @@ class TournamentUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
   tinyName: Optional[str] = "DEFAULT"
-  ageGroup: Optional[str] = "DEFAULT"
+  ageGroup: Optional[Dict[str, str]] = None
   published: Optional[bool] = False
   active: Optional[bool] = False
   external: Optional[bool] = False
   website: Optional[HttpUrl] = None
+  defaultSettings: Optional[Settings] = None
   seasons: Optional[List[SeasonBase]] = None
 
   @validator('website', pre=True, always=True)

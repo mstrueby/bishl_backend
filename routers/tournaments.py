@@ -33,6 +33,7 @@ async def get_tournament(
   request: Request,
   tournament_alias: str,
 ) -> TournamentDB:
+  print("tournament_alias: ", tournament_alias)
   exclusion_projection = {"seasons.rounds": 0}
   if (tournament := await request.app.mongodb["tournaments"].find_one(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
@@ -49,8 +50,9 @@ async def create_tournament(
     tournament: TournamentBase = Body(...),
     user_id=Depends(auth.auth_wrapper),
 ) -> TournamentDB:
+  print("tournament: ", tournament)
   tournament = jsonable_encoder(tournament)
-
+  
   # DB processing
   try:
     new_tournament = await request.app.mongodb["tournaments"].insert_one(
