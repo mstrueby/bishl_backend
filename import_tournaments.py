@@ -118,9 +118,9 @@ with open("data/data_rounds.csv", encoding='utf-8') as f:
             if isinstance(row.get('published'), str):
                 row['published'] = row['published'].lower() == 'true'
             if isinstance(row.get('cresteStats'), str):
-                row['cresteStats'] = json.loads(row['cresteStats'])
+                row['cresteStats'] = row['cresteStats'].lower() == 'true'
             if isinstance(row.get('createStandings'), str):
-                row['createStandings'] = json.loads(row['createStandings'])
+                row['createStandings'] = row['createStandings'].lower() == 'true'
             if isinstance(row.get('matchdaysType'), str):
                 row['matchdaysType'] = json.loads(row['matchdaysType'])
             if isinstance(row.get('matchdaysSortedBy'), str):
