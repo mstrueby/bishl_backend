@@ -3,6 +3,7 @@ from datetime import datetime, date
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List, Dict
 from models.matches import MatchBase
+from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings
 
 
 class PyObjectId(ObjectId):
@@ -47,8 +48,8 @@ class Teams(BaseModel):
   logo: HttpUrl = None
 
   @validator('logo', pre=True, always=True)
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+  def validate_logo(cls, v):
+    return empty_str_to_none(v, 'logo')
 
 
 class Settings(BaseModel):
@@ -90,7 +91,7 @@ class MatchUpdate(MongoBaseModel):
 class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  type: str = Field(...)  # make enum, "Playoffs", "Round Robin"
+  type: Dict[str, str] = Field(...)  # enum, "Playoffs", "Round Robin"
   startDate: datetime = None
   endDate: datetime = None
   createStandings: bool = False
@@ -101,14 +102,16 @@ class MatchdayBase(MongoBaseModel):
   standings: List[Standings] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+  def validate_dates(cls, v, field):
+    return empty_str_to_none(v, field.name)
 
-  @validator('name', 'alias', 'type', pre=True, always=True)
-  def prevent_null_value(cls, v):
-    if v is None or v == "":
-      raise ValueError("Field cannot be null or empty string")
-    return v
+  @validator('name', 'alias', pre=True, always=True)
+  def validate_non_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+
+  @validator('type', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
 
 
 class MatchdayDB(MatchdayBase):
@@ -118,7 +121,7 @@ class MatchdayDB(MatchdayBase):
 class MatchdayUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
-  type: Optional[str] = "DEFAULT"
+  type: Optional[Dict[str, str]] = {}
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
   createStandings: Optional[bool] = False
@@ -129,14 +132,16 @@ class MatchdayUpdate(MongoBaseModel):
   standings: Optional[List[Standings]] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+  def validate_strings(cls, v, field):
+    return empty_str_to_none(v, field.name)
 
-  @validator('name', 'alias', 'type', pre=True, always=True)
-  def prevent_null_value(cls, v):
-    if v is None or v == "":
-      raise ValueError("Field cannot be null or empty string")
-    return v
+  @validator('name', 'alias', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+
+  @validator('type', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
 
 
 class RoundBase(MongoBaseModel):
@@ -144,8 +149,8 @@ class RoundBase(MongoBaseModel):
   alias: str = Field(...)
   createStandings: bool = False
   createStats: bool = False
-  matchdaysType: str = Field(...)
-  matchdaysSortedBy: str = Field(...)
+  matchdaysType: Dict[str, str] = Field(...)
+  matchdaysSortedBy: Dict[str, str] = Field(...)
   startDate: datetime = None
   endDate: datetime = None
   settings: Settings = None
@@ -154,19 +159,16 @@ class RoundBase(MongoBaseModel):
   standings: List[Standings] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+  def validate_strings(cls, v, field):
+    return empty_str_to_none(v, field.name)
 
-  @validator('name',
-             'alias',
-             'matchdaysType',
-             'matchdaysSortedBy',
-             pre=True,
-             always=True)
-  def prevent_null_value(cls, v):
-    if v is None or v == "":
-      raise ValueError("Field cannot be null or empty string")
-    return v
+  @validator('name', 'alias', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+
+  @validator('matchdaysType', 'matchdaysSortedBy', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
 
 
 class RoundDB(RoundBase):
@@ -178,8 +180,8 @@ class RoundUpdate(MongoBaseModel):
   alias: Optional[str] = "DEFAULT"
   createStandings: Optional[bool] = False
   createStats: Optional[bool] = False
-  matchdaysType: Optional[str] = "DEFAULT"
-  matchdaysSortedBy: Optional[str] = "DEFAULT"
+  matchdaysType: Optional[Dict[str, str]] = {}
+  matchdaysSortedBy: Optional[Dict[str, str]] = {}
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
   settings: Optional[Settings] = None
@@ -188,19 +190,16 @@ class RoundUpdate(MongoBaseModel):
   standings: Optional[List[Standings]] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+  def validate_strings(cls, v, field):
+    return empty_str_to_none(v, field.name)
 
-  @validator('name',
-             'alias',
-             'matchdaysType',
-             'matchdaysSortedBy',
-             pre=True,
-             always=True)
-  def prevent_null_value(cls, v):
-    if v is None or v == "":
-      raise ValueError("Field cannot be null or empty string")
-    return v
+  @validator('name', 'alias', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+
+  @validator('matchdaysType', 'matchdaysSortedBy', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
 
 
 class SeasonBase(MongoBaseModel):
@@ -210,10 +209,8 @@ class SeasonBase(MongoBaseModel):
   rounds: List[RoundBase] = []
 
   @validator('name', 'alias', pre=True, always=True)
-  def prevent_null_value(cls, v):
-    if v is None or v == "":
-      raise ValueError("Field cannot be null or empty string")
-    return v
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
 
 
 class SeasonDB(SeasonBase):
@@ -227,10 +224,8 @@ class SeasonUpdate(MongoBaseModel):
   rounds: Optional[List[RoundBase]] = []
 
   @validator('name', 'alias', pre=True, always=True)
-  def prevent_null_value(cls, v):
-    if v is None or v == "":
-      raise ValueError("Field cannot be null or empty string")
-    return v
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
 
 
 # --------
@@ -250,24 +245,16 @@ class TournamentBase(MongoBaseModel):
   legacyId: int = None
 
   @validator('website', pre=True, always=True)
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+  def validate_string(cls, v, field):
+    return empty_str_to_none(v, field.name)
 
   @validator('name', 'alias', 'tinyName', pre=True, always=True)
-  def prevent_null_value(cls, v):
-    if v is None or v == "":
-      raise ValueError("Field cannot be null or empty string")
-    return v
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
 
   @validator('ageGroup', pre=True, always=True)
-  def validate_age_group(cls, v):
-    if not isinstance(v, dict):
-      raise ValueError('ageGroup must be a dictionary')
-    for key, value in v.items():
-      if not isinstance(key, str) or not isinstance(value, str):
-        raise ValueError(
-          'ageGroup must be a dictionary with string key-value pairs')
-    return v
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
 
 
 class TournamentDB(TournamentBase):
@@ -278,7 +265,7 @@ class TournamentUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
   tinyName: Optional[str] = "DEFAULT"
-  ageGroup: Optional[Dict[str, str]] = None
+  ageGroup: Optional[Dict[str, str]] = {}
   published: Optional[bool] = False
   active: Optional[bool] = False
   external: Optional[bool] = False
@@ -287,11 +274,13 @@ class TournamentUpdate(MongoBaseModel):
   seasons: Optional[List[SeasonBase]] = None
 
   @validator('website', pre=True, always=True)
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+  def validate_string(cls, v, field):
+    return empty_str_to_none(v, field.name)
 
-  @validator('name', 'alias', 'tinyName', 'ageGroup', pre=True, always=True)
-  def prevent_null_value(cls, v):
-    if v is None or v == "":
-      raise ValueError("Field cannot be null or empty string")
-    return v
+  @validator('name', 'alias', 'tinyName', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+
+  @validator('ageGroup', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
