@@ -1,6 +1,7 @@
 from datetime import datetime, time
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
+import re
 
 
 def parse_date(date_str):
@@ -68,4 +69,10 @@ def validate_dict_of_strings(v, field_name: str):
             raise ValueError(
                 f"Field '{field_name}' must be a dictionary with string key-value pairs"
             )
+    return v
+
+
+def validate_match_seconds(v, field_name: str):
+    if not isinstance(v, str) or not re.match(r'^\d{1,3}:[0-5][0-9]$', v):
+        raise ValueError(f'Field {field_name} must be in the format MIN:SS')
     return v

@@ -102,11 +102,11 @@ class MatchdayBase(MongoBaseModel):
   standings: List[Standings] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
-  def validate_dates(cls, v, field):
+  def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
 
   @validator('name', 'alias', pre=True, always=True)
-  def validate_non_null_strings(cls, v, field):
+  def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
   @validator('type', pre=True, always=True)
