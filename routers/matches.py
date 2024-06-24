@@ -1,15 +1,42 @@
 # filename: routers/matches.py
-from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate
 from authentication import AuthHandler
-from pymongo.errors import DuplicateKeyError
-from utils import my_jsonable_encoder
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds
 
 router = APIRouter()
 auth = AuthHandler()
+
+
+async def get_match_object(mongodb, match_id: str) -> MatchDB:
+  match = await mongodb["matches"].find_one({"_id": match_id})
+  if not match:
+    raise HTTPException(status_code=404,
+                        detail=f"Match with id {match_id} not found")
+
+  # parse scores.matchSeconds to a string format
+  for score in match.get("home", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_from_seconds(score["matchSeconds"])
+  for score in match.get("away", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_from_seconds(score["matchSeconds"])
+  # parse penalties.matchSeconds[Start|End] to a string format
+  for penalty in match.get("home", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_from_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_from_seconds(
+        penalty["matchSecondsEnd"])
+  for penalty in match.get("away", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_from_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_from_seconds(
+        penalty["matchSecondsEnd"])
+
+  return MatchDB(**match)
+
 
 # get all matches --> will be not implemented
 
@@ -17,11 +44,9 @@ auth = AuthHandler()
 # get one match by id
 @router.get("/{match_id}", response_description="Get one match by id")
 async def get_match(request: Request, match_id: str) -> MatchDB:
-  if (match := await
-      request.app.mongodb["matches"].find_one({"_id": match_id})) is not None:
-    return MatchDB(**match)
-  raise HTTPException(status_code=404,
-                      detail=f"Match with id {match_id} not found")
+  match = await get_match_object(request.app.mongodb, match_id)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(match))
 
 
 # create new match
@@ -32,11 +57,9 @@ async def create_match(
     user_id=Depends(auth.auth_wrapper),
 ) -> MatchDB:
   match_data = my_jsonable_encoder(match)
-  print("match_data: ", match_data)
 
   # remove some attibutes from match
   match_header = match_data.copy()
-  print("match_data 2 : ", match_data)
 
   match_header['home'].pop('roster', None)
   match_header['home'].pop('scores', None)
@@ -52,6 +75,23 @@ async def create_match(
 
   # renew match_data, because is some how modified by copy()
   match_data = my_jsonable_encoder(match)
+  for score in match_data.get("home", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
+  for score in match_data.get("away", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
+  # parse penalties.matchSeconds[Start|End] to a string format
+  for penalty in match_data.get("home", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_to_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_to_seconds(
+        penalty["matchSecondsEnd"])
+  for penalty in match_data.get("away", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_to_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_to_seconds(
+        penalty["matchSecondsEnd"])
 
   try:
 
@@ -90,16 +130,11 @@ async def create_match(
     print("match_data: ", match_data)
 
     result = await request.app.mongodb["matches"].insert_one(match_data)
-    new_match = await request.app.mongodb["matches"].find_one(
-      {"_id": result.inserted_id})
 
     # lastly: return complete match document
-    if new_match:
-      new_match_model = MatchDB(**new_match)
-      return JSONResponse(status_code=status.HTTP_201_CREATED,
-                          content=jsonable_encoder(new_match_model))
-    else:
-      raise HTTPException(status_code=500, detail="Failed to create match")
+    new_match = await get_match_object(request.app.mongodb, result.inserted_id)
+    return JSONResponse(status_code=status.HTTP_201_CREATED,
+                        content=jsonable_encoder(new_match))
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -116,6 +151,24 @@ async def update_match(
   print("match: ", match)
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
+  for score in match_data.get("home", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
+  for score in match_data.get("away", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
+  # parse penalties.matchSeconds[Start|End] to a string format
+  for penalty in match_data.get("home", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_to_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_to_seconds(
+        penalty["matchSecondsEnd"])
+  for penalty in match_data.get("away", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_to_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_to_seconds(
+        penalty["matchSecondsEnd"])
+
   print("match_data: ", match_data)
 
   existing_match = await request.app.mongodb["matches"].find_one(
@@ -132,6 +185,7 @@ async def update_match(
 
   if match_to_update:
     try:
+      # update match in matches
       print("match to update: ", match_to_update)
       update_result = await request.app.mongodb["matches"].update_one(
         {"_id": match_id}, {"$set": match_data})
@@ -173,23 +227,19 @@ async def update_match(
         print("filter: ", filter)
         update = {
           "$set": {
-            "seasons.$[s].rounds.$[r].matchdays.$[md].matches.$[m]": match_header
+            "seasons.$[s].rounds.$[r].matchdays.$[md].matches.$[m]":
+            match_header
           }
         }
-        array_filters = [
-          {
-            "s.alias": existing_match['season']['alias']
-          },
-          {
-            "r.alias": existing_match['round']['alias']
-          },
-          {
-            "md.alias": existing_match['matchday']['alias']
-          },
-          {
-            "m._id": existing_match['_id']
-          }
-        ]
+        array_filters = [{
+          "s.alias": existing_match['season']['alias']
+        }, {
+          "r.alias": existing_match['round']['alias']
+        }, {
+          "md.alias": existing_match['matchday']['alias']
+        }, {
+          "m._id": existing_match['_id']
+        }]
         print("do update")
         print("update tournament: ", update)
         print("arrayFilters: ", array_filters)
@@ -211,29 +261,22 @@ async def update_match(
     print("No changes to update")
 
   # return updated match
-  updated_match = await request.app.mongodb["matches"].find_one(
-    {"_id": match_id})
-  if updated_match is not None:
-    match_response = MatchDB(**updated_match)
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(match_response))
-  else:
-    raise HTTPException(status_code=500,
-                        detail=f"Fetch: Match with id {match_id} not found")
+  updated_match = await get_match_object(request.app.mongodb, match_id)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(updated_match))
 
 
 # delete match
 @router.delete("/{match_id}", response_description="Delete match")
 async def delete_match(
   request: Request, match_id: str,
-  user_id: str = Depends(auth.auth_wrapper)
-) -> None:
+  user_id: str = Depends(auth.auth_wrapper)) -> None:
   # Find the match
   match = await request.app.mongodb["matches"].find_one({"_id": match_id})
   if match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
-  
+
   try:
     # delete in mathces
     result = await request.app.mongodb["matches"].delete_one({"_id": match_id})
@@ -261,13 +304,10 @@ async def delete_match(
     print("filter: ", filter)
     print("update: ", update)
     print("array_filters: ", array_filters)
-    
+
     # Perform the update
     result = await request.app.mongodb["tournaments"].update_one(
-      filter=filter,
-      update=update,
-      array_filters=array_filters,
-      upsert=False)
+      filter=filter, update=update, array_filters=array_filters, upsert=False)
 
     if result.modified_count == 0:
       raise HTTPException(

@@ -2,6 +2,8 @@ from bson import ObjectId
 from datetime import datetime, date, time
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List, Dict
+from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings, validate_match_seconds
+import re
 #from models.clubs import TeamBase
 
 
@@ -75,6 +77,10 @@ class ScoresBase(MongoBaseModel):
   isSHG: bool = False
   isGWG: bool = False
 
+  @validator('matchSeconds', pre=True, always=True)
+  def validate_match_seconds(cls, v, field):
+    return validate_match_seconds(v, field.name)
+
 
 class ScoresDB(ScoresBase):
   pass
@@ -88,6 +94,10 @@ class ScoresUpdate(MongoBaseModel):
   isSHG: Optional[bool] = False
   isGWG: Optional[bool] = False
 
+  @validator('matchSeconds', pre=True, always=True)
+  def validate_match_seconds(cls, v, field):
+    return validate_match_seconds(v, field.name)
+
 
 class PenaltiesBase(MongoBaseModel):
   matchSecondsStart: str = Field(...)
@@ -98,17 +108,40 @@ class PenaltiesBase(MongoBaseModel):
   isGM: bool = False
   isMP: bool = False
 
+  @validator('penaltyCode', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
+
+  @validator('matchSecondsStart', 'matchSecondsEnd', pre=True, always=True)
+  def validate_match_seconds(cls, v, field):
+    if field.name == 'matchSecondsEnd' and v is None:
+      return None
+    return validate_match_seconds(v, field.name)
+
+
 class PenaltiesDB(PenaltiesBase):
   pass
+
 
 class PenaltiesUpdate(MongoBaseModel):
   matchSecondsStart: Optional[str] = "00:00"
   matchSecondsEnd: Optional[str] = None
   penaltyPlayer: Optional[EventPlayer] = {}
-  penaltyCode: Optional[Dict[str, str]] = None
+  penaltyCode: Optional[Dict[str, str]] = {}
   penaltyMinutes: Optional[int] = 0
   isGM: Optional[bool] = False
   isMP: Optional[bool] = False
+
+  @validator('penaltyCode', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
+
+  @validator('matchSecondsStart', 'matchSecondsEnd', pre=True, always=True)
+  def validate_match_seconds(cls, v, field):
+    if field.name == 'matchSecondsEnd' and v is None:
+      return None
+    return validate_match_seconds(v, field.name)
+
 
 class MatchTeam(BaseModel):
   fullName: str = Field(...)
@@ -119,6 +152,10 @@ class MatchTeam(BaseModel):
   scores: List[ScoresBase] = []
   penalties: List[PenaltiesBase] = []
 
+  @validator('fullName', 'shortName', 'tinyName', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+
 
 class MatchTeamUpdate(BaseModel):
   fullName: Optional[str] = "DEFAULT"
@@ -128,6 +165,10 @@ class MatchTeamUpdate(BaseModel):
   roster: Optional[List[RosterPlayer]] = []
   scores: Optional[List[ScoresBase]] = None
   penalties: Optional[List[PenaltiesBase]] = []
+
+  @validator('fullName', 'shortName', 'tinyName', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
 
 
 # --- main document
@@ -150,6 +191,10 @@ class MatchBase(MongoBaseModel):
   startDate: datetime = None
   published: bool = False
 
+  @validator('matchStatus', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
+
 
 class MatchDB(MatchBase):
   pass
@@ -171,3 +216,7 @@ class MatchUpdate(MongoBaseModel):
   shootout: Optional[bool] = False
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
+
+  @validator('matchStatus', pre=True, always=True)
+  def validate_type(cls, v, field):
+    return validate_dict_of_strings(v, field.name)
