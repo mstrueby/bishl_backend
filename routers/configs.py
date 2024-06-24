@@ -43,6 +43,12 @@ configs: List[Config] = [  # Use List[Config] for type hinting
            ConfigValue(key="NAME", value="Name", sortOrder=1),
            ConfigValue(key="STARTDATE", value="Startdatum", sortOrder=2)
          ]),
+  Config(key="MATCHDAYTYPE",
+         name="Spieltagstyp",  
+         value=[
+           ConfigValue(key="PLAYOFFS", value="Playoffs", sortOrder=1),
+           ConfigValue(key="REGULAR", value="Regulär", sortOrder=2)
+         ]),
   Config(key="MATCHSTATUS",
          name="Spielstatus",
          value=[

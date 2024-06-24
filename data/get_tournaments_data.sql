@@ -2,21 +2,10 @@
 -- -----------------------
 select 
   cs.name as name,
-  replace(
-    replace(
-      replace(
-        replace(  
-          replace(
-            replace(
-              replace(lower(trim(cs.name)), ' ', '-')
-            , 'ü', 'ue')
-          , 'ö', 'oe')
-        , 'ä' ,'ae')
-      , 'ß', 'ss')
-    , '`', '-')
-  , '.', '') as alias,
+  py_t_alias as alias,
   cs.Code as tinyName,
-  json_object("key", ag.py_key, "value", ag.py_value) as ageGroup,
+  -- json_object("key", ag.py_key, "value", ag.py_value) as ageGroup,
+  py_ageGroup as ageGroup,
   'True' as published,
   'True' as active,
   -- '' as external,
@@ -42,10 +31,26 @@ join tblagegroup ag on cs.id_fk_AgeGroup=ag.id_tblAgeGroup
 where 1=1
   -- and cs.IsActive=1 
   and py_doc='tournament'
-  and cs.id_tblChampionship in (45,14,10,35,26,28,27)
+  and cs.id_tblChampionship in (45,14,10,51,35,26,28,27)
 
 
-
+-- fixes
+  update tblchampionship 
+  set py_t_alias=
+    replace(
+      replace(
+        replace(
+          replace(  
+            replace(
+              replace(
+                replace(lower(trim(Name)), ' ', '-')
+                , 'ü', 'ue')
+            , 'ö', 'oe')
+          , 'ä' ,'ae')
+        , 'ß', 'ss')
+      , '`', '-')
+    , '.', '')
+  where py_doc='tournament'
 
 -- Tests:
   
@@ -78,7 +83,7 @@ db.tournaments.updateMany({}, { $set: { seasons: [{year: 2023, published: true }
         , 'ß', 'ss')
       , '`', '-')
     , '.', '') as alias,
-    cs.py_code as t_tinyName
+    cs.py_t_alias as t_alias
   from tblteamchampionship tcs
   join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
   where 1=1
@@ -103,20 +108,35 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
 -- get ROUNDS data
 -- -----------------------
   select distinct
+      cs.py_t_alias as t_alias,
       tcs.SeasonYear as s_alias,
-      cs.py_code as t_tinyName,
       cs.py_round as name,
       cs.py_round_alias as alias,
-      case cs.CreateTable and cs.CreateTableByRound=0 when 1 then 'True' else '' end as createStandings, 
-      cs.py_md_type as matchdaysType, -- Spieltag, Turnier, Runde, Gruppe
-      cs.py_md_sort as matchdaysSortedBy, -- Startdatum, Name
-      cs.CreateTableByRound,
+      case cs.CreateTable when 1 then 'True' else 'False' end as createStandings, 
+      case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
+      py_matchdaysType as matchdaysType, -- Spieltag, Turnier, Runde, Gruppe
+      py_matchdaysSortedBy as matchdaysSortedBy, -- Startdatum, Name
       -- min(date(g.StartDate)) as startDate,
       -- max(date(g.StartDate)) as endDate,
       min(g.StartDate) as startDate,
       max(g.StartDate) as endDate,
-      'True' as createStats,
-      'True' as published
+      json_object(
+        'numOfPeriods', cs.NumOfPeriods,
+        'periodLengthMin', cs.PeriodLength,
+        'pointsWinReg', cs.PointsWinReg,
+        'pointsLossReg', cs.PointsLossReg,
+        'pointsDrawReg', cs.PointsTie,
+        'overtime', case when cs.IsOvertime = 1 then 'True' else 'False' end,
+        'numOfPeriodsOvertime', cs.NumOfPeriodsOT,
+        'periodLengthMinOvertime', cs.PeriodLengthOT,
+        'pointsWinOvertime', cs.PointsWinOT,
+        'pointsLossOvertime', cs.PointsLossOT,
+        'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end,
+        'pointsWinShootout', cs.PointsWinSO,
+        'pointsLossShootout', cs.PointsLossSO
+      ) as settings,
+      'True' as published,
+      cs.CreateTableByRound
     from tblteamchampionship tcs
     join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
     join tblgame g on tcs.SeasonYear=g.SeasonYear and cs.id_tblChampionship=g.id_fk_Championship
@@ -131,17 +151,35 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
 -- get MATCHDAYS data
 select
 	g.SeasonYear as s_alias,
-  cs.py_code as t_tinyName,
-  cs.py_round as r_name,
+  cs.py_t_alias as t_alias,
+  cs.py_round_alias as r_alias,
   COALESCE(g.Round, 'ALL_GAMES') as name,
   COALESCE(g.py_md_alias, 'all_games') as alias,
-  case when cs.py_round = 'Playoffs' then 'Playoffs' else 'Round Robin' end as type,
-  --date(min(g.startdate)) as startDate,
-  --date(max(g.startdate)) as endDate,
+  json_object(
+    'key', case when cs.py_round = 'Playoffs' then 'PLAYOFFS' else 'REGULAR' end,
+    'value', case when cs.py_round = 'Playoffs' then 'Playoffs' else 'Regulär' end
+  ) as type,
+  -- date(min(g.startdate)) as startDate,
+  -- date(max(g.startdate)) as endDate,
   min(g.startdate) as startDate,
   max(g.startdate) as endDate,
-case when cs.CreateTableByRound = 1 then 'True' else '' end as createStandings,
-  '' as createStats,
+  json_object(
+    'numOfPeriods', cs.NumOfPeriods,
+    'periodLengthMin', cs.PeriodLength,
+    'pointsWinReg', cs.PointsWinReg,
+    'pointsLossReg', cs.PointsLossReg,
+    'pointsDrawReg', cs.PointsTie,
+    'overtime', case when cs.IsOvertime = 1 then 'True' else 'False' end,
+    'numOfPeriodsOvertime', cs.NumOfPeriodsOT,
+    'periodLengthMinOvertime', cs.PeriodLengthOT,
+    'pointsWinOvertime', cs.PointsWinOT,
+    'pointsLossOvertime', cs.PointsLossOT,
+    'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end,
+    'pointsWinShootout', cs.PointsWinSO,
+    'pointsLossShootout', cs.PointsLossSO
+  ) as settings,
+  case cs.CreateTable when 1 then 'True' else 'False' end as createStandings, 
+  case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
   'True' as published
 from tblgame as g
 join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
