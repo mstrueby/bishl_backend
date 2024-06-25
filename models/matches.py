@@ -143,6 +143,15 @@ class PenaltiesUpdate(MongoBaseModel):
     return validate_match_seconds(v, field.name)
 
 
+class MatchStats(BaseModel):
+  goalsFor: int = 0
+  goalsAgainst: int = 0
+
+class MatchStatsUpdate(BaseModel):
+  goalsFor: Optional[int] = 0
+  goalsAgainst: Optional[int] = 0
+
+
 class MatchTeam(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
@@ -151,6 +160,7 @@ class MatchTeam(BaseModel):
   roster: List[RosterPlayer] = []
   scores: List[ScoresBase] = []
   penalties: List[PenaltiesBase] = []
+  stats: MatchStats = {}
 
   @validator('fullName', 'shortName', 'tinyName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
@@ -165,11 +175,11 @@ class MatchTeamUpdate(BaseModel):
   roster: Optional[List[RosterPlayer]] = []
   scores: Optional[List[ScoresBase]] = None
   penalties: Optional[List[PenaltiesBase]] = []
+  stats: Optional[MatchStats] = {}
 
   @validator('fullName', 'shortName', 'tinyName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
-
 
 # --- main document
 
@@ -184,8 +194,6 @@ class MatchBase(MongoBaseModel):
   away: MatchTeam = None
   matchStatus: Dict[str, str] = Field(...)
   venue: str = None
-  homeScore: int = None
-  awayScore: int = None
   overtime: bool = False
   shootout: bool = False
   startDate: datetime = None
@@ -210,8 +218,6 @@ class MatchUpdate(MongoBaseModel):
   away: Optional[MatchTeamUpdate] = None
   matchStatus: Optional[Dict[str, str]] = None
   venue: Optional[str] = None
-  homeScore: Optional[int] = None
-  awayScore: Optional[int] = None
   overtime: Optional[bool] = False
   shootout: Optional[bool] = False
   startDate: Optional[datetime] = None
