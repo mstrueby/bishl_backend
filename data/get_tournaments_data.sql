@@ -290,20 +290,40 @@ order by seasonyear desc, startdate;
 
 -- with history (joining tblteamseason)
 select
-  cs.py_code as t_tinyName,
-  g.SeasonYear as s_alias,
-  cs.py_round as r_name,
-  COALESCE(g.Round, 'ALL_GAMES') as md_name,
+  json_object('name', cs.py_name, 'alias', cs.py_t_alias) as tournament,
+  json_object('name', cast(g.SeasonYear as char(4)), 'alias', cast(g.SeasonYear as char(4))) as season,
+  json_object('name', cs.py_round, 'alias', cs.py_round_alias) as round,
+  json_object(
+    'name', COALESCE(g.Round, 'ALL_GAMES'), 
+    'alias', COALESCE(g.py_md_alias, 'all_games')
+  ) as matchday,
   g.id_tblGame as matchId,
-  json_object('name', th.Name, 'shortName', th.ShortName) as homeTeam,
-  json_object('name', ta.Name, 'shortName', ta.ShortName) as awayTeam,
-  gs.Name as status,
+  json_object(
+    'fullName', th.Name, 
+    'shortName', th.ShortName,
+    'tinyName', th.TinyName,
+    'logo', th.py_logo,
+    'stats', json_object(
+      'goalsFor', st.GoalsH,
+      'goalsAgainst', st.GoalsA
+    )
+  ) as home,
+  ta.Name, ta.ShortName, ta.tinyName,
+  json_object(
+    'fullName', ta.Name, 
+    'shortName', ta.ShortName,
+    'tinyName', ta.TinyName,
+    'logo', ta.py_logo,
+    'stats', json_object(
+      'goalsFor', st.GoalsA,
+      'goalsAgainst', st.GoalsH
+    )
+  ) as away,
+  gs.py_doc as matchStatus,
   s.Name as venue,
-  st.GoalsH as homeScore,
-  st.GoalsA as awayScore,
-  g.IsOvertime as overtime,
-  g.IsShootout as shootout,
-  g.startdate as startTime,
+  case g.IsOvertime when 1 then 'True' else 'False' end as overtime,
+  case g.IsShootout when 1 then 'True' else 'False' end as shootout,
+  g.startdate as startDate,
   'True' as published
 from tblgame as g
 join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship

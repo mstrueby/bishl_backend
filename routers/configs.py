@@ -52,7 +52,7 @@ configs: List[Config] = [  # Use List[Config] for type hinting
   Config(key="MATCHSTATUS",
          name="Spielstatus",
          value=[
-           ConfigValue(key="SCHEDULED", value="angesetzt", sortOrder=1),
+           ConfigValue(key="SCHEDULED", value="Angesetzt", sortOrder=1),
            ConfigValue(key="INPROGRESS", value="Live", sortOrder=2),
            ConfigValue(key="FINISHED", value="Beendet", sortOrder=3),
            ConfigValue(key="CANCELLED", value="Abgesagt", sortOrder=4),
