@@ -95,6 +95,13 @@ configs: List[Config] = [  # Use List[Config] for type hinting
            ConfigValue(key="G", value="Goalie", sortOrder=3),
            ConfigValue(key="F", value="Feldspieler", sortOrder=4),
          ]),
+  Config(key="FINISHTYPE",
+         name="Abschluss",
+         value=[
+           ConfigValue(key="REGULAR", value="Regulär", sortOrder=1),
+           ConfigValue(key="OVERTIME", value="Verlängerung", sortOrder=2),
+           ConfigValue(key="SHOOTOUT", value="Penaltyschießen", sortOrder=3),
+         ]),
 ]
 
 

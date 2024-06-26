@@ -9,6 +9,7 @@ select
   'True' as published,
   'True' as active,
   -- '' as external,
+  /*
   json_object(
     'numOfPeriods', cs.NumOfPeriods,
     'periodLengthMin', cs.PeriodLength,
@@ -24,6 +25,16 @@ select
     'pointsWinShootout', cs.PointsWinSO,
     'pointsLossShootout', cs.PointsLossSO
   ) as defaultSettings,
+  */
+  json_object(
+    'pointsWinReg', cs.PointsWinReg,
+    'pointsLossReg', cs.PointsLossReg,
+    'pointsDrawReg', cs.PointsTie,
+    'pointsWinOvertime', cs.PointsWinOT,
+    'pointsLossOvertime', cs.PointsLossOT,
+    'pointsWinShootout', cs.PointsWinSO,
+    'pointsLossShootout', cs.PointsLossSO
+  ) as standingsSettings,
   -- '' as seasons,
   id_tblChampionship as legacyId
 from tblchampionship cs
@@ -123,18 +134,11 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
       json_object(
         'numOfPeriods', cs.NumOfPeriods,
         'periodLengthMin', cs.PeriodLength,
-        'pointsWinReg', cs.PointsWinReg,
-        'pointsLossReg', cs.PointsLossReg,
-        'pointsDrawReg', cs.PointsTie,
         'overtime', case when cs.IsOvertime = 1 then 'True' else 'False' end,
         'numOfPeriodsOvertime', cs.NumOfPeriodsOT,
         'periodLengthMinOvertime', cs.PeriodLengthOT,
-        'pointsWinOvertime', cs.PointsWinOT,
-        'pointsLossOvertime', cs.PointsLossOT,
-        'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end,
-        'pointsWinShootout', cs.PointsWinSO,
-        'pointsLossShootout', cs.PointsLossSO
-      ) as settings,
+        'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end
+      ) as matchSettings,
       'True' as published,
       cs.CreateTableByRound
     from tblteamchampionship tcs
@@ -166,18 +170,11 @@ select
   json_object(
     'numOfPeriods', cs.NumOfPeriods,
     'periodLengthMin', cs.PeriodLength,
-    'pointsWinReg', cs.PointsWinReg,
-    'pointsLossReg', cs.PointsLossReg,
-    'pointsDrawReg', cs.PointsTie,
     'overtime', case when cs.IsOvertime = 1 then 'True' else 'False' end,
     'numOfPeriodsOvertime', cs.NumOfPeriodsOT,
     'periodLengthMinOvertime', cs.PeriodLengthOT,
-    'pointsWinOvertime', cs.PointsWinOT,
-    'pointsLossOvertime', cs.PointsLossOT,
-    'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end,
-    'pointsWinShootout', cs.PointsWinSO,
-    'pointsLossShootout', cs.PointsLossSO
-  ) as settings,
+    'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end
+  ) as matchSettings,
   case cs.CreateTable when 1 then 'True' else 'False' end as createStandings, 
   case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
   'True' as published
@@ -323,6 +320,16 @@ select
   s.Name as venue,
   case g.IsOvertime when 1 then 'True' else 'False' end as overtime,
   case g.IsShootout when 1 then 'True' else 'False' end as shootout,
+  json_object(
+    'key', 
+    case when g.IsOvertime = 1 then 'OVERTIME' else 
+      case when g.IsShootout = 1 then 'SHOOTOUT' else 'REGULAR' end    
+    end,
+    'value',
+    case when g.IsOvertime = 1 then 'Verlängerung' else
+      case when g.IsShootout = 1 then 'Penaltyschießen' else 'Regulär' end
+    end
+  ) as finishType,
   g.startdate as startDate,
   'True' as published
 from tblgame as g
