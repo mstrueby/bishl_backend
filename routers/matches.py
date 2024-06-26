@@ -5,9 +5,12 @@ from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate
 from authentication import AuthHandler
 from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds
+import os
+import requests
 
 router = APIRouter()
 auth = AuthHandler()
+BASE_URL = os.environ['BE_API_URL']
 
 
 async def get_match_object(mongodb, match_id: str) -> MatchDB:
@@ -56,6 +59,64 @@ async def create_match(
     match: MatchBase = Body(...),
     user_id=Depends(auth.auth_wrapper),
 ) -> MatchDB:
+
+  # get standing settings
+  import aiohttp
+  async with aiohttp.ClientSession() as session:
+    async with session.get(
+        f"{BASE_URL}/tournaments/{match.tournament.alias}"
+    ) as response:
+      if response.status != 200:
+        raise HTTPException(
+          status_code=404,
+          detail=f"Tournament with alias {match.tournament.alias} not found")
+      else:
+        standingsSetting = (await response.json()).get('standingsSettings')
+
+  
+  match match.finishType.get('key'):
+    case 'OVERTIME':
+      if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
+        match.home.stats.otWin = 1
+        match.home.stats.points = standingsSetting.get("pointsWinOvertime")
+        match.away.stats.otLoss = 1
+        match.away.stats.points = standingsSetting.get("pointsLossOvertime")
+      else:
+        match.home.stats.otLoss = 1
+        match.home.stats.points = standingsSetting.get("pointsLossOvertime")
+        match.away.stats.otWin = 1
+        match.away.stats.points = standingsSetting.get("pointsWinOvertime")
+    case 'SHOOTOUT':
+      if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
+        match.home.stats.soWin = 1
+        match.home.stats.points = standingsSetting.get("pointsWinShootout")
+        match.away.stats.soLoss = 1
+        match.away.stats.points = standingsSetting.get("pointsLossShootout")
+      else:
+        match.home.stats.soLoss = 1
+        match.home.stats.points = standingsSetting.get("pointsLossShootout")
+        match.away.stats.soWin = 1
+        match.away.stats.points = standingsSetting.get("pointsWinShootout")
+    case 'REGULAR':
+      if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
+        match.home.stats.win = 1
+        match.home.stats.points = standingsSetting.get("pointsWinReg")
+        match.away.stats.loss = 1
+        match.away.stats.points = standingsSetting.get("pointsLossReg")
+      elif match.home.stats.goalsFor < match.home.stats.goalsAgainst:
+        match.home.stats.loss = 1
+        match.home.stats.points = standingsSetting.get("pointsLossReg")
+        match.away.stats.win = 1
+        match.away.stats.points = standingsSetting.get("pointsWinReg")
+      else:
+        match.home.stats.draw = 1
+        match.home.stats.points = standingsSetting.get("pointsDrawReg")
+        match.away.stats.draw = 1
+        match.away.stats.points = standingsSetting.get("pointsDrawReg")
+    case _:
+      print("Unknown finishType")
+
+  
   match_data = my_jsonable_encoder(match)
 
   # remove some attibutes from match

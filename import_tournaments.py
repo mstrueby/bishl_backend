@@ -69,8 +69,8 @@ with open("data/data_tournaments.csv", encoding='utf-8') as f:
             # parse JSON strings if they are not already dictionaries
             if isinstance(row.get('ageGroup'), str):
                 row['ageGroup'] = json.loads(row['ageGroup'])
-            if isinstance(row.get('defaultSettings'), str):
-                row['defaultSettings'] = json.loads(row['defaultSettings'])
+            if isinstance(row.get('standingsSettings'), str):
+                row['standingsSettings'] = json.loads(row['standingsSettings'])
             if isinstance(row.get('published'), str):
                 row['published'] = row['published'].lower() == 'true'
             if isinstance(row.get('active'), str):
@@ -117,7 +117,7 @@ with open("data/data_seasons.csv", encoding='utf-8') as f:
                 exit()
         else:
             print(
-                f"Season {row['alias']} for tournament {row['t_alias']} already exists, skipping insertion."
+                f"Season {row['alias']} for {row['t_alias']} already exists, skipping insertion."
             )
 
 # insert rounds
@@ -151,8 +151,8 @@ with open("data/data_rounds.csv", encoding='utf-8') as f:
                 row['matchdaysType'] = json.loads(row['matchdaysType'])
             if isinstance(row.get('matchdaysSortedBy'), str):
                 row['matchdaysSortedBy'] = json.loads(row['matchdaysSortedBy'])
-            if isinstance(row.get('settings'), str):
-                row['settings'] = json.loads(row['settings'])
+            if isinstance(row.get('matchSettings'), str):
+                row['matchSettings'] = json.loads(row['matchSettings'])
             row['matchdays'] = []
 
             response = requests.post(
@@ -167,7 +167,7 @@ with open("data/data_rounds.csv", encoding='utf-8') as f:
                 exit()
         else:
             print(
-                f"Round {row['alias']} for season {row['s_alias']} for tournament {row['t_alias']} already exists, skipping insertion."
+                f"Round {row['alias']} for {row['t_alias']} / {row['s_alias']} already exists, skipping insertion."
             )
 
 # insert matchdays
@@ -202,8 +202,8 @@ with open("data/data_matchdays.csv", encoding='utf-8') as f:
                 ) == 'true'
             if isinstance(row.get('createStats'), str):
                 row['createStats'] = row['createStats'].lower() == 'true'
-            if isinstance(row.get('settings'), str):
-                row['settings'] = json.loads(row['settings'])
+            if isinstance(row.get('matchSettings'), str):
+                row['matchSettings'] = json.loads(row['matchSettings'])
             if isinstance(row.get('type'), str):
                 row['type'] = json.loads(row['type'])
             row['matches'] = []
@@ -220,7 +220,7 @@ with open("data/data_matchdays.csv", encoding='utf-8') as f:
                 exit()
         else:
             print(
-                f"Matchday {row['alias']} for round {row['r_alias']} for season {row['s_alias']} for tournament {row['t_alias']} already exists, skipping insertion."
+                f"Matchday {row['alias']} for {row['t_alias']} / {row['s_alias']} / {row['r_alias']} already exists, skipping insertion."
             )
 
 # import matches
@@ -242,12 +242,10 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
             row['away'] = json.loads(row['away'])
         if isinstance(row.get('matchStatus'), str):
             row['matchStatus'] = json.loads(row['matchStatus'])
+        if isinstance(row.get('finishType'), str):
+            row['finishType'] = json.loads(row['finishType'])
         if isinstance(row.get('published'), str):
             row['published'] = row['published'].lower() == 'true'
-        if isinstance(row.get('overtime'), str):
-            row['overtime'] = row['overtime'].lower() == 'true'
-        if isinstance(row.get('shootout'), str):
-            row['shootout'] = row['shootout'].lower() == 'true'
         if isinstance(row.get('matchId'), str):
             row['matchId'] = int(row['matchId'])
 
@@ -269,12 +267,12 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
                 headers=headers)
             if response.status_code == 201:
                 print('--> Successfully posted Match: ', row)
-                exit()
+                #exit()
             else:
                 print('Failed to post Match: ', row, ' - Status code:',
                       response.status_code)
                 exit()
         else:
             print(
-                f"Match {row['matchId']} for tournament {t_alias}, season {s_alias}, round {r_alias} and matchday {md_alias} already exists, skipping insertion."
+                f"Match {row['matchId']} for {t_alias} / {s_alias} / {r_alias} / {md_alias} already exists, skipping insertion."
             )
