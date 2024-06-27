@@ -2,7 +2,6 @@ from bson import ObjectId
 from datetime import datetime, date
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List, Dict
-from models.matches import MatchBase
 from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings
 
 
@@ -86,7 +85,6 @@ class MatchdayBase(MongoBaseModel):
   createStats: bool = False
   matchSettings: MatchSettings = {}
   published: bool = False
-  matches: List[MatchBase] = []
   standings: List[Standings] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)
@@ -116,7 +114,6 @@ class MatchdayUpdate(MongoBaseModel):
   createStats: Optional[bool] = False
   matchSettings: Optional[MatchSettings] = {}
   published: Optional[bool] = False
-  matches: Optional[List[MatchBase]] = []
   standings: Optional[List[Standings]] = []
 
   @validator('startDate', 'endDate', pre=True, always=True)

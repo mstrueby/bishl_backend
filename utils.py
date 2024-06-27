@@ -1,8 +1,12 @@
-from datetime import datetime, time
+from datetime import datetime
+from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import re
+import os
+import aiohttp
 
+BASE_URL = os.environ['BE_API_URL']
 
 def parse_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%d') if date_str else None
@@ -23,8 +27,18 @@ def parse_time_to_seconds(time_str):
 def parse_time_from_seconds(seconds):
     minutes = seconds // 60
     seconds = seconds % 60
-    return f"{minutes}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
 
+
+def flatten_dict(d, parent_key='', sep='.'):
+    items = []
+    for k, v in d.items():
+      new_key = f'{parent_key}{sep}{k}' if parent_key else k
+      if isinstance(v, dict):
+        items.extend(flatten_dict(v, new_key, sep=sep).items())
+      else:
+        items.append((new_key, v))
+    return dict(items)
 
 def my_jsonable_encoder(obj):
     result = {}
@@ -76,3 +90,57 @@ def validate_match_seconds(v, field_name: str):
     if not isinstance(v, str) or not re.match(r'^\d{1,3}:[0-5][0-9]$', v):
         raise ValueError(f'Field {field_name} must be in the format MIN:SS')
     return v
+
+
+async def fetch_standings_settings(tournament_alias):
+    async with aiohttp.ClientSession() as session:
+      async with session.get(f"{BASE_URL}/tournaments/{tournament_alias}") as response:
+        if response.status != 200:
+          raise HTTPException(
+            status_code=404,
+            detail=f"Tournament with alias {tournament_alias} not found"
+          )
+        return (await response.json()).get('standingsSettings')
+
+def apply_points(match, standingsSetting):
+    match match.finishType.get('key'):
+      case 'OVERTIME':
+        if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
+          match.home.stats.otWin = 1
+          match.home.stats.points = standingsSetting.get("pointsWinOvertime")
+          match.away.stats.otLoss = 1
+          match.away.stats.points = standingsSetting.get("pointsLossOvertime")
+        else:
+          match.home.stats.otLoss = 1
+          match.home.stats.points = standingsSetting.get("pointsLossOvertime")
+          match.away.stats.otWin = 1
+          match.away.stats.points = standingsSetting.get("pointsWinOvertime")
+      case 'SHOOTOUT':
+        if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
+          match.home.stats.soWin = 1
+          match.home.stats.points = standingsSetting.get("pointsWinShootout")
+          match.away.stats.soLoss = 1
+          match.away.stats.points = standingsSetting.get("pointsLossShootout")
+        else:
+          match.home.stats.soLoss = 1
+          match.home.stats.points = standingsSetting.get("pointsLossShootout")
+          match.away.stats.soWin = 1
+          match.away.stats.points = standingsSetting.get("pointsWinShootout")
+      case 'REGULAR':
+        if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
+          match.home.stats.win = 1
+          match.home.stats.points = standingsSetting.get("pointsWinReg")
+          match.away.stats.loss = 1
+          match.away.stats.points = standingsSetting.get("pointsLossReg")
+        elif match.home.stats.goalsFor < match.home.stats.goalsAgainst:
+          match.home.stats.loss = 1
+          match.home.stats.points = standingsSetting.get("pointsLossReg")
+          match.away.stats.win = 1
+          match.away.stats.points = standingsSetting.get("pointsWinReg")
+        else:
+          match.home.stats.draw = 1
+          match.home.stats.points = standingsSetting.get("pointsDrawReg")
+          match.away.stats.draw = 1
+          match.away.stats.points = standingsSetting.get("pointsDrawReg")
+      case _:
+        print("Unknown finishType")
