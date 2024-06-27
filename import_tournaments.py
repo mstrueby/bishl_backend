@@ -46,6 +46,9 @@ parser = argparse.ArgumentParser(description='Manage tournaments.')
 parser.add_argument('--deleteAll',
                     action='store_true',
                     help='Delete all tournaments.')
+parser.add_argument('--importAll',
+                    action='store_true',
+                    help='Import all matches.')
 args = parser.parse_args()
 
 if args.deleteAll:
@@ -54,9 +57,7 @@ if args.deleteAll:
         f"Deleted {delete_result.deleted_count} tournaments from the database."
     )
     delete_result = db['matches'].delete_many({})
-    print(
-        f"Deleted {delete_result.deleted_count} matches from the database."
-    )
+    print(f"Deleted {delete_result.deleted_count} matches from the database.")
 
 # read csv
 # iterate over rows and post to tournaments API
@@ -79,7 +80,9 @@ with open("data/data_tournaments.csv", encoding='utf-8') as f:
             row['external'] = False
             row['legacyId'] = int(row['legacyId'])
 
-            response = requests.post(f"{BASE_URL}/tournaments/", json=row, headers=headers)
+            response = requests.post(f"{BASE_URL}/tournaments/",
+                                     json=row,
+                                     headers=headers)
             if response.status_code == 201:
                 print('--> Successfully posted Tournament: ', row)
             else:
@@ -106,9 +109,10 @@ with open("data/data_seasons.csv", encoding='utf-8') as f:
                 row['published'] = row['published'].lower() == 'true'
             row['rounds'] = []
 
-            response = requests.post(f"{BASE_URL}/tournaments/{row['t_alias']}/seasons/",
-                                     json=row,
-                                     headers=headers)
+            response = requests.post(
+                f"{BASE_URL}/tournaments/{row['t_alias']}/seasons/",
+                json=row,
+                headers=headers)
             if response.status_code == 201:
                 print('--> Successfully posted Season: ', row)
             else:
@@ -249,7 +253,6 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
         if isinstance(row.get('matchId'), str):
             row['matchId'] = int(row['matchId'])
 
-
         t_alias = row['tournament']['alias']
         s_alias = row['season']['alias']
         r_alias = row['round']['alias']
@@ -257,17 +260,16 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
 
         # Check if the match already exists
         db_collection = db['matches']
-        match_exists = db_collection.find_one({
-            'matchId': row['matchId']
-        })
+        match_exists = db_collection.find_one({'matchId': row['matchId']})
         if not match_exists:
-            response = requests.post(
-                f"{BASE_URL}/matches/",
-                json=row,
-                headers=headers)
+            response = requests.post(f"{BASE_URL}/matches/",
+                                     json=row,
+                                     headers=headers)
             if response.status_code == 201:
                 print('--> Successfully posted Match: ', row)
-                #exit()
+                if not args.importAll:
+                    print("--importAll flag not set, exiting.")
+                    exit()
             else:
                 print('Failed to post Match: ', row, ' - Status code:',
                       response.status_code)

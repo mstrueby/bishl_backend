@@ -4,13 +4,54 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate
 from authentication import AuthHandler
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, apply_points, flatten_dict
 import os
-import requests
 
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ['BE_API_URL']
+
+
+# Prepare to convert matchSeconds to seconds for accurate comparison
+def convert_times_to_seconds(data):
+  for score in data.get("home", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
+  for score in data.get("away", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
+  for penalty in data.get("home", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_to_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_to_seconds(
+        penalty["matchSecondsEnd"])
+  for penalty in data.get("away", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_to_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_to_seconds(
+        penalty["matchSecondsEnd"])
+  return data
+
+
+def convert_seconds_to_times(data):
+  for score in data.get("home", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_from_seconds(score["matchSeconds"])
+  for score in data.get("away", {}).get("scores", []):
+    score["matchSeconds"] = parse_time_from_seconds(score["matchSeconds"])
+  # parse penalties.matchSeconds[Start|End] to a string format
+  for penalty in data.get("home", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_from_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_from_seconds(
+        penalty["matchSecondsEnd"])
+  for penalty in data.get("away", {}).get("penalties", []):
+    penalty["matchSecondsStart"] = parse_time_from_seconds(
+      penalty["matchSecondsStart"])
+    if penalty.get('matchSecondsEnd') is not None:
+      penalty["matchSecondsEnd"] = parse_time_from_seconds(
+        penalty["matchSecondsEnd"])
+  return data
 
 
 async def get_match_object(mongodb, match_id: str) -> MatchDB:
@@ -20,24 +61,7 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
                         detail=f"Match with id {match_id} not found")
 
   # parse scores.matchSeconds to a string format
-  for score in match.get("home", {}).get("scores", []):
-    score["matchSeconds"] = parse_time_from_seconds(score["matchSeconds"])
-  for score in match.get("away", {}).get("scores", []):
-    score["matchSeconds"] = parse_time_from_seconds(score["matchSeconds"])
-  # parse penalties.matchSeconds[Start|End] to a string format
-  for penalty in match.get("home", {}).get("penalties", []):
-    penalty["matchSecondsStart"] = parse_time_from_seconds(
-      penalty["matchSecondsStart"])
-    if penalty.get('matchSecondsEnd') is not None:
-      penalty["matchSecondsEnd"] = parse_time_from_seconds(
-        penalty["matchSecondsEnd"])
-  for penalty in match.get("away", {}).get("penalties", []):
-    penalty["matchSecondsStart"] = parse_time_from_seconds(
-      penalty["matchSecondsStart"])
-    if penalty.get('matchSecondsEnd') is not None:
-      penalty["matchSecondsEnd"] = parse_time_from_seconds(
-        penalty["matchSecondsEnd"])
-
+  match = convert_seconds_to_times(match)
   return MatchDB(**match)
 
 
@@ -60,139 +84,20 @@ async def create_match(
     user_id=Depends(auth.auth_wrapper),
 ) -> MatchDB:
 
-  # get standing settings
-  import aiohttp
-  async with aiohttp.ClientSession() as session:
-    async with session.get(
-        f"{BASE_URL}/tournaments/{match.tournament.alias}"
-    ) as response:
-      if response.status != 200:
-        raise HTTPException(
-          status_code=404,
-          detail=f"Tournament with alias {match.tournament.alias} not found")
-      else:
-        standingsSetting = (await response.json()).get('standingsSettings')
+  # get standingsSettings and set points per team
+  apply_points(match, await fetch_standings_settings(match.tournament.alias))
 
-  
-  match match.finishType.get('key'):
-    case 'OVERTIME':
-      if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
-        match.home.stats.otWin = 1
-        match.home.stats.points = standingsSetting.get("pointsWinOvertime")
-        match.away.stats.otLoss = 1
-        match.away.stats.points = standingsSetting.get("pointsLossOvertime")
-      else:
-        match.home.stats.otLoss = 1
-        match.home.stats.points = standingsSetting.get("pointsLossOvertime")
-        match.away.stats.otWin = 1
-        match.away.stats.points = standingsSetting.get("pointsWinOvertime")
-    case 'SHOOTOUT':
-      if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
-        match.home.stats.soWin = 1
-        match.home.stats.points = standingsSetting.get("pointsWinShootout")
-        match.away.stats.soLoss = 1
-        match.away.stats.points = standingsSetting.get("pointsLossShootout")
-      else:
-        match.home.stats.soLoss = 1
-        match.home.stats.points = standingsSetting.get("pointsLossShootout")
-        match.away.stats.soWin = 1
-        match.away.stats.points = standingsSetting.get("pointsWinShootout")
-    case 'REGULAR':
-      if match.home.stats.goalsFor > match.home.stats.goalsAgainst:
-        match.home.stats.win = 1
-        match.home.stats.points = standingsSetting.get("pointsWinReg")
-        match.away.stats.loss = 1
-        match.away.stats.points = standingsSetting.get("pointsLossReg")
-      elif match.home.stats.goalsFor < match.home.stats.goalsAgainst:
-        match.home.stats.loss = 1
-        match.home.stats.points = standingsSetting.get("pointsLossReg")
-        match.away.stats.win = 1
-        match.away.stats.points = standingsSetting.get("pointsWinReg")
-      else:
-        match.home.stats.draw = 1
-        match.home.stats.points = standingsSetting.get("pointsDrawReg")
-        match.away.stats.draw = 1
-        match.away.stats.points = standingsSetting.get("pointsDrawReg")
-    case _:
-      print("Unknown finishType")
-
-  
   match_data = my_jsonable_encoder(match)
-
-  # remove some attibutes from match
-  match_header = match_data.copy()
-
-  match_header['home'].pop('roster', None)
-  match_header['home'].pop('scores', None)
-  match_header['home'].pop('penalties', None)
-  match_header['away'].pop('roster', None)
-  match_header['away'].pop('scores', None)
-  match_header['away'].pop('penalties', None)
-  match_header.pop('tournament', None)
-  match_header.pop('season', None)
-  match_header.pop('round', None)
-  match_header.pop('matchday', None)
-  print("reduced match: ", match_header)
-
-  # renew match_data, because is some how modified by copy()
-  match_data = my_jsonable_encoder(match)
-  for score in match_data.get("home", {}).get("scores", []):
-    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
-  for score in match_data.get("away", {}).get("scores", []):
-    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
-  # parse penalties.matchSeconds[Start|End] to a string format
-  for penalty in match_data.get("home", {}).get("penalties", []):
-    penalty["matchSecondsStart"] = parse_time_to_seconds(
-      penalty["matchSecondsStart"])
-    if penalty.get('matchSecondsEnd') is not None:
-      penalty["matchSecondsEnd"] = parse_time_to_seconds(
-        penalty["matchSecondsEnd"])
-  for penalty in match_data.get("away", {}).get("penalties", []):
-    penalty["matchSecondsStart"] = parse_time_to_seconds(
-      penalty["matchSecondsStart"])
-    if penalty.get('matchSecondsEnd') is not None:
-      penalty["matchSecondsEnd"] = parse_time_to_seconds(
-        penalty["matchSecondsEnd"])
+  match_data = convert_times_to_seconds(match_data)
 
   try:
-
-    # First: add match to matchday in tournament
-    filter = {"alias": match.tournament.alias}
-    update = {
-      "$push": {
-        "seasons.$[s].rounds.$[r].matchdays.$[md].matches": (match_header)
-      }
-    }
-    array_filters = [
-      {
-        "s.alias": match.season.alias
-      },
-      {
-        "r.alias": match.round.alias
-      },
-      {
-        "md.alias": match.matchday.alias
-      },
-    ]
-    print("do update, match_header: ", match_header)
-    print("update tournament: ", update)
-    print("arryFilters: ", array_filters)
-    result = await request.app.mongodb["tournaments"].update_one(
-      filter=filter, update=update, array_filters=array_filters, upsert=False)
-    if result.modified_count == 0:
-      raise HTTPException(
-        status_code=404,
-        detail=
-        f"Matchday with alias {match.matchday.alias} not found in round {match.round.alias} of season {match.season.alias} of tournament {match.tournament.alias}"
-      )
-
-    # Second: add match to collection matches
+    # add match to collection matches
     print("insert into matches")
     print("match_data: ", match_data)
 
     result = await request.app.mongodb["matches"].insert_one(match_data)
 
-    # lastly: return complete match document
+    # return complete match document
     new_match = await get_match_object(request.app.mongodb, result.inserted_id)
     return JSONResponse(status_code=status.HTTP_201_CREATED,
                         content=jsonable_encoder(new_match))
@@ -209,28 +114,9 @@ async def update_match(
   match: MatchUpdate = Body(...),
   user_id=Depends(auth.auth_wrapper)
 ) -> MatchDB:
-  print("match: ", match)
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
-  for score in match_data.get("home", {}).get("scores", []):
-    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
-  for score in match_data.get("away", {}).get("scores", []):
-    score["matchSeconds"] = parse_time_to_seconds(score["matchSeconds"])
-  # parse penalties.matchSeconds[Start|End] to a string format
-  for penalty in match_data.get("home", {}).get("penalties", []):
-    penalty["matchSecondsStart"] = parse_time_to_seconds(
-      penalty["matchSecondsStart"])
-    if penalty.get('matchSecondsEnd') is not None:
-      penalty["matchSecondsEnd"] = parse_time_to_seconds(
-        penalty["matchSecondsEnd"])
-  for penalty in match_data.get("away", {}).get("penalties", []):
-    penalty["matchSecondsStart"] = parse_time_to_seconds(
-      penalty["matchSecondsStart"])
-    if penalty.get('matchSecondsEnd') is not None:
-      penalty["matchSecondsEnd"] = parse_time_to_seconds(
-        penalty["matchSecondsEnd"])
-
-  print("match_data: ", match_data)
+  match_data = convert_times_to_seconds(match_data)
 
   existing_match = await request.app.mongodb["matches"].find_one(
     {"_id": match_id})
@@ -238,83 +124,33 @@ async def update_match(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
-  # exclude unchanged data
-  match_to_update = {
-    k: v
-    for k, v in match_data.items() if v != existing_match.get(k)
-  }
+  # Identify fields to update
+  match_to_update = {}
 
+  def check_nested_fields(data, existing, path=""):
+    for key, value in data.items():
+      full_key = f"{path}.{key}" if path else key
+      if isinstance(value, dict):
+        check_nested_fields(value, existing.get(key, {}), full_key)
+      else:
+        if value != existing.get(key):
+          match_to_update[full_key] = value
+
+  check_nested_fields(match_data, existing_match)
+
+  print("match_to_update: ", match_to_update)
   if match_to_update:
     try:
       # update match in matches
-      print("match to update: ", match_to_update)
+      set_data = {"$set": flatten_dict(match_to_update)}
+      print("set_data: ", set_data)
+
       update_result = await request.app.mongodb["matches"].update_one(
-        {"_id": match_id}, {"$set": match_data})
+        {"_id": match_id}, set_data)
       print("update result: ", update_result.modified_count)
       if update_result.modified_count == 0:
         raise HTTPException(status_code=404,
                             detail=f"Match with id {match_id} not found")
-
-      else:
-        # update match header data in tournament/matchday/matches
-        print("second update")
-        match_header = existing_match.copy()
-        match_header.update(match_to_update)
-        if 'home' in match_header and 'roster' in match_header['home']:
-          match_header['home'].pop('roster')
-        if 'home' in match_header and 'scores' in match_header['home']:
-          match_header['home'].pop('scores')
-        if 'home' in match_header and 'penalties' in match_header['home']:
-          match_header['home'].pop('penalties')
-        if 'away' in match_header and 'roster' in match_header['away']:
-          match_header['away'].pop('roster')
-        if 'away' in match_header and 'scores' in match_header['away']:
-          match_header['away'].pop('scores')
-        if 'away' in match_header and 'penalties' in match_header['away']:
-          match_header['away'].pop('penalties')
-        if 'tournament' in match_header:
-          match_header.pop('tournament')
-        if 'season' in match_header:
-          match_header.pop('season')
-        if 'round' in match_header:
-          match_header.pop('round')
-        if 'matchday' in match_header:
-          match_header.pop('matchday')
-        print("match_header: ", match_header)
-        print("existing match: ", existing_match)
-
-      if match_header is not None:
-        filter = {"alias": existing_match['tournament']['alias']}
-        print("filter: ", filter)
-        update = {
-          "$set": {
-            "seasons.$[s].rounds.$[r].matchdays.$[md].matches.$[m]":
-            match_header
-          }
-        }
-        array_filters = [{
-          "s.alias": existing_match['season']['alias']
-        }, {
-          "r.alias": existing_match['round']['alias']
-        }, {
-          "md.alias": existing_match['matchday']['alias']
-        }, {
-          "m._id": existing_match['_id']
-        }]
-        print("do update")
-        print("update tournament: ", update)
-        print("arrayFilters: ", array_filters)
-        result = await request.app.mongodb["tournaments"].update_one(
-          filter=filter,
-          update=update,
-          array_filters=array_filters,
-          upsert=False)
-        if result.modified_count == 0:
-          raise HTTPException(
-            status_code=404,
-            detail=
-            f"Matchday with alias {existing_match['matchday']['alias']} not found in round {existing_match['round']['alias']} of season {existing_match['season']['alias']} of tournament {existing_match['tournament']['alias']}"
-          )
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -332,51 +168,14 @@ async def update_match(
 async def delete_match(
   request: Request, match_id: str,
   user_id: str = Depends(auth.auth_wrapper)) -> None:
-  # Find the match
-  match = await request.app.mongodb["matches"].find_one({"_id": match_id})
-  if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
-
   try:
-    # delete in mathces
+    # delete in matches
     result = await request.app.mongodb["matches"].delete_one({"_id": match_id})
+    if result.deleted_count == 1:
+      return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    # delete match in tournaments collection
-    filter = {"alias": match['tournament']['alias']}
-    update = {
-      "$pull": {
-        "seasons.$[s].rounds.$[r].matchdays.$[md].matches": {
-          "_id": match_id
-        }
-      }
-    }
-    array_filters = [
-      {
-        "s.alias": match['season']['alias']
-      },
-      {
-        "r.alias": match['round']['alias']
-      },
-      {
-        "md.alias": match['matchday']['alias']
-      },
-    ]
-    print("filter: ", filter)
-    print("update: ", update)
-    print("array_filters: ", array_filters)
+    raise HTTPException(status_code=404,
+                        detail=f"Match with ID {match_id} not found.")
 
-    # Perform the update
-    result = await request.app.mongodb["tournaments"].update_one(
-      filter=filter, update=update, array_filters=array_filters, upsert=False)
-
-    if result.modified_count == 0:
-      raise HTTPException(
-        status_code=404,
-        detail=
-        f"Matchday with alias {match['matchday']['alias']} not found in round {match['round']['alias']} of season {match['season']['alias']} of tournament {match['tournament']['alias']}"
-      )
-
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
