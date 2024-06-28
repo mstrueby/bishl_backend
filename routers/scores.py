@@ -6,10 +6,15 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler
-from utils import parse_time_to_seconds, parse_time_from_seconds
+from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, apply_points
+import os
+import requests
+import httpx
 
 router = APIRouter()
 auth = AuthHandler()
+
+BASE_URL = os.environ['BE_API_URL']
 
 
 async def get_score_object(mongodb, match_id: str, team_flag: str,
@@ -98,7 +103,7 @@ async def create_score(
   team_flag: str = Path(..., description="The flag of the team"),
   score: ScoresBase = Body(
     ..., description="The score to be added to the scoresheet"),
-  user_id: str = Depends(auth.auth_wrapper)
+  user_id: str = Depends(auth.auth_wrapper),
 ) -> ScoresDB:
   #check
   team_flag = team_flag.lower()
@@ -108,7 +113,32 @@ async def create_score(
   if match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
+  print("match precheck: ", match)
 
+  # set new score
+  if team_flag == 'home':
+    match['home']['stats']['goalsFor'] += 1
+    match['away']['stats']['goalsAgainst'] += 1
+  else:
+    match['away']['stats']['goalsFor'] += 1
+    match['home']['stats']['goalsAgainst'] += 1
+  
+  #check
+  finish_type = match.get('finishType')
+  home_stats = match.get('home', {}).get('stats', {})
+  t_alias = match.get('tournament', {}).get('alias')
+
+  if finish_type and home_stats and t_alias:
+    stats = apply_points(
+      jsonable_encoder(finish_type),
+      jsonable_encoder(home_stats),
+      await fetch_standings_settings(t_alias)
+    )
+    match['home']['stats'] = stats['home']
+    match['away']['stats'] = stats['away']
+    print("score/match: ", match)
+    
+  
   try:
     score_data = {}
     new_score_id = str(ObjectId())
@@ -120,13 +150,44 @@ async def create_score(
       score_data['matchSeconds'])
     score_data = jsonable_encoder(score_data)
 
-    update_result = await request.app.mongodb["matches"].update_one(
-      {"_id": match_id}, {"$push": {
-        f"{team_flag}.scores": score_data
-      }})
+    update_result = await request.app.mongodb['matches'].update_one(
+      {"_id": match_id},
+      {
+        "$push": {f"{team_flag}.scores": score_data},
+        #"$inc": {
+        #  f"{team_flag}.stats.goalsFor": 1,
+        #  f"{'home' if team_flag == 'away' else 'away'}.stats.goalsAgainst": 1
+        #},
+        "$set": {
+          "home.stats": match['home']['stats'],
+          "away.stats": match['away']['stats']
+        }
+      }
+    )
     if update_result.modified_count == 0:
-      raise HTTPException(status_code=500, detail="Failed to update match")
+      raise HTTPException(
+        status_code=500,
+        detail="Failed to update match (scores and goalsFor/goalsAgainst)")
+    """
+    # Call patch endpoint in matches.py router with empty JSON payload
+    patch_url = f"{BASE_URL}/matches/{match_id}"
+    async with request.app.client.patch(patch_url, json={}) as response:
+        if response.status != 200:
+            raise HTTPException(status_code=response.status,
+                                detail=f"Failed to patch match: {response.text}")
+    """
 
+    # Update goalsFor and goalsAgainst stats
+    """
+    async with httpx.AsyncClient() as client:
+      update_response = await client.patch(
+        f'{BASE_URL}/matches/{match_id}',
+        json={},
+        headers={'Authorization': f'Bearer {user_id}'})
+      #print("updaet response", update_response)
+      #if update_response.status_code != 200:
+      #  raise HTTPException(status_code=500, detail="Failed to update match (goalsFor/goalsAgainst)")
+    """
     # Use the reusable function to return the new score
     new_score = await get_score_object(request.app.mongodb, match_id,
                                        team_flag, new_score_id)
