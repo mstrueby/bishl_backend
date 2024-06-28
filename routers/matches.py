@@ -6,6 +6,7 @@ from models.matches import MatchBase, MatchDB, MatchUpdate
 from authentication import AuthHandler
 from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, apply_points, flatten_dict
 import os
+from bson import ObjectId
 
 router = APIRouter()
 auth = AuthHandler()
@@ -72,6 +73,10 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
 @router.get("/{match_id}", response_description="Get one match by id")
 async def get_match(request: Request, match_id: str) -> MatchDB:
   match = await get_match_object(request.app.mongodb, match_id)
+  if match is None:
+    raise HTTPException(status_code=404,
+                        detail=f"Match with ID {match_id} not found.")
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(match))
 
@@ -83,14 +88,21 @@ async def create_match(
     match: MatchBase = Body(...),
     user_id=Depends(auth.auth_wrapper),
 ) -> MatchDB:
-
-  # get standingsSettings and set points per team
-  apply_points(match, await fetch_standings_settings(match.tournament.alias))
-
-  match_data = my_jsonable_encoder(match)
-  match_data = convert_times_to_seconds(match_data)
-
   try:
+    # get standingsSettings and set points per team
+    if all(
+      [hasattr(match, 'tournament') and hasattr(match.tournament, 'alias')]):
+      print("do stats")
+      stats = apply_points(
+        jsonable_encoder(match.finishType), jsonable_encoder(match.home.stats),
+        await fetch_standings_settings(match.tournament.alias))
+      print("stats: ", stats)
+      match.home.stats = stats['home']
+      match.away.stats = stats['away']
+
+    match_data = my_jsonable_encoder(match)
+    match_data = convert_times_to_seconds(match_data)
+
     # add match to collection matches
     print("insert into matches")
     print("match_data: ", match_data)
@@ -114,28 +126,74 @@ async def update_match(
   match: MatchUpdate = Body(...),
   user_id=Depends(auth.auth_wrapper)
 ) -> MatchDB:
-  match_data = match.dict(exclude_unset=True)
-  match_data.pop("id", None)
-  match_data = convert_times_to_seconds(match_data)
 
+  # Helper function to add _id to new nested documents
+  def add_id_to_scores(scores):
+    for score in scores:
+      if '_id' not in score:
+        score['_id'] = str(ObjectId())
+
+  def add_id_to_penalties(penalties):
+    for penalty in penalties:
+      if '_id' not in penalty:
+        penalty['_id'] = str(ObjectId())
+
+  # firtly, check if match exists and get this match
   existing_match = await request.app.mongodb["matches"].find_one(
     {"_id": match_id})
   if existing_match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
-  # Identify fields to update
-  match_to_update = {}
+  # get standingsSettings and set points per team
+  t_alias = match.tournament.alias if hasattr(match, 'tournament') and hasattr(
+    match.tournament, 'alias') else existing_match['tournament']['alias']
+  print("match.finishType: ", match.finishType)
+  print("existin_match.finishType: ", existing_match['finishType'])
+  if all([
+      hasattr(match, 'finishType') or 'finishType' in existing_match,
+      hasattr(match, 'home')
+      or 'home' in existing_match and 'stats' in existing_match['home'],
+      hasattr(match, 'tournament') or 'tournament' in existing_match
+      and 'alias' in existing_match['tournament']
+  ]):
+    stats = apply_points(
+      jsonable_encoder(match.finishType if hasattr(match.finishType, 'key')
+                       else existing_match['finishType']),
+      jsonable_encoder(match.home.stats if hasattr(match, 'home') else
+                       existing_match['home']['stats']), await
+      fetch_standings_settings(t_alias))
+  print("stats: ", stats)
+  match.home.stats = stats['home']
+  match.away.stats = stats['away']
 
+  #match_data = my_jsonable_encoder(match)
+  #match_data = convert_times_to_seconds(match_data)
+
+  match_data = match.dict(exclude_unset=True)
+  match_data.pop("id", None)
+  match_data = convert_times_to_seconds(match_data)
+  # Adding _id to new scores for home and away teams
+  if match_data.get("home") and match_data["home"].get("scores"):
+    add_id_to_scores(match_data["home"]["scores"])
+  if match_data.get("away") and match_data["away"].get("scores"):
+    add_id_to_scores(match_data["away"]["scores"])
+
+  print("match_data: ", match_data)
+
+  # Identify fields to update
   def check_nested_fields(data, existing, path=""):
     for key, value in data.items():
       full_key = f"{path}.{key}" if path else key
-      if isinstance(value, dict):
+      if existing is None or key not in existing:
+        match_to_update[full_key] = value
+      elif isinstance(value, dict):
         check_nested_fields(value, existing.get(key, {}), full_key)
       else:
         if value != existing.get(key):
           match_to_update[full_key] = value
 
+  match_to_update = {}
   check_nested_fields(match_data, existing_match)
 
   print("match_to_update: ", match_to_update)
@@ -151,7 +209,6 @@ async def update_match(
       if update_result.modified_count == 0:
         raise HTTPException(status_code=404,
                             detail=f"Match with id {match_id} not found")
-
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:
@@ -168,14 +225,10 @@ async def update_match(
 async def delete_match(
   request: Request, match_id: str,
   user_id: str = Depends(auth.auth_wrapper)) -> None:
-  try:
-    # delete in matches
-    result = await request.app.mongodb["matches"].delete_one({"_id": match_id})
-    if result.deleted_count == 1:
-      return Response(status_code=status.HTTP_204_NO_CONTENT)
+  # delete in matches
+  result = await request.app.mongodb["matches"].delete_one({"_id": match_id})
+  if result.deleted_count == 1:
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    raise HTTPException(status_code=404,
-                        detail=f"Match with ID {match_id} not found.")
-
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+  raise HTTPException(status_code=404,
+                      detail=f"Match with ID {match_id} not found.")

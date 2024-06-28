@@ -33,6 +33,9 @@ class MongoBaseModel(BaseModel):
 
 # --- sub documents without _id
 
+class KeyValue(BaseModel):
+  key: str = Field(...)
+  value: str = Field(...)
 
 class MatchTournament(BaseModel):
   name: str = Field(...)
@@ -190,7 +193,7 @@ class MatchTeamUpdate(BaseModel):
   tinyName: Optional[str] = "DEFAULT"
   logo: Optional[HttpUrl] = None
   roster: Optional[List[RosterPlayer]] = []
-  scores: Optional[List[ScoresBase]] = None
+  scores: Optional[List[ScoresBase]] = []
   penalties: Optional[List[PenaltiesBase]] = []
   stats: Optional[MatchStats] = {}
 
@@ -210,15 +213,15 @@ class MatchBase(MongoBaseModel):
   matchday: MatchMatchday = None
   home: MatchTeam = None
   away: MatchTeam = None
-  matchStatus: Dict[str, str] = Field(...)
-  finishType: Dict[str, str] = {}
+  matchStatus: KeyValue = Field(default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
+  finishType: KeyValue = Field(default_factory=lambda: KeyValue(key='REGULAR', value='Regulär'))
   venue: str = None
   startDate: datetime = None
   published: bool = False
 
-  @validator('matchStatus', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
+  ##@validator('matchStatus', pre=True, always=True)
+  #def validate_type(cls, v, field):
+  #  return validate_dict_of_strings(v, field.name)
 
 
 class MatchDB(MatchBase):
@@ -233,12 +236,12 @@ class MatchUpdate(MongoBaseModel):
   matchday: Optional[MatchMatchday] = None
   home: Optional[MatchTeamUpdate] = None
   away: Optional[MatchTeamUpdate] = None
-  matchStatus: Optional[Dict[str, str]] = None
-  finishType: Optional[Dict[str, str]] = {}
+  matchStatus: Optional[KeyValue] = {}
+  finishType: Optional[KeyValue] = {}
   venue: Optional[str] = None
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
 
-  @validator('matchStatus', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
+  #@validator('matchStatus', pre=True, always=True)
+  #def validate_type(cls, v, field):
+  #  return validate_dict_of_strings(v, field.name)
