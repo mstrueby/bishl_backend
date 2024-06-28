@@ -176,6 +176,7 @@ async def patch_one_score(
   # Fetch the current score
   current_score = None
   for score_entry in match.get(team_flag, {}).get("scores", []):
+    print("score_entry: ", score_entry)
     if score_entry["_id"] == score_id:
       current_score = score_entry
       break
