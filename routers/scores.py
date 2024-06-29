@@ -300,6 +300,13 @@ async def delete_one_score(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
+  # set new score
+  if team_flag == 'home':
+    match['home']['stats']['goalsFor'] -= 1
+    match['away']['stats']['goalsAgainst'] -= 1
+  else:
+    match['away']['stats']['goalsFor'] -= 1
+    match['home']['stats']['goalsAgainst'] -= 1
   # Fetch the current score
   current_score = None
   for score_entry in match.get(team_flag, {}).get("scores", []):
@@ -312,17 +319,38 @@ async def delete_one_score(
       status_code=404,
       detail=f"Score with id {score_id} not found in match {match_id}")
 
+  # check
+  finish_type = match.get('finishType')
+  home_stats = match.get('home', {}).get('stats', {})
+  t_alias = match.get('tournament', {}).get('alias')
+
+  if finish_type and home_stats and t_alias:
+    stats = apply_points(
+      jsonable_encoder(finish_type),
+      jsonable_encoder(home_stats),
+      await fetch_standings_settings(t_alias)
+    )
+    match['home']['stats'] = stats['home']
+    match['away']['stats'] = stats['away']
+    print("del score/match: ", match)
+
   # Delete the score
   try:
     result = await request.app.mongodb["matches"].update_one(
       {
         "_id": match_id,
         f"{team_flag}.scores._id": score_id
-      }, {"$pull": {
-        f"{team_flag}.scores": {
-          "_id": score_id
+      }, {
+        "$pull": {
+          f"{team_flag}.scores": {
+            "_id": score_id
+          }
+        },
+        "$set": {
+          "home.stats": match.get("home", {}).get("stats", {}),
+          "away.stats": match.get("away", {}).get("stats", {})
         }
-      }})
+      })
     if result.modified_count == 0:
       raise HTTPException(
         status_code=404,
