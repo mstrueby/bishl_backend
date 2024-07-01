@@ -103,65 +103,9 @@ async def create_match(
     match_data = my_jsonable_encoder(match)
     match_data = convert_times_to_seconds(match_data)
 
-    # Look up in collection tournaments if createStandings in tournament.seasons.rounds is true
-    filter_criteria = {
-      'alias': match.tournament.alias,
-      'seasons.alias': match.season.alias,
-      'seasons.rounds.alias': match.round.alias,
-      'seasons': {
-        '$elemMatch': {
-          'alias': match.season.alias,
-          'rounds': {
-            '$elemMatch': {
-              'alias': match.round.alias,
-              'createStandings': True
-            }
-          }
-        }
-      }
-    }
-    create_standings_per_round = await request.app.mongodb[
-      'tournaments'].find_one(filter_criteria)
-    if create_standings_per_round:
-
-      standings = await calc_standings_per_round(request.app.mongodb,
-                                                 match.tournament.alias,
-                                                 match.season.alias,
-                                                 match.round.alias)
-
-      # Update tournament/season/round/ standings
-      round_filter = {
-        'alias': match.tournament.alias,
-        'seasons.alias': match.season.alias,
-        'seasons.rounds.alias': match.round.alias,
-        'seasons': {
-          '$elemMatch': {
-            'alias': match.season.alias,
-            'rounds': {
-              '$elemMatch': {
-                'alias': match.round.alias
-              }
-            }
-          }
-        }
-      }
-
-      response = await request.app.mongodb["tournaments"].update_one(
-        round_filter,
-        {'$set': {
-          "seasons.$[season].rounds.$[round].standings": standings
-        }},
-        array_filters=[{
-          'season.alias': match.season.alias
-        }, {
-          'round.alias': match.round.alias
-        }],
-        upsert=False)
-      if not response.acknowledged:
-        raise HTTPException(status_code=500,
-                            detail="Failed to update tournament standings.")
-      else:
-        print("update t.standings: ", standings)
+    # calc standings and set it in round if createStandings is true
+    await calc_standings_per_round(request.app.mongodb, match.tournament.alias,
+                             match.season.alias, match.round.alias)
 
     # add match to collection matches
     print("insert into matches")

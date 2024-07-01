@@ -8,271 +8,327 @@ import os
 import aiohttp
 from pymongo.database import Database
 
-
 BASE_URL = os.environ['BE_API_URL']
 
+
 def parse_date(date_str):
-    return datetime.strptime(date_str, '%Y-%m-%d') if date_str else None
+  return datetime.strptime(date_str, '%Y-%m-%d') if date_str else None
 
 
 def parse_datetime(datetime_str):
-    return datetime.strptime(datetime_str,
-                             '%Y-%m-%d %H:%M:%S') if datetime_str else None
+  return datetime.strptime(datetime_str,
+                           '%Y-%m-%d %H:%M:%S') if datetime_str else None
 
 
 def parse_time_to_seconds(time_str):
-    if not time_str:
-        return 0
-    minutes, seconds = map(int, time_str.split(':'))
-    return minutes * 60 + seconds
+  if not time_str:
+    return 0
+  minutes, seconds = map(int, time_str.split(':'))
+  return minutes * 60 + seconds
 
 
 def parse_time_from_seconds(seconds):
-    minutes = seconds // 60
-    seconds = seconds % 60
-    return f"{minutes:02d}:{seconds:02d}"
+  minutes = seconds // 60
+  seconds = seconds % 60
+  return f"{minutes:02d}:{seconds:02d}"
 
 
 def flatten_dict(d, parent_key='', sep='.'):
-    items = []
-    for k, v in d.items():
-      new_key = f'{parent_key}{sep}{k}' if parent_key else k
-      if isinstance(v, dict):
-        items.extend(flatten_dict(v, new_key, sep=sep).items())
-      else:
-        items.append((new_key, v))
-    return dict(items)
+  items = []
+  for k, v in d.items():
+    new_key = f'{parent_key}{sep}{k}' if parent_key else k
+    if isinstance(v, dict):
+      items.extend(flatten_dict(v, new_key, sep=sep).items())
+    else:
+      items.append((new_key, v))
+  return dict(items)
+
 
 def my_jsonable_encoder(obj):
-    result = {}
-    for field_name, val in obj.__dict__.items():
-        #print(field_name, "/", val, "/", dict)
-        if field_name == "id":
-            # If the field name is 'id', use '_id' as the key instead.
-            result["_id"] = str(val)
-            continue
-        if isinstance(val, datetime):
-            result[field_name] = val
-            continue
-        if isinstance(val, BaseModel) and val:
-            # Recursively encode nested collections
-            result[field_name] = my_jsonable_encoder(val)
-            continue
-        result[field_name] = jsonable_encoder(val)
-    return result
+  result = {}
+  for field_name, val in obj.__dict__.items():
+    #print(field_name, "/", val, "/", dict)
+    if field_name == "id":
+      # If the field name is 'id', use '_id' as the key instead.
+      result["_id"] = str(val)
+      continue
+    if isinstance(val, datetime):
+      result[field_name] = val
+      continue
+    if isinstance(val, BaseModel) and val:
+      # Recursively encode nested collections
+      result[field_name] = my_jsonable_encoder(val)
+      continue
+    result[field_name] = jsonable_encoder(val)
+  return result
 
 
 def empty_str_to_none(v, field_name: str):
-    if v == "":
-        print(
-            f"Field '{field_name}' is an empty string and has been set to None."
-        )
-        return None
-    return v
+  if v == "":
+    print(f"Field '{field_name}' is an empty string and has been set to None.")
+    return None
+  return v
 
 
 def prevent_empty_str(v, field_name: str):
-    if v is None or v == "":
-        raise ValueError(
-            f"Field '{field_name}' cannot be null or empty string")
-    return v
+  if v is None or v == "":
+    raise ValueError(f"Field '{field_name}' cannot be null or empty string")
+  return v
 
 
 def validate_dict_of_strings(v, field_name: str):
-    if not isinstance(v, dict):
-        raise ValueError(f"Field '{field_name}' must be a dictionary")
-    for key, value in v.items():
-        if not isinstance(key, str) or not isinstance(value, str):
-            raise ValueError(
-                f"Field '{field_name}' must be a dictionary with string key-value pairs"
-            )
-    return v
+  if not isinstance(v, dict):
+    raise ValueError(f"Field '{field_name}' must be a dictionary")
+  for key, value in v.items():
+    if not isinstance(key, str) or not isinstance(value, str):
+      raise ValueError(
+        f"Field '{field_name}' must be a dictionary with string key-value pairs"
+      )
+  return v
 
 
 def validate_match_seconds(v, field_name: str):
-    if not isinstance(v, str) or not re.match(r'^\d{1,3}:[0-5][0-9]$', v):
-        raise ValueError(f'Field {field_name} must be in the format MIN:SS')
-    return v
+  if not isinstance(v, str) or not re.match(r'^\d{1,3}:[0-5][0-9]$', v):
+    raise ValueError(f'Field {field_name} must be in the format MIN:SS')
+  return v
 
 
 async def fetch_standings_settings(tournament_alias):
-    async with aiohttp.ClientSession() as session:
-      async with session.get(f"{BASE_URL}/tournaments/{tournament_alias}") as response:
-        if response.status != 200:
-          raise HTTPException(
-            status_code=404,
-            detail=f"Tournament with alias {tournament_alias} not found"
-          )
-        return (await response.json()).get('standingsSettings')
+  async with aiohttp.ClientSession() as session:
+    async with session.get(
+        f"{BASE_URL}/tournaments/{tournament_alias}") as response:
+      if response.status != 200:
+        raise HTTPException(
+          status_code=404,
+          detail=f"Tournament with alias {tournament_alias} not found")
+      return (await response.json()).get('standingsSettings')
 
 
 def apply_points(finishType, matchStats, standingsSetting):
-    stats = {
-        'home': {},
-        'away': {}
-    }
-    def reset_points():
-        stats['home']['points'] = 0
-        stats['home']['win'] = 0
-        stats['home']['loss'] = 0
-        stats['home']['draw'] = 0
-        stats['home']['otWin'] = 0
-        stats['home']['otLoss'] = 0
-        stats['home']['soWin'] = 0
-        stats['home']['soLoss'] = 0
-        stats['away']['points'] = 0
-        stats['away']['win'] = 0
-        stats['away']['loss'] = 0
-        stats['away']['draw'] = 0
-        stats['away']['otWin'] = 0
-        stats['away']['otLoss'] = 0
-        stats['away']['soWin'] = 0
-        stats['away']['soLoss'] = 0
+  stats = {'home': {}, 'away': {}}
 
-    # reassign goals
-    stats['home']['goalsFor'] = matchStats.get('goalsFor', 0)
-    stats['home']['goalsAgainst'] = matchStats.get('goalsAgainst', 0)
-    stats['away']['goalsFor'] = matchStats.get('goalsAgainst', 0)
-    stats['away']['goalsAgainst'] = matchStats.get('goalsFor', 0)
+  def reset_points():
+    stats['home']['points'] = 0
+    stats['home']['win'] = 0
+    stats['home']['loss'] = 0
+    stats['home']['draw'] = 0
+    stats['home']['otWin'] = 0
+    stats['home']['otLoss'] = 0
+    stats['home']['soWin'] = 0
+    stats['home']['soLoss'] = 0
+    stats['away']['points'] = 0
+    stats['away']['win'] = 0
+    stats['away']['loss'] = 0
+    stats['away']['draw'] = 0
+    stats['away']['otWin'] = 0
+    stats['away']['otLoss'] = 0
+    stats['away']['soWin'] = 0
+    stats['away']['soLoss'] = 0
 
-    # matchStats goals are always for the home team!
-    if finishType.get('key') == 'REGULAR':
-        reset_points()
-        if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-            # home team wins in regulation
-            stats['home']['win'] = 1
-            stats['home']['points'] = standingsSetting.get("pointsWinReg")
-            stats['away']['loss'] = 1
-            stats['away']['points'] = standingsSetting.get("pointsLossReg")
-        elif stats['home']['goalsFor'] < stats['away']['goalsFor']:
-            # away team wins in regulation
-            stats['home']['loss'] = 1
-            stats['home']['points'] = standingsSetting.get("pointsLossReg")
-            stats['away']['win'] = 1
-            stats['away']['points'] = standingsSetting.get("pointsWinReg")
-        else:
-            # draw
-            stats['home']['draw'] = 1
-            stats['home']['points'] = standingsSetting.get("pointsDrawReg")
-            stats['away']['draw'] = 1
-            stats['away']['points'] = standingsSetting.get("pointsDrawReg")
-    elif finishType.get('key') == 'OVERTIME':
-        reset_points()
-        if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-            # home team wins in OT
-            stats['home']['otWin'] = 1
-            stats['home']['points'] = standingsSetting.get("pointsWinOvertime")
-            stats['away']['otLoss'] = 1
-            stats['away']['points'] = standingsSetting.get("pointsLossOvertime")
-        else:
-            # away team wins in OT
-            stats['home']['otLoss'] = 1
-            stats['home']['points'] = standingsSetting.get("pointsLossOvertime")
-            stats['away']['otWin'] = 1
-            stats['away']['points'] = standingsSetting.get("pointsWinOvertime")
-    elif finishType.get('key') == 'SHOOTOUT':
-        reset_points()
-        if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-            # home team wins in shootout
-            stats['home']['soWin'] = 1
-            stats['home']['points'] = standingsSetting.get("pointsWinShootout")
-            stats['away']['soLoss'] = 1
-            stats['away']['points'] = standingsSetting.get("pointsLossShootout")
-        else:
-            # away team wins in shootout
-            stats['home']['soLoss'] = 1
-            stats['home']['points'] = standingsSetting.get("pointsLossShootout")
-            stats['away']['soWin'] = 1
-            stats['away']['points'] = standingsSetting.get("pointsWinShootout")
+  # reassign goals
+  stats['home']['goalsFor'] = matchStats.get('goalsFor', 0)
+  stats['home']['goalsAgainst'] = matchStats.get('goalsAgainst', 0)
+  stats['away']['goalsFor'] = matchStats.get('goalsAgainst', 0)
+  stats['away']['goalsAgainst'] = matchStats.get('goalsFor', 0)
+
+  # matchStats goals are always for the home team!
+  if finishType.get('key') == 'REGULAR':
+    reset_points()
+    if stats['home']['goalsFor'] > stats['away']['goalsFor']:
+      # home team wins in regulation
+      stats['home']['win'] = 1
+      stats['home']['points'] = standingsSetting.get("pointsWinReg")
+      stats['away']['loss'] = 1
+      stats['away']['points'] = standingsSetting.get("pointsLossReg")
+    elif stats['home']['goalsFor'] < stats['away']['goalsFor']:
+      # away team wins in regulation
+      stats['home']['loss'] = 1
+      stats['home']['points'] = standingsSetting.get("pointsLossReg")
+      stats['away']['win'] = 1
+      stats['away']['points'] = standingsSetting.get("pointsWinReg")
     else:
-        print("Unknown finishType")
-    return stats
+      # draw
+      stats['home']['draw'] = 1
+      stats['home']['points'] = standingsSetting.get("pointsDrawReg")
+      stats['away']['draw'] = 1
+      stats['away']['points'] = standingsSetting.get("pointsDrawReg")
+  elif finishType.get('key') == 'OVERTIME':
+    reset_points()
+    if stats['home']['goalsFor'] > stats['away']['goalsFor']:
+      # home team wins in OT
+      stats['home']['otWin'] = 1
+      stats['home']['points'] = standingsSetting.get("pointsWinOvertime")
+      stats['away']['otLoss'] = 1
+      stats['away']['points'] = standingsSetting.get("pointsLossOvertime")
+    else:
+      # away team wins in OT
+      stats['home']['otLoss'] = 1
+      stats['home']['points'] = standingsSetting.get("pointsLossOvertime")
+      stats['away']['otWin'] = 1
+      stats['away']['points'] = standingsSetting.get("pointsWinOvertime")
+  elif finishType.get('key') == 'SHOOTOUT':
+    reset_points()
+    if stats['home']['goalsFor'] > stats['away']['goalsFor']:
+      # home team wins in shootout
+      stats['home']['soWin'] = 1
+      stats['home']['points'] = standingsSetting.get("pointsWinShootout")
+      stats['away']['soLoss'] = 1
+      stats['away']['points'] = standingsSetting.get("pointsLossShootout")
+    else:
+      # away team wins in shootout
+      stats['home']['soLoss'] = 1
+      stats['home']['points'] = standingsSetting.get("pointsLossShootout")
+      stats['away']['soWin'] = 1
+      stats['away']['points'] = standingsSetting.get("pointsWinShootout")
+  else:
+    print("Unknown finishType")
+  return stats
 
 
-async def calc_standings_per_round(mongodb: Database, t_alias: str, s_alias: str, r_alias: str) -> List[dict]:
+async def calc_standings_per_round(mongodb: Database, t_alias: str,
+                                   s_alias: str, r_alias: str) -> List[dict]:
 
-    def init_team_standings(team_data: {}) -> dict:
-        from models.tournaments import Standings
-        return Standings(
-            fullName=team_data['fullName'],
-            shortName=team_data['shortName'],
-            tinyName=team_data['tinyName'],
-            logo=team_data['logo'],
-            gamesPlayed=0,
-            goalsFor=0,
-            goalsAgainst=0,
-            points=0,
-            wins=0,
-            losses=0,
-            draws=0,
-            otWins=0,
-            otLosses=0,
-            soWins=0,
-            soLosses=0,
-        ).dict()
-    
+  def init_team_standings(team_data: {}) -> dict:
+    from models.tournaments import Standings
+    return Standings(
+      fullName=team_data['fullName'],
+      shortName=team_data['shortName'],
+      tinyName=team_data['tinyName'],
+      logo=team_data['logo'],
+      gamesPlayed=0,
+      goalsFor=0,
+      goalsAgainst=0,
+      points=0,
+      wins=0,
+      losses=0,
+      draws=0,
+      otWins=0,
+      otLosses=0,
+      soWins=0,
+      soLosses=0,
+    ).dict()
+
+  round_filter = {
+    'alias': t_alias,
+    'seasons.alias': s_alias,
+    'seasons.rounds.alias': r_alias,
+    'seasons': {
+      '$elemMatch': {
+        'alias': s_alias,
+        'rounds': {
+          '$elemMatch': {
+            'alias': r_alias
+          }
+        }
+      }
+    }
+  }
+
+  async def check_create_standings():
+    if (tournament := await
+        mongodb['tournaments'].find_one(round_filter)) is not None:
+      for season in tournament.get('seasons', []):
+        if season.get("alias") == s_alias:
+          for round in season.get("rounds", []):
+            if round.get("alias") == r_alias:
+              print("round", round)
+              if round.get("createStandings"):
+                return True
+    return False
+
+  if check_create_standings():
     print("get matches")
-    matches = await mongodb["matches"].find({"tournament.alias": t_alias, "season.alias": s_alias, "round.alias": r_alias}).to_list(1000)
+    matches = await mongodb["matches"].find({
+      "tournament.alias": t_alias,
+      "season.alias": s_alias,
+      "round.alias": r_alias
+    }).to_list(1000)
     if not matches:
-        raise HTTPException(status_code=404, detail=f"No matches found for {t_alias}, {s_alias}, {r_alias}")
-    
+      raise HTTPException(
+        status_code=404,
+        detail=f"No matches found for {t_alias}, {s_alias}, {r_alias}")
+
     standings = {}
-    
-    # print the count of matches
+
     print(f"Found {len(matches)} matches for {t_alias}, {s_alias}, {r_alias}")
     for match in matches:
-        home_team = {
-            'fullName': match['home']['fullName'],
-            'shortName': match['home']['shortName'],
-            'tinyName': match['home']['tinyName'],
-            'logo': match['home']['logo']
-        }
-        away_team = {
-            'fullName': match['away']['fullName'],
-            'shortName': match['away']['shortName'],
-            'tinyName': match['away']['tinyName'],
-            'logo': match['away']['logo']
-        }
-        home_team_key = home_team['fullName']
-        away_team_key = away_team['fullName']
-        #print("home_team_key", home_team_key)
-        #print("away_team_key", away_team_key)
+      home_team = {
+        'fullName': match['home']['fullName'],
+        'shortName': match['home']['shortName'],
+        'tinyName': match['home']['tinyName'],
+        'logo': match['home']['logo']
+      }
+      away_team = {
+        'fullName': match['away']['fullName'],
+        'shortName': match['away']['shortName'],
+        'tinyName': match['away']['tinyName'],
+        'logo': match['away']['logo']
+      }
+      home_team_key = home_team['fullName']
+      away_team_key = away_team['fullName']
+      #print("home_team_key", home_team_key)
+      #print("away_team_key", away_team_key)
 
-                
-        # Check if the home team is already in standings
-        if home_team_key not in standings:
-            standings[home_team_key] = init_team_standings(home_team)
-        # Check if the away team is already in standings 
-        if away_team_key not in standings:
-            standings[away_team_key] = init_team_standings(away_team)
-        #print("init standings", standings)
-        
-        standings[home_team_key]['gamesPlayed'] += 1
-        standings[away_team_key]['gamesPlayed'] += 1
-        standings[home_team_key]['goalsFor'] += match['home']['stats']['goalsFor']
-        standings[home_team_key]['goalsAgainst'] += match['home']['stats']['goalsAgainst']
-        standings[away_team_key]['goalsFor'] += match['away']['stats']['goalsFor']
-        standings[away_team_key]['goalsAgainst'] += match['away']['stats']['goalsAgainst']
-        standings[home_team_key]['points'] += match['home']['stats']['points']
-        standings[away_team_key]['points'] += match['away']['stats']['points']
-        standings[home_team_key]['wins'] += match['home']['stats']['win']
-        standings[away_team_key]['wins'] += match['away']['stats']['win']
-        standings[home_team_key]['losses'] += match['home']['stats']['loss']
-        standings[away_team_key]['losses'] += match['away']['stats']['loss']
-        standings[home_team_key]['draws'] += match['home']['stats']['draw']
-        standings[away_team_key]['draws'] += match['away']['stats']['draw']
-        standings[home_team_key]['otWins'] += match['home']['stats']['otWin']
-        standings[away_team_key]['otWins'] += match['away']['stats']['otWin']
-        standings[home_team_key]['otLosses'] += match['home']['stats']['otLoss']
-        standings[away_team_key]['otLosses'] += match['away']['stats']['otLoss']
-        standings[home_team_key]['soWins'] += match['home']['stats']['soWin']
-        standings[away_team_key]['soWins'] += match['away']['stats']['soWin']
-        standings[home_team_key]['soLosses'] += match['home']['stats']['soLoss']
-        standings[away_team_key]['soLosses'] += match['away']['stats']['soLoss']
-        #print("match standing", standings)
+      # Check if the home team is already in standings
+      if home_team_key not in standings:
+        standings[home_team_key] = init_team_standings(home_team)
+      # Check if the away team is already in standings
+      if away_team_key not in standings:
+        standings[away_team_key] = init_team_standings(away_team)
+      #print("init standings", standings)
+
+      standings[home_team_key]['gamesPlayed'] += 1
+      standings[away_team_key]['gamesPlayed'] += 1
+      standings[home_team_key]['goalsFor'] += match['home']['stats'][
+        'goalsFor']
+      standings[home_team_key]['goalsAgainst'] += match['home']['stats'][
+        'goalsAgainst']
+      standings[away_team_key]['goalsFor'] += match['away']['stats'][
+        'goalsFor']
+      standings[away_team_key]['goalsAgainst'] += match['away']['stats'][
+        'goalsAgainst']
+      standings[home_team_key]['points'] += match['home']['stats']['points']
+      standings[away_team_key]['points'] += match['away']['stats']['points']
+      standings[home_team_key]['wins'] += match['home']['stats']['win']
+      standings[away_team_key]['wins'] += match['away']['stats']['win']
+      standings[home_team_key]['losses'] += match['home']['stats']['loss']
+      standings[away_team_key]['losses'] += match['away']['stats']['loss']
+      standings[home_team_key]['draws'] += match['home']['stats']['draw']
+      standings[away_team_key]['draws'] += match['away']['stats']['draw']
+      standings[home_team_key]['otWins'] += match['home']['stats']['otWin']
+      standings[away_team_key]['otWins'] += match['away']['stats']['otWin']
+      standings[home_team_key]['otLosses'] += match['home']['stats']['otLoss']
+      standings[away_team_key]['otLosses'] += match['away']['stats']['otLoss']
+      standings[home_team_key]['soWins'] += match['home']['stats']['soWin']
+      standings[away_team_key]['soWins'] += match['away']['stats']['soWin']
+      standings[home_team_key]['soLosses'] += match['home']['stats']['soLoss']
+      standings[away_team_key]['soLosses'] += match['away']['stats']['soLoss']
+      #print("match standing", standings)
 
     # sort standings dict by value points descending
-    sorted_standings = {k: v for k, v in sorted(standings.items(), key=lambda item: (item[1]['points'], item[1]['goalsFor'] - item[1]['goalsAgainst'], item[1]['goalsFor']), reverse=True) if v['gamesPlayed'] > 0}
-    
-    print("final standings: ", sorted_standings)
-    return sorted_standings
+    sorted_standings = {
+      k: v
+      for k, v in sorted(standings.items(),
+                         key=lambda item:
+                         (item[1]['points'], item[1]['goalsFor'] - item[1][
+                           'goalsAgainst'], item[1]['goalsFor']),
+                         reverse=True) if v['gamesPlayed'] > 0
+    }
+    response = await mongodb["tournaments"].update_one(round_filter, {
+      '$set': {
+        "seasons.$[season].rounds.$[round].standings": sorted_standings
+      }
+    },
+                                                       array_filters=[{
+                                                         'season.alias': match["season"]["alias"]
+                                                       }, {
+                                                         'round.alias': match["round"]["alias"]
+                                                       }],
+                                                       upsert=False)
+    if not response.acknowledged:
+      raise HTTPException(status_code=500,
+                          detail="Failed to update tournament standings.")
+    else:
+      print("update t.standings: ", standings)
+  else:
+    print(f"No standings for {t_alias}, {s_alias}, {r_alias}")
