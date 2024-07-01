@@ -31,15 +31,6 @@ class MongoBaseModel(BaseModel):
 
 # sub documents
 
-
-class Standings(BaseModel):
-  team: str = Field(...)
-  gamesPlayed: int = Field(...)
-  goalsFor: int = Field(...)
-  goalsAgainst: int = Field(...)
-  points: int = Field(...)
-
-
 class Teams(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
@@ -50,6 +41,22 @@ class Teams(BaseModel):
   def validate_logo(cls, v):
     return empty_str_to_none(v, 'logo')
 
+class Standings(BaseModel):
+  fullName: str = Field(...)
+  shortName: str = Field(...)
+  tinyName: str = Field(...)
+  logo: HttpUrl = None
+  gamesPlayed: int = Field(...)
+  goalsFor: int = Field(...)
+  goalsAgainst: int = Field(...)
+  points: int = Field(...)
+  wins: int = Field(...)
+  losses: int = Field(...)
+  draws: int = Field(...)
+  otWins: int = Field(...)
+  otLosses: int = Field(...)
+  soWins: int = Field(...)
+  soLosses: int = Field(...)
 
 # settings at tournament level
 class StandingsSettings(BaseModel):
@@ -141,7 +148,7 @@ class RoundBase(MongoBaseModel):
   matchSettings: MatchSettings = {}
   published: bool = False
   matchdays: List[MatchdayBase] = []
-  standings: List[Standings] = []
+  standings: Dict[str, Standings] = {}
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
@@ -172,7 +179,7 @@ class RoundUpdate(MongoBaseModel):
   matchSettings: Optional[MatchSettings] = {}
   published: Optional[bool] = False
   matchdays: Optional[List[MatchdayBase]] = []
-  standings: Optional[List[Standings]] = []
+  standings: Optional[Dict[str, Standings]] = {}
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
