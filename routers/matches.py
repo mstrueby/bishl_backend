@@ -4,7 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate
 from authentication import AuthHandler
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, apply_points, flatten_dict
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, apply_points, flatten_dict, calc_standings_per_round
 import os
 from bson import ObjectId
 
@@ -103,6 +103,66 @@ async def create_match(
     match_data = my_jsonable_encoder(match)
     match_data = convert_times_to_seconds(match_data)
 
+    # Look up in collection tournaments if createStandings in tournament.seasons.rounds is true
+    filter_criteria = {
+      'alias': match.tournament.alias,
+      'seasons.alias': match.season.alias,
+      'seasons.rounds.alias': match.round.alias,
+      'seasons': {
+        '$elemMatch': {
+          'alias': match.season.alias,
+          'rounds': {
+            '$elemMatch': {
+              'alias': match.round.alias,
+              'createStandings': True
+            }
+          }
+        }
+      }
+    }
+    create_standings_per_round = await request.app.mongodb[
+      'tournaments'].find_one(filter_criteria)
+    if create_standings_per_round:
+
+      standings = await calc_standings_per_round(request.app.mongodb,
+                                                 match.tournament.alias,
+                                                 match.season.alias,
+                                                 match.round.alias)
+
+      # Update tournament/season/round/ standings
+      round_filter = {
+        'alias': match.tournament.alias,
+        'seasons.alias': match.season.alias,
+        'seasons.rounds.alias': match.round.alias,
+        'seasons': {
+          '$elemMatch': {
+            'alias': match.season.alias,
+            'rounds': {
+              '$elemMatch': {
+                'alias': match.round.alias
+              }
+            }
+          }
+        }
+      }
+
+      response = await request.app.mongodb["tournaments"].update_one(
+        round_filter,
+        {'$set': {
+          "seasons.$[season].rounds.$[round].standings": standings
+        }},
+        array_filters=[{
+          'season.alias': match.season.alias
+        }, {
+          'round.alias': match.round.alias
+        }],
+        upsert=False)
+      if not response.acknowledged:
+        raise HTTPException(status_code=500,
+                            detail="Failed to update tournament standings.")
+      else:
+        print("update t.standings: ", standings)
+
     # add match to collection matches
     print("insert into matches")
     print("match_data: ", match_data)
@@ -127,84 +187,96 @@ async def update_match(
   user_id=Depends(auth.auth_wrapper)
 ) -> MatchDB:
 
-    # Helper function to add _id to new nested documents
-    def add_id_to_scores(scores):
-        for score in scores:
-            if '_id' not in score:
-                score['_id'] = str(ObjectId())
+  # Helper function to add _id to new nested documents
+  def add_id_to_scores(scores):
+    for score in scores:
+      if '_id' not in score:
+        score['_id'] = str(ObjectId())
 
-    # Firstly, check if match exists and get this match
-    existing_match = await request.app.mongodb["matches"].find_one({"_id": match_id})
-    if existing_match is None:
-        raise HTTPException(status_code=404, detail=f"Match with id {match_id} not found")
+  # Firstly, check if match exists and get this match
+  existing_match = await request.app.mongodb["matches"].find_one(
+    {"_id": match_id})
+  if existing_match is None:
+    raise HTTPException(status_code=404,
+                        detail=f"Match with id {match_id} not found")
 
-    t_alias = match.tournament.alias if getattr(match, 'tournament', None) and getattr(match.tournament, 'alias', None) else existing_match['tournament']['alias']
+  t_alias = match.tournament.alias if getattr(
+    match, 'tournament', None) and getattr(
+      match.tournament, 'alias',
+      None) else existing_match['tournament']['alias']
 
-    finish_type = getattr(match, 'finishType', existing_match.get('finishType', None))
+  finish_type = getattr(match, 'finishType',
+                        existing_match.get('finishType', None))
 
-    home_stats = getattr(match.home, 'stats', existing_match.get('home', {}).get('stats', None)) # if getattr(match, 'home', None) else None
-    away_stats = getattr(match.away, 'stats', existing_match.get('away', {}).get('stats', None)) # if getattr(match, 'away', None) else None
+  home_stats = getattr(match.home, 'stats',
+                       existing_match.get('home', {}).get(
+                         'stats',
+                         None))  # if getattr(match, 'home', None) else None
+  away_stats = getattr(match.away, 'stats',
+                       existing_match.get('away', {}).get(
+                         'stats',
+                         None))  # if getattr(match, 'away', None) else None
 
-    print("exisiting_match: ", getattr(match, 'home', None))
-    print("t_alias: ", t_alias)
-    print("finish_type: ", finish_type)
-    print("home_stats: ", home_stats)
-    print("away_stats: ", away_stats)
-    if finish_type and home_stats and t_alias:
-        stats = apply_points(
-            jsonable_encoder(finish_type),
-            jsonable_encoder(home_stats),
-            await fetch_standings_settings(t_alias)
-        )
-        if getattr(match, 'home', None) is None:
-            match.home = MatchTeamUpdate()
-        if getattr(match, 'away', None) is None:
-            match.away = MatchTeamUpdate()
+  print("exisiting_match: ", getattr(match, 'home', None))
+  print("t_alias: ", t_alias)
+  print("finish_type: ", finish_type)
+  print("home_stats: ", home_stats)
+  print("away_stats: ", away_stats)
+  if finish_type and home_stats and t_alias:
+    stats = apply_points(jsonable_encoder(finish_type),
+                         jsonable_encoder(home_stats), await
+                         fetch_standings_settings(t_alias))
+    if getattr(match, 'home', None) is None:
+      match.home = MatchTeamUpdate()
+    if getattr(match, 'away', None) is None:
+      match.away = MatchTeamUpdate()
 
-        match.home.stats = stats['home']
-        match.away.stats = stats['away']
-      
-    print("match/after stats: ", match)
+    match.home.stats = stats['home']
+    match.away.stats = stats['away']
 
-    match_data = match.dict(exclude_unset=True)
-    match_data.pop("id", None)
-  
-    match_data = convert_times_to_seconds(match_data)
-  
-    if match_data.get("home") and match_data["home"].get("scores"):
-        add_id_to_scores(match_data["home"]["scores"])
-    if match_data.get("away") and match_data["away"].get("scores"):
-        add_id_to_scores(match_data["away"]["scores"])
-  
-    def check_nested_fields(data, existing, path=""):
-        for key, value in data.items():
-            full_key = f"{path}.{key}" if path else key
-            if existing is None or key not in existing:
-                match_to_update[full_key] = value
-            elif isinstance(value, dict):
-                check_nested_fields(value, existing.get(key, {}), full_key)
-            else:
-                if value != existing.get(key):
-                    match_to_update[full_key] = value
+  print("match/after stats: ", match)
 
-    match_to_update = {}
-    check_nested_fields(match_data, existing_match)
+  match_data = match.dict(exclude_unset=True)
+  match_data.pop("id", None)
 
-    if match_to_update:
-        try:
-            set_data = {"$set": flatten_dict(match_to_update)}
-            update_result = await request.app.mongodb["matches"].update_one(
-                {"_id": match_id}, set_data)
+  match_data = convert_times_to_seconds(match_data)
 
-            if update_result.modified_count == 0:
-                raise HTTPException(status_code=404, detail=f"Match with id {match_id} not found")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-    else:
-        print("No changes to update")
+  if match_data.get("home") and match_data["home"].get("scores"):
+    add_id_to_scores(match_data["home"]["scores"])
+  if match_data.get("away") and match_data["away"].get("scores"):
+    add_id_to_scores(match_data["away"]["scores"])
 
-    updated_match = await get_match_object(request.app.mongodb, match_id)
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(updated_match))
+  def check_nested_fields(data, existing, path=""):
+    for key, value in data.items():
+      full_key = f"{path}.{key}" if path else key
+      if existing is None or key not in existing:
+        match_to_update[full_key] = value
+      elif isinstance(value, dict):
+        check_nested_fields(value, existing.get(key, {}), full_key)
+      else:
+        if value != existing.get(key):
+          match_to_update[full_key] = value
+
+  match_to_update = {}
+  check_nested_fields(match_data, existing_match)
+
+  if match_to_update:
+    try:
+      set_data = {"$set": flatten_dict(match_to_update)}
+      update_result = await request.app.mongodb["matches"].update_one(
+        {"_id": match_id}, set_data)
+
+      if update_result.modified_count == 0:
+        raise HTTPException(status_code=404,
+                            detail=f"Match with id {match_id} not found")
+    except Exception as e:
+      raise HTTPException(status_code=500, detail=str(e))
+  else:
+    print("No changes to update")
+
+  updated_match = await get_match_object(request.app.mongodb, match_id)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(updated_match))
 
 
 # delete match

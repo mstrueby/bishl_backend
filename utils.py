@@ -2,9 +2,12 @@ from datetime import datetime
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
+from typing import List
 import re
 import os
 import aiohttp
+from pymongo.database import Database
+
 
 BASE_URL = os.environ['BE_API_URL']
 
@@ -184,3 +187,92 @@ def apply_points(finishType, matchStats, standingsSetting):
     else:
         print("Unknown finishType")
     return stats
+
+
+async def calc_standings_per_round(mongodb: Database, t_alias: str, s_alias: str, r_alias: str) -> List[dict]:
+
+    def init_team_standings(team_data: {}) -> dict:
+        from models.tournaments import Standings
+        return Standings(
+            fullName=team_data['fullName'],
+            shortName=team_data['shortName'],
+            tinyName=team_data['tinyName'],
+            logo=team_data['logo'],
+            gamesPlayed=0,
+            goalsFor=0,
+            goalsAgainst=0,
+            points=0,
+            wins=0,
+            losses=0,
+            draws=0,
+            otWins=0,
+            otLosses=0,
+            soWins=0,
+            soLosses=0,
+        ).dict()
+    
+    print("get matches")
+    matches = await mongodb["matches"].find({"tournament.alias": t_alias, "season.alias": s_alias, "round.alias": r_alias}).to_list(1000)
+    if not matches:
+        raise HTTPException(status_code=404, detail=f"No matches found for {t_alias}, {s_alias}, {r_alias}")
+    
+    standings = {}
+    
+    # print the count of matches
+    print(f"Found {len(matches)} matches for {t_alias}, {s_alias}, {r_alias}")
+    for match in matches:
+        home_team = {
+            'fullName': match['home']['fullName'],
+            'shortName': match['home']['shortName'],
+            'tinyName': match['home']['tinyName'],
+            'logo': match['home']['logo']
+        }
+        away_team = {
+            'fullName': match['away']['fullName'],
+            'shortName': match['away']['shortName'],
+            'tinyName': match['away']['tinyName'],
+            'logo': match['away']['logo']
+        }
+        home_team_key = home_team['fullName']
+        away_team_key = away_team['fullName']
+        #print("home_team_key", home_team_key)
+        #print("away_team_key", away_team_key)
+
+                
+        # Check if the home team is already in standings
+        if home_team_key not in standings:
+            standings[home_team_key] = init_team_standings(home_team)
+        # Check if the away team is already in standings 
+        if away_team_key not in standings:
+            standings[away_team_key] = init_team_standings(away_team)
+        #print("init standings", standings)
+        
+        standings[home_team_key]['gamesPlayed'] += 1
+        standings[away_team_key]['gamesPlayed'] += 1
+        standings[home_team_key]['goalsFor'] += match['home']['stats']['goalsFor']
+        standings[home_team_key]['goalsAgainst'] += match['home']['stats']['goalsAgainst']
+        standings[away_team_key]['goalsFor'] += match['away']['stats']['goalsFor']
+        standings[away_team_key]['goalsAgainst'] += match['away']['stats']['goalsAgainst']
+        standings[home_team_key]['points'] += match['home']['stats']['points']
+        standings[away_team_key]['points'] += match['away']['stats']['points']
+        standings[home_team_key]['wins'] += match['home']['stats']['win']
+        standings[away_team_key]['wins'] += match['away']['stats']['win']
+        standings[home_team_key]['losses'] += match['home']['stats']['loss']
+        standings[away_team_key]['losses'] += match['away']['stats']['loss']
+        standings[home_team_key]['draws'] += match['home']['stats']['draw']
+        standings[away_team_key]['draws'] += match['away']['stats']['draw']
+        standings[home_team_key]['otWins'] += match['home']['stats']['otWin']
+        standings[away_team_key]['otWins'] += match['away']['stats']['otWin']
+        standings[home_team_key]['otLosses'] += match['home']['stats']['otLoss']
+        standings[away_team_key]['otLosses'] += match['away']['stats']['otLoss']
+        standings[home_team_key]['soWins'] += match['home']['stats']['soWin']
+        standings[away_team_key]['soWins'] += match['away']['stats']['soWin']
+        standings[home_team_key]['soLosses'] += match['home']['stats']['soLoss']
+        standings[away_team_key]['soLosses'] += match['away']['stats']['soLoss']
+        #print("match standing", standings)
+
+    # sort standings dict by value points descending
+    sorted_standings = {k: v for k, v in sorted(standings.items(), key=lambda item: (item[1]['points'], item[1]['goalsFor'] - item[1]['goalsAgainst'], item[1]['goalsFor']), reverse=True) if v['gamesPlayed'] > 0}
+    
+    print("final standings: ", sorted_standings)
+    return sorted_standings
