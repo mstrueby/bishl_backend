@@ -147,6 +147,7 @@ class PenaltiesUpdate(MongoBaseModel):
 
 
 class MatchStats(BaseModel):
+  gamePlayed: int = 0
   goalsFor: int = 0
   goalsAgainst: int = 0
   points: int = 0
@@ -160,6 +161,7 @@ class MatchStats(BaseModel):
 
 
 class MatchStatsUpdate(BaseModel):
+  gamePlayed: Optional[int] = 0
   goalsFor: Optional[int] = 0
   goalsAgainst: Optional[int] = 0
   points: Optional[int] = 0

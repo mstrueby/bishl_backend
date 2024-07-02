@@ -104,10 +104,11 @@ async def fetch_standings_settings(tournament_alias):
       return (await response.json()).get('standingsSettings')
 
 
-def apply_points(finishType, matchStats, standingsSetting):
+def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
   stats = {'home': {}, 'away': {}}
 
   def reset_points():
+    stats['home']['gamePlayed'] = 0
     stats['home']['points'] = 0
     stats['home']['win'] = 0
     stats['home']['loss'] = 0
@@ -116,6 +117,7 @@ def apply_points(finishType, matchStats, standingsSetting):
     stats['home']['otLoss'] = 0
     stats['home']['soWin'] = 0
     stats['home']['soLoss'] = 0
+    stats['away']['gamePlayed'] = 0
     stats['away']['points'] = 0
     stats['away']['win'] = 0
     stats['away']['loss'] = 0
@@ -125,63 +127,74 @@ def apply_points(finishType, matchStats, standingsSetting):
     stats['away']['soWin'] = 0
     stats['away']['soLoss'] = 0
 
-  # reassign goals
-  stats['home']['goalsFor'] = matchStats.get('goalsFor', 0)
-  stats['home']['goalsAgainst'] = matchStats.get('goalsAgainst', 0)
-  stats['away']['goalsFor'] = matchStats.get('goalsAgainst', 0)
-  stats['away']['goalsAgainst'] = matchStats.get('goalsFor', 0)
+  if match_status in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
+    print("set match stats")
+    # reassign goals
+    stats['home']['goalsFor'] = matchStats.get('goalsFor', 0)
+    stats['home']['goalsAgainst'] = matchStats.get('goalsAgainst', 0)
+    stats['away']['goalsFor'] = matchStats.get('goalsAgainst', 0)
+    stats['away']['goalsAgainst'] = matchStats.get('goalsFor', 0)
 
-  # matchStats goals are always for the home team!
-  if finishType.get('key') == 'REGULAR':
-    reset_points()
-    if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-      # home team wins in regulation
-      stats['home']['win'] = 1
-      stats['home']['points'] = standingsSetting.get("pointsWinReg")
-      stats['away']['loss'] = 1
-      stats['away']['points'] = standingsSetting.get("pointsLossReg")
-    elif stats['home']['goalsFor'] < stats['away']['goalsFor']:
-      # away team wins in regulation
-      stats['home']['loss'] = 1
-      stats['home']['points'] = standingsSetting.get("pointsLossReg")
-      stats['away']['win'] = 1
-      stats['away']['points'] = standingsSetting.get("pointsWinReg")
+    # matchStats goals are always for the home team!
+    if finish_type == 'REGULAR':
+      reset_points()
+      stats['home']['gamePlayed'] = 1
+      stats['away']['gamePlayed'] = 1
+      if stats['home']['goalsFor'] > stats['away']['goalsFor']:
+        # home team wins in regulation
+        stats['home']['win'] = 1
+        stats['home']['points'] = standingsSetting.get("pointsWinReg")
+        stats['away']['loss'] = 1
+        stats['away']['points'] = standingsSetting.get("pointsLossReg")
+      elif stats['home']['goalsFor'] < stats['away']['goalsFor']:
+        # away team wins in regulation
+        stats['home']['loss'] = 1
+        stats['home']['points'] = standingsSetting.get("pointsLossReg")
+        stats['away']['win'] = 1
+        stats['away']['points'] = standingsSetting.get("pointsWinReg")
+      else:
+        # draw
+        stats['home']['draw'] = 1
+        stats['home']['points'] = standingsSetting.get("pointsDrawReg")
+        stats['away']['draw'] = 1
+        stats['away']['points'] = standingsSetting.get("pointsDrawReg")
+    elif finish_type == 'OVERTIME':
+      reset_points()
+      stats['home']['gamePlayed'] = 1
+      stats['away']['gamePlayed'] = 1
+      if stats['home']['goalsFor'] > stats['away']['goalsFor']:
+        # home team wins in OT
+        stats['home']['otWin'] = 1
+        stats['home']['points'] = standingsSetting.get("pointsWinOvertime")
+        stats['away']['otLoss'] = 1
+        stats['away']['points'] = standingsSetting.get("pointsLossOvertime")
+      else:
+        # away team wins in OT
+        stats['home']['otLoss'] = 1
+        stats['home']['points'] = standingsSetting.get("pointsLossOvertime")
+        stats['away']['otWin'] = 1
+        stats['away']['points'] = standingsSetting.get("pointsWinOvertime")
+    elif finish_type == 'SHOOTOUT':
+      reset_points()
+      stats['home']['gamePlayed'] = 1
+      stats['away']['gamePlayed'] = 1
+      if stats['home']['goalsFor'] > stats['away']['goalsFor']:
+        # home team wins in shootout
+        stats['home']['soWin'] = 1
+        stats['home']['points'] = standingsSetting.get("pointsWinShootout")
+        stats['away']['soLoss'] = 1
+        stats['away']['points'] = standingsSetting.get("pointsLossShootout")
+      else:
+        # away team wins in shootout
+        stats['home']['soLoss'] = 1
+        stats['home']['points'] = standingsSetting.get("pointsLossShootout")
+        stats['away']['soWin'] = 1
+        stats['away']['points'] = standingsSetting.get("pointsWinShootout")
     else:
-      # draw
-      stats['home']['draw'] = 1
-      stats['home']['points'] = standingsSetting.get("pointsDrawReg")
-      stats['away']['draw'] = 1
-      stats['away']['points'] = standingsSetting.get("pointsDrawReg")
-  elif finishType.get('key') == 'OVERTIME':
-    reset_points()
-    if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-      # home team wins in OT
-      stats['home']['otWin'] = 1
-      stats['home']['points'] = standingsSetting.get("pointsWinOvertime")
-      stats['away']['otLoss'] = 1
-      stats['away']['points'] = standingsSetting.get("pointsLossOvertime")
-    else:
-      # away team wins in OT
-      stats['home']['otLoss'] = 1
-      stats['home']['points'] = standingsSetting.get("pointsLossOvertime")
-      stats['away']['otWin'] = 1
-      stats['away']['points'] = standingsSetting.get("pointsWinOvertime")
-  elif finishType.get('key') == 'SHOOTOUT':
-    reset_points()
-    if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-      # home team wins in shootout
-      stats['home']['soWin'] = 1
-      stats['home']['points'] = standingsSetting.get("pointsWinShootout")
-      stats['away']['soLoss'] = 1
-      stats['away']['points'] = standingsSetting.get("pointsLossShootout")
-    else:
-      # away team wins in shootout
-      stats['home']['soLoss'] = 1
-      stats['home']['points'] = standingsSetting.get("pointsLossShootout")
-      stats['away']['soWin'] = 1
-      stats['away']['points'] = standingsSetting.get("pointsWinShootout")
+      print("Unknown finish_type:", finish_type)
   else:
-    print("Unknown finishType")
+    print("no stats for matchStatus", match_status)
+    reset_points()
   return stats
 
 
@@ -231,22 +244,22 @@ async def calc_standings_per_round(mongodb: Database, t_alias: str,
         if season.get("alias") == s_alias:
           for round in season.get("rounds", []):
             if round.get("alias") == r_alias:
-              print("round", round)
+              #print("round", round)
               if round.get("createStandings"):
                 return True
     return False
-
-  if check_create_standings():
-    print("get matches")
+    
+  if await check_create_standings():
+    print("createStandings=True for round", r_alias)
+    print(t_alias, s_alias, r_alias)
     matches = await mongodb["matches"].find({
       "tournament.alias": t_alias,
       "season.alias": s_alias,
       "round.alias": r_alias
     }).to_list(1000)
-    if not matches:
-      raise HTTPException(
-        status_code=404,
-        detail=f"No matches found for {t_alias}, {s_alias}, {r_alias}")
+    print("matches", len(matches))
+    if not matches or len(matches) == 0:
+      return
 
     standings = {}
 
@@ -264,45 +277,45 @@ async def calc_standings_per_round(mongodb: Database, t_alias: str,
         'tinyName': match['away']['tinyName'],
         'logo': match['away']['logo']
       }
-      home_team_key = home_team['fullName']
-      away_team_key = away_team['fullName']
+      h_key = home_team['fullName']
+      a_key = away_team['fullName']
       #print("home_team_key", home_team_key)
       #print("away_team_key", away_team_key)
 
       # Check if the home team is already in standings
-      if home_team_key not in standings:
-        standings[home_team_key] = init_team_standings(home_team)
+      if h_key not in standings:
+        standings[h_key] = init_team_standings(home_team)
       # Check if the away team is already in standings
-      if away_team_key not in standings:
-        standings[away_team_key] = init_team_standings(away_team)
-      #print("init standings", standings)
-
-      standings[home_team_key]['gamesPlayed'] += 1
-      standings[away_team_key]['gamesPlayed'] += 1
-      standings[home_team_key]['goalsFor'] += match['home']['stats'][
-        'goalsFor']
-      standings[home_team_key]['goalsAgainst'] += match['home']['stats'][
-        'goalsAgainst']
-      standings[away_team_key]['goalsFor'] += match['away']['stats'][
-        'goalsFor']
-      standings[away_team_key]['goalsAgainst'] += match['away']['stats'][
-        'goalsAgainst']
-      standings[home_team_key]['points'] += match['home']['stats']['points']
-      standings[away_team_key]['points'] += match['away']['stats']['points']
-      standings[home_team_key]['wins'] += match['home']['stats']['win']
-      standings[away_team_key]['wins'] += match['away']['stats']['win']
-      standings[home_team_key]['losses'] += match['home']['stats']['loss']
-      standings[away_team_key]['losses'] += match['away']['stats']['loss']
-      standings[home_team_key]['draws'] += match['home']['stats']['draw']
-      standings[away_team_key]['draws'] += match['away']['stats']['draw']
-      standings[home_team_key]['otWins'] += match['home']['stats']['otWin']
-      standings[away_team_key]['otWins'] += match['away']['stats']['otWin']
-      standings[home_team_key]['otLosses'] += match['home']['stats']['otLoss']
-      standings[away_team_key]['otLosses'] += match['away']['stats']['otLoss']
-      standings[home_team_key]['soWins'] += match['home']['stats']['soWin']
-      standings[away_team_key]['soWins'] += match['away']['stats']['soWin']
-      standings[home_team_key]['soLosses'] += match['home']['stats']['soLoss']
-      standings[away_team_key]['soLosses'] += match['away']['stats']['soLoss']
+      if a_key not in standings:
+        standings[a_key] = init_team_standings(away_team)
+        
+      #print("match", match)
+      standings[h_key]['gamesPlayed'] += match['home']['stats'].get(
+        'gamePlayed', 0)
+      standings[a_key]['gamesPlayed'] += match['away']['stats'].get(
+        'gamePlayed', 0)
+      standings[h_key]['goalsFor'] += match['home']['stats'].get('goalsFor', 0)
+      standings[h_key]['goalsAgainst'] += match['home']['stats'].get(
+        'goalsAgainst', 0)
+      standings[a_key]['goalsFor'] += match['away']['stats'].get('goalsFor', 0)
+      standings[a_key]['goalsAgainst'] += match['away']['stats'].get(
+        'goalsAgainst', 0)
+      standings[h_key]['points'] += match['home']['stats'].get('points', 0)
+      standings[a_key]['points'] += match['away']['stats'].get('points', 0)
+      standings[h_key]['wins'] += match['home']['stats'].get('win', 0)
+      standings[a_key]['wins'] += match['away']['stats'].get('win', 0)
+      standings[h_key]['losses'] += match['home']['stats'].get('loss', 0)
+      standings[a_key]['losses'] += match['away']['stats'].get('loss', 0)
+      standings[h_key]['draws'] += match['home']['stats'].get('draw', 0)
+      standings[a_key]['draws'] += match['away']['stats'].get('draw', 0)
+      standings[h_key]['otWins'] += match['home']['stats'].get('otWin', 0)
+      standings[a_key]['otWins'] += match['away']['stats'].get('otWin', 0)
+      standings[h_key]['otLosses'] += match['home']['stats'].get('otLoss', 0)
+      standings[a_key]['otLosses'] += match['away']['stats'].get('otLoss', 0)
+      standings[h_key]['soWins'] += match['home']['stats'].get('soWin', 0)
+      standings[a_key]['soWins'] += match['away']['stats'].get('soWin', 0)
+      standings[h_key]['soLosses'] += match['home']['stats'].get('soLoss', 0)
+      standings[a_key]['soLosses'] += match['away']['stats'].get('soLoss', 0)
       #print("match standing", standings)
 
     # sort standings dict by value points descending
@@ -312,19 +325,20 @@ async def calc_standings_per_round(mongodb: Database, t_alias: str,
                          key=lambda item:
                          (item[1]['points'], item[1]['goalsFor'] - item[1][
                            'goalsAgainst'], item[1]['goalsFor']),
-                         reverse=True) if v['gamesPlayed'] > 0
+                         reverse=True)
     }
-    response = await mongodb["tournaments"].update_one(round_filter, {
-      '$set': {
-        "seasons.$[season].rounds.$[round].standings": sorted_standings
-      }
-    },
-                                                       array_filters=[{
-                                                         'season.alias': match["season"]["alias"]
-                                                       }, {
-                                                         'round.alias': match["round"]["alias"]
-                                                       }],
-                                                       upsert=False)
+    response = await mongodb["tournaments"].update_one(
+      round_filter, {
+        '$set': {
+          "seasons.$[season].rounds.$[round].standings": sorted_standings
+        }
+      },
+      array_filters=[{
+        'season.alias': match["season"]["alias"]
+      }, {
+        'round.alias': match["round"]["alias"]
+      }],
+      upsert=False)
     if not response.acknowledged:
       raise HTTPException(status_code=500,
                           detail="Failed to update tournament standings.")

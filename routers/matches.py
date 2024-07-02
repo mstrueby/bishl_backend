@@ -4,7 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate
 from authentication import AuthHandler
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, apply_points, flatten_dict, calc_standings_per_round
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round
 import os
 from bson import ObjectId
 
@@ -93,9 +93,10 @@ async def create_match(
     if all(
       [hasattr(match, 'tournament') and hasattr(match.tournament, 'alias')]):
       print("do stats")
-      stats = apply_points(
-        jsonable_encoder(match.finishType), jsonable_encoder(match.home.stats),
-        await fetch_standings_settings(match.tournament.alias))
+      stats = calc_match_stats(
+        match.matchStatus.key, match.finishType.key,
+        jsonable_encoder(match.home.stats), await
+        fetch_standings_settings(match.tournament.alias))
       print("stats: ", stats)
       match.home.stats = stats['home']
       match.away.stats = stats['away']
@@ -103,15 +104,15 @@ async def create_match(
     match_data = my_jsonable_encoder(match)
     match_data = convert_times_to_seconds(match_data)
 
-    # calc standings and set it in round if createStandings is true
-    await calc_standings_per_round(request.app.mongodb, match.tournament.alias,
-                             match.season.alias, match.round.alias)
-
     # add match to collection matches
     print("insert into matches")
     print("match_data: ", match_data)
 
     result = await request.app.mongodb["matches"].insert_one(match_data)
+
+    # calc standings and set it in round if createStandings is true
+    await calc_standings_per_round(request.app.mongodb, match.tournament.alias,
+                                   match.season.alias, match.round.alias)
 
     # return complete match document
     new_match = await get_match_object(request.app.mongodb, result.inserted_id)
@@ -143,14 +144,22 @@ async def update_match(
   if existing_match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
-
   t_alias = match.tournament.alias if getattr(
     match, 'tournament', None) and getattr(
       match.tournament, 'alias',
       None) else existing_match['tournament']['alias']
+  s_alias = match.season.alias if getattr(match, 'season', None) and getattr(
+    match.season, 'alias', None) else existing_match['season']['alias']
+  r_alias = match.round.alias if getattr(
+    match.round, 'alias', None) and getattr(
+      match.round, 'alias', None) else existing_match['round']['alias']
 
-  finish_type = getattr(match, 'finishType',
-                        existing_match.get('finishType', None))
+  match_status = getattr(
+    match.matchStatus, 'key',
+    existing_match.get('matchStatus', None).get('key', None))
+  finish_type = getattr(
+    match.finishType, 'key',
+    existing_match.get('finishType', None).get('key', None))
 
   home_stats = getattr(match.home, 'stats',
                        existing_match.get('home', {}).get(
@@ -161,15 +170,16 @@ async def update_match(
                          'stats',
                          None))  # if getattr(match, 'away', None) else None
 
-  print("exisiting_match: ", getattr(match, 'home', None))
+  print("exisiting_match: ", existing_match)
   print("t_alias: ", t_alias)
+  print("match_status: ", match_status)
   print("finish_type: ", finish_type)
   print("home_stats: ", home_stats)
   print("away_stats: ", away_stats)
   if finish_type and home_stats and t_alias:
-    stats = apply_points(jsonable_encoder(finish_type),
-                         jsonable_encoder(home_stats), await
-                         fetch_standings_settings(t_alias))
+    stats = calc_match_stats(match_status, finish_type,
+                             jsonable_encoder(home_stats), await
+                             fetch_standings_settings(t_alias))
     if getattr(match, 'home', None) is None:
       match.home = MatchTeamUpdate()
     if getattr(match, 'away', None) is None:
@@ -217,6 +227,10 @@ async def update_match(
       raise HTTPException(status_code=500, detail=str(e))
   else:
     print("No changes to update")
+
+  # calc standings and set it in round
+  await calc_standings_per_round(request.app.mongodb, t_alias, s_alias,
+                                 r_alias)
 
   updated_match = await get_match_object(request.app.mongodb, match_id)
   return JSONResponse(status_code=status.HTTP_200_OK,
