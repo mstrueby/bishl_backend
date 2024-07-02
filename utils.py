@@ -193,35 +193,126 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
     else:
       print("Unknown finish_type:", finish_type)
   else:
-    print("no stats for matchStatus", match_status)
+    print("no match stats for matchStatus", match_status)
     reset_points()
   return stats
 
 
+async def check_create_standings_for_round(mongodb: Database,
+                                           round_filter: dict, s_alias: str,
+                                           r_alias: str) -> bool:
+  if (tournament := await
+      mongodb['tournaments'].find_one(round_filter)) is not None:
+    for season in tournament.get('seasons', []):
+      if season.get("alias") == s_alias:
+        for round in season.get("rounds", []):
+          if round.get("alias") == r_alias:
+            return round.get("createStandings")
+  return False
+
+
+async def check_create_standings_for_matchday(mongodb: Database,
+                                              md_filter: dict, s_alias: str,
+                                              r_alias: str,
+                                              md_alias: str) -> bool:
+  if (tournament := await
+      mongodb['tournaments'].find_one(md_filter)) is not None:
+    for season in tournament.get('seasons', []):
+      if season.get("alias") == s_alias:
+        for round in season.get("rounds", []):
+          if round.get("alias") == r_alias:
+            for matchday in round.get("matchdays", []):
+              if matchday.get("alias") == md_alias:
+                return matchday.get("createStandings")
+  return False
+
+
+def init_team_standings(team_data: dict) -> dict:
+  from models.tournaments import Standings
+  return Standings(
+    fullName=team_data['fullName'],
+    shortName=team_data['shortName'],
+    tinyName=team_data['tinyName'],
+    logo=team_data['logo'],
+    gamesPlayed=0,
+    goalsFor=0,
+    goalsAgainst=0,
+    points=0,
+    wins=0,
+    losses=0,
+    draws=0,
+    otWins=0,
+    otLosses=0,
+    soWins=0,
+    soLosses=0,
+  ).dict()
+
+
+def calc_standings(matches):
+  standings = {}
+
+  for match in matches:
+    home_team = {
+      'fullName': match['home']['fullName'],
+      'shortName': match['home']['shortName'],
+      'tinyName': match['home']['tinyName'],
+      'logo': match['home']['logo']
+    }
+    away_team = {
+      'fullName': match['away']['fullName'],
+      'shortName': match['away']['shortName'],
+      'tinyName': match['away']['tinyName'],
+      'logo': match['away']['logo']
+    }
+    h_key = home_team['fullName']
+    a_key = away_team['fullName']
+
+    if h_key not in standings:
+      standings[h_key] = init_team_standings(home_team)
+    if a_key not in standings:
+      standings[a_key] = init_team_standings(away_team)
+
+    standings[h_key]['gamesPlayed'] += match['home']['stats'].get(
+      'gamePlayed', 0)
+    standings[a_key]['gamesPlayed'] += match['away']['stats'].get(
+      'gamePlayed', 0)
+    standings[h_key]['goalsFor'] += match['home']['stats'].get('goalsFor', 0)
+    standings[h_key]['goalsAgainst'] += match['home']['stats'].get(
+      'goalsAgainst', 0)
+    standings[a_key]['goalsFor'] += match['away']['stats'].get('goalsFor', 0)
+    standings[a_key]['goalsAgainst'] += match['away']['stats'].get(
+      'goalsAgainst', 0)
+    standings[h_key]['points'] += match['home']['stats'].get('points', 0)
+    standings[a_key]['points'] += match['away']['stats'].get('points', 0)
+    standings[h_key]['wins'] += match['home']['stats'].get('win', 0)
+    standings[a_key]['wins'] += match['away']['stats'].get('win', 0)
+    standings[h_key]['losses'] += match['home']['stats'].get('loss', 0)
+    standings[a_key]['losses'] += match['away']['stats'].get('loss', 0)
+    standings[h_key]['draws'] += match['home']['stats'].get('draw', 0)
+    standings[a_key]['draws'] += match['away']['stats'].get('draw', 0)
+    standings[h_key]['otWins'] += match['home']['stats'].get('otWin', 0)
+    standings[a_key]['otWins'] += match['away']['stats'].get('otWin', 0)
+    standings[h_key]['otLosses'] += match['home']['stats'].get('otLoss', 0)
+    standings[a_key]['otLosses'] += match['away']['stats'].get('otLoss', 0)
+    standings[h_key]['soWins'] += match['home']['stats'].get('soWin', 0)
+    standings[a_key]['soWins'] += match['away']['stats'].get('soWin', 0)
+    standings[h_key]['soLosses'] += match['home']['stats'].get('soLoss', 0)
+    standings[a_key]['soLosses'] += match['away']['stats'].get('soLoss', 0)
+
+  sorted_standings = {
+    k: v
+    for k, v in sorted(
+      standings.items(),
+      key=lambda item: (item[1]['points'], item[1]['goalsFor'] - item[1][
+        'goalsAgainst'], item[1]['goalsFor'], -ord(item[1]['fullName'][0])),
+      reverse=True)
+  }
+  return sorted_standings
+
+
 async def calc_standings_per_round(mongodb: Database, t_alias: str,
                                    s_alias: str, r_alias: str) -> List[dict]:
-
-  def init_team_standings(team_data: {}) -> dict:
-    from models.tournaments import Standings
-    return Standings(
-      fullName=team_data['fullName'],
-      shortName=team_data['shortName'],
-      tinyName=team_data['tinyName'],
-      logo=team_data['logo'],
-      gamesPlayed=0,
-      goalsFor=0,
-      goalsAgainst=0,
-      points=0,
-      wins=0,
-      losses=0,
-      draws=0,
-      otWins=0,
-      otLosses=0,
-      soWins=0,
-      soLosses=0,
-    ).dict()
-
-  round_filter = {
+  r_filter = {
     'alias': t_alias,
     'seasons.alias': s_alias,
     'seasons.rounds.alias': r_alias,
@@ -237,112 +328,99 @@ async def calc_standings_per_round(mongodb: Database, t_alias: str,
     }
   }
 
-  async def check_create_standings():
-    if (tournament := await
-        mongodb['tournaments'].find_one(round_filter)) is not None:
-      for season in tournament.get('seasons', []):
-        if season.get("alias") == s_alias:
-          for round in season.get("rounds", []):
-            if round.get("alias") == r_alias:
-              #print("round", round)
-              if round.get("createStandings"):
-                return True
-    return False
-    
-  if await check_create_standings():
-    print("createStandings=True for round", r_alias)
-    print(t_alias, s_alias, r_alias)
+  if await check_create_standings_for_round(mongodb, r_filter, s_alias,
+                                            r_alias):
     matches = await mongodb["matches"].find({
       "tournament.alias": t_alias,
       "season.alias": s_alias,
       "round.alias": r_alias
     }).to_list(1000)
-    print("matches", len(matches))
-    if not matches or len(matches) == 0:
+
+    if not matches:
+      print("r.standings - no matches")
       return
 
-    standings = {}
-
-    print(f"Found {len(matches)} matches for {t_alias}, {s_alias}, {r_alias}")
-    for match in matches:
-      home_team = {
-        'fullName': match['home']['fullName'],
-        'shortName': match['home']['shortName'],
-        'tinyName': match['home']['tinyName'],
-        'logo': match['home']['logo']
-      }
-      away_team = {
-        'fullName': match['away']['fullName'],
-        'shortName': match['away']['shortName'],
-        'tinyName': match['away']['tinyName'],
-        'logo': match['away']['logo']
-      }
-      h_key = home_team['fullName']
-      a_key = away_team['fullName']
-      #print("home_team_key", home_team_key)
-      #print("away_team_key", away_team_key)
-
-      # Check if the home team is already in standings
-      if h_key not in standings:
-        standings[h_key] = init_team_standings(home_team)
-      # Check if the away team is already in standings
-      if a_key not in standings:
-        standings[a_key] = init_team_standings(away_team)
-        
-      #print("match", match)
-      standings[h_key]['gamesPlayed'] += match['home']['stats'].get(
-        'gamePlayed', 0)
-      standings[a_key]['gamesPlayed'] += match['away']['stats'].get(
-        'gamePlayed', 0)
-      standings[h_key]['goalsFor'] += match['home']['stats'].get('goalsFor', 0)
-      standings[h_key]['goalsAgainst'] += match['home']['stats'].get(
-        'goalsAgainst', 0)
-      standings[a_key]['goalsFor'] += match['away']['stats'].get('goalsFor', 0)
-      standings[a_key]['goalsAgainst'] += match['away']['stats'].get(
-        'goalsAgainst', 0)
-      standings[h_key]['points'] += match['home']['stats'].get('points', 0)
-      standings[a_key]['points'] += match['away']['stats'].get('points', 0)
-      standings[h_key]['wins'] += match['home']['stats'].get('win', 0)
-      standings[a_key]['wins'] += match['away']['stats'].get('win', 0)
-      standings[h_key]['losses'] += match['home']['stats'].get('loss', 0)
-      standings[a_key]['losses'] += match['away']['stats'].get('loss', 0)
-      standings[h_key]['draws'] += match['home']['stats'].get('draw', 0)
-      standings[a_key]['draws'] += match['away']['stats'].get('draw', 0)
-      standings[h_key]['otWins'] += match['home']['stats'].get('otWin', 0)
-      standings[a_key]['otWins'] += match['away']['stats'].get('otWin', 0)
-      standings[h_key]['otLosses'] += match['home']['stats'].get('otLoss', 0)
-      standings[a_key]['otLosses'] += match['away']['stats'].get('otLoss', 0)
-      standings[h_key]['soWins'] += match['home']['stats'].get('soWin', 0)
-      standings[a_key]['soWins'] += match['away']['stats'].get('soWin', 0)
-      standings[h_key]['soLosses'] += match['home']['stats'].get('soLoss', 0)
-      standings[a_key]['soLosses'] += match['away']['stats'].get('soLoss', 0)
-      #print("match standing", standings)
-
-    # sort standings dict by value points descending
-    sorted_standings = {
-      k: v
-      for k, v in sorted(standings.items(),
-                         key=lambda item:
-                         (item[1]['points'], item[1]['goalsFor'] - item[1][
-                           'goalsAgainst'], item[1]['goalsFor']),
-                         reverse=True)
-    }
+    standings = calc_standings(matches)
     response = await mongodb["tournaments"].update_one(
-      round_filter, {
-        '$set': {
-          "seasons.$[season].rounds.$[round].standings": sorted_standings
-        }
-      },
+      r_filter,
+      {'$set': {
+        "seasons.$[season].rounds.$[round].standings": standings
+      }},
       array_filters=[{
-        'season.alias': match["season"]["alias"]
+        'season.alias': s_alias
       }, {
-        'round.alias': match["round"]["alias"]
+        'round.alias': r_alias
       }],
       upsert=False)
     if not response.acknowledged:
       raise HTTPException(status_code=500,
                           detail="Failed to update tournament standings.")
     else:
-      print("update t.standings: ", standings)
+      print("update r.standings: ", standings)
   else:
     print(f"No standings for {t_alias}, {s_alias}, {r_alias}")
+
+
+async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
+                                      s_alias: str, r_alias: str,
+                                      md_alias: str) -> List[dict]:
+  md_filter = {
+    'alias': t_alias,
+    'seasons.alias': s_alias,
+    'seasons.rounds.alias': r_alias,
+    'seasons.rounds.matchdays.alias': md_alias,
+    'seasons': {
+      '$elemMatch': {
+        'alias': s_alias,
+        'rounds': {
+          '$elemMatch': {
+            'alias': r_alias,
+            'matchdays': {
+              '$elemMatch': {
+                'alias': md_alias
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if await check_create_standings_for_matchday(mongodb, md_filter, s_alias,
+                                               r_alias, md_alias):
+    matches = await mongodb["matches"].find({
+      "tournament.alias": t_alias,
+      "season.alias": s_alias,
+      "round.alias": r_alias,
+      "matchday.alias": md_alias
+    }).to_list(1000)
+
+    if not matches:
+      print("md.standings - no matches")
+      return
+
+    standings = calc_standings(matches)
+    response = await mongodb["tournaments"].update_one(md_filter, {
+      '$set': {
+        "seasons.$[season].rounds.$[round].matchdays.$[matchday].standings":
+        standings
+      }
+    },
+                                                       array_filters=[{
+                                                         'season.alias':
+                                                         s_alias
+                                                       }, {
+                                                         'round.alias':
+                                                         r_alias
+                                                       }, {
+                                                         'matchday.alias':
+                                                         md_alias
+                                                       }],
+                                                       upsert=False)
+    if not response.acknowledged:
+      raise HTTPException(status_code=500,
+                          detail="Failed to update tournament standings.")
+    else:
+      print("update md.standings: ", standings)
+  else:
+    print(f"No standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}")

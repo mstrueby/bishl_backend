@@ -6,10 +6,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler
-from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round
+from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday
 import os
-import requests
-import httpx
 
 router = APIRouter()
 auth = AuthHandler()
@@ -130,6 +128,7 @@ async def create_score(
   t_alias = match.get('tournament', {}).get('alias')
   s_alias = match.get('season', {}).get('alias')
   r_alias = match.get('round', {}).get('alias')
+  md_alias = match.get('matchday', {}).get('alias')
 
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(jsonable_encoder(match_status),
@@ -174,6 +173,8 @@ async def create_score(
     # calc standings per round
     await calc_standings_per_round(request.app.mongodb, t_alias, s_alias,
                                    r_alias)
+    await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
+                                      r_alias, md_alias)
 
     # Use the reusable function to return the new score
     new_score = await get_score_object(request.app.mongodb, match_id,
@@ -313,6 +314,7 @@ async def delete_one_score(
   t_alias = match.get('tournament', {}).get('alias')
   s_alias = match.get('season', {}).get('alias')
   r_alias = match.get('round', {}).get('alias')
+  md_alias = match.get('matchday', {}).get('alias')
 
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(jsonable_encoder(match_status),
@@ -347,6 +349,8 @@ async def delete_one_score(
 
     await calc_standings_per_round(request.app.mongodb, t_alias, s_alias,
                                    r_alias)
+    await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
+                                      r_alias, md_alias)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:

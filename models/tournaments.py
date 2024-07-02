@@ -92,7 +92,7 @@ class MatchdayBase(MongoBaseModel):
   createStats: bool = False
   matchSettings: MatchSettings = {}
   published: bool = False
-  standings: List[Standings] = []
+  standings: Dict[str, Standings] = {}
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
@@ -121,7 +121,7 @@ class MatchdayUpdate(MongoBaseModel):
   createStats: Optional[bool] = False
   matchSettings: Optional[MatchSettings] = {}
   published: Optional[bool] = False
-  standings: Optional[List[Standings]] = []
+  standings: Optional[Dict[str, Standings]] = {}
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
