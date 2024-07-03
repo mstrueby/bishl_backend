@@ -234,6 +234,14 @@ def update_streak(team_standings, match_stats):
     result = 'L'
   elif 'draw' in match_stats and match_stats['draw'] == 1:
     result = 'D'
+  elif 'otWin' in match_stats and match_stats['otWin'] == 1:
+    result = 'OTW'
+  elif 'otLoss' in match_stats and match_stats['otLoss'] == 1:
+    result = 'OTL'
+  elif 'soWin' in match_stats and match_stats['soWin'] == 1:
+    result = 'SOW'
+  elif 'soLoss' in match_stats and match_stats['soLoss'] == 1:
+    result = 'SOL'
   else:
     result = None
   if result:
