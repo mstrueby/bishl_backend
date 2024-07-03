@@ -123,7 +123,7 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
       tcs.SeasonYear as s_alias,
       cs.py_round as name,
       cs.py_round_alias as alias,
-      case cs.CreateTable when 1 then 'True' else 'False' end as createStandings, 
+      cs.py_r_create_table as createStandings, 
       case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
       py_matchdaysType as matchdaysType, -- Spieltag, Turnier, Runde, Gruppe
       py_matchdaysSortedBy as matchdaysSortedBy, -- Startdatum, Name
@@ -175,8 +175,10 @@ select
     'periodLengthMinOvertime', cs.PeriodLengthOT,
     'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end
   ) as matchSettings,
-  case cs.CreateTable when 1 then 'True' else 'False' end as createStandings, 
-  case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
+  -- case cs.CreateTable when 1 then 'True' else 'False' end as createStandings, 
+  -- case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
+  case when g.py_md_alias  like 'gruppe%' then 'True' else 'False' end as createStandings,
+  'False' as createStats,
   'True' as published
 from tblgame as g
 join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
@@ -186,6 +188,8 @@ and id_fk_gamestatus in (2,4)
 group by g.SeasonYear,cs.id_tblchampionship,cs.name,cs.py_code,cs.py_round,g.Round
 order by g.seasonYear, cs.py_code, cs.py_round, g.round, cs.CreateTableByRound
 
+
+  
 -- alias
   update `tblgame` 
   set py_md_alias=
@@ -281,6 +285,16 @@ order by seasonyear desc, startdate;
     where id_fk_championship in (26)
     and g.seasonyear=2023
 
+
+
+-- fix mtchdays settings, which come from tblgeme
+    SELECT 
+    code, name,
+    py_name, py_round, py_md_type,
+    IsOvertime, IsShootout,
+    PointsWinReg, PointsTie, PointsWinOT, PointsWinSO
+    FROM tblchampionship cs  
+    ORDER BY `cs`.`py_name` ASC
 
 -- get MATCHES data
 -- -----------------
