@@ -73,7 +73,7 @@ async def add_round(
     round: RoundBase = Body(..., description="The data of the round to add"),
     user_id: str = Depends(auth.auth_wrapper),
 ) -> RoundDB:
-  print("add round, data: ", round)
+  #print("add round, data: ", round)
   # Check if the tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias})) is None:
@@ -98,7 +98,7 @@ async def add_round(
   # Add the round to the season
   try:
     round_data = my_jsonable_encoder(round)
-    print("round_data: ", round_data)
+    #print("round_data: ", round_data)
     result = await request.app.mongodb['tournaments'].update_one(
       {
         "alias": tournament_alias,
