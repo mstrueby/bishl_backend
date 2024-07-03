@@ -227,6 +227,21 @@ async def check_create_standings_for_matchday(mongodb: Database,
   return False
 
 
+def update_streak(team_standings, match_stats):
+  if 'win' in match_stats and match_stats['win'] == 1:
+    result = 'W'
+  elif 'loss' in match_stats and match_stats['loss'] == 1:
+    result = 'L'
+  elif 'draw' in match_stats and match_stats['draw'] == 1:
+    result = 'D'
+  else:
+    result = None
+  if result:
+    team_standings['streak'].append(result)
+    if len(team_standings['streak']) > 5:
+      team_standings['streak'].pop(0)
+
+
 def init_team_standings(team_data: dict) -> dict:
   from models.tournaments import Standings
   return Standings(
@@ -245,6 +260,7 @@ def init_team_standings(team_data: dict) -> dict:
     otLosses=0,
     soWins=0,
     soLosses=0,
+    streak=[],
   ).dict()
 
 
@@ -299,6 +315,10 @@ def calc_standings(matches):
     standings[h_key]['soLosses'] += match['home']['stats'].get('soLoss', 0)
     standings[a_key]['soLosses'] += match['away']['stats'].get('soLoss', 0)
 
+    # update streak
+    update_streak(standings[h_key], match['home']['stats'])
+    update_streak(standings[a_key], match['away']['stats'])
+
   sorted_standings = {
     k: v
     for k, v in sorted(
@@ -334,7 +354,7 @@ async def calc_standings_per_round(mongodb: Database, t_alias: str,
       "tournament.alias": t_alias,
       "season.alias": s_alias,
       "round.alias": r_alias
-    }).to_list(1000)
+    }).sort("startDate", 1).to_list(1000)
 
     if not matches:
       print(f"No matches for {t_alias}, {s_alias}, {r_alias}")
@@ -395,12 +415,13 @@ async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
       "season.alias": s_alias,
       "round.alias": r_alias,
       "matchday.alias": md_alias
-    }).to_list(1000)
+    }).sort("startDate").to_list(1000)
 
     if not matches:
       print(f"No matches for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
       standings = {}
     else:
+      print("calc standings")
       standings = calc_standings(matches)
   else:
     print(f"No standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}")

@@ -57,6 +57,7 @@ class Standings(BaseModel):
   otLosses: int = Field(...)
   soWins: int = Field(...)
   soLosses: int = Field(...)
+  streak: List[str] = None
 
 # settings at tournament level
 class StandingsSettings(BaseModel):
