@@ -337,28 +337,30 @@ async def calc_standings_per_round(mongodb: Database, t_alias: str,
     }).to_list(1000)
 
     if not matches:
-      print("r.standings - no matches")
-      return
-
-    standings = calc_standings(matches)
-    response = await mongodb["tournaments"].update_one(
-      r_filter,
-      {'$set': {
-        "seasons.$[season].rounds.$[round].standings": standings
-      }},
-      array_filters=[{
-        'season.alias': s_alias
-      }, {
-        'round.alias': r_alias
-      }],
-      upsert=False)
-    if not response.acknowledged:
-      raise HTTPException(status_code=500,
-                          detail="Failed to update tournament standings.")
+      print(f"No matches for {t_alias}, {s_alias}, {r_alias}")
+      standings = {}
     else:
-      print("update r.standings: ", standings)
+      standings = calc_standings(matches)
   else:
     print(f"No standings for {t_alias}, {s_alias}, {r_alias}")
+    standings = {}
+
+  response = await mongodb["tournaments"].update_one(
+    r_filter,
+    {'$set': {
+      "seasons.$[season].rounds.$[round].standings": standings
+    }},
+    array_filters=[{
+      'season.alias': s_alias
+    }, {
+      'round.alias': r_alias
+    }],
+    upsert=False)
+  if not response.acknowledged:
+    raise HTTPException(status_code=500,
+                        detail="Failed to update tournament standings.")
+  else:
+    print("update r.standings: ", standings)
 
 
 async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
@@ -396,31 +398,33 @@ async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
     }).to_list(1000)
 
     if not matches:
-      print("md.standings - no matches")
-      return
-
-    standings = calc_standings(matches)
-    response = await mongodb["tournaments"].update_one(md_filter, {
-      '$set': {
-        "seasons.$[season].rounds.$[round].matchdays.$[matchday].standings":
-        standings
-      }
-    },
-                                                       array_filters=[{
-                                                         'season.alias':
-                                                         s_alias
-                                                       }, {
-                                                         'round.alias':
-                                                         r_alias
-                                                       }, {
-                                                         'matchday.alias':
-                                                         md_alias
-                                                       }],
-                                                       upsert=False)
-    if not response.acknowledged:
-      raise HTTPException(status_code=500,
-                          detail="Failed to update tournament standings.")
+      print(f"No matches for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
+      standings = {}
     else:
-      print("update md.standings: ", standings)
+      standings = calc_standings(matches)
   else:
     print(f"No standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
+    standings = {}
+
+  response = await mongodb["tournaments"].update_one(md_filter, {
+    '$set': {
+      "seasons.$[season].rounds.$[round].matchdays.$[matchday].standings":
+      standings
+    }
+  },
+                                                     array_filters=[{
+                                                       'season.alias':
+                                                       s_alias
+                                                     }, {
+                                                       'round.alias':
+                                                       r_alias
+                                                     }, {
+                                                       'matchday.alias':
+                                                       md_alias
+                                                     }],
+                                                     upsert=False)
+  if not response.acknowledged:
+    raise HTTPException(status_code=500,
+                        detail="Failed to update tournament standings.")
+  else:
+    print("update md.standings: ", standings)
