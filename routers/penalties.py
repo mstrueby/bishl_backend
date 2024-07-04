@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Pa
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from utils import parse_time_to_seconds, parse_time_from_seconds
 
 router = APIRouter()
@@ -85,9 +85,11 @@ async def get_penalty_sheet(
 
   for penalty in penalties:
     if 'matchSecondsStart' in penalty:
-      penalty['matchSecondsStart'] = parse_time_from_seconds(penalty['matchSecondsStart'])
+      penalty['matchSecondsStart'] = parse_time_from_seconds(
+        penalty['matchSecondsStart'])
     if 'matchSecondsEnd' in penalty and penalty['matchSecondsEnd'] is not None:
-      penalty['matchSecondsEnd'] = parse_time_from_seconds(penalty['matchSecondsEnd'])
+      penalty['matchSecondsEnd'] = parse_time_from_seconds(
+        penalty['matchSecondsEnd'])
 
   penalty_entries = [PenaltiesDB(**penalty) for penalty in penalties]
 
@@ -103,8 +105,10 @@ async def create_penalty(
   team_flag: str = Path(..., description="The flag of the team"),
   penalty: PenaltiesBase = Body(
     ..., description="The penalty to be added to the penaltiesheet"),
-  user_id: str = Depends(auth.auth_wrapper)
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> PenaltiesDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   #check
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -170,8 +174,10 @@ async def patch_one_penalty(
   team_flag: str = Path(..., description="The flag of the team"),
   penalty: PenaltiesUpdate = Body(
     ..., description="The penalty to be added to the penaltiesheet"),
-  user_id: str = Depends(auth.auth_wrapper)
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> PenaltiesDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   # Data validation and conversion
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -239,8 +245,10 @@ async def delete_one_penalty(
   match_id: str = Path(..., description="The id of the match"),
   penalty_id: str = Path(..., description="The id of the penalty"),
   team_flag: str = Path(..., description="The flag of the team"),
-  user_id: str = Depends(auth.auth_wrapper)
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> None:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 from pydantic import EmailStr, Field, BaseModel, validator
 from email_validator import validate_email, EmailNotValidError
 from datetime import date
@@ -29,17 +29,35 @@ class MongoBaseModel(BaseModel):
     json_encoders = {ObjectId: str}
 
 class Role(str, Enum):
-  admin = "admin"
-  user = "user"
-  guest = "guest"
+  admin = "ADMIN"
+  ref_admin = "REF_ADMIN"
+  author = "AUTHOR"
+  publisher = "PUBLISHER"
+  referee = "REFEREE"
+  doc_admin = "DOC_ADMIN"
+  
 
 class UserBase(MongoBaseModel):
-  #username: str = Field(..., min_length=3, max_length=20)
   email: str = EmailStr(...)
   password: str = Field(...)
   firstname: str = Field(...)
   lastname: str = Field(...)
-  role: Role
+  roles: List[Role] = None
+
+  @validator('email')
+  def email_is_valid(cls, v):
+    try:
+      validate_email(v)
+    except EmailNotValidError as e:
+      raise ValueError(e)
+    return v
+
+class UserUpdate(MongoBaseModel):
+  email: Optional[str] = None
+  password: Optional[str] = None
+  firstname: Optional[str] = None
+  lastname: Optional[str] = None
+  roles: Optional[List[Role]] = None
 
   @validator('email')
   def email_is_valid(cls, v):
@@ -50,13 +68,11 @@ class UserBase(MongoBaseModel):
     return v
 
 class LoginBase(BaseModel):
-  # username: str = Field(...)
   email: str = EmailStr(...)
   password: str = Field(...)
 
 class CurrentUser(MongoBaseModel):
   email: str = EmailStr(...)
-  #username: str = Field(...)
   firstname: str = Field(...)
   lastname: str = Field(...)
-  role: str = Field(...)
+  roles: List[Role] = Field(...)

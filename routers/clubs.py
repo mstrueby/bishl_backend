@@ -13,7 +13,7 @@ from fastapi import (
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.clubs import ClubBase, ClubDB, ClubUpdate
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
 import cloudinary
 import cloudinary.uploader
@@ -77,8 +77,10 @@ async def create_club(
     ishdId: Optional[int] = Form(None),
     active: Optional[bool] = Form(False),
     logo: Optional[UploadFile] = File(None),
-    userId=Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> ClubDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   if logo:
     result = cloudinary.uploader.upload(
       logo.file,
@@ -149,8 +151,10 @@ async def update_club(
     ishdId: Optional[int] = Form(None),
     active: Optional[bool] = Form(False),
     logo: Optional[UploadFile] = File(None),
-    userId=Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> ClubDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   print("logo: " + str(logo))
 
   if logo:
@@ -192,7 +196,7 @@ async def update_club(
   except:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Invalid club data")
-      
+
   print("club: ", club)
 
   existing_club = await request.app.mongodb["clubs"].find_one({"_id": id})
@@ -201,12 +205,8 @@ async def update_club(
   #del club_to_update["_id"]
   #club_to_update = ClubBase(**club)
   #Exclude unchanged data
-  club_to_update = {
-    k: v
-    for k, v in club.items() if v != existing_club.get(k)
-  }
+  club_to_update = {k: v for k, v in club.items() if v != existing_club.get(k)}
   #club_to_update = club_to_update.dict(exclude_unset=True)
-
 
   # If logo was not updated, remove it from the update
   if url is None and 'logo' in club_to_update:
@@ -225,9 +225,8 @@ async def update_club(
         return ClubDB(**updated_club)
     return ClubDB(**existing_club)
   except DuplicateKeyError:
-    raise HTTPException(
-      status_code=400,
-      detail=f"Club {club.get('name', '')} already exists.")
+    raise HTTPException(status_code=400,
+                        detail=f"Club {club.get('name', '')} already exists.")
   except Exception as e:
     raise HTTPException(status_code=500,
                         detail=f"An unexpected error occurred: {str(e)}")
@@ -238,8 +237,10 @@ async def update_club(
 async def delete_club(
     request: Request,
     alias: str,
-    userId=Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> None:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   result = await request.app.mongodb['clubs'].delete_one({"alias": alias})
   if result.deleted_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
