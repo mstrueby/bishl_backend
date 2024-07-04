@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
 from fastapi.responses import JSONResponse, Response
 from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from fastapi.encoders import jsonable_encoder
 from utils import parse_datetime, my_jsonable_encoder
 
@@ -89,8 +89,10 @@ async def add_matchday(
                              description="The alias of the season to add"),
     round_alias: str = Path(..., description="The alias of the round to add"),
     matchday: MatchdayBase = Body(..., description="The matchday to add"),
-    user_id: str = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> MatchdayDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   print("add matchday")
   # check if tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
@@ -171,8 +173,10 @@ async def update_matchday(
     round_alias: str = Path(...,
                             description="The alias of the round to update"),
     matchday: MatchdayUpdate = Body(..., description="The matchday to update"),
-    user_id: str = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> MatchdayDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   print("update matchday: ", matchday)
   matchday = matchday.dict(exclude_unset=True)
   print("excluded unset: ", matchday)
@@ -290,8 +294,10 @@ async def delete_matchday(
                             description="The alias of the round to delete"),
     matchday_alias: str = Path(
       ..., description="The alias of the matchday to delete"),
-    user_id: str = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> None:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   result = await request.app.mongodb['tournaments'].update_one(
     {
       "alias": tournament_alias,

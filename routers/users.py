@@ -5,7 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from models.users import UserBase, LoginBase, CurrentUser
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 
 router = APIRouter()
 auth = AuthHandler()
@@ -54,22 +54,31 @@ async def login(
                         detail="Incorrect email and/or password",
                         headers={"WWW-Authenticate": "Bearer"})
 
-  token = auth.encode_token(existing_user["_id"])
+  token = auth.encode_token(existing_user["_id"], existing_user["roles"])
 
   response = CurrentUser(**existing_user).dict()
   response["id"] = existing_user["_id"]
+  response["roles"] = existing_user["roles"]
 
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content={
                         "token": token,
-                        "user": response
+                        "user": response,
                       })
 
 
 # get current user
 @router.get("/me", response_description="Get current user")
-async def me(request: Request, userId=Depends(auth.auth_wrapper)) -> UserBase:
-  user = await request.app.mongodb["users"].find_one({"_id": userId})
+async def me(
+  request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> UserBase:
+  user_id = token_payload.sub
+  user = await request.app.mongodb["users"].find_one({"_id": user_id})
+
+  if not user:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail="User not found")
+
   response = CurrentUser(**user).dict()
-  response["id"] = userId
+  response["id"] = user_id
   return JSONResponse(status_code=status.HTTP_200_OK, content=response)

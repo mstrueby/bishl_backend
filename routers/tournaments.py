@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
 
 router = APIRouter()
@@ -47,8 +47,10 @@ async def get_tournament(
 async def create_tournament(
     request: Request,
     tournament: TournamentBase = Body(...),
-    user_id=Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> TournamentDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   print("tournament: ", tournament)
   tournament = jsonable_encoder(tournament)
 
@@ -73,8 +75,10 @@ async def update_tournament(
   request: Request,
   tournament_id: str,
   tournament: TournamentUpdate = Body(...),
-  user_id=Depends(auth.auth_wrapper)
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> TournamentDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   print("tournament pre exclude: ", tournament)
   tournament = tournament.dict(exclude_unset=True)
   tournament.pop("id", None)
@@ -125,8 +129,12 @@ async def update_tournament(
 # delete tournament
 @router.delete("/{tournament_alias}", response_description="Delete tournament")
 async def delete_tournament(
-  request: Request, tournament_alias: str,
-  user_id=Depends(auth.auth_wrapper)) -> None:
+  request: Request,
+  tournament_alias: str,
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> None:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   result = await request.app.mongodb['tournaments'].delete_one(
     {"alias": tournament_alias})
   if result.deleted_count == 1:

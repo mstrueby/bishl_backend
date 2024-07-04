@@ -5,6 +5,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 
+class TokenPayload:
+  def __init__(self, sub: str, roles: list):
+      self.sub = sub
+      self.roles = roles
 
 class AuthHandler:
   security = HTTPBearer()
@@ -17,18 +21,19 @@ class AuthHandler:
   def verify_password(self, plain_password, hashed_password):
     return self.pwd_content.verify(plain_password, hashed_password)
 
-  def encode_token(self, user_id):
+  def encode_token(self, user_id, roles):
     payLoad = {
       "exp": datetime.utcnow() + timedelta(days=0, minutes= int(os.environ['API_TIMEOUT_MIN'])),
       "iat": datetime.utcnow(),
       "sub": user_id,
+      "roles": roles
     }
     return jwt.encode(payLoad, self.secret, algorithm="HS256")
 
   def decode_token(self, token):
     try:
       payLoad = jwt.decode(token, self.secret, algorithms=["HS256"])
-      return payLoad["sub"]
+      return TokenPayload(payLoad["sub"], payLoad["roles"])
     except jwt.ExpiredSignatureError:
       raise HTTPException(status_code=401, detail="Signature has expired")
     except jwt.InvalidTokenError:

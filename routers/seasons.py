@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
 from fastapi.responses import Response, JSONResponse
 from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from fastapi.encoders import jsonable_encoder
 
 router = APIRouter()
@@ -59,8 +59,10 @@ async def create_season(
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to add a season to"),
     season: SeasonBase = Body(..., description="Season data"),
-    user_id: str = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> SeasonDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   print("add season")
   # Check if the tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
@@ -123,9 +125,10 @@ async def update_season(
     tournament_alias: str = Path(
       ..., description="The ALIAS of the tournament to update the season in"),
     season: SeasonUpdate = Body(..., description="Season data to update"),
-    user_id: str = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> SeasonDB:
-
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   print("input season: ", season)
   # exclude unset
   season = season.dict(exclude_unset=True)
@@ -219,8 +222,10 @@ async def delete_season(
       description="The alias of the tournament to delete the season from"),
     season_alias: str = Path(...,
                              description="The alias of the season to delete"),
-    user_id: str = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> None:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   delete_result = await request.app.mongodb['tournaments'].update_one(
     {"alias": tournament_alias},
     {"$pull": {

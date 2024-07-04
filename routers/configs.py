@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Request, status, HTTPException, Path
 from fastapi.responses import JSONResponse
 from models.configs import Config, ConfigValue
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from typing import List
 
 router = APIRouter()

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday
 import os
 from bson import ObjectId
@@ -86,8 +86,10 @@ async def get_match(request: Request, match_id: str) -> MatchDB:
 async def create_match(
     request: Request,
     match: MatchBase = Body(...),
-    user_id=Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> MatchDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   try:
     # get standingsSettings and set points per team
     if all(
@@ -133,8 +135,10 @@ async def update_match(
   request: Request,
   match_id: str,
   match: MatchUpdate = Body(...),
-  user_id=Depends(auth.auth_wrapper)
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> MatchDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
 
   # Helper function to add _id to new nested documents
   def add_id_to_scores(scores):
@@ -157,9 +161,10 @@ async def update_match(
   r_alias = match.round.alias if getattr(
     match.round, 'alias', None) and getattr(
       match.round, 'alias', None) else existing_match['round']['alias']
-  md_alias = match.matchday.alias if getattr(match, 'matchday', None) and getattr(
-    match.matchday, 'alias', None) else existing_match['matchday']['alias']
- 
+  md_alias = match.matchday.alias if getattr(
+    match, 'matchday', None) and getattr(
+      match.matchday, 'alias', None) else existing_match['matchday']['alias']
+
   match_status = getattr(
     match.matchStatus, 'key',
     existing_match.get('matchStatus', None).get('key', None))
@@ -237,7 +242,8 @@ async def update_match(
   # calc standings and set it in round
   await calc_standings_per_round(request.app.mongodb, t_alias, s_alias,
                                  r_alias)
-  await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias, r_alias, md_alias)
+  await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
+                                    r_alias, md_alias)
 
   updated_match = await get_match_object(request.app.mongodb, match_id)
   return JSONResponse(status_code=status.HTTP_200_OK,
@@ -247,32 +253,36 @@ async def update_match(
 # delete match
 @router.delete("/{match_id}", response_description="Delete match")
 async def delete_match(
-  request: Request, match_id: str,
-  user_id: str = Depends(auth.auth_wrapper)) -> None:
+  request: Request,
+  match_id: str,
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> None:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   # check and get match
-  match = await request.app.mongodb["matches"].find_one(
-    {"_id": match_id})
+  match = await request.app.mongodb["matches"].find_one({"_id": match_id})
   if match is None:
     raise HTTPException(status_code=404,
-      detail=f"Match with ID {match_id} not found.")
+                        detail=f"Match with ID {match_id} not found.")
 
   try:
     t_alias = match.get('tournament', {}).get('alias', None)
     s_alias = match.get('season', {}).get('alias', None)
     r_alias = match.get('round', {}).get('alias', None)
     md_alias = match.get('matchday', {}).get('alias', None)
-    
+
     # delete in matches
     result = await request.app.mongodb["matches"].delete_one({"_id": match_id})
     if result.deleted_count == 0:
       raise HTTPException(status_code=404,
                           detail=f"Match with id {match_id} not found")
-    
-    await calc_standings_per_round(request.app.mongodb, t_alias, s_alias, r_alias)
-    await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias, r_alias, md_alias)
-      
+
+    await calc_standings_per_round(request.app.mongodb, t_alias, s_alias,
+                                   r_alias)
+    await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
+                                      r_alias, md_alias)
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
-  

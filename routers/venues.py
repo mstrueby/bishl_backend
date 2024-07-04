@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.venues import VenueBase, VenueDB, VenueUpdate
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
 
 router = APIRouter()
@@ -43,8 +43,10 @@ async def get_venue(alias: str, request: Request) -> VenueDB:
 async def create_venue(
     request: Request,
     venue: VenueBase = Body(...),
-    userId=Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> VenueDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   venue = jsonable_encoder(venue)
 
   # DB processing
@@ -70,11 +72,13 @@ async def update_venue(
     request: Request,
     id: str,
     venue: VenueUpdate = Body(...),
-    userId=Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> VenueDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   venue = venue.dict(exclude_unset=True)
   venue.pop("id", None)
-  
+
   print("venue: ", venue)
   existing_venue = await request.app.mongodb['venues'].find_one({"_id": id})
   if existing_venue is None:
@@ -113,8 +117,10 @@ async def update_venue(
 async def delete_venue(
     request: Request,
     alias: str,
-    userId=Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> None:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   result = await request.app.mongodb['venues'].delete_one({"alias": alias})
   if result.deleted_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)

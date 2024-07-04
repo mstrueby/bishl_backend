@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
 from fastapi.responses import JSONResponse, Response
 from models.tournaments import RoundBase, RoundDB, RoundUpdate
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from utils import my_jsonable_encoder, parse_datetime
@@ -11,13 +11,14 @@ from utils import my_jsonable_encoder, parse_datetime
 router = APIRouter()
 auth = AuthHandler()
 
+
 # get all rounds of a season
 @router.get('/', response_description="List all rounds for a season")
 async def get_rounds_for_season(
-    request: Request,
-    tournament_alias: str = Path(
-      ..., description="The alias of the tournament to list the rounds for"),
-    season_alias: str = Path(..., description="The alias of the season to get"),
+  request: Request,
+  tournament_alias: str = Path(
+    ..., description="The alias of the tournament to list the rounds for"),
+  season_alias: str = Path(..., description="The alias of the season to get"),
 ) -> List[RoundDB]:
   exclusion_projection = {"seasons.rounds.matchdays.matches": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
@@ -39,12 +40,11 @@ async def get_rounds_for_season(
 # get one round of a season
 @router.get('/{round_alias}', response_description="Get one round of a season")
 async def get_round(
-    request: Request,
-    tournament_alias: str = Path(
-      ...,
-      description="The alias of the tournament to list the matchdays for"),
-    season_alias: str = Path(..., description="The alias of the season to get"),
-    round_alias: str = Path(..., description="The alias of the round to get"),
+  request: Request,
+  tournament_alias: str = Path(
+    ..., description="The alias of the tournament to list the matchdays for"),
+  season_alias: str = Path(..., description="The alias of the season to get"),
+  round_alias: str = Path(..., description="The alias of the round to get"),
 ) -> RoundDB:
   exclusion_projection = {"seasons.rounds.matchdays.matches": 0}
   if (tournament := await request.app.mongodb['tournaments'].find_one(
@@ -69,10 +69,13 @@ async def add_round(
     request: Request,
     tournament_alias: str = Path(
       ..., description="The alias of the tournament to add the round to"),
-    season_alias: str = Path(..., description="The alias of the season to add"),
+    season_alias: str = Path(...,
+                             description="The alias of the season to add"),
     round: RoundBase = Body(..., description="The data of the round to add"),
-    user_id: str = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> RoundDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   #print("add round, data: ", round)
   # Check if the tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
@@ -118,7 +121,8 @@ async def add_round(
         })
       # update_tournament has only one season of tournament
       if updated_tournament and 'seasons' in updated_tournament:
-        season_data = updated_tournament['seasons'][0]  # we have only one season
+        season_data = updated_tournament['seasons'][
+          0]  # we have only one season
         # loop through rounds
         new_round = next((r for r in season_data.get('rounds', [])
                           if r['alias'] == round.alias), None)
@@ -156,8 +160,10 @@ async def update_round(
       ..., description="The alias of the season to update the round in"),
     round: RoundUpdate = Body(...,
                               description="The data of the round to update"),
-    user_id: str = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> RoundDB:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   round = round.dict(exclude_unset=True)
   print("round: ", round)
   # Check if the tournament exists
@@ -168,10 +174,8 @@ async def update_round(
       status_code=404,
       detail=f"Tournament with alias {tournament_alias} not found")
   # Check if the season exists
-  season_index = next(
-    (i
-     for i, s in enumerate(tournament["seasons"]) if s["alias"] == season_alias),
-    None)
+  season_index = next((i for i, s in enumerate(tournament["seasons"])
+                       if s["alias"] == season_alias), None)
   if season_index is None:
     raise HTTPException(
       status_code=404,
@@ -268,9 +272,12 @@ async def delete_round(
       ..., description="The alias of the tournament to delete the round from"),
     season_alias: str = Path(
       ..., description="The alias of the season to delete the round from"),
-    round_alias: str = Path(..., description="The alias of the round to delete"),
-    user_id: str = Depends(auth.auth_wrapper),
+    round_alias: str = Path(...,
+                            description="The alias of the round to delete"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> None:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   delete_result = await request.app.mongodb['tournaments'].update_one(
     {
       "alias": tournament_alias,

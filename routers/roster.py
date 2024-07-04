@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Pa
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from models.matches import RosterPlayer
-from authentication import AuthHandler
+from authentication import AuthHandler, TokenPayload
 
 router = APIRouter()
 auth = AuthHandler()
@@ -29,9 +29,11 @@ async def get_roster(
   roster = match.get(team_flag, {}).get("roster", [])
 
   if not isinstance(roster, list):
-    raise HTTPException(status_code=500, detail="Unexpected data structure in roster")
+    raise HTTPException(status_code=500,
+                        detail="Unexpected data structure in roster")
   roster_players = [RosterPlayer(**player) for player in roster]
-  return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(roster_players))
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(roster_players))
 
 
 # update roster of a team
@@ -43,8 +45,10 @@ async def update_roster(
                         description="The team flag (home/away) of the roster"),
   roster: List[RosterPlayer] = Body(...,
                                     description="The roster to be updated"),
-  user_id=Depends(auth.auth_wrapper)
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> List[RosterPlayer]:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
   print("roster: ", roster)
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -59,8 +63,7 @@ async def update_roster(
     roster_data = jsonable_encoder(roster)
     print("roster data: ", roster_data)
     result = await request.app.mongodb["matches"].update_one(
-      {"_id": match_id},
-      {"$set": {
+      {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})
   except Exception as e:
