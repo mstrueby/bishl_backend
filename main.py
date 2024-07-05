@@ -17,6 +17,7 @@ from routers.matches import router as matches_router
 from routers.roster import router as roster_router
 from routers.scores import router as scores_router
 from routers.penalties import router as penalties_router
+from routers.messages import router as messages_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
@@ -67,6 +68,7 @@ app.include_router(roster_router, prefix="/matches/{match_id}/{team_flag}/roster
 app.include_router(scores_router, prefix="/matches/{match_id}/{team_flag}/scores", tags=["scores"])
 app.include_router(penalties_router, prefix="/matches/{match_id}/{team_flag}/penalties", tags=["penalties"])
 app.include_router(users_router, prefix="/users", tags=["users"])
+app.include_router(messages_router, prefix="/messages", tags=["messages"])
 
 #if __name__ == "__main__":
 #    uvicorn.run("main:app", reload=True)
