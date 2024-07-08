@@ -18,7 +18,7 @@ class PyObjectId(ObjectId):
 
   @classmethod
   def __modify_schema__(cls, field_schema):
-    field.schema.update(type="string")
+    field_schema.update(type="string")
 
 class MongoBaseModel(BaseModel):
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
@@ -32,6 +32,7 @@ class MessageBase(MongoBaseModel):
   receiver_id: str = Field(...)
   content: str = Field(...)
   timestamp: datetime = Field(default_factory=datetime.utcnow)
+  read: bool = False
 
 class MessageDB(MessageBase):
   pass
@@ -40,7 +41,7 @@ class MessageUpdate(MongoBaseModel):
   sender_id: Optional[str] = "DEFAULT"
   receiver_id: Optional[str] = "DEFAULT"
   content: Optional[str] = "DEFAULT"
-  read: Optional[bool] = False
+  read: Optional[bool] = True
 
   @validator('sender_id', 'receiver_id', pre=True, always=True)
   def validate_null_strings(cls, v, field):
