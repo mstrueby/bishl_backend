@@ -38,7 +38,12 @@ async def get_messages(
 ):
   user_id = token_payload.sub
   messages = await request.app.mongodb['messages'].find({"receiver_id": user_id}).sort("timestamp", -1).to_list(length=100)
+  #update message and set read to true
+  for message in messages:
+    if not message.get("read", False):  # Default to False if 'read' field is missing
+      await request.app.mongodb['messages'].update_one({"_id": message["_id"]}, {"$set": {"read": True}})
   return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(messages))
+  
 
 # Delete a message
 @router.delete('/{message_id}', response_description="Delete a message")
@@ -77,10 +82,14 @@ async def get_chat_with_user(
       {"sender_id": other_user_id, "receiver_id": user_id}
     ]
   }).sort("timestamp", -1).to_list(length=100)
+  #update message and set read to true
+  for message in messages:
+    if message.get("receiver_id") == user_id and not message.get("read", False):  # Default to False if 'read' field is missing
+      await request.app.mongodb['messages'].update_one({"_id": message["_id"]}, {"$set": {"read": True}})
   return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(messages))
 
 # Retrieve all users that the logged-in user has chatted with
-@router.get('/chats', response_description="Get users chatted with", response_model=List[str])
+@router.get('/chats', response_description="Get users chatted with", response_model=List[dict])
 async def get_chatted_users(
   request: Request,
   token_payload: TokenPayload = Depends(auth.auth_wrapper),
@@ -88,9 +97,17 @@ async def get_chatted_users(
   user_id = token_payload.sub
   sent_messages = await request.app.mongodb['messages'].distinct("receiver_id", {"sender_id": user_id})
   received_messages = await request.app.mongodb['messages'].distinct("sender_id", {"receiver_id": user_id})
-  chatted_users = list(set(sent_messages + received_messages))
+  chatted_users_ids = list(set(sent_messages + received_messages))
+  chatted_users = []
+  for user in chatted_users_ids:
+    unread_count = await request.app.mongodb['messages'].count_documents({
+      "receiver_id": user_id,
+      "read": False
+    })
+    chatted_users.append({"user_id": user, "unread_count": unread_count})
   return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(chatted_users))
 
+"""
 # Delete chat with a specific user
 @router.delete('/chats/{other_user_id}', response_description="Delete chat with a specific user")
 async def delete_chat_with_user(
@@ -111,3 +128,4 @@ async def delete_chat_with_user(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   raise HTTPException(status_code=404, detail="No messages found for this chat")
+  """
