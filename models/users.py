@@ -2,7 +2,6 @@ from enum import Enum
 from typing import Optional, List
 from pydantic import EmailStr, Field, BaseModel, validator
 from email_validator import validate_email, EmailNotValidError
-from datetime import date
 from bson import ObjectId
 
 
@@ -35,6 +34,11 @@ class Role(str, Enum):
   publisher = "PUBLISHER"
   referee = "REFEREE"
   doc_admin = "DOC_ADMIN"
+
+
+class Club(BaseModel):
+  club_id: str = Field(...)
+  club_name: str = Field(...)
   
 
 class UserBase(MongoBaseModel):
@@ -42,6 +46,7 @@ class UserBase(MongoBaseModel):
   password: str = Field(...)
   firstname: str = Field(...)
   lastname: str = Field(...)
+  club: Club = None
   roles: List[Role] = None
 
   @validator('email')
@@ -57,6 +62,7 @@ class UserUpdate(MongoBaseModel):
   password: Optional[str] = None
   firstname: Optional[str] = None
   lastname: Optional[str] = None
+  club: Optional[Club] = None
   roles: Optional[List[Role]] = None
 
   @validator('email')
@@ -76,3 +82,4 @@ class CurrentUser(MongoBaseModel):
   firstname: str = Field(...)
   lastname: str = Field(...)
   roles: List[Role] = Field(...)
+  club: Club = None
