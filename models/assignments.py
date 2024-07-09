@@ -37,16 +37,18 @@ class Status(str, Enum):
 
 
 class Referee(BaseModel):
+  position: Optional[int] = Field(None, description='Possible values are 1 and 2', ge=1, le=2)
   user_id: str = Field(...)
   firstname: str = Field(...)
   lastname: str = Field(...)
   club_id: str = None
   club_name: str = None
-
+ 
 
 class AssignmentBase(MongoBaseModel):
   status: Status = Field(...)
   user_id: str = Field(...)
+  position: Optional[int] = Field(None, description='Possible values are 1 and 2', ge=1, le=2)
 
 
 class AssignmentDB(MongoBaseModel):
