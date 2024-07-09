@@ -1,9 +1,9 @@
 from bson import ObjectId
-from datetime import datetime, date, time
+from datetime import datetime
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List, Dict
-from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings, validate_match_seconds
-import re
+from utils import prevent_empty_str, validate_dict_of_strings, validate_match_seconds
+from models.assignments import Referee
 #from models.clubs import TeamBase
 
 
@@ -215,6 +215,8 @@ class MatchBase(MongoBaseModel):
   matchday: MatchMatchday = None
   home: MatchTeam = None
   away: MatchTeam = None
+  referee1: Referee = None
+  referee2: Referee = None
   matchStatus: KeyValue = Field(default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
   finishType: KeyValue = Field(default_factory=lambda: KeyValue(key='REGULAR', value='Regulär'))
   venue: str = None
@@ -238,6 +240,8 @@ class MatchUpdate(MongoBaseModel):
   matchday: Optional[MatchMatchday] = None
   home: Optional[MatchTeamUpdate] = None
   away: Optional[MatchTeamUpdate] = None
+  referee1: Optional[Referee] = None
+  referee2: Optional[Referee] = None
   matchStatus: Optional[KeyValue] = {}
   finishType: Optional[KeyValue] = {}
   venue: Optional[str] = None
