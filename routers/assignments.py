@@ -11,6 +11,29 @@ auth = AuthHandler()
 BASE_URL = os.environ['BE_API_URL']
 
 
+@router.get("/",
+            response_description="List all assignments of a specific match")
+async def get_assignments_by_match(
+  request: Request,
+  match_id: str = Path(..., description="Match ID"),
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)):
+  if not any(role in ['ADMIN', 'REF_ADMIN']
+             for role in token_payload.roles):
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized")
+
+  match = await request.app.mongodb["matches"].find_one({"_id": match_id})
+  if not match:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Match with id {match_id} not found")
+
+  assignments = await request.app.mongodb["assignments"].find({
+    "match_id": match_id
+  }).sort("referee.firstname").to_list(length=None)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(assignments))
+
+
 @router.post("/",
              response_model=AssignmentDB,
              response_description="create an initial assignment")
@@ -96,11 +119,12 @@ async def create_assignment(
       raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                           detail="Assignment not created")
 
-  elif any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles) and assignment_data.status == Status.assigned:
+  elif any(role in ['ADMIN', 'REF_ADMIN'] for role in
+           token_payload.roles) and assignment_data.status == Status.assigned:
     # user_id != assignment_data.user_id
     # REF_ADMIN mode
     print("REF_ADMN mode")
-    
+
     # Check if position is set in the assignment data
     if not assignment_data.position:
       raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
