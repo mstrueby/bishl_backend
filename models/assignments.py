@@ -37,18 +37,25 @@ class Status(str, Enum):
 
 
 class Referee(BaseModel):
-  position: Optional[int] = Field(None, description='Possible values are 1 and 2', ge=1, le=2)
+  position: Optional[int] = Field(None,
+                                  description='Possible values are 1 and 2',
+                                  ge=1,
+                                  le=2)
   user_id: str = Field(...)
   firstname: str = Field(...)
   lastname: str = Field(...)
   club_id: str = None
   club_name: str = None
- 
+
 
 class AssignmentBase(MongoBaseModel):
   status: Status = Field(...)
   user_id: str = Field(...)
-  position: Optional[int] = Field(None, description='Possible values are 1 and 2', ge=1, le=2)
+  position: Optional[int] = Field(None,
+                                  description='Possible values are 1 and 2',
+                                  ge=1,
+                                  le=2)
+  ref_admin: bool = False
 
 
 class AssignmentDB(MongoBaseModel):
@@ -58,12 +65,16 @@ class AssignmentDB(MongoBaseModel):
 
 
 class AssignmentUpdate(MongoBaseModel):
-  match_id: Optional[str] = "DEFAULT"
-  user_id: Optional[str] = "DEFAULT"
-  referee: Optional[Referee] = {}
+  #match_id: Optional[str] = "DEFAULT"
+  #user_id: Optional[str] = "DEFAULT"
+  #referee: Optional[Referee] = {}
   status: Optional[Status] = "DEFAULT"
+  position: Optional[int] = Field(None,
+                                  description='Possible values are 1 and 2',
+                                  ge=1,
+                                  le=2)
+  ref_admin: Optional[bool] = False
 
-  @validator('match_id', 'user_id', 'status', pre=True, always=True)
+  @validator('status', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
-

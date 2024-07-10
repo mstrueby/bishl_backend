@@ -17,8 +17,7 @@ async def get_assignments_by_match(
   request: Request,
   match_id: str = Path(..., description="Match ID"),
   token_payload: TokenPayload = Depends(auth.auth_wrapper)):
-  if not any(role in ['ADMIN', 'REF_ADMIN']
-             for role in token_payload.roles):
+  if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="Not authorized")
 
@@ -29,7 +28,7 @@ async def get_assignments_by_match(
 
   assignments = await request.app.mongodb["assignments"].find({
     "match_id": match_id
-  }).sort("referee.firstname").to_list(length=None)
+  }).sort([("referee.position", 1), ("referee.firstname", 1)]).to_list(length=None)
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(assignments))
 
@@ -60,6 +59,7 @@ async def create_assignment(
 
   user_id = token_payload.sub
   ref_id = assignment_data.user_id
+  ref_admin = assignment_data.ref_admin
 
   # preliminary checks
 
@@ -158,3 +158,114 @@ async def create_assignment(
   else:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Invalid assignment status")
+
+
+@router.patch("/{assignment_id}", response_model=AssignmentDB)
+async def update_assignment(
+  request: Request,
+  match_id: str = Path(..., description="Match ID"),
+  assignment_id: str = Path(..., description="Assignment ID"),
+  assignment_data: AssignmentUpdate = Body(...),
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> AssignmentDB:
+  if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
+             for role in token_payload.roles):
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized")
+
+  user_id = token_payload.sub
+  ref_admin = assignment_data.ref_admin
+  # check if match exists
+  match = await request.app.mongodb["matches"].find_one({"_id": match_id})
+  if not match:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Match with id {match_id} not found")
+
+  if ref_admin and 'REF_ADMIN' not in token_payload.roles:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized to be ref_admin")
+
+  # get assignment from db
+  assignment = await request.app.mongodb["assignments"].find_one(
+    {"_id": assignment_id})
+  if not assignment:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Assignment with id {assignment_id} not found")
+
+  # check if match equals match_id of assignement
+  if assignment["match_id"] != match_id:
+    raise HTTPException(
+      status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+      detail=f"Assignment does not belong to match with id {match_id}")
+
+  ref_id = assignment["referee"]["user_id"]
+  
+  #if user_id == ref_id and 'REFEREE' in token_payload.roles:
+  if ref_admin:
+    # REF_ADMIN mode
+    print("REF_ADMIN mode")
+    update_data = assignment_data.dict(exclude_unset=True)
+    # exclude unchanged data
+    for key, value in assignment.items():
+      if key in update_data and value == update_data[key]:
+        update_data.pop(key)
+    print("update_data", update_data)
+    if not update_data:
+      print("no update")
+    elif update_data.get("status") and (
+        assignment['status'] == Status.requested
+        and update_data["status"] == Status.assigned) or (
+          assignment['status'] == Status.assigned
+          and update_data["status"] == Status.unavailable) or (
+            assignment['status'] == Status.accepted
+            and update_data["status"] == Status.unavailable):
+      print("do update")
+    else:
+      raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=
+        f"Invalid assignment status: {assignment['status']} --> {update_data['status']}"
+      )
+  else:
+    # REFEREE mode
+    print("REFEREE mode")
+    
+    if assignment['referee']['user_id'] != user_id:
+      raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                          detail="Not authorized to update assignment")
+    update_data = assignment_data.dict(exclude_unset=True)
+    # exclude unchanged data
+    for key, value in assignment.items():
+      if key in update_data and value == update_data[key]:
+        update_data.pop(key)
+    print("update_data", update_data)
+    if not update_data:
+      print("no update")
+    elif update_data.get("status") and (
+        assignment['status'] == Status.unavailable
+        and update_data["status"] == Status.requested) or (
+          assignment['status'] == Status.requested
+          and update_data["status"] == Status.unavailable) or (
+            assignment['status'] == Status.assigned
+            and update_data["status"] == Status.accepted):
+      print("do update")
+    else:
+      raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=
+        f"Invalid assignment status: {assignment['status']} --> {update_data['status']}"
+      )
+
+  """
+  result = await request.app.mongodb["assignments"].update_one(
+    {"_id": assignment_id}, {"$set": update_data})
+
+  if result.modified_count == 1:
+    updated_assignment = await request.app.mongodb["assignments"].find_one(
+      {"_id": assignment_id})
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(
+                          AssignmentDB(**updated_assignment)))
+"""
+  raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                      detail="Assignment not updated")
