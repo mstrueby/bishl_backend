@@ -11,6 +11,31 @@ auth = AuthHandler()
 BASE_URL = os.environ['BE_API_URL']
 
 
+async def insert_assignment(db, match_id, referee, status, position=None):
+  assignment = AssignmentDB(match_id=match_id,
+                            referee=referee,
+                            status=status,
+                            position=position)
+  insert_response = await db["assignments"].insert_one(
+    jsonable_encoder(assignment))
+  return await db["assignments"].find_one({"_id": insert_response.inserted_id})
+
+
+async def set_referee_in_match(db, match_id, referee, position):
+  await db['matches'].update_one({'_id': match_id}, {
+    '$set': {
+      f'referee{position}': {
+        'user_id': referee['user_id'],
+        'firstname': referee['firstname'],
+        'lastname': referee['lastname'],
+        'club_id': referee['club_id'],
+        'club_name': referee['club_name']
+      }
+    }
+  })
+
+
+# GET =====================================================================
 @router.get("/",
             response_description="List all assignments of a specific match")
 async def get_assignments_by_match(
@@ -35,6 +60,7 @@ async def get_assignments_by_match(
                       content=jsonable_encoder(assignments))
 
 
+# POST =====================================================================
 @router.post("/",
              response_model=AssignmentDB,
              response_description="create an initial assignment")
@@ -44,16 +70,6 @@ async def create_assignment(
   assignment_data: AssignmentBase = Body(...),
   token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> AssignmentDB:
-
-  async def insert_assignment(match_id, referee, status, position=None):
-    assignment = AssignmentDB(match_id=match_id,
-                              referee=referee,
-                              status=status,
-                              position=position)
-    insert_response = await request.app.mongodb["assignments"].insert_one(
-      jsonable_encoder(assignment))
-    return await request.app.mongodb["assignments"].find_one(
-      {"_id": insert_response.inserted_id})
 
   if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
              for role in token_payload.roles):
@@ -70,6 +86,7 @@ async def create_assignment(
                         detail=f"Match with id {match_id} not found")
 
   if ref_admin:
+    # REF_ADMIN mode ------------------------------------------------------------
     print("REF_ADMN mode")
     # check if assignment_data.user_id exists
     ref_id = assignment_data.user_id
@@ -124,8 +141,11 @@ async def create_assignment(
     referee["club_id"] = club_id
     referee["club_name"] = club_name
 
-    new_assignment = await insert_assignment(match_id, referee,
-                                             assignment_data.status, assignment_data.position)
+    new_assignment = await insert_assignment(request.app.mongodb, match_id,
+                                             referee, assignment_data.status,
+                                             assignment_data.position)
+    await set_referee_in_match(request.app.mongodb, match_id, referee,
+                               assignment_data.position)
     if new_assignment:
       return JSONResponse(status_code=status.HTTP_201_CREATED,
                           content=jsonable_encoder(
@@ -135,7 +155,7 @@ async def create_assignment(
                           detail="Assignment not created")
 
   else:
-    # REFEREE mode
+    # REFEREE mode -------------------------------------------------------------
     print("REFEREE mode")
     if 'REFEREE' not in token_payload.roles:
       raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -165,8 +185,9 @@ async def create_assignment(
     referee["club_id"] = token_payload.club_id
     referee["club_name"] = token_payload.club_name
 
-    new_assignment = await insert_assignment(match_id, referee,
-                                             assignment_data.status)
+    new_assignment = await insert_assignment(request.app.mongodb, match_id,
+                                             referee, assignment_data.status)
+
     if new_assignment:
       return JSONResponse(status_code=status.HTTP_201_CREATED,
                           content=jsonable_encoder(
@@ -179,6 +200,7 @@ async def create_assignment(
                       detail="The end")
 
 
+# PATCH =====================================================================
 @router.patch("/{assignment_id}", response_model=AssignmentDB)
 async def update_assignment(
   request: Request,
@@ -221,9 +243,8 @@ async def update_assignment(
       f"Assignment {assignment_id} does not belong to match with id {match_id}"
     )
 
-  #if user_id == ref_id and 'REFEREE' in token_payload.roles:
   if ref_admin:
-    # REF_ADMIN mode
+    # REF_ADMIN mode ------------------------------------------------------------
     print("REF_ADMIN mode")
     ref_id = assignment["referee"]["user_id"]
     update_data = assignment_data.dict(exclude_unset=True)
@@ -254,10 +275,26 @@ async def update_assignment(
         del update_data['ref_admin']
       if update_data['status'] not in [Status.assigned, Status.accepted]:
         result = await request.app.mongodb["assignments"].update_one(
-          {"_id": assignment_id}, {"$set": update_data, "$unset": {"position": ""}})
+          {"_id": assignment_id}, {
+            "$set": update_data,
+            "$unset": {
+              "position": ""
+            }
+          })
+        # Update match and remove referee
+        await request.app.mongodb['matches'].update_one(
+          {'_id': match_id},
+          {'$set': {
+            f'referee{assignment["position"]}': {}
+          }})
       else:
         result = await request.app.mongodb["assignments"].update_one(
           {"_id": assignment_id}, {"$set": update_data})
+        if update_data['status'] in [Status.assigned, Status.accepted]:
+
+          await set_referee_in_match(request.app.mongodb, match_id,
+                                     assignment['referee'],
+                                     assignment_data.position)
       print("update_data before update", update_data)
       if result.modified_count == 1:
         updated_assignment = await request.app.mongodb["assignments"].find_one(
@@ -273,7 +310,7 @@ async def update_assignment(
         f"Invalid assignment status: {assignment['status']} --> {update_data['status']}"
       )
   else:
-    # REFEREE mode
+    # REFEREE mode -------------------------------------------------------------
     print("REFEREE mode")
 
     if assignment['referee']['user_id'] != user_id:
@@ -312,8 +349,6 @@ async def update_assignment(
         detail=
         f"Invalid assignment status: {assignment['status']} --> {update_data['status']}"
       )
-
-  # do updating ...
 
   raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                       detail="Can not update assignment")
