@@ -37,10 +37,6 @@ class Status(str, Enum):
 
 
 class Referee(BaseModel):
-  position: Optional[int] = Field(None,
-                                  description='Possible values are 1 and 2',
-                                  ge=1,
-                                  le=2)
   user_id: str = Field(...)
   firstname: str = Field(...)
   lastname: str = Field(...)
@@ -50,30 +46,31 @@ class Referee(BaseModel):
 
 class AssignmentBase(MongoBaseModel):
   status: Status = Field(...)
-  user_id: str = Field(...)
+  user_id: str = None
+  ref_admin: bool = False
   position: Optional[int] = Field(None,
                                   description='Possible values are 1 and 2',
                                   ge=1,
                                   le=2)
-  ref_admin: bool = False
 
 
 class AssignmentDB(MongoBaseModel):
   match_id: str = Field(...)
   status: Status = Field(...)
   referee: Referee = Field(...)
-
-
-class AssignmentUpdate(MongoBaseModel):
-  #match_id: Optional[str] = "DEFAULT"
-  #user_id: Optional[str] = "DEFAULT"
-  #referee: Optional[Referee] = {}
-  status: Optional[Status] = "DEFAULT"
   position: Optional[int] = Field(None,
                                   description='Possible values are 1 and 2',
                                   ge=1,
                                   le=2)
+
+
+class AssignmentUpdate(MongoBaseModel):
+  status: Optional[Status] = "DEFAULT"
   ref_admin: Optional[bool] = False
+  position: Optional[int] = Field(None,
+                                  description='Possible values are 1 and 2',
+                                  ge=1,
+                                  le=2)
 
   @validator('status', pre=True, always=True)
   def validate_null_strings(cls, v, field):
