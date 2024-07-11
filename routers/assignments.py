@@ -51,13 +51,55 @@ async def get_assignments_by_match(
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail=f"Match with id {match_id} not found")
 
+  # Get all users with role REFEREE
+  referees = await request.app.mongodb["users"].find({
+    "roles": "REFEREE"
+  }, {
+    "password": 0
+  }).to_list(length=None)
+
+  # Get all assignments for the match
   assignments = await request.app.mongodb["assignments"].find({
     "match_id":
     match_id
-  }).sort([("referee.firstname", 1),
-           ("referee.lastname", 1)]).to_list(length=None)
+  }).to_list(length=None)
+  assignment_dict = {
+    assignment["referee"]["user_id"]: assignment
+    for assignment in assignments
+  }
+
+  # Prepare the status of each referee
+  assignment_list = []
+  for referee in referees:
+    assignment_obj = {}
+    ref_id = referee["_id"]
+    ref_status = assignment_dict.get(ref_id, {"status": "AVAILABLE"})
+    if referee.get("club", None):
+      club_id = referee["club"]["club_id"]
+      club_name = referee["club"]["club_name"]
+    else:
+      club_id = None
+      club_name = None
+    ref_obj = {
+      "user_id": ref_id,
+      "firstname": referee["firstname"],
+      "lastname": referee["lastname"],
+      "club_id": club_id,
+      "club_name": club_name
+    }
+    assignment_obj["_id"] = ref_status.get("_id", None)
+    assignment_obj["match_id"] = match_id
+    assignment_obj["status"] = ref_status[
+      "status"] if ref_status != "AVAILABLE" else "AVAILABLE"
+    assignment_obj["referee"] = ref_obj
+    assignment_obj["position"] = ref_status.get("position", None)
+    assignment_list.append(assignment_obj)
+
+  assignment_list.sort(
+    key=lambda x: (x['referee']['firstname'], x['referee']['lastname']))
+
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(assignments))
+                      content=jsonable_encoder(assignment_list))
 
 
 # POST =====================================================================
