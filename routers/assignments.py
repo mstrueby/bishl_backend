@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse, Response
 from authentication import AuthHandler, TokenPayload
 import os
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status
+from models.messages import MessageBase
+from datetime import datetime
 
 router = APIRouter()
 auth = AuthHandler()
@@ -33,6 +35,23 @@ async def set_referee_in_match(db, match_id, referee, position):
       }
     }
   })
+
+
+async def send_message_to_referee(db, receiver_id, match, content=None):
+  match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{match['startDate'].strftime('%d.%m.%Y %H:%M')} Uhr\n{match['venue']}"
+  if content is None:
+    content = f"something happened to you for match:\n\n{match_text}"
+  else:
+    content = f"{content}\n\n{match_text}"
+  print("content: ", content)
+  message = MessageBase(sender_id="SYS_REF_TOOL",
+                        receiver_id=receiver_id,
+                        content=content)
+  message_data = jsonable_encoder(message)
+  message_data["timestamp"] = datetime.utcnow()
+  if not await db["messages"].insert_one(message_data):
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Error sending message to referee")
 
 
 # GET =====================================================================
@@ -188,6 +207,15 @@ async def create_assignment(
                                              assignment_data.position)
     await set_referee_in_match(request.app.mongodb, match_id, referee,
                                assignment_data.position)
+
+    await send_message_to_referee(
+      db=request.app.mongodb,
+      match=match,
+      receiver_id=referee["user_id"],
+      content=
+      f"Hallo {referee['firstname']}, du wurdest von {token_payload.firstname} für folgendes Spiel eingeteilt:"
+    )
+
     if new_assignment:
       return JSONResponse(status_code=status.HTTP_201_CREATED,
                           content=jsonable_encoder(
@@ -316,6 +344,7 @@ async def update_assignment(
       if 'ref_admin' in update_data:
         del update_data['ref_admin']
       if update_data['status'] not in [Status.assigned, Status.accepted]:
+        # Ref wurde aus Ansetzung entfernt
         result = await request.app.mongodb["assignments"].update_one(
           {"_id": assignment_id}, {
             "$set": update_data,
@@ -329,6 +358,13 @@ async def update_assignment(
           {'$set': {
             f'referee{assignment["position"]}': {}
           }})
+        await send_message_to_referee(
+          db=request.app.mongodb,
+          match=match,
+          receiver_id=ref_id,
+          content=
+          f"Hallo {assignment['referee']['firstname']}, deine Einteilung wurde von {token_payload.firstname} für folgendes Spiel ENTFERNT:"
+        )
       else:
         result = await request.app.mongodb["assignments"].update_one(
           {"_id": assignment_id}, {"$set": update_data})
@@ -337,6 +373,14 @@ async def update_assignment(
           await set_referee_in_match(request.app.mongodb, match_id,
                                      assignment['referee'],
                                      assignment_data.position)
+
+          await send_message_to_referee(
+            db=request.app.mongodb,
+            match=match,
+            receiver_id=ref_id,
+            content=
+            f"Hallo {assignment['referee']['firstname']}, du wurdest von {token_payload.firstname} für folgendes Spiel eingeteilt:"
+          )
       print("update_data before update", update_data)
       if result.modified_count == 1:
         updated_assignment = await request.app.mongodb["assignments"].find_one(
