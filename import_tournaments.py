@@ -252,6 +252,14 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
             row['published'] = row['published'].lower() == 'true'
         if isinstance(row.get('matchId'), str):
             row['matchId'] = int(row['matchId'])
+        if row['referee1'].strip():
+            row['referee1'] = json.loads(row['referee1'])
+        else:
+            del row['referee1']
+        if row['referee2'].strip():
+            row['referee2'] = json.loads(row['referee2'])
+        else:
+            del row['referee2']
 
         t_alias = row['tournament']['alias']
         s_alias = row['season']['alias']

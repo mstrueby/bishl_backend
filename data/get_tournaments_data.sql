@@ -137,7 +137,8 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
         'overtime', case when cs.IsOvertime = 1 then 'True' else 'False' end,
         'numOfPeriodsOvertime', cs.NumOfPeriodsOT,
         'periodLengthMinOvertime', cs.PeriodLengthOT,
-        'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end
+        'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end,
+        'refereePoints', cs.RefereePoints
       ) as matchSettings,
       'True' as published,
       cs.CreateTableByRound
@@ -173,7 +174,8 @@ select
     'overtime', case when cs.IsOvertime = 1 then 'True' else 'False' end,
     'numOfPeriodsOvertime', cs.NumOfPeriodsOT,
     'periodLengthMinOvertime', cs.PeriodLengthOT,
-    'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end
+    'shootout', case when cs.IsShootout = 1 then 'True' else 'False' end,
+    'refereePoints', cs.RefereePoints
   ) as matchSettings,
   -- case cs.CreateTable when 1 then 'True' else 'False' end as createStandings, 
   -- case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
@@ -345,7 +347,25 @@ select
     end
   ) as finishType,
   g.startdate as startDate,
-  'True' as published
+  'True' as published,
+  case when g.id_fk_referee1 > 0 then
+    json_object(
+      'user_id', concat('SYS_LEGACY_ID_', r1.id_tblOfficial),
+      'firstname', r1.firstname,
+      'lastname', r1.lastname,
+      'club_id', concat('SYS_LEGACY_ID_', r1.id_fk_Club),
+      'club_name', r1c.name
+    ) 
+  else '' end as referee1,
+  case when g.id_fk_referee2 > 0 then
+    json_object(
+      'user_id', concat( 'SYS_LEGACY_ID_', r2.id_tblOfficial),
+      'firstname', r2.firstname,
+      'lastname', r2.lastname,
+      'club_id', concat( 'SYS_LEGACY_ID_', r2.id_fk_Club),
+      'club_name', r2c.name
+    ) 
+  else '' end as referee2
 from tblgame as g
 join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
 join tblgamestatus as gs on g.id_fk_GameStatus=gs.id_tblGameStatus
@@ -353,10 +373,18 @@ join tblstadium as s on g.id_fk_Stadium=s.id_tblStadium
 join tblteamseason as th on g.id_fk_TeamHome=th.id_fk_Team and g.SeasonYear=th.SeasonYear
 join tblteamseason as ta on g.id_fk_TeamAway=ta.id_fk_Team and g.SeasonYear=ta.SeasonYear
 left join tblgamestats as st on g.id_tblgame = st.id_fk_game
+left join tblofficial as r1 on g.id_fk_Referee1=r1.id_tblOfficial
+left join tblclub as r1c on r1.id_fk_Club=r1c.id_tblClub
+left join tblofficial as r2 on g.id_fk_Referee2=r2.id_tblOfficial
+left join tblclub as r2c on r2.id_fk_Club=r2c.id_tblClub
 where g.SeasonYear in (2022,2023)
 and cs.id_tblchampionship not in (-1, 46)
 and id_fk_gamestatus in (2,4)
 
+
+
+
+    
 -- without history (NOT joining tblteamseason)
 select
   cs.py_code as t_tinyName,
