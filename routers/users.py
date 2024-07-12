@@ -3,12 +3,13 @@ from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-
+import os, httpx, asyncio
 from models.users import UserBase, LoginBase, CurrentUser, UserUpdate
 from authentication import AuthHandler, TokenPayload
 
 router = APIRouter()
 auth = AuthHandler()
+BASE_URL = os.environ.get("BE_API_URL")
 
 
 @router.post("/register", response_description="Register a new user")
@@ -126,3 +127,42 @@ async def update_user(
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=str(e))
+
+
+@router.get("/matches",
+            response_description="All assigned matches for me as a referee")
+async def get_assigned_matches(
+  request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> List:
+  user_id = token_payload.sub
+  user = await request.app.mongodb["users"].find_one({"_id": user_id})
+  if not user:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail="User not found")
+  if "REFEREE" not in user["roles"]:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="User is not a referee")
+
+  # get all matches assigned to me as referee
+  assigned_matches = await request.app.mongodb["assignments"].find({
+    "referee.user_id":
+    user_id,
+    "status": {
+      "$in": ["ASSIGNED", "ACCEPTED"]
+    }
+  }).to_list(None)
+  if not assigned_matches:
+    return JSONResponse(status_code=status.HTTP_200_OK, content=[])
+
+  print("assigned_matches", assigned_matches)
+  match_ids = [match['match_id'] for match in assigned_matches]
+  print("match_ids", match_ids)
+  matches = []
+  # Make async HTTP requests to fetch match details
+  async with httpx.AsyncClient() as client:
+    tasks = [
+      client.get(f"{BASE_URL}/matches/{match_id}") for match_id in match_ids
+    ]
+    responses = await asyncio.gather(*tasks)
+    matches = [response.json() for response in responses]
+  return JSONResponse(status_code=status.HTTP_200_OK, content=matches)
