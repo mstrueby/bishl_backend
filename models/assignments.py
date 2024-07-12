@@ -42,6 +42,7 @@ class Referee(BaseModel):
   lastname: str = Field(...)
   club_id: str = None
   club_name: str = None
+  points: int = 0
 
 
 class AssignmentBase(MongoBaseModel):

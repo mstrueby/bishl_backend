@@ -109,6 +109,11 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
 
   def reset_points():
     stats['home']['gamePlayed'] = 0
+    # reassign goals
+    stats['home']['goalsFor'] = matchStats.get('goalsFor', 0)
+    stats['home']['goalsAgainst'] = matchStats.get('goalsAgainst', 0)
+    stats['away']['goalsFor'] = matchStats.get('goalsAgainst', 0)
+    stats['away']['goalsAgainst'] = matchStats.get('goalsFor', 0)
     stats['home']['points'] = 0
     stats['home']['win'] = 0
     stats['home']['loss'] = 0
@@ -129,12 +134,6 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
 
   if match_status in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
     print("set match stats")
-    # reassign goals
-    stats['home']['goalsFor'] = matchStats.get('goalsFor', 0)
-    stats['home']['goalsAgainst'] = matchStats.get('goalsAgainst', 0)
-    stats['away']['goalsFor'] = matchStats.get('goalsAgainst', 0)
-    stats['away']['goalsAgainst'] = matchStats.get('goalsFor', 0)
-
     # matchStats goals are always for the home team!
     if finish_type == 'REGULAR':
       reset_points()
@@ -196,6 +195,18 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
     print("no match stats for matchStatus", match_status)
     reset_points()
   return stats
+
+
+async def fetch_ref_points(match_id: str, t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> int:
+  async with aiohttp.ClientSession() as session:
+    async with session.get(
+        f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
+    ) as response:
+      if response.status != 200:
+        raise HTTPException(
+          status_code=404,
+          detail=f"Matchday for match ID {match_id} not found")
+      return (await response.json()).get('matchSettings').get('refereePoints')
 
 
 async def check_create_standings_for_round(mongodb: Database,

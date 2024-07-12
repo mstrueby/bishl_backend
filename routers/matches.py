@@ -4,7 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points
 import os
 from bson import ObjectId
 
@@ -103,6 +103,17 @@ async def create_match(
       match.home.stats = stats['home']
       match.away.stats = stats['away']
 
+    ref_points = await fetch_ref_points(match_id=match.id,
+                                        t_alias=match.tournament.alias,
+                                        s_alias=match.season.alias,
+                                        r_alias=match.round.alias,
+                                        md_alias=match.matchday.alias)
+    if match.matchStatus.key in ['FINISHED', 'FORFEITED']:
+      if match.referee1 is not None:
+        match.referee1.points = ref_points
+      if match.referee2 is not None:
+        match.referee2.points = ref_points
+
     match_data = my_jsonable_encoder(match)
     match_data = convert_times_to_seconds(match_data)
 
@@ -180,13 +191,14 @@ async def update_match(
                        existing_match.get('away', {}).get(
                          'stats',
                          None))  # if getattr(match, 'away', None) else None
-
+  """
   print("exisiting_match: ", existing_match)
   print("t_alias: ", t_alias)
   print("match_status: ", match_status)
   print("finish_type: ", finish_type)
   print("home_stats: ", home_stats)
   print("away_stats: ", away_stats)
+  """
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(match_status, finish_type,
                              jsonable_encoder(home_stats), await
@@ -201,10 +213,28 @@ async def update_match(
 
   print("match/after stats: ", match)
 
+  match.referee1 = existing_match['referee1']
+  match.referee2 = existing_match['referee2']
+
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
 
+  # set ref points
+  if match_status in ['FINISHED', 'FORFEITED']:
+    ref_points = await fetch_ref_points(match_id, t_alias, s_alias, r_alias,
+                                        md_alias)
+    """
+    print("ref_points: ", ref_points)
+    print("ref1:", existing_match['referee1'])
+    print("ref2:", existing_match['referee2'])
+    """
+    if existing_match['referee1'] is not None:
+      match_data['referee1']['points'] = ref_points
+    if existing_match['referee2'] is not None:
+      match_data['referee2']['points'] = ref_points
+
   match_data = convert_times_to_seconds(match_data)
+  print("match_data: ", match_data)
 
   if match_data.get("home") and match_data["home"].get("scores"):
     add_id_to_scores(match_data["home"]["scores"])
@@ -217,6 +247,7 @@ async def update_match(
       if existing is None or key not in existing:
         match_to_update[full_key] = value
       elif isinstance(value, dict):
+        print("val: ", value)
         check_nested_fields(value, existing.get(key, {}), full_key)
       else:
         if value != existing.get(key):
@@ -224,6 +255,7 @@ async def update_match(
 
   match_to_update = {}
   check_nested_fields(match_data, existing_match)
+  print("match_to_update: ", match_to_update)
 
   if match_to_update:
     try:
