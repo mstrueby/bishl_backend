@@ -78,6 +78,7 @@ class MatchSettings(BaseModel):
   numOfPeriodsOvertime: int = None
   periodLengthMinOvertime: int = None
   shootout: bool = None
+  refereePoints: int = None
   
 
 # ------------
