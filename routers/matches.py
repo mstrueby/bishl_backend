@@ -67,6 +67,25 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
 
 
 # get all matches --> will be not implemented
+@router.get("/", response_model=list[MatchDB], response_description="List all matches")
+async def list_matches(
+  request: Request,
+  tournament: str = None,
+  season: str = None,
+  round: str = None,
+  matchday: str = None
+) -> list[MatchDB]:
+  query = {"season.alias": season if season else os.environ['CURRENT_SEASON']}
+  if tournament:
+    query["tournament.alias"] = tournament
+  if round:
+    query["round.alias"] = round
+  if matchday:
+    query["matchday.alias"] = matchday
+  matches = await request.app.mongodb["matches"].find(query).to_list(None)
+  results = [MatchDB(**match) for match in matches]
+  return results
+
 
 
 # get one match by id
