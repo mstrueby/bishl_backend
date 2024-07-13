@@ -6,11 +6,13 @@ from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate
 from authentication import AuthHandler, TokenPayload
 from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points
 import os
+import isodate
+from datetime import datetime
 from bson import ObjectId
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = os.environ['BE_API_URL']
+BASE_URL = os.environ.get('BE_API_URL')
 
 
 # Prepare to convert matchSeconds to seconds for accurate comparison
@@ -67,14 +69,17 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
 
 
 # get all matches --> will be not implemented
-@router.get("/", response_model=list[MatchDB], response_description="List all matches")
-async def list_matches(
-  request: Request,
-  tournament: str = None,
-  season: str = None,
-  round: str = None,
-  matchday: str = None
-) -> list[MatchDB]:
+@router.get("/",
+            response_model=list[MatchDB],
+            response_description="List all matches")
+async def list_matches(request: Request,
+                       tournament: str = None,
+                       season: str = None,
+                       round: str = None,
+                       matchday: str = None,
+                       date_from: str = None,
+                       date_to: str = None,
+                       referee: str = None) -> list[MatchDB]:
   query = {"season.alias": season if season else os.environ['CURRENT_SEASON']}
   if tournament:
     query["tournament.alias"] = tournament
@@ -82,10 +87,31 @@ async def list_matches(
     query["round.alias"] = round
   if matchday:
     query["matchday.alias"] = matchday
+  if referee:
+    query["$or"] = [{
+      "referee1.user_id": referee
+    }, {
+      "referee2.user_id": referee
+    }]
+  if date_from or date_to:
+    date_query = {}
+    try:
+      if date_from:
+        parsed_date_from = isodate.parse_date(date_from)
+        date_query["$gte"] = datetime.combine(parsed_date_from,
+                                              datetime.min.time())
+      if date_to:
+        parsed_date_to = isodate.parse_date(date_to)
+        date_query["$lte"] = datetime.combine(parsed_date_to,
+                                              datetime.min.time())
+      query["startDate"] = date_query
+    except Exception as e:
+      raise HTTPException(status_code=400,
+                          detail=f"Invalid date format: {str(e)}")
+  print("query: ", query)
   matches = await request.app.mongodb["matches"].find(query).to_list(None)
   results = [MatchDB(**match) for match in matches]
   return results
-
 
 
 # get one match by id

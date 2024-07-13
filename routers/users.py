@@ -143,26 +143,12 @@ async def get_assigned_matches(
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="User is not a referee")
 
-  # get all matches assigned to me as referee
-  assigned_matches = await request.app.mongodb["assignments"].find({
-    "referee.user_id":
-    user_id,
-    "status": {
-      "$in": ["ASSIGNED", "ACCEPTED"]
-    }
-  }).to_list(None)
-  if not assigned_matches:
-    return JSONResponse(status_code=status.HTTP_200_OK, content=[])
-
-  print("assigned_matches", assigned_matches)
-  match_ids = [match['match_id'] for match in assigned_matches]
-  print("match_ids", match_ids)
-  matches = []
-  # Make async HTTP requests to fetch match details
+  # Fetch matches assigned to me as referee using the GET endpoint
   async with httpx.AsyncClient() as client:
-    tasks = [
-      client.get(f"{BASE_URL}/matches/{match_id}") for match_id in match_ids
-    ]
-    responses = await asyncio.gather(*tasks)
-    matches = [response.json() for response in responses]
+    from datetime import date
+    current_date = date.today().strftime('%Y-%m-%d')
+    response = await client.get(f"{BASE_URL}/matches/?referee={user_id}&date_from={current_date}")
+    print("response", response)
+    matches = response.json()
+
   return JSONResponse(status_code=status.HTTP_200_OK, content=matches)
