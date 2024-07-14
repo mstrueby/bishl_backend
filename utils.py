@@ -6,6 +6,7 @@ from typing import List
 import re
 import os
 import aiohttp
+import httpx
 from pymongo.database import Database
 
 BASE_URL = os.environ['BE_API_URL']
@@ -197,7 +198,8 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
   return stats
 
 
-async def fetch_ref_points(match_id: str, t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> int:
+async def fetch_ref_points(match_id: str, t_alias: str, s_alias: str,
+                           r_alias: str, md_alias: str) -> int:
   async with aiohttp.ClientSession() as session:
     async with session.get(
         f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
@@ -468,3 +470,18 @@ async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
                         detail="Failed to update tournament standings.")
   else:
     print("update md.standings: ", standings)
+
+
+async def get_sys_ref_tool_token():
+  login_url = f"{os.environ['BE_API_URL']}/users/login"
+  login_data = {
+    "email": os.environ['SYS_REF_TOOL_EMAIL'],
+    "password": os.environ['SYS_REF_TOOL_PASSWORD']
+  }
+  
+  async with httpx.AsyncClient() as client:
+    login_response = await client.post(login_url, json=login_data)
+    
+  if login_response.status_code != 200:
+    raise Exception(f"Error logging in: {login_response.json()}")
+  return login_response.json()['token']

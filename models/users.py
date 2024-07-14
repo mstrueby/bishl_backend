@@ -81,5 +81,5 @@ class CurrentUser(MongoBaseModel):
   email: str = EmailStr(...)
   firstname: str = Field(...)
   lastname: str = Field(...)
-  roles: List[Role] = Field(...)
+  roles: List[Role] = None
   club: Club = None

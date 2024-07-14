@@ -6,7 +6,9 @@ from authentication import AuthHandler, TokenPayload
 import os
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status
 from models.messages import MessageBase
+from utils import get_sys_ref_tool_token
 from datetime import datetime
+import requests, httpx
 
 router = APIRouter()
 auth = AuthHandler()
@@ -36,22 +38,24 @@ async def set_referee_in_match(db, match_id, referee, position):
     }
   })
 
-
-async def send_message_to_referee(db, receiver_id, match, content=None):
+async def send_message_to_referee(match, receiver_id, content):
+  token = await get_sys_ref_tool_token()
+  headers = {
+    'Authorization': f'Bearer {token}',
+    'Content-Type': 'application/json'
+  }
   match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{match['startDate'].strftime('%d.%m.%Y %H:%M')} Uhr\n{match['venue']}"
   if content is None:
     content = f"something happened to you for match:\n\n{match_text}"
   else:
     content = f"{content}\n\n{match_text}"
-  print("content: ", content)
-  message = MessageBase(sender_id="SYS_REF_TOOL",
-                        receiver_id=receiver_id,
-                        content=content)
-  message_data = jsonable_encoder(message)
-  message_data["timestamp"] = datetime.utcnow()
-  if not await db["messages"].insert_one(message_data):
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Error sending message to referee")
+  message_data = {"receiver_id": receiver_id, "content": content}
+  url = f"{BASE_URL}/messages/"
+  print("message_data", message_data)
+  async with httpx.AsyncClient() as client:
+    response = await client.post(url, json=message_data, headers=headers)
+    if response.status_code != 201:
+      raise Exception(f"Failed to send message: {response.json()}")
 
 
 # GET =====================================================================
@@ -209,7 +213,6 @@ async def create_assignment(
                                assignment_data.position)
 
     await send_message_to_referee(
-      db=request.app.mongodb,
       match=match,
       receiver_id=referee["user_id"],
       content=
@@ -359,7 +362,6 @@ async def update_assignment(
             f'referee{assignment["position"]}': {}
           }})
         await send_message_to_referee(
-          db=request.app.mongodb,
           match=match,
           receiver_id=ref_id,
           content=
@@ -375,7 +377,6 @@ async def update_assignment(
                                      assignment_data.position)
 
           await send_message_to_referee(
-            db=request.app.mongodb,
             match=match,
             receiver_id=ref_id,
             content=
