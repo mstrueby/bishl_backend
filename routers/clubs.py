@@ -15,22 +15,13 @@ from fastapi.responses import JSONResponse, Response
 from models.clubs import ClubBase, ClubDB, ClubUpdate
 from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
+from utils import configure_cloudinary
 import cloudinary
 import cloudinary.uploader
 
-# Cloudinary Image processing
-CLOUD_NAME = os.environ["CLDY_CLOUD_NAME"]
-API_KEY = os.environ["CLDY_API_KEY"]
-API_SECRET = os.environ["CLDY_API_SECRET"]
-cloudinary.config(
-  cloud_name=CLOUD_NAME,
-  api_key=API_KEY,
-  api_secret=API_SECRET,
-)
-
 router = APIRouter()
 auth = AuthHandler()
-
+configure_cloudinary()
 
 # list all clubs
 @router.get("/", response_description="List all clubs")
