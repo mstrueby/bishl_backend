@@ -8,8 +8,18 @@ import os
 import aiohttp
 import httpx
 from pymongo.database import Database
+import cloudinary
+import cloudinary.uploader
 
 BASE_URL = os.environ['BE_API_URL']
+
+
+def configure_cloudinary():
+  cloudinary.config(
+    cloud_name=os.environ["CLDY_CLOUD_NAME"],
+    api_key=os.environ["CLDY_API_KEY"],
+    api_secret=os.environ["CLDY_API_SECRET"],
+  )
 
 
 def parse_date(date_str):
@@ -478,10 +488,10 @@ async def get_sys_ref_tool_token():
     "email": os.environ['SYS_REF_TOOL_EMAIL'],
     "password": os.environ['SYS_REF_TOOL_PASSWORD']
   }
-  
+
   async with httpx.AsyncClient() as client:
     login_response = await client.post(login_url, json=login_data)
-    
+
   if login_response.status_code != 200:
     raise Exception(f"Error logging in: {login_response.json()}")
   return login_response.json()['token']

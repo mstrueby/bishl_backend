@@ -19,6 +19,7 @@ from routers.scores import router as scores_router
 from routers.penalties import router as penalties_router
 from routers.messages import router as messages_router
 from routers.assignments import router as assignments_router
+from routers.posts import router as posts_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
@@ -51,6 +52,7 @@ async def startup_db_client():
 async def shutdown_db_client():
   app.mongodb_client.close()
 
+
 app.include_router(root_router, prefix="", tags=["root"])
 app.include_router(configs_router, prefix="/configs", tags=["configs"])
 
@@ -59,7 +61,9 @@ app.include_router(messages_router, prefix="/messages", tags=["messages"])
 
 app.include_router(venues_router, prefix="/venues", tags=["venues"])
 app.include_router(clubs_router, prefix="/clubs", tags=["clubs"])
-app.include_router(teams_router, prefix="/clubs/{club_alias}/teams", tags=["teams"])
+app.include_router(teams_router,
+                   prefix="/clubs/{club_alias}/teams",
+                   tags=["teams"])
 app.include_router(tournaments_router,
                    prefix="/tournaments",
                    tags=["tournaments"])
@@ -67,14 +71,30 @@ app.include_router(tournaments_router,
 app.include_router(seasons_router,
                    prefix="/tournaments/{tournament_alias}/seasons",
                    tags=["seasons"])
-app.include_router(rounds_router, prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds", tags=["rounds"])
-app.include_router(matchdays_router, prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays", tags=["matchdays"])
+app.include_router(
+  rounds_router,
+  prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds",
+  tags=["rounds"])
+app.include_router(
+  matchdays_router,
+  prefix=
+  "/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays",
+  tags=["matchdays"])
 
 app.include_router(matches_router, prefix="/matches", tags=["matches"])
-app.include_router(assignments_router, prefix="/matches/{match_id}/assignments", tags=["assignments"])
-app.include_router(roster_router, prefix="/matches/{match_id}/{team_flag}/roster", tags=["roster"])
-app.include_router(scores_router, prefix="/matches/{match_id}/{team_flag}/scores", tags=["scores"])
-app.include_router(penalties_router, prefix="/matches/{match_id}/{team_flag}/penalties", tags=["penalties"])
+app.include_router(assignments_router,
+                   prefix="/matches/{match_id}/assignments",
+                   tags=["assignments"])
+app.include_router(roster_router,
+                   prefix="/matches/{match_id}/{team_flag}/roster",
+                   tags=["roster"])
+app.include_router(scores_router,
+                   prefix="/matches/{match_id}/{team_flag}/scores",
+                   tags=["scores"])
+app.include_router(penalties_router,
+                   prefix="/matches/{match_id}/{team_flag}/penalties",
+                   tags=["penalties"])
+app.include_router(posts_router, prefix="/posts", tags=["posts"])
 
 #if __name__ == "__main__":
 #    uvicorn.run("main:app", reload=True)
