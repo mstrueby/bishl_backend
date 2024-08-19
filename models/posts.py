@@ -26,6 +26,15 @@ class MongoBaseModel(BaseModel):
   class Config:
     json_encoders = {ObjectId: str}
 
+class User(BaseModel):
+  user_id: str = Field(...)
+  firstname: str = Field(...)
+  lastname: str = Field(...)
+
+  @validator('user_id', 'firstname', 'lastname', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+
 # Posts
 # ------------
 
@@ -36,8 +45,10 @@ class PostBase(MongoBaseModel):
   author: str = Field(...)
   tags: list = None
   image: HttpUrl = None
-  create_date: datetime = Field(default_factory=datetime.utcnow)
+  create_date: datetime = None
+  create_user_id: str = None
   update_date: datetime = None
+  update_user_id: str = None
   published: bool = False
   legacyId: int = None
 
@@ -49,8 +60,19 @@ class PostBase(MongoBaseModel):
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
 
-class PostDB(PostBase):
-  pass
+class PostDB(MongoBaseModel):
+  title: str = Field(...)
+  alias: str = Field(...)
+  content: str = Field(...)
+  author: str = Field(...)
+  tags: list = None
+  image: HttpUrl = None
+  create_date: datetime = None
+  create_user: User = Field(...)
+  update_date: datetime = None
+  update_user: User = None
+  published: bool = False
+  legacyId: int = None
 
 class PostUpdate(MongoBaseModel):
   title: Optional[str] = "DEFAULT"
@@ -60,7 +82,9 @@ class PostUpdate(MongoBaseModel):
   tags: Optional[list] = "DEFAULT"
   image: Optional[HttpUrl] = None
   create_date: Optional[datetime] = None
+  create_user_id: Optional[str] = None
   update_date: Optional[datetime] = None
+  update_user_id: Optional[str] = None
   published: Optional[bool] = False
 
   @validator('title', 'alias', 'content', 'author', pre=True, always=True)

@@ -7,6 +7,7 @@ from utils import configure_cloudinary
 from pymongo import MongoClient
 from bson import ObjectId
 from authentication import AuthHandler, TokenPayload
+from datetime import datetime
 import cloudinary
 import cloudinary.uploader
 
@@ -48,9 +49,54 @@ async def create_post(
 ) -> PostDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  post = jsonable_encoder(post)
+  # data preparation
+  post_data = jsonable_encoder(post)
+
+  if post_data['create_date'] is None:
+    post_data['create_date'] = datetime.utcnow().replace(microsecond=0)
+  else:
+    post_data['create_date'] = datetime.strptime(post_data['create_date'],
+                                                 '%Y-%m-%dT%H:%M:%S')
+  if post_data['update_date'] is not None:
+    post_data['update_date'] = datetime.strptime(post_data['update_date'],
+                                                 '%Y-%m-%dT%H:%M:%S')
+  # get create user
+  create_user = await request.app.mongodb["users"].find_one({
+    "_id":
+    post_data['create_user_id']
+    if post_data['create_user_id'] is not None else token_payload.sub
+  })
+  if not create_user:
+    create_user = await request.app.mongodb["users"].find_one(
+      {"_id": token_payload.sub})
+  post_data['create_user'] = {}
+  post_data['create_user']['user_id'] = create_user["_id"]
+  post_data['create_user']['firstname'] = create_user["firstname"]
+  post_data['create_user']['lastname'] = create_user["lastname"]
+  del post_data['create_user_id']
+
+  # get update user
+  post_data['update_user'] = None
+  if post_data['update_user_id'] is not None:
+    update_user = await request.app.mongodb["users"].find_one(
+      {"_id": post_data['update_user_id']})
+    if update_user:
+      post_data['update_user'] = {}
+      post_data['update_user']['user_id'] = update_user["_id"]
+      post_data['update_user']['firstname'] = update_user["firstname"]
+      post_data['update_user']['lastname'] = update_user["lastname"]
+  del post_data['update_user_id']
+
+  # check if alias already exists, add number to alias
+  alias = post_data['alias']
+  alias_suffix = 2
+  while await request.app.mongodb['posts'].find_one({'alias': alias}):
+    alias = post_data['alias'] + '-' + str(alias_suffix)
+    alias_suffix += 1
+  post_data['alias'] = alias
+  # insert post
   try:
-    new_post = await request.app.mongodb["posts"].insert_one(post)
+    new_post = await request.app.mongodb["posts"].insert_one(post_data)
     created_post = await request.app.mongodb["posts"].find_one(
       {"_id": new_post.inserted_id})
     if created_post:
@@ -70,22 +116,55 @@ async def update_post(
   request: Request,
   id: str,
   post: PostUpdate = Body(...),
-  token_paylod: TokenPayload = Depends(auth.auth_wrapper)
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> PostDB:
-  if token_paylod.roles not in [["ADMIN"]]:
+  if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  post = post.dict(exclude_unset=True)
-  post.pop("id", None)
-
+  post_data = post.dict(exclude_unset=True)
+  post_data.pop("id", None)
   print("post: ", post)
+  
   existing_post = await request.app.mongodb["posts"].find_one({"_id": id})
   if not existing_post:
     raise HTTPException(status_code=404, detail=f"Post with id {id} not found")
+
+  # date data preparation
+  if 'update_date' not in post_data:
+    post_data['update_date'] = datetime.utcnow().replace(microsecond=0)
+    
+  # get create user
+  if 'create_user_id' in post_data:
+    create_user = await request.app.mongodb["users"].find_one({
+      "_id":
+      post_data['create_user_id']
+      if post_data['create_user_id'] is not None else token_payload.sub
+    })
+    if not create_user:
+      create_user = await request.app.mongodb["users"].find_one(
+        {"_id": token_payload.sub})
+    post_data['create_user'] = {}
+    post_data['create_user']['user_id'] = create_user["_id"]
+    post_data['create_user']['firstname'] = create_user["firstname"]
+    post_data['create_user']['lastname'] = create_user["lastname"]
+    del post_data['create_user_id']
+
+  # get update user
+  post_data['update_user'] = None
+  if post_data['update_user_id'] is not None:
+    update_user = await request.app.mongodb["users"].find_one(
+      {"_id": post_data['update_user_id']})
+    if update_user:
+      post_data['update_user'] = {}
+      post_data['update_user']['user_id'] = update_user["_id"]
+      post_data['update_user']['firstname'] = update_user["firstname"]
+      post_data['update_user']['lastname'] = update_user["lastname"]
+  del post_data['update_user_id']
+  
   #exclude unchanged data
   post_to_update = {
     k: v
-    for k, v in post.items() if v != existing_post.get(k, None)
-  }
+    for k, v in post_data.items() if v != existing_post.get(k, None)
+  }  
   if not post_to_update:
     print("no update needed")
     return PostDB(**existing_post)
