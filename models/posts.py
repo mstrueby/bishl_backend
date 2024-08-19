@@ -26,6 +26,14 @@ class MongoBaseModel(BaseModel):
   class Config:
     json_encoders = {ObjectId: str}
 
+class Author(BaseModel):
+  firstname: str = Field(...)
+  lastname: str = Field(...)
+
+  @validator('firstname', 'lastname', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+  
 class User(BaseModel):
   user_id: str = Field(...)
   firstname: str = Field(...)
@@ -42,7 +50,7 @@ class PostBase(MongoBaseModel):
   title: str = Field(...)
   alias: str = Field(...)
   content: str = Field(...)
-  author: str = Field(...)
+  author: Author = None
   tags: list = None
   image: HttpUrl = None
   create_date: datetime = None
@@ -52,7 +60,7 @@ class PostBase(MongoBaseModel):
   published: bool = False
   legacyId: int = None
 
-  @validator('title', 'alias', 'content', 'author', pre=True, always=True)
+  @validator('title', 'alias', 'content', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
@@ -64,7 +72,7 @@ class PostDB(MongoBaseModel):
   title: str = Field(...)
   alias: str = Field(...)
   content: str = Field(...)
-  author: str = Field(...)
+  author: Author = None
   tags: list = None
   image: HttpUrl = None
   create_date: datetime = None
@@ -78,7 +86,7 @@ class PostUpdate(MongoBaseModel):
   title: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
   content: Optional[str] = "DEFAULT"
-  author: Optional[str] = "DEFAULT"
+  author: Optional[Author] = None
   tags: Optional[list] = "DEFAULT"
   image: Optional[HttpUrl] = None
   create_date: Optional[datetime] = None
@@ -87,7 +95,7 @@ class PostUpdate(MongoBaseModel):
   update_user_id: Optional[str] = None
   published: Optional[bool] = False
 
-  @validator('title', 'alias', 'content', 'author', pre=True, always=True)
+  @validator('title', 'alias', 'content', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 

@@ -87,6 +87,12 @@ async def create_post(
       post_data['update_user']['lastname'] = update_user["lastname"]
   del post_data['update_user_id']
 
+  # get author
+  if post_data['author'] is None:
+    post_data['author'] = {}
+    post_data['author']['firstname'] = token_payload.firstname
+    post_data['author']['lastname'] = token_payload.lastname
+  
   # check if alias already exists, add number to alias
   alias = post_data['alias']
   alias_suffix = 2
