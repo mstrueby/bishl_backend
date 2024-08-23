@@ -14,26 +14,28 @@ import cloudinary.uploader
 
 router = APIRouter()
 auth = AuthHandler()
-
 configure_cloudinary()
+
 
 async def handle_image_upload(image: UploadFile, public_id: str) -> str:
   if image:
-    return cloudinary.uploader.upload(image.file,
-                                      folder="posts",
-                                      public_id=public_id,
-                                      overwrite=True,
-                                      resource_type="image",
-                                      format='jpg',
-                                      transformation=[{
-                                        'width': 1080,
-                                        'aspect_ratio': '16:9',
-                                        'crop': 'fill',
-                                        'gravity': 'auto',
-                                        'effect': 'sharpen:100',
-                                      }],
-                                     )["url"]
+    return cloudinary.uploader.upload(
+      image.file,
+      folder="posts",
+      public_id=public_id,
+      overwrite=True,
+      resource_type="image",
+      format='jpg',
+      transformation=[{
+        'width': 1080,
+        'aspect_ratio': '16:9',
+        'crop': 'fill',
+        'gravity': 'auto',
+        'effect': 'sharpen:100',
+      }],
+    )["url"]
   return None
+
 
 # list all posts
 @router.get("/",
@@ -78,7 +80,7 @@ async def create_post(
 
   # parse author
   author_dict = json.loads(author) if author else None
-  
+
   # Data preparation
   post = PostBase(
     title=title,
@@ -96,7 +98,6 @@ async def create_post(
 
   # Handle image upload
   post_data['image'] = await handle_image_upload(image, post_data["_id"])
-  print("post_data.image", post_data["image"], "id", post_data["_id"])
 
   # Retrieve create user
   create_user = await request.app.mongodb["users"].find_one(
@@ -148,9 +149,11 @@ async def create_post(
       return JSONResponse(status_code=status.HTTP_201_CREATED,
                           content=jsonable_encoder(PostDB(**created_post)))
     else:
-      raise HTTPException(status_code=500, detail="Failed to create post")
+      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                          detail="Failed to create post")
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=str(e))
 
 
 # update Post
@@ -222,10 +225,10 @@ async def update_post(
   if author:
     post_data['author'] = author_dict
 
-  print("post_data", post_data)
-
   # Handle image upload
   post_data['image'] = await handle_image_upload(image, id)
+
+  print("post_data", post_data)
 
   # Retrieve existing post
   existing_post = await request.app.mongodb["posts"].find_one({"_id": id})
@@ -258,7 +261,7 @@ async def update_post(
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         content="Failed to update post")
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 # delete post
