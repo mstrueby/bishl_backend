@@ -133,13 +133,13 @@ async def create_club(
 async def update_club(
     request: Request,
     id: str,
-    name: str = Form(None),
-    alias: str = Form(None),
+    name: str = Form(...),
+    alias: str = Form(...),
     addressName: str = Form(None),
     street: str = Form(None),
     zipCode: str = Form(None),
     city: str = Form(None),
-    country: str = Form(None),
+    country: str = Form(...),
     email: str = Form(None),
     yearOfFoundation: int = Form(None),
     description: str = Form(None),
@@ -152,35 +152,21 @@ async def update_club(
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
-  print("email", email)
-  
-  club_data = {}
-  if name:
-    club_data['name'] = name
-  if alias:
-    club_data['alias'] = alias
-  if addressName:
-    club_data['addressName'] = addressName
-  if street:
-    club_data['street'] = street
-  if zipCode:
-    club_data['zipCode'] = zipCode
-  if city:
-    club_data['city'] = city
-  if country:
-    club_data['country'] = country
-  if email:
-    club_data['email'] = email
-  if yearOfFoundation:
-    club_data['yearOfFoundation'] = yearOfFoundation
-  if description:
-    club_data['description'] = description
-  if website:
-    club_data['website'] = website
-  if ishdId:
-    club_data['ishdId'] = ishdId
-  if active:
-    club_data['active'] = active
+  club_data = ClubUpdate(
+    name=name,
+    alias=alias,
+    addressName=addressName,
+    street=street,
+    zipCode=zipCode,
+    city=city,
+    country=country,
+    email=email,
+    yearOfFoundation=yearOfFoundation,
+    description=description,
+    website=website,
+    ishdId=ishdId,
+    active=active
+  ).dict(exclude_unset=True)
 
   # retrieve existing club
   existing_club = await request.app.mongodb["clubs"].find_one({"_id": id})

@@ -131,13 +131,13 @@ class ClubDB(ClubBase):
 
 
 class ClubUpdate(MongoBaseModel):
-  name: Optional[str] = "DEFAULT"
-  alias: Optional[str] = "DEFAULT"
+  name: str = Field(...)
+  alias: str = Field(...)
   addressName: Optional[str] = None
   street: Optional[str] = None
   zipCode: Optional[str] = None
   city: Optional[str] = None
-  country: Optional[str] = "DEFAULT"
+  country: str = Field(...)
   email: Optional[EmailStr] = None
   yearOfFoundation: Optional[int] = None
   description: Optional[str] = None

@@ -53,10 +53,6 @@ class PostBase(MongoBaseModel):
   author: Author = None
   tags: list = None
   image: HttpUrl = None
-  create_date: datetime = None
-  create_user_id: str = None
-  update_date: datetime = None
-  update_user_id: str = None
   published: bool = False
   legacyId: int = None
 
@@ -83,16 +79,12 @@ class PostDB(MongoBaseModel):
   legacyId: int = None
 
 class PostUpdate(MongoBaseModel):
-  title: Optional[str] = "DEFAULT"
-  alias: Optional[str] = "DEFAULT"
-  content: Optional[str] = "DEFAULT"
+  title: str = "DEFAULT"
+  alias: str = "DEFAULT"
+  content: str = "DEFAULT"
   author: Optional[Author] = None
-  tags: Optional[list] = "DEFAULT"
+  tags: Optional[list] = []
   image: Optional[HttpUrl] = None
-  create_date: Optional[datetime] = None
-  create_user_id: Optional[str] = None
-  update_date: Optional[datetime] = None
-  update_user_id: Optional[str] = None
   published: Optional[bool] = False
 
   @validator('title', 'alias', 'content', pre=True, always=True)
