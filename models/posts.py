@@ -43,6 +43,11 @@ class User(BaseModel):
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
+class Revision(MongoBaseModel):
+  update_data: dict = Field(...)
+  update_user: User = Field(...)
+  update_date: datetime = Field(...)
+  
 # Posts
 # ------------
 
@@ -71,11 +76,12 @@ class PostDB(MongoBaseModel):
   author: Author = None
   tags: list = None
   image: HttpUrl = None
+  published: bool = False
   create_date: datetime = None
   create_user: User = Field(...)
   update_date: datetime = None
   update_user: User = None
-  published: bool = False
+  revisions: list[Revision] = []
   legacyId: int = None
 
 class PostUpdate(MongoBaseModel):
