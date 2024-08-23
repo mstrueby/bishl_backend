@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, B
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
-from models.posts import PostBase, PostDB, PostUpdate
+from models.posts import PostBase, PostDB, PostUpdate, Revision
 from typing import List
 from utils import configure_cloudinary, my_jsonable_encoder
 from pymongo import MongoClient
@@ -110,6 +110,13 @@ async def create_post(
     alias_suffix += 1
   post_data['alias'] = upd_alias
 
+  post_data['update_user'] = None
+  post_data['update_date'] = None
+  revision = Revision(update_data=post_data,
+                      update_user=post_data['create_user'],
+                      update_date=post_data['create_date'])
+  post_data['revisions'] = [my_jsonable_encoder(revision)]
+
   # Insert post
   try:
     print("post_data", post_data)
@@ -181,6 +188,20 @@ async def update_post(
     print("No changes to update")
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(PostDB(**existing_post)))
+
+  revision = Revision(update_data={
+    k: v
+    for k, v in post_to_update.items()
+    if k != 'update_user' and k != 'update_date'
+  },
+                      update_user=post_data['update_user'],
+                      update_date=post_data['update_date'])
+  if 'revisions' not in existing_post:
+    post_to_update['revisions'] = [my_jsonable_encoder(revision)]
+  else:
+    post_to_update['revisions'] = existing_post['revisions']
+    post_to_update['revisions'].append(my_jsonable_encoder(revision))
+
   # Update post
   try:
     update_result = await request.app.mongodb["posts"].update_one(
