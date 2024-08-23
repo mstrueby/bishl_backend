@@ -23,6 +23,20 @@ router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
 
+
+async def handle_logo_upload(logo: UploadFile, public_id: str) -> str:
+  if logo:
+    return cloudinary.uploader.upload(
+      logo.file,
+      folder="logos",
+      public_id=f"{public_id}",
+      overwrite=True,
+      crop="scale",
+      height=200,
+    )['url']
+  return None
+
+
 # list all clubs
 @router.get("/", response_description="List all clubs")
 async def list_clubs(
@@ -51,41 +65,29 @@ async def get_club(alias: str, request: Request) -> ClubDB:
 
 
 # create new club
-@router.post("/", response_description="Add new club")
+@router.post("/", response_model=ClubDB, response_description="Add new club")
 async def create_club(
     request: Request,
     name: str = Form(...),
     alias: str = Form(...),
-    addressName: Optional[str] = Form(None),
-    street: Optional[str] = Form(None),
-    zipCode: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
+    addressName: str = Form(None),
+    street: str = Form(None),
+    zipCode: str = Form(None),
+    city: str = Form(None),
     country: str = Form(...),
-    email: Optional[str] = Form(None),
-    yearOfFoundation: Optional[int] = Form(None),
-    description: Optional[str] = Form(None),
-    website: Optional[str] = Form(None),
-    ishdId: Optional[int] = Form(None),
-    active: Optional[bool] = Form(False),
-    logo: Optional[UploadFile] = File(None),
+    email: str = Form(None),
+    yearOfFoundation: int = Form(None),
+    description: str = Form(None),
+    website: str = Form(None),
+    ishdId: int = Form(None),
+    active: bool = Form(False),
+    logo: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> ClubDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  if logo:
-    result = cloudinary.uploader.upload(
-      logo.file,
-      folder="logos",
-      public_id=f"{alias}",
-      overwrite=True,
-      crop="scale",
-      height=200,
-    )
-    url = result.get("url")
-  else:
-    url = None
 
-  club = ClubDB(
+  club = ClubBase(
     name=name,
     alias=alias,
     addressName=addressName,
@@ -99,14 +101,15 @@ async def create_club(
     website=website,
     ishdId=ishdId,
     active=active,
-    logo=url,
   )
-  club = jsonable_encoder(club)
-  print("add club: ", club)
+  club_data = jsonable_encoder(club)
 
-  # DB processing
+  club_data['logo'] = await handle_logo_upload(logo, alias)
+
+  # insert club
   try:
-    new_club = await request.app.mongodb["clubs"].insert_one(club)
+    print("club_data: ", club_data)
+    new_club = await request.app.mongodb["clubs"].insert_one(club_data)
     created_club = await request.app.mongodb["clubs"].find_one(
       {"_id": new_club.inserted_id})
     if created_club:
@@ -117,110 +120,104 @@ async def create_club(
                           detail="Failed to create club")
   except DuplicateKeyError:
     raise HTTPException(status_code=400,
-                        detail=f"Club {club['name']} already exists.")
+                        detail=f"Club {club_data['name']} already exists.")
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=str(e))
 
 
 # Update club
-@router.patch("/{id}", response_description="Update club")
+@router.patch("/{id}",
+              response_model=ClubDB,
+              response_description="Update club")
 async def update_club(
     request: Request,
     id: str,
     name: str = Form(None),
     alias: str = Form(None),
-    addressName: Optional[str] = Form(None),
-    street: Optional[str] = Form(None),
-    zipCode: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
+    addressName: str = Form(None),
+    street: str = Form(None),
+    zipCode: str = Form(None),
+    city: str = Form(None),
     country: str = Form(None),
-    email: Optional[str] = Form(None),
-    yearOfFoundation: Optional[int] = Form(None),
-    description: Optional[str] = Form(None),
-    website: Optional[str] = Form(None),
-    ishdId: Optional[int] = Form(None),
-    active: Optional[bool] = Form(False),
-    logo: Optional[UploadFile] = File(None),
+    email: str = Form(None),
+    yearOfFoundation: int = Form(None),
+    description: str = Form(None),
+    website: str = Form(None),
+    ishdId: int = Form(None),
+    active: bool = Form(False),
+    logo: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> ClubDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  print("logo: " + str(logo))
 
-  if logo:
-    result = cloudinary.uploader.upload(
-      logo.file,
-      folder="logos",
-      public_id=f"{alias}",
-      overwrite=True,
-      crop="fit",
-      height=200,
-    )
-    url = result.get("url")
-  else:
-    url = None
+  print("email", email)
+  
+  club_data = {}
+  if name:
+    club_data['name'] = name
+  if alias:
+    club_data['alias'] = alias
+  if addressName:
+    club_data['addressName'] = addressName
+  if street:
+    club_data['street'] = street
+  if zipCode:
+    club_data['zipCode'] = zipCode
+  if city:
+    club_data['city'] = city
+  if country:
+    club_data['country'] = country
+  if email:
+    club_data['email'] = email
+  if yearOfFoundation:
+    club_data['yearOfFoundation'] = yearOfFoundation
+  if description:
+    club_data['description'] = description
+  if website:
+    club_data['website'] = website
+  if ishdId:
+    club_data['ishdId'] = ishdId
+  if active:
+    club_data['active'] = active
 
-  club = {
-    "name": name,
-    "alias": alias,
-    "addressName": addressName,
-    "street": street,
-    "zipCode": zipCode,
-    "city": city,
-    "country": country,
-    "email": email,
-    "yearOfFoundation": yearOfFoundation,
-    "description": description,
-    "website": website,
-    "ishdId": ishdId,
-    "active": active,
-    # If url is None, do not include it in club_data
-  }
-  if url is not None:
-    club["logo"] = url
-
-  try:
-    club = ClubUpdate(**club)
-    club = club.dict(exclude_unset=True)
-    club.pop("id", None)
-  except:
-    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail="Invalid club data")
-
-  print("club: ", club)
-
+  # retrieve existing club
   existing_club = await request.app.mongodb["clubs"].find_one({"_id": id})
-  if existing_club is None:
-    raise HTTPException(status_code=404, detail=f"Club with id {id} not found")
-  #del club_to_update["_id"]
-  #club_to_update = ClubBase(**club)
+  if not existing_club:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        details=f"Club with id {id} not found")
+
+  club_data['logo'] = await handle_logo_upload(logo, existing_club['alias'])
+
+  print("club_data: ", club_data)
+
   #Exclude unchanged data
-  club_to_update = {k: v for k, v in club.items() if v != existing_club.get(k)}
-  #club_to_update = club_to_update.dict(exclude_unset=True)
-
-  # If logo was not updated, remove it from the update
-  if url is None and 'logo' in club_to_update:
-    del club_to_update['logo']
-
+  club_to_update = {
+    k: v
+    for k, v in club_data.items() if v != existing_club.get(k, None)
+  }
+  print("club_to__update", club_to_update)
   if not club_to_update:
-    print("No update needed")
-    return ClubDB(**existing_club)
+    print("No changes to update")
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(ClubDB(**existing_club)))
+  # update club
   try:
-    print('club_to_update: ' + str(club_to_update))
     update_result = await request.app.mongodb["clubs"].update_one(
       {"_id": id}, {"$set": club_to_update})
     if update_result.modified_count == 1:
-      if (updated_club := await
-          request.app.mongodb["clubs"].find_one({"_id": id})) is not None:
-        return ClubDB(**updated_club)
-    return ClubDB(**existing_club)
+      updated_club = await request.app.mongodb["clubs"].find_one({"_id": id})
+      return JSONResponse(status_code=status.HTTP_200_OK,
+                          content=jsonable_encoder(ClubDB(**updated_club)))
+    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        content="Failed to update club")
   except DuplicateKeyError:
-    raise HTTPException(status_code=400,
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Club {club.get('name', '')} already exists.")
   except Exception as e:
-    raise HTTPException(status_code=500,
-                        detail=f"An unexpected error occurred: {str(e)}")
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=str(e))
 
 
 # Delete club
