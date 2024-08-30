@@ -85,12 +85,15 @@ async def create_post(
   )
   post_data = jsonable_encoder(post)
 
+  # user and dates
   post_data['create_date'] = datetime.utcnow().replace(microsecond=0)
   post_data['create_user'] = {
     "user_id": token_payload.sub,
     "firstname": token_payload.firstname,
     "lastname": token_payload.lastname
   }
+  post_data['update_user'] = None
+  post_data['update_date'] = None
 
   # Handle image upload
   post_data['image'] = await handle_image_upload(image, post_data["_id"])
@@ -110,8 +113,6 @@ async def create_post(
     alias_suffix += 1
   post_data['alias'] = upd_alias
 
-  post_data['update_user'] = None
-  post_data['update_date'] = None
   revision = Revision(update_data=post_data,
                       update_user=post_data['create_user'],
                       update_date=post_data['create_date'])

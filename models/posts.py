@@ -69,20 +69,12 @@ class PostBase(MongoBaseModel):
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
 
-class PostDB(MongoBaseModel):
-  title: str = Field(...)
-  alias: str = Field(...)
-  content: str = Field(...)
-  author: Author = None
-  tags: list = None
-  image: HttpUrl = None
-  published: bool = False
+class PostDB(PostBase):
   create_date: datetime = None
   create_user: User = Field(...)
   update_date: datetime = None
   update_user: User = None
   revisions: list[Revision] = []
-  legacyId: int = None
 
 class PostUpdate(MongoBaseModel):
   title: str = "DEFAULT"
