@@ -19,7 +19,7 @@ configure_cloudinary()
 
 async def handle_image_upload(image: UploadFile, public_id: str) -> str:
   if image:
-    return cloudinary.uploader.upload(
+    result = cloudinary.uploader.upload(
       image.file,
       folder="posts",
       public_id=public_id,
@@ -28,13 +28,28 @@ async def handle_image_upload(image: UploadFile, public_id: str) -> str:
       format='jpg',
       transformation=[{
         'width': 1080,
-        'aspect_ratio': '16:9',
-        'crop': 'fill',
-        'gravity': 'auto',
+        # 'aspect_ratio': '16:9',
+        # 'crop': 'fill',
+        # 'gravity': 'auto',
         'effect': 'sharpen:100',
       }],
-    )["url"]
-  return None
+    )
+    print(f"Post Image uploaded: {result['url']}")
+    return result['url']
+  raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                      detail="No image uploaded")
+
+
+# Helper function to delete file from Cloudinary
+async def delete_from_cloudinary(image_url: str):
+  try:
+    public_id = image_url.rsplit('/', 1)[-1].split('.')[0]
+    result = cloudinary.uploader.destroy(f"posts/{public_id}")
+    print("Document deleted from Cloudinary:", f"posts/{public_id}")
+    print("Result:", result)
+    return result
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
 
 
 # list all posts
@@ -148,7 +163,8 @@ async def update_post(
   author: str = Form(None),
   published: bool = Form(False),
   token_payload: TokenPayload = Depends(auth.auth_wrapper),
-  image: UploadFile = File(None)
+  image: UploadFile = File(None),
+  image_url: str = Form(None),
 ) -> PostDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
@@ -174,7 +190,13 @@ async def update_post(
     raise HTTPException(status_code=404, detail=f"Post with id {id} not found")
 
   # Handle image upload
-  post_data['image'] = await handle_image_upload(image, id)
+  if image:
+    post_data['image'] = await handle_image_upload(image, id)
+  elif image_url:
+    post_data['image'] = image_url
+  else:
+    await delete_from_cloudinary(existing_post['image'])
+    post_data['image'] = None
 
   print("post_data", post_data)
 
@@ -226,9 +248,12 @@ async def delete_post(
   token_payload: TokenPayload = Depends(auth.auth_wrapper)) -> None:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  query = {"alias": alias}
-  result = await request.app.mongodb["posts"].delete_one(query)
+  existing_post = await request.app.mongodb["posts"].find_one({"alias": alias})
+  if not existing_post:
+    raise HTTPException(status_code=404, detail=f"Post with alias {alias} not found")
+  result = await request.app.mongodb["posts"].delete_one({"alias": alias})
   if result.deleted_count == 1:
+    await delete_from_cloudinary(existing_post['image'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                       detail=f"Post with alias {alias} not found")
