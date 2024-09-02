@@ -39,10 +39,11 @@ class DocumentBase(MongoBaseModel):
   title: str = Field(...)
   alias: str = Field( ...)
   category: Optional[str] = None
-  url: Optional[HttpUrl] = None
-  filename: str = None
-  file_type: str = None
-  file_size_byte: int = None
+  url: HttpUrl = Field(...)
+  public_id: str = Field(...)
+  filename: str = Field(...)
+  file_type: str = Field(...)
+  file_size_byte: int = Field(...)
 
 class DocumentDB(DocumentBase):
   create_date: datetime = None
@@ -55,5 +56,7 @@ class DocumentUpdate(DocumentBase):
   alias: Optional[str] = None
   category: Optional[str] = None
   url: Optional[HttpUrl] = None
+  public_id: Optional[str] = None
   filename: Optional[str] = None
   file_type: Optional[str] = None
+  file_size_byte: Optional[int] = None
