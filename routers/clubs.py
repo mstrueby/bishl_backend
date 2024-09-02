@@ -23,18 +23,33 @@ router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
 
-
-async def handle_logo_upload(logo: UploadFile, public_id: str) -> str:
+# upload file
+async def handle_logo_upload(logo: UploadFile, alias: str) -> str:
   if logo:
-    return cloudinary.uploader.upload(
+    result = cloudinary.uploader.upload(
       logo.file,
-      folder="logos",
-      public_id=f"{public_id}",
+      folder="logos/",
+      public_id=alias,
       overwrite=True,
       crop="scale",
       height=200,
-    )['url']
-  return None
+    )
+    print(f"Document uploaded to Cloudinary: {result['public_id']}")
+    return result["secure_url"]
+  raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                      detail="No logo uploaded.")
+
+
+# Helper function to delete file from Cloudinary
+async def delete_from_cloudinary(logo_url: str):
+  try:
+    public_id = logo_url.rsplit('/', 1)[-1].split('.')[0]
+    result = cloudinary.uploader.destroy(f"logos/{public_id}")
+    print("Document deleted from Cloudinary:", f"logos/{public_id}")
+    print("Result:", result)
+    return result
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
 
 
 # list all clubs
@@ -147,26 +162,25 @@ async def update_club(
     ishdId: int = Form(None),
     active: bool = Form(False),
     logo: UploadFile = File(None),
+    logo_url: str = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> ClubDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
-  club_data = ClubUpdate(
-    name=name,
-    alias=alias,
-    addressName=addressName,
-    street=street,
-    zipCode=zipCode,
-    city=city,
-    country=country,
-    email=email,
-    yearOfFoundation=yearOfFoundation,
-    description=description,
-    website=website,
-    ishdId=ishdId,
-    active=active
-  ).dict(exclude_unset=True)
+  club_data = ClubUpdate(name=name,
+                         alias=alias,
+                         addressName=addressName,
+                         street=street,
+                         zipCode=zipCode,
+                         city=city,
+                         country=country,
+                         email=email,
+                         yearOfFoundation=yearOfFoundation,
+                         description=description,
+                         website=website,
+                         ishdId=ishdId,
+                         active=active).dict(exclude_unset=True)
 
   # retrieve existing club
   existing_club = await request.app.mongodb["clubs"].find_one({"_id": id})
@@ -174,7 +188,14 @@ async def update_club(
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         details=f"Club with id {id} not found")
 
-  club_data['logo'] = await handle_logo_upload(logo, existing_club['alias'])
+  # handle image upload
+  if logo:
+    club_data['logo'] = await handle_logo_upload(logo, existing_club['alias'])
+  elif logo_url:
+    club_data['logo'] = logo_url
+  else:
+    await delete_from_cloudinary(existing_club['logo'])
+    club_data['logo'] = None
 
   print("club_data: ", club_data)
 
@@ -199,8 +220,9 @@ async def update_club(
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         content="Failed to update club")
   except DuplicateKeyError:
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Club {club_data.get('name', '')} already exists.")
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=f"Club {club_data.get('name', '')} already exists.")
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=str(e))
@@ -215,8 +237,13 @@ async def delete_club(
 ) -> None:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
+  existing_club = await request.app.mongodb["clubs"].find_one({"alias": alias})
+  if not existing_club:
+    raise HTTPException(status_code=404,
+                        detail=f"Club with alias {alias} not found")
   result = await request.app.mongodb['clubs'].delete_one({"alias": alias})
   if result.deleted_count == 1:
+    await delete_from_cloudinary(existing_club['logo'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=404,
                       detail=f"Club with alias {alias} not found")
