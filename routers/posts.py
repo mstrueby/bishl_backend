@@ -1,12 +1,10 @@
-from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, Body, Depends, status
+from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, Depends, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
 from models.posts import PostBase, PostDB, PostUpdate, Revision
 from typing import List
 from utils import configure_cloudinary, my_jsonable_encoder
-from pymongo import MongoClient
-from bson import ObjectId
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
 import cloudinary
