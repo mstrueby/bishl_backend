@@ -6,7 +6,7 @@ from typing import List
 from utils import configure_cloudinary, my_jsonable_encoder
 from pymongo import MongoClient
 from bson import ObjectId
-from models.players import PlayerBase, PlayerDB, PlayerUpdate
+from models.players import PlayerBase, PlayerDB, PlayerUpdate, PlayerTeams, PlayerClubs
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime, date
 import os
@@ -75,12 +75,11 @@ async def process_ishd_data(request: Request):
   ishd_teams = []
   download_date = datetime.utcnow().replace(microsecond=0)
 
-  async for club in request.app.mongodb['clubs'].aggregate([{
+  async for club in request.app.mongodb['clubs'].aggregate([
+    {
       "$match": {
         "active": True,
-        "ishdId": {
-          "$ne": None
-        },
+        "ishdId": 143,
         "teams.ishdId": {
           "$ne": None
         },
@@ -88,32 +87,33 @@ async def process_ishd_data(request: Request):
           "$ne": []
         }
       }
-  }, {
+    },
+    {
       "$project": {
         "ishdId": 1,
         "name": 1,
         "_id": 0,
         "teams.ishdId": 1
       }
-  }]):
+    }
+  ]):
     ishd_teams.append(
       IshdTeams(club['ishdId'], club['name'],
                 [team['ishdId'] for team in club['teams']]))
 
-  api_urls = []
+  # get exisiting players
+  existing_players = []
+  async for player in request.app.mongodb['players'].find(
+    {}, {
+      'firstname': 1,
+      'lastname': 1,
+      'birthdate': 1,
+      'team_assignments': 1,
+    }):
+    existing_players.append(player)
+
+  #api_urls = []
   base_url_str = str(ISHD_API_URL)
-
-  for club in ishd_teams:
-    for team_id in club.team_ishd_ids:
-      club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
-      team_id_str = urllib.parse.quote(str(team_id))
-
-      # Construct the URL with encoded components
-      api_url = f"{base_url_str}/clubs/{club_ishd_id_str}/teams/{team_id_str}"
-      api_urls.append(api_url)
-
-  #api_urls = ['https://www.ishd.de/api/licenses/clubs/103/teams/1.%20Herren']
-  #print("API URLs:", api_urls)
 
   headers = {
     "Authorization":
@@ -137,79 +137,159 @@ async def process_ishd_data(request: Request):
     },
 
   """
-  players = []
-  async for player in request.app.mongodb['players'].find({}, {
-      'firstname': 1,
-      'lastname': 1,
-      'birthdate': 1
-  }):
-    players.append(player)
 
   ishd_data = []
+  log_lines = []
+  current_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+  file_name = f'ishd_processing_{current_timestamp}.log'
+
   async with aiohttp.ClientSession() as session:
     # loop through teaam API URLs
-    for api_url in api_urls:
-      print("process URL: ", api_url)
-      async with session.get(api_url, headers=headers) as response:
-        if response.status == 200:
-          data = await response.json()
-          #print("data", data)
-          # loop through players array
-          for player in data['players']:
-            # check if player already exists in players array
-            player_exists = False
-            for existing_player in players:
-              if (existing_player['firstname'] == player['first_name']
-                  and existing_player['lastname'] == player['last_name'] and
-                  datetime.strftime(existing_player['birthdate'],
-                                    '%Y-%m-%d') == player['date_of_birth']):
-                player_exists = True
-                break
-            if not player_exists:
-              # insert player into database
-              new_player = PlayerBase(
-                firstname=player['first_name'],
-                lastname=player['last_name'],
-                birthdate=datetime.strptime(player['date_of_birth'],
-                                            '%Y-%m-%d'),
-                nationality=player['nationality']
-                if 'nationality' in player else None,
-              )
-              new_player_dict = jsonable_encoder(new_player)
-              new_player_dict['birthdate'] = datetime.strptime(
-                player['date_of_birth'], '%Y-%m-%d')
-              new_player_dict['download_date'] = download_date
-              new_player_dict['modify_date'] = datetime.strptime(
-                player['last_modification'], '%Y-%m-%d %H:%M:%S')
-              result = await request.app.mongodb["players"].insert_one(
-                new_player_dict)
-              if result.inserted_id:
-                print("Inserted player:", new_player_dict.get('firstname'),
-                      new_player_dict.get('lastname'),
-                      new_player_dict.get('birthdate'))
-              else:
-                raise (HTTPException(
-                  status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                  detail="Failed to insert player."))
-            else:
-              print(
-                f"Player already exists: {player.get('first_name')} {player.get('last_name')}, {player.get('date_of_birth')}"
-              )
+    #for api_url in api_urls:
+    for club in ishd_teams:
 
-          ishd_data.append(data)
-        elif response.status == 404:
-          print(f"API URL {api_url} returned a 404 status code.")
-        else:
-          raise HTTPException(status_code=response.status,
-                              detail=f"Error fetching data from {api_url}")
+      log_line = f"Processing club {club.club_name} (IshdId: {club.club_ishd_id})"
+      print(log_line)
+      log_lines.append(log_line)
+
+      for team_id in club.team_ishd_ids:
+        club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
+        team_id_str = urllib.parse.quote(str(team_id))
+        api_url = f"{base_url_str}/clubs/{club_ishd_id_str}/teams/{team_id_str}"
+
+        log_line = f"Processing team (URL): {club.club_name} / {team_id} ({api_url})"
+        print(log_line)
+        log_lines.append(log_line)
+
+        async with session.get(api_url, headers=headers) as response:
+          if response.status == 200:
+            data = await response.json()
+            #print("data", data)
+            # loop through players array
+            player_team = PlayerTeams(name=team_id)
+            player_club = PlayerClubs(club_name=club.club_name,
+                                      club_ishd_id=club.club_ishd_id,
+                                      teams=[player_team])
+            for player in data['players']:
+              # check if player already exists in players array
+              player_exists = False
+              for existing_player in existing_players:
+                if (existing_player['firstname'] == player['first_name']
+                    and existing_player['lastname'] == player['last_name'] and
+                    datetime.strftime(existing_player['birthdate'],
+                                      '%Y-%m-%d') == player['date_of_birth']):
+                  player_exists = True
+                  break
+              if not player_exists:
+                # FIRST: construct Player object w/o team assignments
+                new_player = PlayerBase(firstname=player['first_name'],
+                                        lastname=player['last_name'],
+                                        birthdate=datetime.strptime(
+                                          player['date_of_birth'], '%Y-%m-%d'),
+                                        nationality=player['nationality']
+                                        if 'nationality' in player else None,
+                                        team_assignments=[player_club])
+                new_player_dict = jsonable_encoder(new_player)
+                new_player_dict['birthdate'] = datetime.strptime(
+                  player['date_of_birth'], '%Y-%m-%d')
+                new_player_dict['download_date'] = download_date
+                new_player_dict['modify_date'] = datetime.strptime(
+                  player['last_modification'], '%Y-%m-%d %H:%M:%S')
+
+                # add player to exisiting players array
+                existing_players.append(new_player_dict)
+                # insert player into database
+                result = await request.app.mongodb["players"].insert_one(
+                  new_player_dict)
+                if result.inserted_id:
+                  log_line = f"Inserted player: {new_player_dict.get('firstname')} {new_player_dict.get('lastname')} {datetime.strftime(new_player_dict.get('birthdate'), '%Y-%m-%d')}"
+                  print(log_line)
+                  log_lines.append(log_line)
+
+                else:
+                  raise (HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to insert player."))
+
+              else:
+                # player already exists
+                # Check if team assignment exists for player
+                club_assignment_exists = False
+                for club_assignment in existing_player.get(
+                    'team_assignments', []):
+                  if club_assignment['club_name'] == club.club_name:
+                    club_assignment_exists = True
+                    # club already exists
+                    team_assignment_exists = False
+                    for team_assignment in club_assignment.get('teams', []):
+                      if team_assignment['name'] == team_id:
+                        team_assignment_exists = True
+                        break
+                    if not team_assignment_exists:
+                      # team assignment does not exist
+                      # add team assignment to players existing club assignment
+                      club_assignment.get('teams').append(player_team)
+                      # update player with new team assignment
+                      existing_player['team_assignments'] = [club_assignment]
+                      # update player in database
+                      result = await request.app.mongodb["players"].update_one(
+                        {"_id": existing_player['_id']}, {
+                          "$set": {
+                            "team_assignments":
+                            jsonable_encoder(
+                              existing_player['team_assignments'])
+                          }
+                        })
+                      if result.modified_count:
+                        log_line = f"Updated team assignment for: {existing_player.get('firstname')} {existing_player.get('lastname')} {datetime.strftime(existing_player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team_id}"
+                        print(log_line)
+                        log_lines.append(log_line)
+
+                      else:
+                        raise (HTTPException(
+                          status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                          detail="Failed to update player."))
+                    break
+                  if not club_assignment_exists:
+                    # club assignment does not exist
+                    # add club assignment to player
+                    existing_player['team_assignments'].append(player_club)
+                    # update player with new club assignment
+                    result = await request.app.mongodb["players"].update_one(
+                      {"_id": existing_player['_id']}, {
+                        "$set": {
+                          "team_assignments":
+                          jsonable_encoder(existing_player['team_assignments'])
+                        }
+                      })
+                    if result.modified_count:
+                      log_line = f"Updated club assignment for: {existing_player.get('firstname')} {existing_player.get('lastname')} {datetime.strftime(existing_player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team_id}"
+                      print(log_line)
+                      log_lines.append(log_line)
+
+                    else:
+                      raise (HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to update player."))
+
+            ishd_data.append(data)
+          elif response.status == 404:
+            log_line = f"API URL {api_url} returned a 404 status code."
+            print(log_line)
+            log_lines.append(log_line)
+
+          else:
+            raise HTTPException(status_code=response.status,
+                                detail=f"Error fetching data from {api_url}")
   await session.close()
 
-  current_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-  file_name = f'ishd_data_{current_timestamp}.json'
-  with open(file_name, 'w') as json_file:
-    json.dump(ishd_data, json_file, indent=2)
+  with open(file_name, 'w') as logfile:
+    logfile.write('\n'.join(log_lines))
 
-  return Response(
+  return JSONResponse(
     status_code=status.HTTP_200_OK,
-    content=json.dumps(
-      f"ISHD data processed successfully, see filename {file_name}"))
+    content={
+      "message": "ISHD data processed successfully",
+      "logs": log_lines,
+      #"data": ishd_data
+    })
