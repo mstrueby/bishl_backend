@@ -1,6 +1,6 @@
 from bson import ObjectId
 from pydantic import Field, BaseModel, validator, HttpUrl
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from utils import prevent_empty_str, empty_str_to_none
 from enum import Enum
@@ -33,14 +33,21 @@ class PositionEnum(str, Enum):
   SKATER = 'Skater'
   GOALIE = 'Goalie'
 
+class PlayerTeams(BaseModel):
+  name: str = Field(...)
+
+class PlayerClubs(BaseModel):
+  club_name: str = Field(...)
+  club_ishd_id: int = Field(...)
+  teams: list[PlayerTeams] = Field(...)
+
 class PlayerBase(MongoBaseModel):
   firstname: str = Field(...)
   lastname: str = Field(...)
   birthdate: datetime = Field(..., description='format: yyyy-mm-dd')
   nationality: str = None
   position: PositionEnum = Field(default=PositionEnum.SKATER)
-  team: str = None
-  club: str = None
+  team_assignments: List[PlayerClubs] = []
   image: HttpUrl = None
   legacyId: int = None
 
@@ -64,8 +71,7 @@ class PlayerUpdate(MongoBaseModel):
   position: Optional[PositionEnum] = None
   download_date: Optional[datetime] = None
   modify_date: Optional[datetime] = "DEFAULT"
-  team: Optional[str] = None
-  club: Optional[str] = None
+  team_assignments: Optional[List[PlayerClubs]] = None
   image: Optional[HttpUrl] = None
 
   @validator('firstname', 'lastname', 'position', pre=True, always=True)
