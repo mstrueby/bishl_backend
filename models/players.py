@@ -51,7 +51,7 @@ class PlayerClubs(BaseModel):
   club_id: str = Field(...)
   club_name: str = Field(...)
   club_alias: str = Field(...)
-  #club_ishd_id: int = Field(...)
+  club_ishd_id: int = Field(...)
   teams: list[PlayerTeams] = Field(...)
 
 

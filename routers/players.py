@@ -43,41 +43,59 @@ async def create_player(request: Request,
       f"Player with name {firstname} {lastname} and birthdate {birthdate.strftime('%d.%m.%Y')} already exists."
     )
 
-  teams = []
-  for assigned_club in assignments:
+  assignments_dict = []
+  print("assignment_input", assignments)
+  for club_to_assign in assignments:
     club_exists = await request.app.mongodb["clubs"].find_one(
-      {"_id": assigned_club.club_id})
+      {"_id": club_to_assign.club_id})
     if not club_exists:
       raise HTTPException(
         status_code=400,
-        detail=f"Club with id {assigned_club.club_id} does not exist.")
-    for assigned_team in assigned_club.teams:
-      print("assigned_team", assigned_team)
+        detail=f"Club with id {club_to_assign.club_id} does not exist.")
+    teams = []
+    for team_to_assign in club_to_assign.teams:
+      print("team_to_assign", team_to_assign)
       team = next((team for team in club_exists['teams']
-                   if team['_id'] == assigned_team['team_id']), None)
+                   if team['_id'] == team_to_assign['team_id']), None)
       if not team:
         raise HTTPException(
           status_code=400,
           detail=
-          f"Team with id {assigned_team['team_id']} does not exist in club {assigned_club.club_id}."
+          f"Team with id {team_to_assign['team_id']} does not exist in club {club_to_assign.club_id}."
         )
       else:
-        # build team_assign
-        print("TODO")
+        # build teams object
+        #print("team", team)
+        teams.append({
+          "team_id": team['_id'],
+          "team_name": team['name'],
+          "team_alias": team['alias'],
+          "team_ishd_id": team['ishdId'],
+          "pass_no": team_to_assign['pass_no'],
+          "source": source,
+          "modify_date": datetime.utcnow().replace(microsecond=0),
+        })
+    assignments_dict.append({
+      "club_id": club_to_assign.club_id,
+      "club_name": club_exists['name'],
+      "club_alias": club_exists['alias'],
+      "club_ishd_id": club_exists['ishdId'],
+      "teams": teams,
+    })
 
-  player = PlayerBase(
-    firstname=firstname,
-    lastname=lastname,
-    birthdate=birthdate,
-    nationality=nationality,
-    #assignments=XXXXX,
-    full_face_req=full_face_req,
-    source=source)
+  player = PlayerBase(firstname=firstname,
+                      lastname=lastname,
+                      birthdate=birthdate,
+                      nationality=nationality,
+                      assignments=assignments_dict,
+                      full_face_req=full_face_req,
+                      source=source)
   player = my_jsonable_encoder(player)
+  player['create_date'] = datetime.utcnow().replace(microsecond=0)
 
   #player['birthdate'] = datetime.strptime(player['birthdate'], '%Y-%m-%d')
   try:
-    print("player", player)
+    #print("new player", player)
     new_player = await request.app.mongodb["players"].insert_one(player)
     created_player = await request.app.mongodb["players"].find_one(
       {"_id": new_player.inserted_id})
@@ -133,7 +151,9 @@ async def process_ishd_data(request: Request):
         "teams": 1
       }
   }]):
-    ishd_teams.append(IshdTeams(club['_id'], club['ishdId'], club['name'], club['alias'], club['teams']))
+    ishd_teams.append(
+      IshdTeams(club['_id'], club['ishdId'], club['name'], club['alias'],
+                club['teams']))
 
   # get exisiting players
   existing_players = []
@@ -180,7 +200,7 @@ async def process_ishd_data(request: Request):
     # loop through teaam API URLs
     #for api_url in api_urls:
     for club in ishd_teams:
-      
+
       log_line = f"Processing club {club.club_name} (IshdId: {club.club_ishd_id})"
       print(log_line)
       log_lines.append(log_line)
@@ -309,7 +329,7 @@ async def process_ishd_data(request: Request):
                         }
                       })
                     if result.modified_count:
-                      log_line = f"Updated club assignment for: {existing_player.get('firstname')} {existing_player.get('lastname')} {datetime.strftime(existing_player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team_id}"
+                      log_line = f"Updated club assignment for: {existing_player.get('firstname')} {existing_player.get('lastname')} {datetime.strftime(existing_player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team.get('ishdId')}"
                       print(log_line)
                       log_lines.append(log_line)
 
