@@ -54,7 +54,7 @@ async def create_player(request: Request,
         detail=f"Club with id {club_to_assign.club_id} does not exist.")
     teams = []
     for team_to_assign in club_to_assign.teams:
-      print("team_to_assign", team_to_assign)
+      print("team_to_assign", club_exists['name'], '/', team_to_assign)
       team = next((team for team in club_exists['teams']
                    if team['_id'] == team_to_assign['team_id']), None)
       if not team:
@@ -336,7 +336,7 @@ async def process_ishd_data(request: Request):
                       "$set": {
                         "assignments":
                         jsonable_encoder(existing_player['assignments'])
-                      }ll
+                      }
                     })
                   if result.modified_count:
                     log_line = f"New club assignment for: {existing_player.get('firstname')} {existing_player.get('lastname')} {datetime.strftime(existing_player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team.get('ishdId')}"
