@@ -2,11 +2,11 @@ from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, B
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
-from typing import List
+from typing import List, Any
 from utils import configure_cloudinary, my_jsonable_encoder
 from pymongo import MongoClient
 from bson import ObjectId
-from models.players import PlayerBase, PlayerDB, PlayerUpdate, PlayerTeams, PlayerClubs
+from models.players import PlayerBase, PlayerDB, PlayerUpdate, PlayerTeams, PlayerClubs, AssignmentInput
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime, date
 import os
@@ -20,26 +20,62 @@ auth = AuthHandler()
 @router.post("/",
              response_description="Add new player",
              response_model=PlayerDB)
-async def create_player(request: Request, player: PlayerBase = Body(...)):
+async def create_player(request: Request,
+                        firstname: str = Body(...),
+                        lastname: str = Body(...),
+                        birthdate: datetime = Body(...),
+                        nationality: str = Body(None),
+                        assignments: List[AssignmentInput] = Body([]),
+                        full_face_req: bool = Body(False),
+                        source: str = Body('BISHL')):
   player_exists = await request.app.mongodb["players"].find_one({
     "firstname":
-    player.firstname,
+    firstname,
     "lastname":
-    player.lastname,
+    lastname,
     "birthdate":
-    player.birthdate
+    birthdate
   })
   if player_exists:
     raise HTTPException(
       status_code=400,
       detail=
-      f"Player with name {player.firstname} {player.lastname} and birthdate {player.birthdate.strftime('%d.%m.%Y')} already exists."
+      f"Player with name {firstname} {lastname} and birthdate {birthdate.strftime('%d.%m.%Y')} already exists."
     )
+
+  teams = []
+  for assigned_club in assignments:
+    club_exists = await request.app.mongodb["clubs"].find_one(
+      {"_id": assigned_club.club_id})
+    if not club_exists:
+      raise HTTPException(
+        status_code=400,
+        detail=f"Club with id {assigned_club.club_id} does not exist.")
+    for assigned_team in assigned_club.teams:
+      print("assigned_team", assigned_team)
+      team = next((team for team in club_exists['teams']
+                   if team['_id'] == assigned_team['team_id']), None)
+      if not team:
+        raise HTTPException(
+          status_code=400,
+          detail=
+          f"Team with id {assigned_team['team_id']} does not exist in club {assigned_club.club_id}."
+        )
+      else:
+        # build team_assign
+        print("TODO")
+
+  player = PlayerBase(
+    firstname=firstname,
+    lastname=lastname,
+    birthdate=birthdate,
+    nationality=nationality,
+    #assignments=XXXXX,
+    full_face_req=full_face_req,
+    source=source)
   player = my_jsonable_encoder(player)
 
   #player['birthdate'] = datetime.strptime(player['birthdate'], '%Y-%m-%d')
-  player['modified_date'] = datetime.utcnow().replace(microsecond=0)
-  player['download_date'] = None
   try:
     print("player", player)
     new_player = await request.app.mongodb["players"].insert_one(player)
@@ -67,16 +103,17 @@ async def process_ishd_data(request: Request):
 
   class IshdTeams:
 
-    def __init__(self, club_ishd_id, club_name, team_ishd_ids):
+    def __init__(self, club_id, club_ishd_id, club_name, club_alias, teams):
+      self.club_id = club_id
       self.club_ishd_id = club_ishd_id
       self.club_name = club_name
-      self.team_ishd_ids = team_ishd_ids
+      self.club_alias = club_alias
+      self.teams = teams
 
   ishd_teams = []
-  download_date = datetime.utcnow().replace(microsecond=0)
+  create_date = datetime.utcnow().replace(microsecond=0)
 
-  async for club in request.app.mongodb['clubs'].aggregate([
-    {
+  async for club in request.app.mongodb['clubs'].aggregate([{
       "$match": {
         "active": True,
         "ishdId": 143,
@@ -87,29 +124,25 @@ async def process_ishd_data(request: Request):
           "$ne": []
         }
       }
-    },
-    {
+  }, {
       "$project": {
         "ishdId": 1,
+        "_id": 1,
         "name": 1,
-        "_id": 0,
-        "teams.ishdId": 1
+        "alias": 1,
+        "teams": 1
       }
-    }
-  ]):
-    ishd_teams.append(
-      IshdTeams(club['ishdId'], club['name'],
-                [team['ishdId'] for team in club['teams']]))
+  }]):
+    ishd_teams.append(IshdTeams(club['_id'], club['ishdId'], club['name'], club['alias'], club['teams']))
 
   # get exisiting players
   existing_players = []
-  async for player in request.app.mongodb['players'].find(
-    {}, {
+  async for player in request.app.mongodb['players'].find({}, {
       'firstname': 1,
       'lastname': 1,
       'birthdate': 1,
-      'team_assignments': 1,
-    }):
+      'assignments': 1,
+  }):
     existing_players.append(player)
 
   #api_urls = []
@@ -147,17 +180,18 @@ async def process_ishd_data(request: Request):
     # loop through teaam API URLs
     #for api_url in api_urls:
     for club in ishd_teams:
-
+      
       log_line = f"Processing club {club.club_name} (IshdId: {club.club_ishd_id})"
       print(log_line)
       log_lines.append(log_line)
 
-      for team_id in club.team_ishd_ids:
+      for team in club.teams:
+        #print("team", team)
         club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
-        team_id_str = urllib.parse.quote(str(team_id))
+        team_id_str = urllib.parse.quote(str(team['ishdId']))
         api_url = f"{base_url_str}/clubs/{club_ishd_id_str}/teams/{team_id_str}"
 
-        log_line = f"Processing team (URL): {club.club_name} / {team_id} ({api_url})"
+        log_line = f"Processing team (URL): {club.club_name} / {team['ishdId']} ({api_url})"
         print(log_line)
         log_lines.append(log_line)
 
@@ -166,12 +200,22 @@ async def process_ishd_data(request: Request):
             data = await response.json()
             #print("data", data)
             # loop through players array
-            player_team = PlayerTeams(name=team_id)
-            player_club = PlayerClubs(club_name=club.club_name,
-                                      club_ishd_id=club.club_ishd_id,
-                                      teams=[player_team])
             for player in data['players']:
               # check if player already exists in players array
+              player_team = PlayerTeams(team_id=team['_id'],
+                                        team_name=team['name'],
+                                        team_alias=team['alias'],
+                                        team_ishd_id=team['ishdId'],
+                                        pass_no=player['license_number'],
+                                        source='ISHD',
+                                        modify_date=datetime.strptime(
+                                          player['last_modification'],
+                                          '%Y-%m-%d %H:%M:%S'))
+              player_club = PlayerClubs(club_id=club.club_id,
+                                        club_name=club.club_name,
+                                        club_alias=club.club_alias,
+                                        club_ishd_id=club.club_ishd_id,
+                                        teams=[player_team])
               player_exists = False
               for existing_player in existing_players:
                 if (existing_player['firstname'] == player['first_name']
@@ -181,23 +225,27 @@ async def process_ishd_data(request: Request):
                   player_exists = True
                   break
               if not player_exists:
+                # NEW PLAYER
                 # FIRST: construct Player object w/o team assignments
-                new_player = PlayerBase(firstname=player['first_name'],
-                                        lastname=player['last_name'],
-                                        birthdate=datetime.strptime(
-                                          player['date_of_birth'], '%Y-%m-%d'),
-                                        nationality=player['nationality']
-                                        if 'nationality' in player else None,
-                                        team_assignments=[player_club])
-                new_player_dict = jsonable_encoder(new_player)
+                new_player = PlayerBase(
+                  firstname=player['first_name'],
+                  lastname=player['last_name'],
+                  birthdate=datetime.strptime(player['date_of_birth'],
+                                              '%Y-%m-%d'),
+                  nationality=player['nationality']
+                  if 'nationality' in player else None,
+                  assignments=[player_club],
+                  full_face_req=True
+                  if player.get('full_face_req') == 'true' else False,
+                  source='ISHD')
+                new_player_dict = my_jsonable_encoder(new_player)
                 new_player_dict['birthdate'] = datetime.strptime(
                   player['date_of_birth'], '%Y-%m-%d')
-                new_player_dict['download_date'] = download_date
-                new_player_dict['modify_date'] = datetime.strptime(
-                  player['last_modification'], '%Y-%m-%d %H:%M:%S')
+                new_player_dict['create_date'] = create_date
 
                 # add player to exisiting players array
                 existing_players.append(new_player_dict)
+
                 # insert player into database
                 result = await request.app.mongodb["players"].insert_one(
                   new_player_dict)
@@ -215,14 +263,13 @@ async def process_ishd_data(request: Request):
                 # player already exists
                 # Check if team assignment exists for player
                 club_assignment_exists = False
-                for club_assignment in existing_player.get(
-                    'team_assignments', []):
+                for club_assignment in existing_player.get('assignments', []):
                   if club_assignment['club_name'] == club.club_name:
                     club_assignment_exists = True
                     # club already exists
                     team_assignment_exists = False
                     for team_assignment in club_assignment.get('teams', []):
-                      if team_assignment['name'] == team_id:
+                      if team_assignment['team_id'] == team['_id']:
                         team_assignment_exists = True
                         break
                     if not team_assignment_exists:
@@ -230,18 +277,17 @@ async def process_ishd_data(request: Request):
                       # add team assignment to players existing club assignment
                       club_assignment.get('teams').append(player_team)
                       # update player with new team assignment
-                      existing_player['team_assignments'] = [club_assignment]
+                      existing_player['assignments'] = [club_assignment]
                       # update player in database
                       result = await request.app.mongodb["players"].update_one(
                         {"_id": existing_player['_id']}, {
                           "$set": {
-                            "team_assignments":
-                            jsonable_encoder(
-                              existing_player['team_assignments'])
+                            "assignments":
+                            jsonable_encoder(existing_player['assignments'])
                           }
                         })
                       if result.modified_count:
-                        log_line = f"Updated team assignment for: {existing_player.get('firstname')} {existing_player.get('lastname')} {datetime.strftime(existing_player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team_id}"
+                        log_line = f"Updated team assignment for: {existing_player.get('firstname')} {existing_player.get('lastname')} {datetime.strftime(existing_player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team['ishdId']}"
                         print(log_line)
                         log_lines.append(log_line)
 
@@ -253,13 +299,13 @@ async def process_ishd_data(request: Request):
                   if not club_assignment_exists:
                     # club assignment does not exist
                     # add club assignment to player
-                    existing_player['team_assignments'].append(player_club)
+                    existing_player['assignments'].append(player_club)
                     # update player with new club assignment
                     result = await request.app.mongodb["players"].update_one(
                       {"_id": existing_player['_id']}, {
                         "$set": {
-                          "team_assignments":
-                          jsonable_encoder(existing_player['team_assignments'])
+                          "assignments":
+                          jsonable_encoder(existing_player['assignments'])
                         }
                       })
                     if result.modified_count:
@@ -293,3 +339,26 @@ async def process_ishd_data(request: Request):
       "logs": log_lines,
       #"data": ishd_data
     })
+
+
+@router.get("/{id}",
+            response_description="Get a player by ID",
+            response_model=PlayerDB)
+async def get_player(id: str, request: Request) -> PlayerDB:
+  player = await request.app.mongodb["players"].find_one({"_id": id})
+  if player is None:
+    raise HTTPException(status_code=404,
+                        detail=f"Player with id {id} not found")
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(PlayerDB(**player)))
+
+
+@router.delete("/{id}", response_description="Delete a player by ID")
+async def delete_player(request: Request, id: str):
+  delete_result = await request.app.mongodb["players"].delete_one({"_id": id})
+
+  if delete_result.deleted_count == 1:
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+  else:
+    raise HTTPException(status_code=404,
+                        detail=f"Player with ID {id} not found.")
