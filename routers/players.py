@@ -287,8 +287,9 @@ async def get_paginated_players(request,
                                 team_alias=None):
   RESULTS_PER_PAGE = 25
   skip = (page - 1) * RESULTS_PER_PAGE
-  query = {"$and": []}
+  query = {}
   if club_alias:
+    query = {"$and": []}
     query["$and"].append({"assignments.club_alias": club_alias})
   if team_alias:
     query["$and"].append({"assignments.teams.team_alias": team_alias})
