@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, Body, Depends, status
+from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, Body, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
-from typing import List, Any
+from typing import List, Any, Coroutine
 from utils import configure_cloudinary, my_jsonable_encoder
 from pymongo import MongoClient
 from bson import ObjectId
@@ -279,6 +279,125 @@ async def process_ishd_data(request: Request):
     })
 
 
+# Helper function to search players
+async def get_paginated_players(request,
+                                q,
+                                page,
+                                club_alias=None,
+                                team_alias=None):
+  RESULTS_PER_PAGE = 25
+  skip = (page - 1) * RESULTS_PER_PAGE
+  query = {"$and": []}
+  if club_alias:
+    query["$and"].append({"assignments.club_alias": club_alias})
+  if team_alias:
+    query["$and"].append({"assignments.teams.team_alias": team_alias})
+  if q and len(q) >= 3:
+    query["$and"].append({
+      "$or": [{
+        "firstname": {
+          "$regex": f".*{q}.*",
+          "$options": "i"
+        }
+      }, {
+        "lastname": {
+          "$regex": f".*{q}.*",
+          "$options": "i"
+        }
+      }, {
+        "assignments.teams.pass_no": {
+          "$regex": f".*{q}.*",
+          "$options": "i"
+        }
+      }]
+    })
+  print("query", query)
+  players = await request.app.mongodb["players"].find(query).sort(
+    "firstname", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
+  return [PlayerDB(**raw_player) for raw_player in players]
+
+
+# GET ALL PLAYERS FOR ONE CLUB
+# --------
+@router.get("/clubs/{club_alias}",
+            response_description="Get all players for a club",
+            response_model=List[PlayerDB])
+async def get_players_for_club(
+  request: Request,
+  club_alias: str,
+  page: int = 1,
+  q: str = None,
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> List[PlayerDB]:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
+  # get club
+  club = await request.app.mongodb["clubs"].find_one({"alias": club_alias})
+  if not club:
+    raise HTTPException(status_code=404,
+                        detail=f"Club with alias {club_alias} not found")
+  players = await get_paginated_players(request, q, page, club_alias)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(players))
+
+
+# GET ALL PLAYERS FOR ONE CLUB/TEAM
+# --------
+@router.get("/clubs/{club_alias}/teams/{team_alias}",
+            response_description="Get all players for a team",
+            response_model=List[PlayerDB])
+async def get_players_for_team(
+  request: Request,
+  club_alias: str,
+  team_alias: str,
+  page: int = 1,
+  q: str = None,
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> List[PlayerDB]:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
+  # get club
+  club = await request.app.mongodb["clubs"].find_one({"alias": club_alias})
+  if not club:
+    raise HTTPException(status_code=404,
+                        detail=f"Club with alias {club_alias} not found")
+  # get team
+  team = None
+  for t in club.get("teams", []):
+    if t["alias"] == team_alias:
+      team = t
+      break
+  if not team:
+    raise HTTPException(
+      status_code=404,
+      detail=f"Team with alias {team_alias} not found in club {club_alias}")
+  players = await get_paginated_players(request, q, page, club_alias,
+                                        team_alias)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(players))
+
+
+# GET ALL PLAYERS
+# -------------------
+@router.get("/",
+            response_description="Get all players",
+            response_model=List[PlayerDB])
+async def get_players(
+  request: Request,
+  page: int = 1,
+  q: str = None,
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> List[PlayerDB]:
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized")
+  #RESULTS_PER_PAGE = int(os.environ.get("RESULTS_PER_PAGE", 25))
+
+  players = await get_paginated_players(request, q, page)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(players))
+
+
 # GET ONE PLAYER
 # --------------------
 @router.get("/{id}",
@@ -395,6 +514,35 @@ async def create_player(request: Request,
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=str(e))
+
+
+# SEARCH PLAYERS by Name or PassNo
+# ----------------------------------------
+@router.get("/search",
+            response_description="Search players",
+            response_model=List[PlayerDB])
+async def search_players(
+  request: Request, q: str = Query(..., min_length=3)) -> List[PlayerDB]:
+  search_query = {
+    "$or": [
+      {
+        "firstname": {
+          "$regex": f".*{q}.*",
+          "$options": "i"
+        }
+      },
+      {
+        "lastname": {
+          "$regex": f".*{q}.*",
+          "$options": "i"
+        }
+      },
+    ]
+  }
+  cursor = request.app.mongodb["players"].find(search_query).sort(
+    "firstname", 1)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(cursor))
 
 
 # DELETE PLAYER
