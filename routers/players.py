@@ -17,99 +17,8 @@ router = APIRouter()
 auth = AuthHandler()
 
 
-@router.post("/",
-             response_description="Add new player",
-             response_model=PlayerDB)
-async def create_player(request: Request,
-                        firstname: str = Body(...),
-                        lastname: str = Body(...),
-                        birthdate: datetime = Body(...),
-                        nationality: str = Body(None),
-                        assignments: List[AssignmentInput] = Body([]),
-                        full_face_req: bool = Body(False),
-                        source: str = Body('BISHL')):
-  player_exists = await request.app.mongodb["players"].find_one({
-    "firstname":
-    firstname,
-    "lastname":
-    lastname,
-    "birthdate":
-    birthdate
-  })
-  if player_exists:
-    raise HTTPException(
-      status_code=400,
-      detail=
-      f"Player with name {firstname} {lastname} and birthdate {birthdate.strftime('%d.%m.%Y')} already exists."
-    )
-
-  assignments_dict = []
-  print("assignment_input", assignments)
-  for club_to_assign in assignments:
-    club_exists = await request.app.mongodb["clubs"].find_one(
-      {"_id": club_to_assign.club_id})
-    if not club_exists:
-      raise HTTPException(
-        status_code=400,
-        detail=f"Club with id {club_to_assign.club_id} does not exist.")
-    teams = []
-    for team_to_assign in club_to_assign.teams:
-      print("team_to_assign", club_exists['name'], '/', team_to_assign)
-      team = next((team for team in club_exists['teams']
-                   if team['_id'] == team_to_assign['team_id']), None)
-      if not team:
-        raise HTTPException(
-          status_code=400,
-          detail=
-          f"Team with id {team_to_assign['team_id']} does not exist in club {club_to_assign.club_id}."
-        )
-      else:
-        # build teams object
-        #print("team", team)
-        teams.append({
-          "team_id": team['_id'],
-          "team_name": team['name'],
-          "team_alias": team['alias'],
-          "team_ishd_id": team['ishdId'],
-          "pass_no": team_to_assign['pass_no'],
-          "source": source,
-          "modify_date": datetime.utcnow().replace(microsecond=0),
-        })
-    assignments_dict.append({
-      "club_id": club_to_assign.club_id,
-      "club_name": club_exists['name'],
-      "club_alias": club_exists['alias'],
-      "club_ishd_id": club_exists['ishdId'],
-      "teams": teams,
-    })
-
-  player = PlayerBase(firstname=firstname,
-                      lastname=lastname,
-                      birthdate=birthdate,
-                      nationality=nationality,
-                      assignments=assignments_dict,
-                      full_face_req=full_face_req,
-                      source=source)
-  player = my_jsonable_encoder(player)
-  player['create_date'] = datetime.utcnow().replace(microsecond=0)
-
-  #player['birthdate'] = datetime.strptime(player['birthdate'], '%Y-%m-%d')
-  try:
-    #print("new player", player)
-    new_player = await request.app.mongodb["players"].insert_one(player)
-    created_player = await request.app.mongodb["players"].find_one(
-      {"_id": new_player.inserted_id})
-    if created_player:
-      return JSONResponse(status_code=status.HTTP_201_CREATED,
-                          content=jsonable_encoder(PlayerDB(**created_player)))
-    else:
-      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                          detail="Failed to create player.")
-  except Exception as e:
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=str(e))
-
-
+# PROCESS ISHD DATA
+# ----------------------
 @router.get(
   "/process_ishd_data",
   response_description="Process ISHD player data to BISHL-Application")
@@ -217,7 +126,6 @@ async def process_ishd_data(request: Request):
         log_line = f"Processing team (URL): {club.club_name} / {team['ishdId']} ({api_url})"
         print(log_line)
         #log_lines.append(log_line)
-
         async with session.get(api_url, headers=headers) as response:
           if response.status == 200:
             data = await response.json()
@@ -371,10 +279,16 @@ async def process_ishd_data(request: Request):
     })
 
 
+# GET ONE PLAYER
+# --------------------
 @router.get("/{id}",
             response_description="Get a player by ID",
             response_model=PlayerDB)
-async def get_player(id: str, request: Request) -> PlayerDB:
+async def get_player(
+  id: str,
+  request: Request,
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> PlayerDB:
   player = await request.app.mongodb["players"].find_one({"_id": id})
   if player is None:
     raise HTTPException(status_code=404,
@@ -383,10 +297,117 @@ async def get_player(id: str, request: Request) -> PlayerDB:
                       content=jsonable_encoder(PlayerDB(**player)))
 
 
-@router.delete("/{id}", response_description="Delete a player by ID")
-async def delete_player(request: Request, id: str):
-  delete_result = await request.app.mongodb["players"].delete_one({"_id": id})
+# CREATE NEW PLAYER
+# ----------------------
+@router.post("/",
+             response_description="Add new player",
+             response_model=PlayerDB)
+async def create_player(request: Request,
+                        firstname: str = Body(...),
+                        lastname: str = Body(...),
+                        birthdate: datetime = Body(...),
+                        nationality: str = Body(None),
+                        assignments: List[AssignmentInput] = Body([]),
+                        full_face_req: bool = Body(False),
+                        source: str = Body('BISHL'),
+                        token_payload: TokenPayload = Depends(
+                          auth.auth_wrapper)):
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
 
+  player_exists = await request.app.mongodb["players"].find_one({
+    "firstname":
+    firstname,
+    "lastname":
+    lastname,
+    "birthdate":
+    birthdate
+  })
+  if player_exists:
+    raise HTTPException(
+      status_code=400,
+      detail=
+      f"Player with name {firstname} {lastname} and birthdate {birthdate.strftime('%d.%m.%Y')} already exists."
+    )
+
+  assignments_dict = []
+  print("assignment_input", assignments)
+  for club_to_assign in assignments:
+    club_exists = await request.app.mongodb["clubs"].find_one(
+      {"_id": club_to_assign.club_id})
+    if not club_exists:
+      raise HTTPException(
+        status_code=400,
+        detail=f"Club with id {club_to_assign.club_id} does not exist.")
+    teams = []
+    for team_to_assign in club_to_assign.teams:
+      print("team_to_assign", club_exists['name'], '/', team_to_assign)
+      team = next((team for team in club_exists['teams']
+                   if team['_id'] == team_to_assign['team_id']), None)
+      if not team:
+        raise HTTPException(
+          status_code=400,
+          detail=
+          f"Team with id {team_to_assign['team_id']} does not exist in club {club_to_assign.club_id}."
+        )
+      else:
+        # build teams object
+        #print("team", team)
+        teams.append({
+          "team_id": team['_id'],
+          "team_name": team['name'],
+          "team_alias": team['alias'],
+          "team_ishd_id": team['ishdId'],
+          "pass_no": team_to_assign['pass_no'],
+          "source": source,
+          "modify_date": datetime.utcnow().replace(microsecond=0),
+        })
+    assignments_dict.append({
+      "club_id": club_to_assign.club_id,
+      "club_name": club_exists['name'],
+      "club_alias": club_exists['alias'],
+      "club_ishd_id": club_exists['ishdId'],
+      "teams": teams,
+    })
+
+  player = PlayerBase(firstname=firstname,
+                      lastname=lastname,
+                      birthdate=birthdate,
+                      nationality=nationality,
+                      assignments=assignments_dict,
+                      full_face_req=full_face_req,
+                      source=source)
+  player = my_jsonable_encoder(player)
+  player['create_date'] = datetime.utcnow().replace(microsecond=0)
+
+  #player['birthdate'] = datetime.strptime(player['birthdate'], '%Y-%m-%d')
+  try:
+    #print("new player", player)
+    new_player = await request.app.mongodb["players"].insert_one(player)
+    created_player = await request.app.mongodb["players"].find_one(
+      {"_id": new_player.inserted_id})
+    if created_player:
+      return JSONResponse(status_code=status.HTTP_201_CREATED,
+                          content=jsonable_encoder(PlayerDB(**created_player)))
+    else:
+      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                          detail="Failed to create player.")
+  except Exception as e:
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=str(e))
+
+
+# DELETE PLAYER
+# ----------------------
+@router.delete("/{id}", response_description="Delete a player by ID")
+async def delete_player(request: Request,
+                        id: str,
+                        token_payload: TokenPayload = Depends(
+                          auth.auth_wrapper)):
+  if token_payload.roles not in [["ADMIN"]]:
+    raise HTTPException(status_code=403, detail="Not authorized")
+
+  delete_result = await request.app.mongodb["players"].delete_one({"_id": id})
   if delete_result.deleted_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
   else:
