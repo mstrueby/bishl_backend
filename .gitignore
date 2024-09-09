@@ -4,4 +4,4 @@ __pycache__
 .vscode/settings.json
 *.csv
 venv/
-ishd*
+ishd_*
