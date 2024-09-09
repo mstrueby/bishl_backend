@@ -309,6 +309,65 @@ async def process_ishd_data(request: Request,
                     detail="Failed to update player."))
 
           ishd_data.append(data)
+
+          # remove player of a team (still in team loop)
+          query = {"$and": []}
+          query["$and"].append({"assignments.club_alias": club.club_alias})
+          query["$and"].append({"assignments.teams.team_alias": team['alias']})
+          players = await request.app.mongodb["players"].find(query).to_list(
+            length=None)
+          if mode == "test":
+            print("removing / players:", players)
+          if players:
+            for player in players:
+              if mode == "test":
+                print("remove player ?", player)
+              # remove player from team
+              if not any(
+                  p['first_name'] == player['firstname']
+                  and p['last_name'] == player['lastname'] and p['date_of_birth']
+                  == datetime.strftime(player['birthdate'], '%Y-%m-%d')
+                  for p in data['players']):
+                query = {"$and": []}
+                query["$and"].append({"_id": player['_id']})
+                query["$and"].append({"assignments.club_alias": club.club_alias})
+                query["$and"].append(
+                  {"assignments.teams.team_alias": team['alias']})
+                # print("query", query)
+                result = await request.app.mongodb["players"].update_one(
+                  query, {
+                    "$pull": {
+                      "assignments.$.teams": {
+                        "team_alias": team['alias']
+                      }
+                    }
+                  })
+                if result.modified_count:
+                  log_line = f"Removed player: {player.get('firstname')} {player.get('lastname')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team.get('ishdId')}"
+                  print(log_line)
+                  log_lines.append(log_line)
+                  
+                  # After removing team assignment, if the teams array is empty, remove the club assignment
+                  result = await request.app.mongodb["players"].update_one(
+                    {"_id": player['_id'], "assignments.club_ishd_id": club.club_ishd_id},
+                    {"$pull": {"assignments": {"teams": {"$size": 0}}}}
+                  )
+  
+                  if result.modified_count:
+                    log_line = f"Removed club assignment for player: {player.get('firstname')} {player.get('lastname')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name}"
+                    print(log_line)
+                    log_lines.append(log_line)
+                  else:
+                    print('--- No club assignment removed')
+  
+                else:
+                  raise (HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to remove player."))
+              else:
+                if mode == "test":
+                  print("player exists in team - do not remove")
+
   await session.close()
 
   with open(file_name, 'w') as logfile:
