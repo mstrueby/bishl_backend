@@ -1,5 +1,6 @@
 { pkgs }: {
   deps = [
+    pkgs.nano
     pkgs.libxcrypt
     pkgs.cacert
     pkgs.python310Full
