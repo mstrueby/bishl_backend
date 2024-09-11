@@ -29,15 +29,18 @@ class MongoBaseModel(BaseModel):
   class Config:
     json_encoders = {ObjectId: str}
 
+
 class PositionEnum(str, Enum):
   SKATER = 'Skater'
   GOALIE = 'Goalie'
+
 
 class SourceEnum(str, Enum):
   ISHD = 'ISHD'
   BISHL = 'BISHL'
 
-class PlayerTeams(BaseModel):
+
+class AssignedTeams(BaseModel):
   team_id: str = Field(...)
   team_name: str = Field(...)
   team_alias: str = Field(...)
@@ -47,18 +50,19 @@ class PlayerTeams(BaseModel):
   modify_date: datetime = None
 
 
-class PlayerClubs(BaseModel):
+class AssignedClubs(BaseModel):
   club_id: str = Field(...)
   club_name: str = Field(...)
   club_alias: str = Field(...)
   club_ishd_id: int = Field(...)
-  teams: list[PlayerTeams] = Field(...)
+  teams: list[AssignedTeams] = Field(...)
 
 
-class AssignmentInput(BaseModel):
+class AssignedTeamsInput(BaseModel):
   club_id: str = Field(...)
   teams: list[dict[str, str]] = Field(...)
-  
+
+
 class PlayerBase(MongoBaseModel):
   firstname: str = Field(...)
   lastname: str = Field(...)
@@ -67,9 +71,9 @@ class PlayerBase(MongoBaseModel):
   position: PositionEnum = Field(default=PositionEnum.SKATER)
   full_face_req: bool = False
   source: SourceEnum = Field(default=SourceEnum.BISHL)
-  assignments: List[PlayerClubs] = []
+  assigned_teams: List[AssignedClubs] = []
   image: HttpUrl = None
-  legacyId: int = None
+  legacy_id: int = None
 
   @validator('firstname', 'lastname', 'position', pre=True, always=True)
   def validate_null_strings(cls, v, field):
@@ -78,21 +82,25 @@ class PlayerBase(MongoBaseModel):
   @validator('image', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
+
 
 class PlayerDB(PlayerBase):
   create_date: datetime = None
 
+
 class PlayerUpdate(MongoBaseModel):
   firstname: Optional[str] = "DEFAULT"
-  lastname: Optional[str] = "DEFAULT"
-  birthdate: Optional[datetime] = "DEFAULT"
-  nationality: Optional[str] = None
-  position: Optional[PositionEnum] = None
-  full_face_req: Optional[bool] = False
-  source: Optional[SourceEnum] = None
-  assignments: Optional[List[PlayerClubs]] = None
-  image: Optional[HttpUrl] = None
+  lastname: Optional[str]
+  birthdate: Optional[datetime]
+  nationality: Optional[str]
+  position: Optional[PositionEnum]
+  full_face_req: Optional[bool]
+  source: Optional[SourceEnum]
+  assigned_teams: Optional[List[AssignedClubs]]
+  image: Optional[HttpUrl]
 
+
+"""
   @validator('firstname', 'lastname', 'position', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
@@ -100,3 +108,4 @@ class PlayerUpdate(MongoBaseModel):
   @validator('image', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
+"""
