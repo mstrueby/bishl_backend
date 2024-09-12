@@ -60,7 +60,7 @@ class PostBase(MongoBaseModel):
   image: HttpUrl = None
   published: bool = False
   legacyId: int = None
-
+"""
   @validator('title', 'alias', 'content', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
@@ -68,6 +68,7 @@ class PostBase(MongoBaseModel):
   @validator('image', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
+"""
 
 class PostDB(PostBase):
   create_date: datetime = None
@@ -77,14 +78,15 @@ class PostDB(PostBase):
   revisions: list[Revision] = []
 
 class PostUpdate(MongoBaseModel):
-  title: str = "DEFAULT"
-  alias: str = "DEFAULT"
-  content: str = "DEFAULT"
+  title: Optional[str] = None
+  alias: Optional[str] = None
+  content: Optional[str] = None
   author: Optional[Author] = None
   tags: Optional[list] = []
   image: Optional[HttpUrl] = None
-  published: Optional[bool] = False
+  published: Optional[bool] = None
 
+  """
   @validator('title', 'alias', 'content', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
@@ -92,4 +94,4 @@ class PostUpdate(MongoBaseModel):
   @validator('image', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
-  
+  """

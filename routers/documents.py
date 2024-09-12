@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form, D
 from fastapi.responses import JSONResponse, Response
 from fastapi.encoders import jsonable_encoder
 from utils import configure_cloudinary, my_jsonable_encoder
-from typing import List
+from typing import List, Optional
 import cloudinary
 import cloudinary.uploader
 from models.documents import DocumentBase, DocumentDB, DocumentUpdate
@@ -50,12 +50,15 @@ async def delete_from_cloudinary(public_id: str):
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
+
 # Helper function to check for reserved aliases
 def check_reserved_aliases(alias: str):
   reserved_aliases = ["categories"]
   if alias.lower() in reserved_aliases:
-    raise HTTPException(status_code=400,
-                        detail="Alias/Title is reserved as API endpoint. Please choose another.")
+    raise HTTPException(
+      status_code=400,
+      detail="Alias/Title is reserved as API endpoint. Please choose another.")
+
 
 # get all catgories
 @router.get("/categories", response_description="Get list of all categories")
@@ -74,7 +77,10 @@ async def get_documents_by_category(
   category: str,
 ) -> List[DocumentDB]:
   documents = await request.app.mongodb["documents"].find({
-    "category": {"$regex": f"^{category}$", "$options": "i"} 
+    "category": {
+      "$regex": f"^{category}$",
+      "$options": "i"
+    }
   }).to_list(1000)
   documents.sort(key=lambda x: x["title"])
   result = [DocumentDB(**document) for document in documents]
@@ -188,26 +194,27 @@ async def upload_document(
 async def update_document(
   request: Request,
   id: str,
-  title: str = Form(...),
-  alias: str = Form(...),
+  title: Optional[str] = Form(None),
+  alias: Optional[str] = Form(None),
+  category: Optional[str] = Form(None),
   file: UploadFile = File(None),
-  category: str = Form(None),
   token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> DocumentDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
-  doc_data = DocumentUpdate(
-    title=title,
-    alias=alias,
-    category=category,
-  ).dict(exclude_unset=True)
-  print("doc_data: ", doc_data)
-
   existing_doc = await request.app.mongodb['documents'].find_one({'_id': id})
   if not existing_doc:
     raise HTTPException(status_code=404,
                         detail=f"Document with id {id} not found.")
+
+  doc_data = DocumentUpdate(
+    title=title,
+    alias=alias,
+    category=category,
+  ).dict(exclude_none=True)
+  doc_data.pop("id", None)
+  print("doc_data: ", doc_data)
 
   if file:
     validate_file_type(file)
