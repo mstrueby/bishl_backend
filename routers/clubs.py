@@ -23,6 +23,7 @@ router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
 
+
 # upload file
 async def handle_logo_upload(logo: UploadFile, alias: str) -> str:
   if logo:
@@ -148,25 +149,31 @@ async def create_club(
 async def update_club(
     request: Request,
     id: str,
-    name: str = Form(...),
-    alias: str = Form(...),
-    addressName: str = Form(None),
-    street: str = Form(None),
-    zipCode: str = Form(None),
-    city: str = Form(None),
-    country: str = Form(...),
-    email: str = Form(None),
-    yearOfFoundation: int = Form(None),
-    description: str = Form(None),
-    website: str = Form(None),
-    ishdId: int = Form(None),
-    active: bool = Form(False),
-    logo: UploadFile = File(None),
-    logo_url: str = Form(None),
+    name: Optional[str] = Form(None),
+    alias: Optional[str] = Form(None),
+    addressName: Optional[str] = Form(None),
+    street: Optional[str] = Form(None),
+    zipCode: Optional[str] = Form(None),
+    city: Optional[str] = Form(None),
+    country: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    yearOfFoundation: Optional[int] = Form(None),
+    description: Optional[str] = Form(None),
+    website: Optional[str] = Form(None),
+    ishdId: Optional[int] = Form(None),
+    active: Optional[bool] = Form(None),
+    logo: Optional[UploadFile] = File(None),
+    logo_url: Optional[str] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> ClubDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
+
+  # retrieve existing club
+  existing_club = await request.app.mongodb["clubs"].find_one({"_id": id})
+  if not existing_club:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        details=f"Club with id {id} not found")
 
   club_data = ClubUpdate(name=name,
                          alias=alias,
@@ -180,20 +187,15 @@ async def update_club(
                          description=description,
                          website=website,
                          ishdId=ishdId,
-                         active=active).dict(exclude_unset=True)
-
-  # retrieve existing club
-  existing_club = await request.app.mongodb["clubs"].find_one({"_id": id})
-  if not existing_club:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                        details=f"Club with id {id} not found")
+                         active=active).dict(exclude_none=True)
+  club_data.pop('id', None)
 
   # handle image upload
   if logo:
     club_data['logo'] = await handle_logo_upload(logo, existing_club['alias'])
   elif logo_url:
     club_data['logo'] = logo_url
-  else:
+  elif existing_club['logo']:
     await delete_from_cloudinary(existing_club['logo'])
     club_data['logo'] = None
 

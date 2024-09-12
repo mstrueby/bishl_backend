@@ -3,7 +3,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
 from models.posts import PostBase, PostDB, PostUpdate, Revision
-from typing import List
+from typing import List, Optional
 from utils import configure_cloudinary, my_jsonable_encoder
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
@@ -76,15 +76,15 @@ async def get_post(request: Request, alias: str) -> PostDB:
 # create post
 @router.post("/", response_model=PostDB, response_description="Create post")
 async def create_post(
-  request: Request,
-  title: str = Form(...),
-  content: str = Form(...),
-  alias: str = Form(...),
-  author: str = Form(None),
-  published: bool = Form(False),
-  legacyId: int = Form(None),
-  token_payload: TokenPayload = Depends(auth.auth_wrapper),
-  image: UploadFile = File(None)
+    request: Request,
+    title: str = Form(...),
+    content: str = Form(...),
+    alias: str = Form(...),
+    author: str = Form(None),  # JSON String
+    published: bool = Form(False),
+    legacyId: int = Form(None),
+    image: UploadFile = File(None),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> PostDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
@@ -153,19 +153,24 @@ async def create_post(
               response_model=PostDB,
               response_description="Update post")
 async def update_post(
-  request: Request,
-  id: str,
-  title: str = Form(...),
-  alias: str = Form(...),
-  content: str = Form(...),
-  author: str = Form(None),
-  published: bool = Form(False),
-  token_payload: TokenPayload = Depends(auth.auth_wrapper),
-  image: UploadFile = File(None),
-  image_url: str = Form(None),
+    request: Request,
+    id: str,
+    title: Optional[str] = Form(None),
+    alias: Optional[str] = Form(None),
+    content: Optional[str] = Form(None),
+    author: Optional[str] = Form(None),
+    published: Optional[bool] = Form(None),
+    token_payload: Optional[TokenPayload] = Depends(auth.auth_wrapper),
+    image: Optional[UploadFile] = File(None),
+    image_url: Optional[str] = Form(None),
 ) -> PostDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
+
+  # Retrieve existing post
+  existing_post = await request.app.mongodb["posts"].find_one({"_id": id})
+  if not existing_post:
+    raise HTTPException(status_code=404, detail=f"Post with id {id} not found")
 
   # Prepare post data
   post_data = PostUpdate(
@@ -174,7 +179,8 @@ async def update_post(
     content=content,
     author=json.loads(author) if author else None,
     published=published,
-  ).dict(exclude_unset=True)
+  ).dict(exclude_none=True)
+  post_data.pop('id', None)
   post_data['update_date'] = datetime.utcnow().replace(microsecond=0)
   post_data['update_user'] = {
     "user_id": token_payload.sub,
@@ -182,17 +188,12 @@ async def update_post(
     "lastname": token_payload.lastname
   }
 
-  # Retrieve existing post
-  existing_post = await request.app.mongodb["posts"].find_one({"_id": id})
-  if not existing_post:
-    raise HTTPException(status_code=404, detail=f"Post with id {id} not found")
-
   # Handle image upload
   if image:
     post_data['image'] = await handle_image_upload(image, id)
   elif image_url:
     post_data['image'] = image_url
-  else:
+  elif existing_post['image']:
     await delete_from_cloudinary(existing_post['image'])
     post_data['image'] = None
 
@@ -248,7 +249,8 @@ async def delete_post(
     raise HTTPException(status_code=403, detail="Not authorized")
   existing_post = await request.app.mongodb["posts"].find_one({"alias": alias})
   if not existing_post:
-    raise HTTPException(status_code=404, detail=f"Post with alias {alias} not found")
+    raise HTTPException(status_code=404,
+                        detail=f"Post with alias {alias} not found")
   result = await request.app.mongodb["posts"].delete_one({"alias": alias})
   if result.deleted_count == 1:
     await delete_from_cloudinary(existing_post['image'])

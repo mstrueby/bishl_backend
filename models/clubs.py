@@ -49,20 +49,30 @@ class TeamBase(MongoBaseModel):
   @validator('ishdId', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
-  
-  @validator('name', 'alias', 'fullName', 'shortName', 'tinyName', 'ageGroup', pre=True, always=True)
+
+  @validator('name',
+             'alias',
+             'fullName',
+             'shortName',
+             'tinyName',
+             'ageGroup',
+             pre=True,
+             always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
+
 
 @validator('teamNumber', pre=True, always=True)
 def int_must_be_positive(cls, v):
   if v < 1 or v is None:
     raise ValueError("Field must be positive")
 
+
 class TeamDB(TeamBase):
   pass
+
 
 class TeamUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
@@ -81,7 +91,14 @@ class TeamUpdate(MongoBaseModel):
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
-  @validator('name', 'alias', 'fullName', 'shortName', 'tinyName', 'ageGroup', pre=True, always=True)
+  @validator('name',
+             'alias',
+             'fullName',
+             'shortName',
+             'tinyName',
+             'ageGroup',
+             pre=True,
+             always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
@@ -91,7 +108,8 @@ class TeamUpdate(MongoBaseModel):
   def int_must_be_positive(cls, v):
     if v < 1 or v is None:
       raise ValueError("Field must be positive")
-      
+
+
 class ClubBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
@@ -120,45 +138,45 @@ class ClubBase(MongoBaseModel):
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
+  """
   @validator('name', 'alias', 'country', pre=True, always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
-    
+  """
+
+
 class ClubDB(ClubBase):
   pass
 
 
 class ClubUpdate(MongoBaseModel):
-  name: str = Field(...)
-  alias: str = Field(...)
+  name: Optional[str] = None
+  alias: Optional[str] = None
   addressName: Optional[str] = None
   street: Optional[str] = None
   zipCode: Optional[str] = None
   city: Optional[str] = None
-  country: str = Field(...)
+  country: Optional[str] = None
   email: Optional[EmailStr] = None
   yearOfFoundation: Optional[int] = None
   description: Optional[str] = None
   website: Optional[HttpUrl] = None
   ishdId: Optional[int] = None
-  active: Optional[bool] = False
+  active: Optional[bool] = None
   teams: Optional[List[TeamBase]] = None
   legacyId: Optional[int] = None
   logo: Optional[str] = None
 
-  
-  @validator('email',
-     'website',
-     'logo',
-     pre=True,
-     always=True)
+  @validator('email', 'website', 'logo', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
+  """
   @validator('name', 'alias', 'country', pre=True, always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
+"""
