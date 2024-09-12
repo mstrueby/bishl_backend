@@ -55,6 +55,61 @@ async def get_paginated_players(request,
   return [PlayerDB(**raw_player) for raw_player in players]
 
 
+# Helper function to create assigned_teams dict
+async def build_assigned_teams_dict(assigned_teams, source, request):
+  # Deserialize the JSON string to Python objects
+  assigned_teams_list = []
+  try:
+    assigned_teams_list = json.loads(assigned_teams)
+  except json.JSONDecodeError:
+    raise HTTPException(status_code=400,
+                        detail="Invalid JSON for assigned_teams")
+
+  # Validate and convert to the proper Pydantic models
+  assigned_teams_objs = [
+    AssignedTeamsInput(**team_dict) for team_dict in assigned_teams_list
+  ]
+
+  assigned_teams_dict = []
+  print("assignment_team_objs:", assigned_teams_objs)
+  for club_to_assign in assigned_teams_objs:
+    club_exists = await request.app.mongodb["clubs"].find_one(
+      {"_id": club_to_assign.club_id})
+    if not club_exists:
+      raise HTTPException(
+        status_code=400,
+        detail=f"Club with id {club_to_assign.club_id} does not exist.")
+    teams = []
+    for team_to_assign in club_to_assign.teams:
+      print("team_to_assign:", club_exists['name'], '/', team_to_assign)
+      team = next((team for team in club_exists['teams']
+                   if team['_id'] == team_to_assign['team_id']), None)
+      if not team:
+        raise HTTPException(
+          status_code=400,
+          detail=
+          f"Team with id {team_to_assign['team_id']} does not exist in club {club_to_assign.club_id}."
+        )
+      else:
+        teams.append({
+          "team_id": team['_id'],
+          "team_name": team['name'],
+          "team_alias": team['alias'],
+          "team_ishd_id": team['ishdId'],
+          "pass_no": team_to_assign['pass_no'],
+          "source": source,
+          "modify_date": datetime.utcnow().replace(microsecond=0),
+        })
+    assigned_teams_dict.append({
+      "club_id": club_to_assign.club_id,
+      "club_name": club_exists['name'],
+      "club_alias": club_exists['alias'],
+      "club_ishd_id": club_exists['ishdId'],
+      "teams": teams,
+    })
+  return assigned_teams_dict
+
+
 # PROCESS ISHD DATA
 # ----------------------
 @router.get(
@@ -351,7 +406,8 @@ async def process_ishd_data(request: Request,
           # remove player of a team (still in team loop)
           query = {"$and": []}
           query["$and"].append({"assigned_teams.club_alias": club.club_alias})
-          query["$and"].append({"assigned_teams.teams.team_alias": team['alias']})
+          query["$and"].append(
+            {"assigned_teams.teams.team_alias": team['alias']})
           players = await request.app.mongodb["players"].find(query).to_list(
             length=None)
           if mode == "test":
@@ -533,18 +589,19 @@ async def get_player(
              response_description="Add new player",
              response_model=PlayerDB)
 async def create_player(request: Request,
-                        firstname: str = Body(...),
-                        lastname: str = Body(...),
-                        birthdate: datetime = Body(...),
-                        nationality: str = Body(None),
-                        assigned_teams: List[AssignedTeamsInput] = Body([]),
-                        full_face_req: bool = Body(False),
-                        source: str = Body('BISHL'),
+                        firstname: str = Form(...),
+                        lastname: str = Form(...),
+                        birthdate: datetime = Form(...),
+                        nationality: str = Form(None),
+                        assigned_teams: str = Form(None), # JSON string
+                        full_face_req: bool = Form(False),
+                        source: str = Form('BISHL'),
                         token_payload: TokenPayload = Depends(
-                          auth.auth_wrapper)):
+                          auth.auth_wrapper)) -> PlayerDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
+  print("GO")
   player_exists = await request.app.mongodb["players"].find_one({
     "firstname":
     firstname,
@@ -560,45 +617,11 @@ async def create_player(request: Request,
       f"Player with name {firstname} {lastname} and birthdate {birthdate.strftime('%d.%m.%Y')} already exists."
     )
 
-  assigned_teams_dict = []
-  print("assignment_input", assigned_teams)
-  for club_to_assign in assigned_teams:
-    club_exists = await request.app.mongodb["clubs"].find_one(
-      {"_id": club_to_assign.club_id})
-    if not club_exists:
-      raise HTTPException(
-        status_code=400,
-        detail=f"Club with id {club_to_assign.club_id} does not exist.")
-    teams = []
-    for team_to_assign in club_to_assign.teams:
-      print("team_to_assign", club_exists['name'], '/', team_to_assign)
-      team = next((team for team in club_exists['teams']
-                   if team['_id'] == team_to_assign['team_id']), None)
-      if not team:
-        raise HTTPException(
-          status_code=400,
-          detail=
-          f"Team with id {team_to_assign['team_id']} does not exist in club {club_to_assign.club_id}."
-        )
-      else:
-        # build teams object
-        #print("team", team)
-        teams.append({
-          "team_id": team['_id'],
-          "team_name": team['name'],
-          "team_alias": team['alias'],
-          "team_ishd_id": team['ishdId'],
-          "pass_no": team_to_assign['pass_no'],
-          "source": source,
-          "modify_date": datetime.utcnow().replace(microsecond=0),
-        })
-    assigned_teams_dict.append({
-      "club_id": club_to_assign.club_id,
-      "club_name": club_exists['name'],
-      "club_alias": club_exists['alias'],
-      "club_ishd_id": club_exists['ishdId'],
-      "teams": teams,
-    })
+  if assigned_teams:
+    assigned_teams_dict = await build_assigned_teams_dict(
+      assigned_teams, source, request)
+  else:
+    assigned_teams_dict = []
 
   player = PlayerBase(firstname=firstname,
                       lastname=lastname,
@@ -636,29 +659,35 @@ async def update_player(
   request: Request,
   id: str,
   firstname: Optional[str] = Form(None),
-  lastname: str = Form(None),
-  birthdate: datetime = Form(None),
-  nationality: str = Form(None),
+  lastname: Optional[str] = Form(None),
+  birthdate: Optional[datetime] = Form(None),
+  nationality: Optional[str] = Form(None),
   position: Optional[str] = Form(None),
-  assigned_teams: List[AssignedTeamsInput] = Form(None),
-  full_face_req: bool = Form(None),
-  source: str = Form(None),
+  assigned_teams: Optional[str] = Form(None),
+  full_face_req: Optional[bool] = Form(None),
+  source: Optional[str] = Form("BISHL"),
   token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> PlayerDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  print("assigned_teams:", assigned_teams)
 
   existing_player = await request.app.mongodb["players"].find_one({"_id": id})
   if not existing_player:
     raise HTTPException(status_code=404,
                         detail=f"Player with id {id} not found")
-  player_data = PlayerUpdate(firstname=firstname,
+
+  if assigned_teams:
+    assigned_teams_dict = await build_assigned_teams_dict(
+      assigned_teams, source, request)
+  else:
+    assigned_teams_dict = None
+
+  player_data = PlayerUpdate(irstname=firstname,
                              lastname=lastname,
                              birthdate=birthdate,
                              nationality=nationality,
                              position=position,
-                             assigned_teams=assigned_teams,
+                             assigned_teams=assigned_teams_dict,
                              full_face_req=full_face_req,
                              source=source).dict(exclude_none=True)
 
