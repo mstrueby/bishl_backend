@@ -60,13 +60,13 @@ class AssignedClubs(BaseModel):
 
 class AssignedTeamsInput(BaseModel):
   club_id: str = Field(...)
-  teams: list[dict[str, str]] = Field(...)
+  teams: List[dict[str, str]] = Field(...)
 
 
 class PlayerBase(MongoBaseModel):
   firstname: str = Field(...)
   lastname: str = Field(...)
-  birthdate: datetime = Field(..., description='format: yyyy-mm-dd')
+  birthdate: datetime = Field(..., description='format: yyyy-mm-dd hh:mi:ss')
   nationality: str = None
   position: PositionEnum = Field(default=PositionEnum.SKATER)
   full_face_req: bool = False
@@ -75,6 +75,7 @@ class PlayerBase(MongoBaseModel):
   image: HttpUrl = None
   legacy_id: int = None
 
+  """
   @validator('firstname', 'lastname', 'position', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
@@ -82,14 +83,14 @@ class PlayerBase(MongoBaseModel):
   @validator('image', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
-
+"""
 
 class PlayerDB(PlayerBase):
   create_date: datetime = None
 
 
 class PlayerUpdate(MongoBaseModel):
-  firstname: Optional[str] = "DEFAULT"
+  firstname: Optional[str]
   lastname: Optional[str]
   birthdate: Optional[datetime]
   nationality: Optional[str]
@@ -100,8 +101,8 @@ class PlayerUpdate(MongoBaseModel):
   image: Optional[HttpUrl]
 
 
-"""
-  @validator('firstname', 'lastname', 'position', pre=True, always=True)
+  """
+  @validator('firstname', 'lastname', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
