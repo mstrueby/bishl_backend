@@ -8,6 +8,7 @@ from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler, TokenPayload
 from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday
 import os
+import httpx
 
 router = APIRouter()
 auth = AuthHandler()
@@ -140,6 +141,33 @@ async def create_score(
     match['home']['stats'] = stats['home']
     match['away']['stats'] = stats['away']
     print("score/match: ", match)
+
+  # refresh player stats in roster
+
+  # Fetch roster of team_flag by calling the API
+  async with httpx.AsyncClient() as client:
+    response = await client.get(
+      f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+    if response.status_code != 200:
+      raise HTTPException(status_code=response.status_code,
+                          detail=response.text)
+    roster = response.json()
+
+    for player in roster:
+      if player['player']['player_id'] == score.goalPlayer.player_id:
+        player['goals'] += 1
+      if player['player']['player_id'] == score.assistPlayer.player_id:
+        player['assists'] += 1
+    # Update roster in MongoDB
+    try:
+      await request.app.mongodb["matches"].update_one(
+        {"_id": match_id}, {"$set": {
+          f"{team_flag}.roster": roster
+        }})
+    except Exception as e:
+      raise HTTPException(
+        status_code=500,
+        detail=f"Could not update roster in mongoDB, {str(e)}")
 
   try:
     score_data = {}

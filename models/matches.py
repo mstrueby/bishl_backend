@@ -58,6 +58,7 @@ class MatchMatchday(BaseModel):
 
 
 class EventPlayer(BaseModel):
+  player_id: str = Field(...)
   firstName: str = Field(...)
   lastName: str = Field(...)
   jerseyNumber: int = 0
