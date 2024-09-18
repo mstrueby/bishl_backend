@@ -70,6 +70,7 @@ class RosterPlayer(BaseModel):
   passNumber: str = Field(...)
   goals: int = 0
   assists: int = 0
+  points: int = 0
   penaltyMinutes: int = 0
 
 

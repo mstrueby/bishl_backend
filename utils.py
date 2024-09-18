@@ -495,3 +495,197 @@ async def get_sys_ref_tool_token():
   if login_response.status_code != 200:
     raise Exception(f"Error logging in: {login_response.json()}")
   return login_response.json()['token']
+
+
+# refresh player stats in roster
+async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
+  """
+  Fetches the team's roster, updates goals and assists for players, and saves back to the database.
+
+  Parameters:
+  - mongodb: FastAPI Request object (monogdb)
+  - match_id: The ID of the match
+  - team_flag: The team flag ('home'/'away')
+  """
+  async with httpx.AsyncClient() as client:
+
+    response = await client.get(
+      f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+    if response.status_code != 200:
+      raise HTTPException(status_code=response.status_code,
+                          detail=response.text)
+    roster = response.json()
+
+    response = await client.get(
+      f"{BASE_URL}/matches/{match_id}/{team_flag}/scores/")
+    if response.status_code != 200:
+      raise HTTPException(
+        status_code=response.status,
+        detail=
+        f"Failed to fetch scoreboard for {team_flag} team in match {match_id}")
+    scoreboard = response.json()
+
+    response = await client.get(
+      f"{BASE_URL}/matches/{match_id}/{team_flag}/penalties/")
+    if response.status_code != 200:
+      raise HTTPException(
+        status_code=response.status,
+        detail=
+        f"Failed to fetch penaltysheet for {team_flag} team in match {match_id}"
+      )
+    penaltysheet = response.json()
+
+    # Summing up all goals and assists for each player from scoreboard
+    player_stats = {}
+    # Initialize each player from roster in player_stats
+    for roster_player in roster:
+      player_id = roster_player['player']['player_id']
+      if player_id not in player_stats:
+        player_stats[player_id] = {
+          'goals': 0,
+          'assists': 0,
+          'points': 0,
+          'penaltyMinutes': 0
+        }
+
+    for score in scoreboard:
+      goal_player_id = score['goalPlayer']['player_id']
+      if goal_player_id not in player_stats:
+        player_stats[goal_player_id] = {'goals': 0, 'assists': 0}
+      player_stats[goal_player_id]['goals'] += 1
+      player_stats[goal_player_id][
+        'points'] = player_stats[goal_player_id].get('points', 0) + 1
+
+      assist_player = score.get('assistPlayer')
+      assist_player_id = assist_player.get(
+        'player_id') if assist_player else None
+      if assist_player_id:
+        if assist_player_id not in player_stats:
+          player_stats[assist_player_id] = {'goals': 0, 'assists': 0}
+        player_stats[assist_player_id]['assists'] += 1
+        player_stats[assist_player_id][
+          'points'] = player_stats[assist_player_id].get('points', 0) + 1
+
+    for penalty in penaltysheet:
+      pen_player_id = penalty['penaltyPlayer']['player_id']
+      if pen_player_id not in player_stats:
+        player_stats[pen_player_id] = {'penaltyMinutes': 0}
+      player_stats[pen_player_id]['penaltyMinutes'] += penalty[
+        'penaltyMinutes']
+
+  # Update roster with summed goals and assists
+  for roster_player in roster:
+    player_id = roster_player['player']['player_id']
+    if player_id in player_stats:
+      roster_player.update(player_stats[player_id])
+
+  #print("### player_stats", player_stats)
+  #print("### roster: ", roster)
+
+  # update roster for match in mongodb
+  try:
+    await mongodb["matches"].update_one(
+      {"_id": match_id}, {"$set": {
+        f"{team_flag}.roster": roster
+      }})
+  except Exception as e:
+    raise HTTPException(status_code=500,
+                        detail=f"Could not update roster in mongoDB, {str(e)}")
+
+
+async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
+                                 r_alias: str, md_alias: str) -> None:
+
+  if not t_alias or not s_alias or not r_alias or not md_alias:
+    return
+
+  r_filter = {
+    'alias': t_alias,
+    'seasons.alias': s_alias,
+    'seasons.rounds.alias': r_alias,
+    'seasons': {
+      '$elemMatch': {
+        'alias': s_alias,
+        'rounds': {
+          '$elemMatch': {
+            'alias': r_alias,
+            'createStats': True
+          }
+        }
+      }
+    }
+  }
+
+  if not await mongodb['tournaments'].find_one(r_filter):
+    print(
+      f"No stats calculation needed for tournament: {t_alias}, season: {s_alias}, round: {r_alias}"
+    )
+    return
+
+  matches = await mongodb["matches"].find({
+    "tournament.alias": t_alias,
+    "season.alias": s_alias,
+    "round.alias": r_alias,
+    "matchday.alias": md_alias
+  }).to_list(length=None)
+
+  player_card_stats = {}
+
+  for match in matches:
+    home_roster = match.get('home', {}).get('roster', [])
+    away_roster = match.get('away', {}).get('roster', [])
+    tournament = match.get('tournament', {})
+    season = match.get('season', {})
+    round = match.get('round', {})
+    matchday = match.get('matchday', {})
+
+    for roster_player in home_roster + away_roster:
+      player_id = roster_player['player']['player_id']
+      if player_id not in player_card_stats:
+        player_card_stats[player_id] = {
+          'tournament': tournament,
+          'season': season,
+          'round': round,
+          'matchday': matchday,
+          'goals': 0,
+          'assists': 0,
+          'points': 0,
+          'penalty_minutes': 0,
+        }
+      player_card_stats[player_id]['goals'] += roster_player.get('goals', 0)
+      player_card_stats[player_id]['assists'] += roster_player.get(
+        'assists', 0)
+      player_card_stats[player_id]['points'] += roster_player.get('points', 0)
+      player_card_stats[player_id]['penalty_minutes'] += roster_player.get(
+        'penaltyMinutes', 0)
+
+  for player_id, stats in player_card_stats.items():
+    print("### player_id", player_id)
+    print("### stats", stats)
+
+    player = await mongodb['players'].find_one({"_id": player_id})
+    if not player:
+      raise HTTPException(status_code=404,
+                          detail=f"Player not found in mongoDB")
+    #print("### player", player)
+    updated_stats = []
+    if player.get('stats'):
+        updated_stats = [
+          elem
+          if not (elem['tournament']['alias'] == t_alias
+                  and elem['season']['alias'] == s_alias and elem['round']['alias']
+                  == r_alias and elem['matchday']['alias'] == md_alias) else stats
+          for elem in player['stats']
+        ]
+    else:
+        updated_stats = [stats]
+    print("### updated_stats", updated_stats)
+
+    result = await mongodb['players'].update_one(
+      {"_id": player_id}, {"$set": {
+        "stats": updated_stats
+      }})
+
+    if not result.acknowledged:
+      raise HTTPException(status_code=500,
+                          detail=f"Could not update player stats in mongoDB")

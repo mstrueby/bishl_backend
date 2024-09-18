@@ -6,9 +6,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler, TokenPayload
-from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday
+from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday, calc_roster_stats
 import os
-import httpx
 
 router = APIRouter()
 auth = AuthHandler()
@@ -142,33 +141,6 @@ async def create_score(
     match['away']['stats'] = stats['away']
     print("score/match: ", match)
 
-  # refresh player stats in roster
-
-  # Fetch roster of team_flag by calling the API
-  async with httpx.AsyncClient() as client:
-    response = await client.get(
-      f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
-    if response.status_code != 200:
-      raise HTTPException(status_code=response.status_code,
-                          detail=response.text)
-    roster = response.json()
-
-    for player in roster:
-      if player['player']['player_id'] == score.goalPlayer.player_id:
-        player['goals'] += 1
-      if player['player']['player_id'] == score.assistPlayer.player_id:
-        player['assists'] += 1
-    # Update roster in MongoDB
-    try:
-      await request.app.mongodb["matches"].update_one(
-        {"_id": match_id}, {"$set": {
-          f"{team_flag}.roster": roster
-        }})
-    except Exception as e:
-      raise HTTPException(
-        status_code=500,
-        detail=f"Could not update roster in mongoDB, {str(e)}")
-
   try:
     score_data = {}
     new_score_id = str(ObjectId())
@@ -200,11 +172,14 @@ async def create_score(
         status_code=500,
         detail="Failed to update match (scores and goalsFor/goalsAgainst)")
 
-    # calc standings per round
+    # calc standings
     await calc_standings_per_round(request.app.mongodb, t_alias, s_alias,
                                    r_alias)
     await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
                                       r_alias, md_alias)
+
+    # Use the reusable function to fetch and update roster
+    await calc_roster_stats(request.app.mongodb, match_id, team_flag)
 
     # Use the reusable function to return the new score
     new_score = await get_score_object(request.app.mongodb, match_id,
@@ -290,6 +265,7 @@ async def patch_one_score(
         raise HTTPException(
           status_code=404,
           detail=f"Score with ID {score_id} not found in match {match_id}")
+      await calc_roster_stats(request.app.mongodb, match_id, team_flag)
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -385,6 +361,7 @@ async def delete_one_score(
                                    r_alias)
     await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
                                       r_alias, md_alias)
+    await calc_roster_stats(request.app.mongodb, match_id, team_flag)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:

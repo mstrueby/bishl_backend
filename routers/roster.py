@@ -5,9 +5,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from models.matches import RosterPlayer
 from authentication import AuthHandler, TokenPayload
+import httpx
+import os
 
 router = APIRouter()
 auth = AuthHandler()
+BASE_URL = os.environ['BE_API_URL']
 
 
 # get roster of a team
@@ -61,11 +64,15 @@ async def update_roster(
   # do update
   try:
     roster_data = jsonable_encoder(roster)
-    print("roster data: ", roster_data)
+    #print("roster data: ", roster_data)
     result = await request.app.mongodb["matches"].update_one(
       {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})
+    if result.modified_count == 1:
+      async with httpx.AsyncClient() as client:
+        await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
