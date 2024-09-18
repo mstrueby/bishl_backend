@@ -6,7 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import parse_time_to_seconds, parse_time_from_seconds
+from utils import parse_time_to_seconds, parse_time_from_seconds, calc_roster_stats
 
 router = APIRouter()
 auth = AuthHandler()
@@ -139,6 +139,8 @@ async def create_penalty(
     if update_result.modified_count == 0:
       raise HTTPException(status_code=500, detail="Failed to update match")
 
+    await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+
     # Use the reusable function to return the new penalty
     new_penalty = await get_penalty_object(request.app.mongodb, match_id,
                                            team_flag, new_penalty_id)
@@ -225,6 +227,7 @@ async def patch_one_penalty(
         raise HTTPException(
           status_code=404,
           detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
+      await calc_roster_stats(request.app.mongodb, match_id, team_flag)
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -285,6 +288,7 @@ async def delete_one_penalty(
         status_code=404,
         detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
     else:
+      await calc_roster_stats(request.app.mongodb, match_id, team_flag)
       return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:

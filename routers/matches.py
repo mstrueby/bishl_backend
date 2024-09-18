@@ -4,7 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats
 import os
 import isodate
 from datetime import datetime
@@ -175,6 +175,9 @@ async def create_match(
                                       match.tournament.alias,
                                       match.season.alias, match.round.alias,
                                       match.matchday.alias)
+    #TODO: Insert calc_roster_stats
+    await calc_roster_stats(request.app.mongodb, result.inserted_id, 'home')
+    await calc_roster_stats(request.app.mongodb, result.inserted_id, 'away')
 
     # return complete match document
     new_match = await get_match_object(request.app.mongodb, result.inserted_id)
@@ -311,6 +314,10 @@ async def update_match(
       if update_result.modified_count == 0:
         raise HTTPException(status_code=404,
                             detail=f"Match with id {match_id} not found")
+      #TODO: Insert calc_roster_stats
+      await calc_roster_stats(request.app.mongodb, match_id, 'home')
+      await calc_roster_stats(request.app.mongodb, match_id, 'away')
+
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:
@@ -321,6 +328,8 @@ async def update_match(
                                  r_alias)
   await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
                                     r_alias, md_alias)
+  await calc_player_card_stats(request.app.mongodb, t_alias, s_alias, r_alias,
+                               md_alias)
 
   updated_match = await get_match_object(request.app.mongodb, match_id)
   return JSONResponse(status_code=status.HTTP_200_OK,

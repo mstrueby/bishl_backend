@@ -4,6 +4,7 @@ from typing import Optional, List
 from datetime import datetime
 from utils import prevent_empty_str, empty_str_to_none
 from enum import Enum
+from models.matches import MatchTournament, MatchSeason, MatchRound, MatchMatchday
 
 
 class PyObjectId(ObjectId):
@@ -63,6 +64,18 @@ class AssignedTeamsInput(BaseModel):
   teams: List[dict[str, str]] = Field(...)
 
 
+class PlayerStats(BaseModel):
+  tournament: MatchTournament = Field(...)
+  season: MatchSeason = Field(...)
+  round: MatchRound = Field(...)
+  matchday: MatchMatchday = Field(...)
+  games_played: int = Field(0)
+  goals: int = Field(0)
+  assists: int = Field(0)
+  points: int = Field(0)
+  penalty_minutes: int = Field(0)
+
+
 class PlayerBase(MongoBaseModel):
   firstname: str = Field(...)
   lastname: str = Field(...)
@@ -72,9 +85,9 @@ class PlayerBase(MongoBaseModel):
   full_face_req: bool = False
   source: SourceEnum = Field(default=SourceEnum.BISHL)
   assigned_teams: List[AssignedClubs] = []
+  stats: List[PlayerStats] = []
   image: HttpUrl = None
   legacy_id: int = None
-
   """
   @validator('firstname', 'lastname', 'position', pre=True, always=True)
   def validate_null_strings(cls, v, field):
@@ -84,6 +97,7 @@ class PlayerBase(MongoBaseModel):
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
 """
+
 
 class PlayerDB(PlayerBase):
   create_date: datetime = None
@@ -98,9 +112,8 @@ class PlayerUpdate(MongoBaseModel):
   full_face_req: Optional[bool]
   source: Optional[SourceEnum]
   assigned_teams: Optional[List[AssignedClubs]]
+  stats: Optional[List[PlayerStats]]
   image: Optional[HttpUrl]
-
-
   """
   @validator('firstname', 'lastname', pre=True, always=True)
   def validate_null_strings(cls, v, field):
