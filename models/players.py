@@ -63,12 +63,18 @@ class AssignedTeamsInput(BaseModel):
   club_id: str = Field(...)
   teams: List[dict[str, str]] = Field(...)
 
+class PlayerStatsTeam(BaseModel):
+  team_id: str = Field(...)
+  full_name: str = Field(...)
+  short_name: str = Field(...)
+  tiny_name: str = Field(...)
 
 class PlayerStats(BaseModel):
   tournament: MatchTournament = Field(...)
   season: MatchSeason = Field(...)
   round: MatchRound = Field(...)
   matchday: MatchMatchday = Field(...)
+  team: PlayerStatsTeam = Field(...)
   games_played: int = Field(0)
   goals: int = Field(0)
   assists: int = Field(0)

@@ -611,7 +611,13 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
       round = match.get('round', {})
       matchday = match.get('matchday', {}) if flag == 'MATCHDAY' else None
 
-      for roster_player in home_roster + away_roster:
+      for roster_player in home_roster:
+        team = {
+          'team_id': match.get('home', {}).get('teamId'),
+          'full_name': match.get('home', {}).get('fullName'),
+          'short_name': match.get('home', {}).get('shortName'),
+          'tiny_name': match.get('home', {}).get('tinyName'),
+        }
         player_id = roster_player['player']['player_id']
         if player_id not in player_card_stats:
           player_card_stats[player_id] = {
@@ -619,6 +625,39 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
             'season': season,
             'round': round,
             'matchday': matchday,
+            'team': team,
+            'games_played': 0,
+            'goals': 0,
+            'assists': 0,
+            'points': 0,
+            'penalty_minutes': 0,
+          }
+        if match['matchStatus']['key'] in ['FINISHED', 'INPROGRESS']:
+          player_card_stats[player_id]['games_played'] += 1
+          player_card_stats[player_id]['goals'] += roster_player.get(
+            'goals', 0)
+          player_card_stats[player_id]['assists'] += roster_player.get(
+            'assists', 0)
+          player_card_stats[player_id]['points'] += roster_player.get(
+            'points', 0)
+          player_card_stats[player_id]['penalty_minutes'] += roster_player.get(
+            'penaltyMinutes', 0)
+
+      for roster_player in away_roster:
+        team = {
+          'team_id': match.get('away', {}).get('teamId'),
+          'full_name': match.get('away', {}).get('fullName'),
+          'short_name': match.get('away', {}).get('shortName'),
+          'tiny_name': match.get('away', {}).get('tinyName'),
+        }
+        player_id = roster_player['player']['player_id']
+        if player_id not in player_card_stats:
+          player_card_stats[player_id] = {
+            'tournament': tournament,
+            'season': season,
+            'round': round,
+            'matchday': matchday,
+            'team': team,
             'games_played': 0,
             'goals': 0,
             'assists': 0,
@@ -648,12 +687,18 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
       updated_stats = []
       if player.get('stats'):
         updated_stats = [
-          elem if
-          not (elem['tournament']['alias'] == t_alias
-               and elem['season']['alias'] == s_alias
-               and elem['round']['alias'] == r_alias and
-               (flag != 'MATCHDAY' or elem['matchday']['alias'] == md_alias))
-          else stats for elem in player['stats']
+          {
+            **elem,
+            **stats,
+            'team': elem['team'] if 'team' in elem else stats['team']
+          }
+          if not (
+            elem['tournament']['alias'] == t_alias
+            and elem['season']['alias'] == s_alias
+            and elem['round']['alias'] == r_alias
+            and (flag != 'MATCHDAY' or elem['matchday']['alias'] == md_alias)
+          ) else stats
+          for elem in player['stats']
         ]
       else:
         updated_stats = [stats]
