@@ -90,17 +90,16 @@ async def update_roster(
       {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})
+    
     if result.modified_count == 0:
       raise HTTPException(status_code=404,
                           detail="Roster not found for the given match")
-    """
-    if result.modified_count == 1:
-      async with httpx.AsyncClient() as client:
-        await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
-    """
+    
+    await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+    #async with httpx.AsyncClient() as client:
+    #  return await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+    return await get_roster(request, match_id, team_flag)
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
-  await calc_roster_stats(request.app.mongodb, match_id, team_flag)
-  return await get_roster(request, match_id, team_flag)
