@@ -7,6 +7,7 @@ from models.matches import RosterPlayer
 from authentication import AuthHandler, TokenPayload
 import httpx
 import os
+from utils import calc_roster_stats
 
 router = APIRouter()
 auth = AuthHandler()
@@ -52,7 +53,7 @@ async def update_roster(
 ) -> List[RosterPlayer]:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  print("roster: ", roster)
+  print("new roster: ", roster)
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
@@ -60,6 +61,26 @@ async def update_roster(
   if match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
+
+  # check if any player from the new roster exists in scores or penalties array of the match
+  scores = match.get(team_flag, {}).get("scores", [])
+  penalties = match.get(team_flag, {}).get("penalties", [])
+
+  roster_player_ids = {player.player.player_id for player in roster}
+
+  for score in scores:
+    if score['goalPlayer']['player_id'] not in roster_player_ids or score['assistPlayer']['player_id'] not in roster_player_ids:
+      raise HTTPException(
+        status_code=400,
+        detail="Roster can not be updated. All players in scores must be in roster"
+      )
+
+  for penalty in penalties:
+    if penalty['penaltyPlayer']['player_id'] not in roster_player_ids:
+      raise HTTPException(
+        status_code=400,
+        detail="Roster can not be updated. All players in penalties must be in roster"
+      )
 
   # do update
   try:
@@ -69,11 +90,17 @@ async def update_roster(
       {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})
+    if result.modified_count == 0:
+      raise HTTPException(status_code=404,
+                          detail="Roster not found for the given match")
+    """
     if result.modified_count == 1:
       async with httpx.AsyncClient() as client:
         await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+    """
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
+  await calc_roster_stats(request.app.mongodb, match_id, team_flag)
   return await get_roster(request, match_id, team_flag)
