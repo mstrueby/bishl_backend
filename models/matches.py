@@ -177,6 +177,7 @@ class MatchStatsUpdate(BaseModel):
 
 
 class MatchTeam(BaseModel):
+  teamId: str = Field(...)
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
@@ -186,12 +187,13 @@ class MatchTeam(BaseModel):
   penalties: List[PenaltiesBase] = []
   stats: MatchStats = {}
 
-  @validator('fullName', 'shortName', 'tinyName', pre=True, always=True)
+  @validator('teamId', 'fullName', 'shortName', 'tinyName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
 
 class MatchTeamUpdate(BaseModel):
+  teamId: Optional[str] = "DEFAULT"
   fullName: Optional[str] = "DEFAULT"
   shortName: Optional[str] = "DEFAULT"
   tinyName: Optional[str] = "DEFAULT"
@@ -201,7 +203,7 @@ class MatchTeamUpdate(BaseModel):
   penalties: Optional[List[PenaltiesBase]] = []
   stats: Optional[MatchStats] = {}
 
-  @validator('fullName', 'shortName', 'tinyName', pre=True, always=True)
+  @validator('teamId', 'fullName', 'shortName', 'tinyName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
