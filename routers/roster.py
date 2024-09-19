@@ -7,7 +7,7 @@ from models.matches import RosterPlayer
 from authentication import AuthHandler, TokenPayload
 import httpx
 import os
-from utils import calc_roster_stats
+from utils import calc_roster_stats, calc_player_card_stats
 
 router = APIRouter()
 auth = AuthHandler()
@@ -69,17 +69,19 @@ async def update_roster(
   roster_player_ids = {player.player.player_id for player in roster}
 
   for score in scores:
-    if score['goalPlayer']['player_id'] not in roster_player_ids or score['assistPlayer']['player_id'] not in roster_player_ids:
+    if score['goalPlayer']['player_id'] not in roster_player_ids or score[
+        'assistPlayer']['player_id'] not in roster_player_ids:
       raise HTTPException(
         status_code=400,
-        detail="Roster can not be updated. All players in scores must be in roster"
-      )
+        detail=
+        "Roster can not be updated. All players in scores must be in roster")
 
   for penalty in penalties:
     if penalty['penaltyPlayer']['player_id'] not in roster_player_ids:
       raise HTTPException(
         status_code=400,
-        detail="Roster can not be updated. All players in penalties must be in roster"
+        detail=
+        "Roster can not be updated. All players in penalties must be in roster"
       )
 
   # do update
@@ -90,16 +92,20 @@ async def update_roster(
       {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})
-    
+
     if result.modified_count == 0:
       raise HTTPException(status_code=404,
                           detail="Roster not found for the given match")
-    
+
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+    await calc_player_card_stats(request.app.mongodb,
+                                 t_alias=match.get("tournament").get("alias"),
+                                 s_alias=match.get("season").get("alias"),
+                                 r_alias=match.get("round").get("alias"),
+                                 md_alias=match.get("matchday").get("alias"))
     #async with httpx.AsyncClient() as client:
     #  return await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
     return await get_roster(request, match_id, team_flag)
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
-

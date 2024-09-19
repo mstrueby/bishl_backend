@@ -147,12 +147,16 @@ async def create_match(
       print("stats: ", stats)
       match.home.stats = stats['home']
       match.away.stats = stats['away']
+      t_alias = match.tournament.alias
+      s_alias = match.season.alias
+      r_alias = match.round.alias
+      md_alias = match.matchday.alias
 
     ref_points = await fetch_ref_points(match_id=match.id,
-                                        t_alias=match.tournament.alias,
-                                        s_alias=match.season.alias,
-                                        r_alias=match.round.alias,
-                                        md_alias=match.matchday.alias)
+                                        t_alias=t_alias,
+                                        s_alias=s_alias,
+                                        r_alias=r_alias,
+                                        md_alias=md_alias)
     if match.matchStatus.key in ['FINISHED', 'FORFEITED']:
       if match.referee1 is not None:
         match.referee1.points = ref_points
@@ -178,6 +182,8 @@ async def create_match(
     #TODO: Insert calc_roster_stats
     await calc_roster_stats(request.app.mongodb, result.inserted_id, 'home')
     await calc_roster_stats(request.app.mongodb, result.inserted_id, 'away')
+    await calc_player_card_stats(request.app.mongodb, t_alias, s_alias,
+                                 r_alias, md_alias)
 
     # return complete match document
     new_match = await get_match_object(request.app.mongodb, result.inserted_id)
@@ -367,6 +373,8 @@ async def delete_match(
                                    r_alias)
     await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
                                       r_alias, md_alias)
+    await calc_player_card_stats(request.app.mongodb, t_alias, s_alias,
+                                 r_alias, md_alias)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

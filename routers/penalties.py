@@ -6,7 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import parse_time_to_seconds, parse_time_from_seconds, calc_roster_stats
+from utils import parse_time_to_seconds, parse_time_from_seconds, calc_roster_stats, calc_player_card_stats
 
 router = APIRouter()
 auth = AuthHandler()
@@ -118,6 +118,13 @@ async def create_penalty(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
+  # check if player exists in roster
+  if not any(player['player']['player_id'] == penalty.penaltyPlayer.player_id
+             for player in match.get(team_flag, {}).get('roster', [])):
+    raise HTTPException(
+      status_code=400,
+      detail=f"Player with id {penalty.penaltyPlayer.player_id} not in roster")
+
   try:
     penalty_data = {}
     new_penalty_id = str(ObjectId())
@@ -140,6 +147,13 @@ async def create_penalty(
       raise HTTPException(status_code=500, detail="Failed to update match")
 
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+    await calc_player_card_stats(
+      request.app.mongodb,
+      t_alias=match.get("tournament").get("alias"),
+      s_alias=match.get("season").get("alias"),
+      r_alias=match.get("round").get("alias"),
+      md_alias=match.get("matchday").get("alias"),
+    )
 
     # Use the reusable function to return the new penalty
     new_penalty = await get_penalty_object(request.app.mongodb, match_id,
@@ -188,6 +202,14 @@ async def patch_one_penalty(
   if match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
+  # check if player exists in roster
+  if penalty.penaltyPlayer and penalty.penaltyPlayer.player_id:
+    if not any(player['player']['player_id'] == penalty.penaltyPlayer.player_id
+               for player in match.get(team_flag, {}).get('roster', [])):
+      raise HTTPException(
+        status_code=400,
+        detail=f"Player with id {penalty.penaltyPlayer.player_id} not in roster"
+      )
 
   # Fetch the current penalty
   current_penalty = None
@@ -228,6 +250,12 @@ async def patch_one_penalty(
           status_code=404,
           detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
       await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+      await calc_player_card_stats(
+        request.app.mongodb,
+        t_alias=match.get("tournament").get("alias"),
+        s_alias=match.get("season").get("alias"),
+        r_alias=match.get("round").get("alias"),
+        md_alias=match.get("matchday").get("alias"))
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -289,6 +317,12 @@ async def delete_one_penalty(
         detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
     else:
       await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+      await calc_player_card_stats(
+        request.app.mongodb,
+        t_alias=match.get("tournament").get("alias"),
+        s_alias=match.get("season").get("alias"),
+        r_alias=match.get("round").get("alias"),
+        md_alias=match.get("matchday").get("alias"))
       return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:
