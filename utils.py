@@ -592,7 +592,9 @@ async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
     raise HTTPException(status_code=500,
                         detail=f"Could not update roster in mongoDB, {str(e)}")
 
-
+# Refresh Stats for each player in a tournament/season/round/matchday
+# calc sats for round / matchday if createStats is true
+# ----------------------------------------------------------
 async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
                                  r_alias: str, md_alias: str) -> None:
 
@@ -647,17 +649,20 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
           'season': season,
           'round': round,
           'matchday': matchday,
+          'games_played': 0,
           'goals': 0,
           'assists': 0,
           'points': 0,
           'penalty_minutes': 0,
         }
-      player_card_stats[player_id]['goals'] += roster_player.get('goals', 0)
-      player_card_stats[player_id]['assists'] += roster_player.get(
-        'assists', 0)
-      player_card_stats[player_id]['points'] += roster_player.get('points', 0)
-      player_card_stats[player_id]['penalty_minutes'] += roster_player.get(
-        'penaltyMinutes', 0)
+      if match['matchStatus']['key'] in ['FINISHED', 'INPROGRESS']:
+        player_card_stats[player_id]['games_played'] += 1
+        player_card_stats[player_id]['goals'] += roster_player.get('goals', 0)
+        player_card_stats[player_id]['assists'] += roster_player.get(
+          'assists', 0)
+        player_card_stats[player_id]['points'] += roster_player.get('points', 0)
+        player_card_stats[player_id]['penalty_minutes'] += roster_player.get(
+          'penaltyMinutes', 0)
 
   for player_id, stats in player_card_stats.items():
     print("### player_id", player_id)

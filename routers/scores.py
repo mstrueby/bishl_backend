@@ -6,7 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler, TokenPayload
-from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday, calc_roster_stats
+from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday, calc_roster_stats, calc_player_card_stats
 import os
 
 router = APIRouter()
@@ -115,6 +115,21 @@ async def create_score(
                         detail=f"Match with id {match_id} not found")
   print("match precheck: ", match)
 
+  #check if score player is in roster
+  if score.goalPlayer and score.goalPlayer.player_id:
+    if not any(player['player']['player_id'] == score.goalPlayer.player_id
+               for player in match.get(team_flag, {}).get('roster', [])):
+      raise HTTPException(
+        status_code=400,
+        detail=f'Goal player {score.goalPlayer.player_id} not in roster')
+
+  if score.assistPlayer and score.assistPlayer.player_id:
+    if not any(player['player']['player_id'] == score.assistPlayer.player_id
+               for player in match.get(team_flag, {}).get('roster', [])):
+      raise HTTPException(
+        status_code=400,
+        detail=f'Assist player {score.assistPlayer.player_id} not in roster')
+
   # set new score
   if team_flag == 'home':
     match['home']['stats']['goalsFor'] += 1
@@ -180,6 +195,8 @@ async def create_score(
 
     # Use the reusable function to fetch and update roster
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+    await calc_player_card_stats(request.app.mongodb, t_alias, s_alias,
+                                 r_alias, md_alias)
 
     # Use the reusable function to return the new score
     new_score = await get_score_object(request.app.mongodb, match_id,
@@ -229,6 +246,21 @@ async def patch_one_score(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
+  #check if score player is in roster
+  if score.goalPlayer and score.goalPlayer.player_id:
+    if not any(player['player']['player_id'] == score.goalPlayer.player_id
+               for player in match.get(team_flag, {}).get('roster', [])):
+      raise HTTPException(
+        status_code=400,
+        detail=f'Goal player {score.goalPlayer.player_id} not in roster')
+
+  if score.assistPlayer and score.assistPlayer.player_id:
+    if not any(player['player']['player_id'] == score.assistPlayer.player_id
+               for player in match.get(team_flag, {}).get('roster', [])):
+      raise HTTPException(
+        status_code=400,
+        detail=f'Assist player {score.assistPlayer.player_id} not in roster')
+
   # Fetch the current score
   current_score = None
   for score_entry in match.get(team_flag, {}).get("scores", []):
@@ -266,6 +298,12 @@ async def patch_one_score(
           status_code=404,
           detail=f"Score with ID {score_id} not found in match {match_id}")
       await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+      await calc_player_card_stats(
+        request.app.mongodb,
+        t_alias=match.get("tournament").get("alias"),
+        s_alias=match.get("season").get("alias"),
+        r_alias=match.get("round").get("alias"),
+        md_alias=match.get("matchday").get("alias"))
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -362,6 +400,8 @@ async def delete_one_score(
     await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
                                       r_alias, md_alias)
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+    await calc_player_card_stats(request.app.mongodb, t_alias, s_alias,
+                                 r_alias, md_alias)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:
