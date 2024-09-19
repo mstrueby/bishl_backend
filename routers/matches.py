@@ -320,7 +320,6 @@ async def update_match(
       if update_result.modified_count == 0:
         raise HTTPException(status_code=404,
                             detail=f"Match with id {match_id} not found")
-      #TODO: Insert calc_roster_stats
       await calc_roster_stats(request.app.mongodb, match_id, 'home')
       await calc_roster_stats(request.app.mongodb, match_id, 'away')
 
