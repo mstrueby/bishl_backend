@@ -302,6 +302,7 @@ order by seasonyear desc, startdate;
 -- -----------------
 
 -- with history (joining tblteamseason)
+-- funktioniert nicht, da py_team_id nicht in tblteamseason vorhanden ist
 select
   json_object('name', cs.py_name, 'alias', cs.py_t_alias) as tournament,
   json_object('name', cast(g.SeasonYear as char(4)), 'alias', cast(g.SeasonYear as char(4))) as season,
@@ -312,10 +313,14 @@ select
   ) as matchday,
   g.id_tblGame as matchId,
   json_object(
-    'fullName', th.Name, 
-    'shortName', th.ShortName,
-    'tinyName', th.TinyName,
-    'logo', th.py_logo,
+    'clubAlias', thc.py_alias,
+    'teamAlias', th.py_alias,
+    -- 'teamId', th.py_team_id,
+    'name', th.NameAffix,
+    'fullName', tsh.Name, 
+    'shortName', tsh.ShortName,
+    'tinyName', tsh.TinyName,
+    'logo', tsh.py_logo,
     'stats', json_object(
       'goalsFor', st.GoalsH,
       'goalsAgainst', st.GoalsA
@@ -323,10 +328,14 @@ select
   ) as home,
   ta.Name, ta.ShortName, ta.tinyName,
   json_object(
-    'fullName', ta.Name, 
-    'shortName', ta.ShortName,
-    'tinyName', ta.TinyName,
-    'logo', ta.py_logo,
+    'clubAlias', tac.py_alias,
+    'teamAlias', ta.py_alias,
+    -- 'teamId', ta.py_team_id,
+    'name', ta.NameAffix,
+    'fullName', tsa.Name, 
+    'shortName', tsa.ShortName,
+    'tinyName', tsa.TinyName,
+    'logo', tsa.py_logo,
     'stats', json_object(
       'goalsFor', st.GoalsA,
       'goalsAgainst', st.GoalsH
@@ -370,8 +379,12 @@ from tblgame as g
 join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
 join tblgamestatus as gs on g.id_fk_GameStatus=gs.id_tblGameStatus
 join tblstadium as s on g.id_fk_Stadium=s.id_tblStadium
-join tblteamseason as th on g.id_fk_TeamHome=th.id_fk_Team and g.SeasonYear=th.SeasonYear
-join tblteamseason as ta on g.id_fk_TeamAway=ta.id_fk_Team and g.SeasonYear=ta.SeasonYear
+join tblteamseason as tsh on g.id_fk_TeamHome=tsh.id_fk_Team and g.SeasonYear=tsh.SeasonYear
+join tblteam as th on tsh.id_fk_Team=th.id_tblTeam
+join tblclub as thc on th.id_fk_Club=thc.id_tblClub
+join tblteamseason as tsa on g.id_fk_TeamAway=tsa.id_fk_Team and g.SeasonYear=tsa.SeasonYear
+join tblteam as ta on tsa.id_fk_Team=ta.id_tblTeam
+join tblclub as tac on ta.id_fk_Club=tac.id_tblClub
 left join tblgamestats as st on g.id_tblgame = st.id_fk_game
 left join tblofficial as r1 on g.id_fk_Referee1=r1.id_tblOfficial
 left join tblclub as r1c on r1.id_fk_Club=r1c.id_tblClub
@@ -386,6 +399,7 @@ and id_fk_gamestatus in (2,4)
 
     
 -- without history (NOT joining tblteamseason)
+-- wurde nicht benutzt
 select
   cs.py_code as t_tinyName,
   g.SeasonYear as seasonYear,
@@ -394,6 +408,7 @@ select
   g.id_tblGame as matchId,
   th.Name, th.ShortName, th.tinyName,
   json_object(
+    'teamId', th.py_team_id,
     'fullName', th.Name, 
     'shortName', th.ShortName,
     'tinyName', th.TinyName,
@@ -401,6 +416,7 @@ select
   ) as homeTeam,
   ta.Name, ta.ShortName, ta.tinyName,
   json_object(
+    'teamId', ta.py_team_id,
     'fullName', ta.Name, 
     'shortName', ta.ShortName,
     'tinyName', ta.TinyName,
