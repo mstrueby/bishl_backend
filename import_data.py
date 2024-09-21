@@ -93,12 +93,12 @@ match collection:
 
     for rec in name_records:
       try:
-        team_id = ObjectId()
+        #team_id = ObjectId()
+        rec['_id'] = rec['teamId']
         rec['teamNumber'] = int(rec['teamNumber'])
         rec['active'] = bool(rec['active'])
         rec['external'] = bool(rec['external'])
         rec['legacyId'] = int(rec['legacyId'])
-        rec['_id'] = team_id
 
         team = TeamBase(**rec)
         print(team)

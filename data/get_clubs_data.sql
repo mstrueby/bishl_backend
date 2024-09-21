@@ -22,6 +22,7 @@ where c.id_tblClub>0
 -- sub doc TEAMS
 SELECT 
   c.py_alias as clubAlias,
+  t.py_team_id as teamId,
   concat(t.teamNumber, '. ', ag.Name) as name,
   -- t.py_alias as teamAlias,
   t.py_alias as alias,
@@ -42,7 +43,7 @@ FROM tblteam as t
 left JOIN tblagegroup as ag on t.id_fk_AgeGroup=ag.id_tblAgeGroup
 left JOIN tblclub as c on t.id_fk_Club=c.id_tblClub
 where t.id_tblTeam>0 and c.id_tblClub>0 
-and t.isactive=1 
+--and t.isactive=1 
 and c.isactive=1
 
 -- Korrekturen
