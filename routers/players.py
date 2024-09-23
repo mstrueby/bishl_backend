@@ -588,20 +588,21 @@ async def get_player(
 @router.post("/",
              response_description="Add new player",
              response_model=PlayerDB)
-async def create_player(request: Request,
-                        firstname: str = Form(...),
-                        lastname: str = Form(...),
-                        birthdate: datetime = Form(...),
-                        nationality: str = Form(None),
-                        assigned_teams: str = Form(None), # JSON string
-                        full_face_req: bool = Form(False),
-                        source: str = Form('BISHL'),
-                        token_payload: TokenPayload = Depends(
-                          auth.auth_wrapper)) -> PlayerDB:
+async def create_player(
+  request: Request,
+  firstname: str = Form(...),
+  lastname: str = Form(...),
+  birthdate: datetime = Form(...),
+  nationality: str = Form(None),
+  assigned_teams: str = Form(None),  # JSON string
+  full_face_req: bool = Form(False),
+  source: str = Form('BISHL'),
+  legacy_id: int = Form(None),
+  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> PlayerDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
-  print("GO")
   player_exists = await request.app.mongodb["players"].find_one({
     "firstname":
     firstname,
@@ -629,7 +630,8 @@ async def create_player(request: Request,
                       nationality=nationality,
                       assigned_teams=assigned_teams_dict,
                       full_face_req=full_face_req,
-                      source=source)
+                      source=source,
+                      legacy_id=legacy_id)
   player = my_jsonable_encoder(player)
   player['create_date'] = datetime.utcnow().replace(microsecond=0)
 
