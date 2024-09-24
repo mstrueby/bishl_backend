@@ -94,9 +94,9 @@ with open("data/data_players.csv", encoding='utf-8') as f:
                 'firstname': row['firstname'],
                 'lastname': row['lastname'],
                 'birthdate': birthdate,
-                'display_firstname': row['display_firstname'],
-                'display_lastname': row['display_lastname'],
-                'nationality': row['nationality'],
+                'display_firstname': None if row['display_firstname'] == '' else row['display_firstname'],
+                'display_lastname': None if row['display_lastname'] == '' else row['display_lastname'],
+                'nationality': None if row['nationality'] == '' else row['nationality'],
                 'position': row['player_position'],
                 'full_face_req': row['full_face_req'],
                 'source': row['source'],
@@ -108,6 +108,9 @@ with open("data/data_players.csv", encoding='utf-8') as f:
             insertion_result = db_collection.insert_one(new_player)
             new_player_id = insertion_result.inserted_id
             print(f"--> Successfully inserted Player ({new_player_id}): {row}")
+            if not args.importAll:
+                print("--importAll flag not set, exiting.")
+                exit()
         else:
 
             # transform row object to a PlayerBase instance object
