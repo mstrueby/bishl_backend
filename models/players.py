@@ -86,6 +86,8 @@ class PlayerBase(MongoBaseModel):
   firstname: str = Field(...)
   lastname: str = Field(...)
   birthdate: datetime = Field(..., description='format: yyyy-mm-dd hh:mi:ss')
+  display_firstname: str = None
+  display_lastname: str = None
   nationality: str = None
   position: PositionEnum = Field(default=PositionEnum.SKATER)
   full_face_req: bool = False
@@ -113,6 +115,8 @@ class PlayerUpdate(MongoBaseModel):
   firstname: Optional[str]
   lastname: Optional[str]
   birthdate: Optional[datetime]
+  display_firstname: Optional[str]
+  display_lastname: Optional[str]
   nationality: Optional[str]
   position: Optional[PositionEnum]
   full_face_req: Optional[bool]
