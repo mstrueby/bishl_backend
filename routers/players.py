@@ -214,6 +214,21 @@ async def process_ishd_data(request: Request,
   current_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
   file_name = f'ishd_processing_{current_timestamp}.log'
 
+  
+  # Keep only the 10 most recent log files, delete older ones
+  log_files = sorted([f for f in os.listdir('.') if f.startswith('ishd_processing_') and f.endswith('.log')])
+  if len(log_files) > 10:
+    for old_log in log_files[:-10]:
+      try:
+        os.remove(old_log)
+        log_line = f"Deleted old log file: {old_log}"
+        print(log_line)
+        log_lines.append(log_line)
+      except OSError as e:
+        log_line = f"Error deleting file {old_log}: {e.strerror}"
+        print(log_line)
+        log_lines.append(log_line)
+
   async with aiohttp.ClientSession() as session:
     # loop through teaam API URLs
     #for api_url in api_urls:
@@ -593,6 +608,8 @@ async def create_player(
   firstname: str = Form(...),
   lastname: str = Form(...),
   birthdate: datetime = Form(...),
+  display_firstname: str = Form(None),
+  display_lastname: str = Form(None),
   nationality: str = Form(None),
   assigned_teams: str = Form(None),  # JSON string
   full_face_req: bool = Form(False),
@@ -627,6 +644,8 @@ async def create_player(
   player = PlayerBase(firstname=firstname,
                       lastname=lastname,
                       birthdate=birthdate,
+                      display_firstname=display_firstname,
+                      display_lastname=display_lastname,
                       nationality=nationality,
                       assigned_teams=assigned_teams_dict,
                       full_face_req=full_face_req,
@@ -663,6 +682,8 @@ async def update_player(
   firstname: Optional[str] = Form(None),
   lastname: Optional[str] = Form(None),
   birthdate: Optional[datetime] = Form(None),
+  display_firstname: Optional[str] = Form(None),
+  display_lastname: Optional[str] = Form(None),
   nationality: Optional[str] = Form(None),
   position: Optional[str] = Form(None),
   assigned_teams: Optional[str] = Form(None),
@@ -687,6 +708,8 @@ async def update_player(
   player_data = PlayerUpdate(irstname=firstname,
                              lastname=lastname,
                              birthdate=birthdate,
+                             display_firstname=display_firstname,
+                             display_lastname=display_lastname,
                              nationality=nationality,
                              position=position,
                              assigned_teams=assigned_teams_dict,

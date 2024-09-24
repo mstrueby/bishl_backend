@@ -6,6 +6,7 @@ import os
 import requests
 from pymongo import MongoClient
 import certifi
+from datetime import datetime
 
 filename = "data/data_players.csv"
 BASE_URL = os.environ['BE_API_URL']
@@ -62,53 +63,100 @@ if args.deleteAll:
 with open("data/data_players.csv", encoding='utf-8') as f:
     reader = csv.DictReader(f)
     for row in reader:
-        if row['py_id'] != '':
-            continue
-        # parse JSON strings if they are not already dictionaries
+        # data preparation
         if isinstance(row.get('full_face_req'), str):
             row['full_face_req'] = row['full_face_req'].lower() == 'true'
         row['legacy_id'] = int(row['legacy_id'])
 
-        # transform row object to a PlayerBase instance object
-        #player = PlayerBase(**row)
-        #print("row", row)
+        try:
+            birthdate = datetime.strptime(row['birthdate'],
+                                          '%Y-%m-%d %H:%M:%S')
+        except ValueError as e:
+            print(f"Error parsing birthdate for row {row}: {e}")
+            continue
 
-        response = requests.post(f"{BASE_URL}/players/",
-                                 files={
-                                     'firstname': (None, row['firstname']),
-                                     'lastname': (None, row['lastname']),
-                                     'birthdate': (None, row['birthdate']),
-                                     'nationality': (None, row['nationality']),
-                                     'position': (None, row['player_position']),
-                                     'full_face_req':
-                                     (None, row['full_face_req']),
-                                     'source': (None, row['source']),
-                                     'legacy_id': (None, row['legacy_id'])
-                                 },
-                                 headers=headers)
-        if response.status_code == 422:
-            print('422 Error: Unprocessable Entity')
-            try:
-                error_details = response.json()
-                print('Error details:', error_details)
-            except json.JSONDecodeError:
-                print('Failed to parse error response JSON')
-        if response.status_code == 201:
-            new_player_id = response.json().get('_id')
-                            
-            with open('update_legacy_players.csv',
-                      mode='a',
-                      newline='',
-                      encoding='utf-8') as log_file:
-                log_writer = csv.writer(log_file)
-                log_writer.writerow([
-                    f"update tblplayer set py_id='{new_player_id}' where id_tblPlayer={row['legacy_id']};"
-                ])
-            print(f"--> Successfully posted Player ({new_player_id}): {row}")
-            if not args.importAll:
-                print("--importAll flag not set, exiting.")
-                exit()
+        # Retrieve the player from the database by first name, last name, and birth date
+        player = db_collection.find_one({
+            'firstname': row['firstname'],
+            'lastname': row['lastname'],
+            'birthdate': birthdate
+        })
+
+        if row['py_id'] != '' and player:
+            print(
+                f"Player already exists in the database: {player['_id']} -{player['firstname']} {player['lastname']} {player['birthdate']}"
+            )
+        elif row['py_id'] != '' and not player:
+
+            # Insert the player directly into the database
+            new_player = {
+                '_id': row['py_id'],
+                'firstname': row['firstname'],
+                'lastname': row['lastname'],
+                'birthdate': birthdate,
+                'display_firstname': row['display_firstname'],
+                'display_lastname': row['display_lastname'],
+                'nationality': row['nationality'],
+                'position': row['player_position'],
+                'full_face_req': row['full_face_req'],
+                'source': row['source'],
+                'assigned_teams': [],
+                'stats': [],
+                'image': None,
+                'legacy_id': row['legacy_id'],
+            }
+            insertion_result = db_collection.insert_one(new_player)
+            new_player_id = insertion_result.inserted_id
+            print(f"--> Successfully inserted Player ({new_player_id}): {row}")
         else:
-            print('Failed to post Player: ', row, ' - Status code:',
-                  response.status_code)
-            exit()
+
+            # transform row object to a PlayerBase instance object
+            #player = PlayerBase(**row)
+            #print("row", row)
+
+            response = requests.post(f"{BASE_URL}/players/",
+                                     files={
+                                         'firstname': (None, row['firstname']),
+                                         'lastname': (None, row['lastname']),
+                                         'birthdate': (None, row['birthdate']),
+                                         'display_firstname': (None,
+                                                              row['display_firstname']),
+                                         'display_lastname': (None,
+                                                              row['display_lastname']),
+                                         'nationality':
+                                         (None, row['nationality']),
+                                         'position':
+                                         (None, row['player_position']),
+                                         'full_face_req':
+                                         (None, row['full_face_req']),
+                                         'source': (None, row['source']),
+                                         'legacy_id': (None, row['legacy_id'])
+                                     },
+                                     headers=headers)
+            if response.status_code == 422:
+                print('422 Error: Unprocessable Entity')
+                try:
+                    error_details = response.json()
+                    print('Error details:', error_details)
+                except json.JSONDecodeError:
+                    print('Failed to parse error response JSON')
+            if response.status_code == 201:
+                new_player_id = response.json().get('_id')
+
+                with open('update_legacy_players.csv',
+                          mode='a',
+                          newline='',
+                          encoding='utf-8') as log_file:
+                    log_writer = csv.writer(log_file)
+                    log_writer.writerow([
+                        f"update tblplayer set py_id='{new_player_id}' where id_tblPlayer={row['legacy_id']};"
+                    ])
+                print(
+                    f"--> Successfully posted Player ({new_player_id}): {row}")
+                if not args.importAll:
+                    print("--importAll flag not set, exiting.")
+                    exit()
+            else:
+                print('Failed to post Player: ', row, ' - Status code:',
+                      response.status_code)
+                exit()

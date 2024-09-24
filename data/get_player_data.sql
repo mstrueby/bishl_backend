@@ -2,6 +2,8 @@ SELECT
   py_id,
   firstname, 
   lastname, 
+  display_firstname,
+  display_lastname,
   concat(date_format(birthday, '%Y-%m-%d'), ' 00:00:00') as birthdate,
   coalesce(nation, Nationality) as nationality,
   case when isGoalie = 1 then 'Goalie' else 'Skater' end as player_position,
