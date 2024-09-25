@@ -53,7 +53,7 @@ async def update_roster(
 ) -> List[RosterPlayer]:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  print("new roster: ", roster)
+  #print("new roster: ", roster)
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
@@ -87,16 +87,10 @@ async def update_roster(
   # do update
   try:
     roster_data = jsonable_encoder(roster)
-    #print("roster data: ", roster_data)
     result = await request.app.mongodb["matches"].update_one(
       {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})
-
-    if result.modified_count == 0:
-      raise HTTPException(status_code=404,
-                          detail="Roster not found for the given match")
-
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
     await calc_player_card_stats(request.app.mongodb,
                                  t_alias=match.get("tournament").get("alias"),
