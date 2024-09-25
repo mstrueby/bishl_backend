@@ -608,8 +608,8 @@ async def create_player(
   firstname: str = Form(...),
   lastname: str = Form(...),
   birthdate: datetime = Form(...),
-  display_firstname: str = Form(None),
-  display_lastname: str = Form(None),
+  display_firstname: str = Form(...),
+  display_lastname: str = Form(...),
   nationality: str = Form(None),
   assigned_teams: str = Form(None),  # JSON string
   full_face_req: bool = Form(False),
