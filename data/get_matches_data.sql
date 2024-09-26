@@ -303,6 +303,8 @@ and id_tblGame = 7445
 
 
 -- nur der roster
+
+  
 select g.id_tblGame,
 cast(
     CONCAT(
@@ -327,71 +329,83 @@ GROUP BY g.id_tblGame
 
 
 -- roster flat
-select 
-  g.id_tblGame as match_id,
-  'home' as team_flag,
-  json_object(
-    'player_id', ph.py_id,
-    'firstName', ph.display_firstname,
-    'lastName', ph.display_lastname,
-    'jerseyNumber', rh.JerseyNo
-  ) as player,
-  json_object(
-    'key', case 
-    when rh.IsGoalie = 1 then 'G' 
-      when rh.IsCaptain = 1 then 'C'
-      when rh.IsAssistant = 1 then 'A'
-      else 'F' 
-    end,
-    'value', case
-    when rh.IsGoalie = 1 then 'Goalie'
-      when rh.IsCaptain = 1 then 'Captain'
-      when rh.IsAssistant = 1 then 'Assistant'
-      else 'Feldspieler'
-    end
-  ) as playerPosition,
-  tph.PassNo as passNumber,
-FROM tblgame as g
-JOIN tblroster as rh 
-  on g.id_tblGame = rh.id_fk_Game
-  and g.id_fk_TeamHome=rh.id_fk_Team
-JOIN tblplayer as ph
-  on rh.id_fk_Player = ph.id_tblPlayer
-JOIN tblteamplayer as tph
-  ON ph.id_tblPlayer = tph.id_fk_Player and g.id_fk_TeamHome=tph.id_fk_Team and g.SeasonYear=tph.SeasonYear
-WHERE id_tblGame = 7445
+-- --------------
 
-union all
 
-select
-  g.id_tblGame as match_id,
-  'away' as team_flag,
-  json_object(
-    'player_id', pa.py_id,
-    'firstName', pa.display_firstname,
-    'lastName', pa.display_lastname,
-    'jerseyNumber', ra.JerseyNo
-  ) as player,
-  json_object(
-    'key', case 
-    when ra.IsGoalie = 1 then 'G' 
-      when ra.IsCaptain = 1 then 'C'
-      when ra.IsAssistant = 1 then 'A'
-      else 'F' 
-    end,
-    'value', case
-    when ra.IsGoalie = 1 then 'Goalie'
-      when ra.IsCaptain = 1 then 'Captain'
-      when ra.IsAssistant = 1 then 'Assistant'
-      else 'Feldspieler'
-    end
-  ) as playerPosition,
-  tpa.PassNo as passNumber
-JOIN tblroster as ra
-  ON g.id_tblGame = ra.id_fk_Game
-  and g.id_fk_TeamAway=ra.id_fk_Team
-join tblplayer as pa
-  on ra.id_fk_Player = pa.id_tblPlayer
-join tblteamplayer as tpa
-  ON pa.id_tblPlayer = tpa.id_fk_Player and g.id_fk_TeamAway=tpa.id_fk_Team and g.SeasonYear=tpa.SeasonYear
-WHERE id_tblGame = 7445
+  
+  select 
+    g.id_tblGame as match_id,
+    'home' as team_flag,
+    json_object(
+      'player_id', ph.py_id,
+      'firstName', ph.display_firstname,
+      'lastName', ph.display_lastname,
+      'jerseyNumber', rh.JerseyNo
+    ) as player,
+    json_object(
+      'key', case 
+      when rh.IsGoalie = 1 then 'G' 
+        when rh.IsCaptain = 1 then 'C'
+        when rh.IsAssistant = 1 then 'A'
+        else 'F' 
+      end,
+      'value', case
+      when rh.IsGoalie = 1 then 'Goalie'
+        when rh.IsCaptain = 1 then 'Captain'
+        when rh.IsAssistant = 1 then 'Assistant'
+        else 'Feldspieler'
+      end
+    ) as playerPosition,
+    tph.PassNo as passNumber
+  FROM tblgame as g
+  JOIN tblroster as rh 
+    on g.id_tblGame = rh.id_fk_Game
+    and g.id_fk_TeamHome=rh.id_fk_Team
+  JOIN tblplayer as ph
+    on rh.id_fk_Player = ph.id_tblPlayer
+  JOIN tblteamplayer as tph
+    ON ph.id_tblPlayer = tph.id_fk_Player and g.id_fk_TeamHome=tph.id_fk_Team and g.SeasonYear=tph.SeasonYear
+  WHERE 1=1
+    -- and id_tblGame = 7445
+    and g.seasonyear=2023
+    and g.id_fk_championship in (27,49,29)
+
+
+  union all
+
+  select
+    g.id_tblGame as match_id,
+    'away' as team_flag,
+    json_object(
+      'player_id', pa.py_id,
+      'firstName', pa.display_firstname,
+      'lastName', pa.display_lastname,
+      'jerseyNumber', ra.JerseyNo
+    ) as player,
+    json_object(
+      'key', case 
+      when ra.IsGoalie = 1 then 'G' 
+        when ra.IsCaptain = 1 then 'C'
+        when ra.IsAssistant = 1 then 'A'
+        else 'F' 
+      end,
+      'value', case
+      when ra.IsGoalie = 1 then 'Goalie'
+        when ra.IsCaptain = 1 then 'Captain'
+        when ra.IsAssistant = 1 then 'Assistant'
+        else 'Feldspieler'
+      end
+    ) as playerPosition,
+    tpa.PassNo as passNumber
+  FROM tblgame as g
+  JOIN tblroster as ra
+    ON g.id_tblGame = ra.id_fk_Game
+    and g.id_fk_TeamAway=ra.id_fk_Team
+  join tblplayer as pa
+    on ra.id_fk_Player = pa.id_tblPlayer
+  join tblteamplayer as tpa
+    ON pa.id_tblPlayer = tpa.id_fk_Player and g.id_fk_TeamAway=tpa.id_fk_Team and g.SeasonYear=tpa.SeasonYear
+  WHERE 1=1
+    -- and id_tblGame = 7445
+    and g.seasonyear=2023
+    and g.id_fk_championship in (27,49,29)
