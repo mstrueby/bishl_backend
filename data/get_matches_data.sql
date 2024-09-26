@@ -411,3 +411,193 @@ from (
     and g.id_fk_championship in (27,49,29)
 ) t
 order by 1,2
+
+
+
+-- update tblteamplayer (hochmelden)
+  select 
+    distinct
+      concat('insert into tblteamplayer (id_fk_Team,SeasonYear,id_fk_Player,PassNo,JerseyNo,IsVisible,IsMajorTeam,IsCalled,`Status`,Remarks) values (', team_id ,', 2023, ', player_id, ', ''', st.passNo,''' , ', st.JerseyNo, ', 1, 0, 1, ''spielberechtig'', '''');') as upd_sql
+  from (
+    select 
+      g.id_tblGame as match_id,
+      'home' as team_flag,
+      g.id_fk_TeamHome as team_id,
+      ph.id_tblPlayer as player_id,
+      ph.FirstName,
+      ph.LastName,
+      tph.PassNo as passNumber,
+      tph.JerseyNo
+    FROM tblgame as g
+    JOIN tblroster as rh 
+      on g.id_tblGame = rh.id_fk_Game
+      and g.id_fk_TeamHome=rh.id_fk_Team
+    JOIN tblplayer as ph
+      on rh.id_fk_Player = ph.id_tblPlayer
+    LEFT JOIN tblteamplayer as tph
+      ON ph.id_tblPlayer = tph.id_fk_Player and g.id_fk_TeamHome=tph.id_fk_Team and g.SeasonYear=tph.SeasonYear
+    WHERE 1=1
+      and g.seasonyear=2023
+      and g.id_fk_championship in (27,49,29)
+
+
+    union all
+
+    select
+      g.id_tblGame as match_id,
+      'away' as team_flag,
+      g.id_fk_TeamAway as team_id,
+      pa.id_tblPlayer as player_id,
+      pa.FirstName,
+      pa.LastName,
+      tpa.PassNo as passNumber,
+      tpa.JerseyNo
+    FROM tblgame as g
+    JOIN tblroster as ra
+      ON g.id_tblGame = ra.id_fk_Game
+      and g.id_fk_TeamAway=ra.id_fk_Team
+    join tblplayer as pa
+      on ra.id_fk_Player = pa.id_tblPlayer
+    left join tblteamplayer as tpa
+      ON pa.id_tblPlayer = tpa.id_fk_Player and g.id_fk_TeamAway=tpa.id_fk_Team and g.SeasonYear=tpa.SeasonYear
+    WHERE 1=1
+      and g.seasonyear=2023
+      and g.id_fk_championship in (27,49,29)
+  ) t
+    join tblteamplayer as st
+    on t.player_id = st.id_fk_player and st.seasonyear=2023 
+  where 1=1
+  -- and t.match_id = 7435
+  and passNumber is null
+  order by 1
+
+-- chcek
+select 
+t.match_id,
+t.team_flag,
+t.py_id,
+t.FirstName,
+t.LastName,
+count(*)
+from (
+  select 
+    g.id_tblGame as match_id,
+    'home' as team_flag,
+    ph.py_id,
+    ph.FirstName,
+    ph.LastName
+  FROM tblgame as g
+  JOIN tblroster as rh 
+    on g.id_tblGame = rh.id_fk_Game
+    and g.id_fk_TeamHome=rh.id_fk_Team
+  JOIN tblplayer as ph
+    on rh.id_fk_Player = ph.id_tblPlayer
+  JOIN tblteamplayer as tph
+    ON ph.id_tblPlayer = tph.id_fk_Player and g.id_fk_TeamHome=tph.id_fk_Team and g.SeasonYear=tph.SeasonYear
+  WHERE 1=1
+    -- and id_tblGame = 7445
+    and g.seasonyear=2023
+    and g.id_fk_championship in (27,49,29)
+
+
+  union all
+
+  select
+    g.id_tblGame as match_id,
+    'away' as team_flag,
+    pa.py_id,
+    pa.FirstName,
+    pa.LastName
+  FROM tblgame as g
+  JOIN tblroster as ra
+    ON g.id_tblGame = ra.id_fk_Game
+    and g.id_fk_TeamAway=ra.id_fk_Team
+  join tblplayer as pa
+    on ra.id_fk_Player = pa.id_tblPlayer
+  join tblteamplayer as tpa
+    ON pa.id_tblPlayer = tpa.id_fk_Player and g.id_fk_TeamAway=tpa.id_fk_Team and g.SeasonYear=tpa.SeasonYear
+  WHERE 1=1
+    -- and id_tblGame = 7445
+    and g.seasonyear=2023
+    and g.id_fk_championship in (27,49,29)
+) t
+group by t.match_id,
+t.team_flag,
+t.py_id,
+t.FirstName,
+t.Lastname
+having count(*) >1
+order by 1,2
+
+-- ergebnis; # legacy_id 1209
+"match_id","team_flag","py_id","FirstName","LastName","count(*)"
+"7279","home","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7284","home","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7287","away","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7296","home","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7298","away","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7314","away","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7319","home","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7439","home","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7440","away","66f1783e633f27247d96418c","Nils","Herrle","2"
+"7445","away","66f1783e633f27247d96418c","Nils","Herrle","2"
+
+
+-- check 2 - fehlende Spieler (roster.id_fk_player = 0)
+select 
+t.match_id,
+t.team_flag,
+t.id_fk_player,
+t.py_id,
+t.FirstName,
+t.LastName
+from (
+  select 
+    g.id_tblGame as match_id,
+    'home' as team_flag,
+    rh.id_fk_Player,
+    ph.py_id,
+    ph.FirstName,
+    ph.LastName
+  FROM tblgame as g
+  JOIN tblroster as rh 
+    on g.id_tblGame = rh.id_fk_Game
+    and g.id_fk_TeamHome=rh.id_fk_Team
+  left JOIN tblplayer as ph
+    on rh.id_fk_Player = ph.id_tblPlayer
+  left JOIN tblteamplayer as tph
+    ON ph.id_tblPlayer = tph.id_fk_Player and g.id_fk_TeamHome=tph.id_fk_Team and g.SeasonYear=tph.SeasonYear
+  WHERE 1=1
+    -- and id_tblGame = 7445
+    and g.seasonyear=2023
+    and g.id_fk_championship in (27,49,29)
+
+
+  union all
+
+  select
+    g.id_tblGame as match_id,
+    'away' as team_flag,
+    ra.id_fk_Player,
+    pa.py_id,
+    pa.FirstName,
+    pa.LastName
+  FROM tblgame as g
+  JOIN tblroster as ra
+    ON g.id_tblGame = ra.id_fk_Game
+    and g.id_fk_TeamAway=ra.id_fk_Team
+  left join tblplayer as pa
+    on ra.id_fk_Player = pa.id_tblPlayer
+  left join tblteamplayer as tpa
+    ON pa.id_tblPlayer = tpa.id_fk_Player and g.id_fk_TeamAway=tpa.id_fk_Team and g.SeasonYear=tpa.SeasonYear
+  WHERE 1=1
+    -- and id_tblGame = 7445
+    and g.seasonyear=2023
+    and g.id_fk_championship in (27,49,29)
+) t
+where t.py_id is null
+order by 1,2
+
+-- fix missing players
+insert into tblteamplayer (id_fk_Team, SeasonYear, id_fk_Player, PassNo,JerseyNo) values (8,2023,1007,'8447',0);
+insert into tblteamplayer (id_fk_Team, SeasonYear, id_fk_Player, PassNo,JerseyNo) values (48,2023,2456,'0035',0);

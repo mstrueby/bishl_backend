@@ -149,6 +149,7 @@ async def create_penalty(
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
     await calc_player_card_stats(
       request.app.mongodb,
+      [penalty.penaltyPlayer.player_id],
       t_alias=match.get("tournament").get("alias"),
       s_alias=match.get("season").get("alias"),
       r_alias=match.get("round").get("alias"),
@@ -252,10 +253,12 @@ async def patch_one_penalty(
       await calc_roster_stats(request.app.mongodb, match_id, team_flag)
       await calc_player_card_stats(
         request.app.mongodb,
+        player_ids=[penalty_data['penaltyPlayer'].get('player_id')] if penalty_data['penaltyPlayer'].get('player_id') else None,
         t_alias=match.get("tournament").get("alias"),
         s_alias=match.get("season").get("alias"),
         r_alias=match.get("round").get("alias"),
-        md_alias=match.get("matchday").get("alias"))
+        md_alias=match.get("matchday").get("alias"),
+      )
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -319,6 +322,7 @@ async def delete_one_penalty(
       await calc_roster_stats(request.app.mongodb, match_id, team_flag)
       await calc_player_card_stats(
         request.app.mongodb,
+        player_ids=[current_penalty['penaltyPlayer'].get('player_id')],
         t_alias=match.get("tournament").get("alias"),
         s_alias=match.get("season").get("alias"),
         r_alias=match.get("round").get("alias"),

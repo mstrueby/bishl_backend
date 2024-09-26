@@ -65,25 +65,28 @@ async def update_roster(
   # check if any player from the new roster exists in scores or penalties array of the match
   scores = match.get(team_flag, {}).get("scores", [])
   penalties = match.get(team_flag, {}).get("penalties", [])
-
-  roster_player_ids = {player.player.player_id for player in roster}
+  existing_player_ids = {player['player']['player_id'] for player in match.get(team_flag, {}).get('roster', [])}
+  new_player_ids = {player.player.player_id for player in roster}
+  added_player_ids = list(new_player_ids - existing_player_ids)
+  removed_player_ids = list(existing_player_ids - new_player_ids)
+  all_effected_player_ids = added_player_ids + removed_player_ids
 
   for score in scores:
-    if score['goalPlayer']['player_id'] not in roster_player_ids or score[
-        'assistPlayer']['player_id'] not in roster_player_ids:
+    if score['goalPlayer']['player_id'] not in new_player_ids or score[
+        'assistPlayer']['player_id'] not in new_player_ids:
       raise HTTPException(
         status_code=400,
         detail=
         "Roster can not be updated. All players in scores must be in roster")
 
   for penalty in penalties:
-    if penalty['penaltyPlayer']['player_id'] not in roster_player_ids:
+    if penalty['penaltyPlayer']['player_id'] not in new_player_ids:
       raise HTTPException(
         status_code=400,
         detail=
         "Roster can not be updated. All players in penalties must be in roster"
       )
-
+  
   # do update
   try:
     roster_data = jsonable_encoder(roster)
@@ -91,14 +94,17 @@ async def update_roster(
       {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})
-    print("calc_roster_stats...")
-    await calc_roster_stats(request.app.mongodb, match_id, team_flag)
-    print("calc_player_card_stats...")
-    await calc_player_card_stats(request.app.mongodb,
-                                 t_alias=match.get("tournament").get("alias"),
-                                 s_alias=match.get("season").get("alias"),
-                                 r_alias=match.get("round").get("alias"),
-                                 md_alias=match.get("matchday").get("alias"))
+    # print("calc_roster_stats...") - muss nicht
+    # await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+    # print("calc_player_card_stats...")
+    # do this only if match_status is INPROESS or FINISHED
+    if match.get("matchStatus").get("key") in ["INPROGRESS", "FINISHED"]:
+      await calc_player_card_stats(request.app.mongodb,
+                                   player_ids = all_effected_player_ids,
+                                   t_alias=match.get("tournament").get("alias"),
+                                   s_alias=match.get("season").get("alias"),
+                                   r_alias=match.get("round").get("alias"),
+                                   md_alias=match.get("matchday").get("alias"))
     #async with httpx.AsyncClient() as client:
     #  return await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
     return await get_roster(request, match_id, team_flag)
