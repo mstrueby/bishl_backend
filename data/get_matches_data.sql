@@ -331,8 +331,8 @@ GROUP BY g.id_tblGame
 -- roster flat
 -- --------------
 
-
-  
+select *
+from (
   select 
     g.id_tblGame as match_id,
     'home' as team_flag,
@@ -409,3 +409,5 @@ GROUP BY g.id_tblGame
     -- and id_tblGame = 7445
     and g.seasonyear=2023
     and g.id_fk_championship in (27,49,29)
+) t
+order by 1,2

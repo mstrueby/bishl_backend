@@ -694,12 +694,12 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
       if player.get('stats'):
         updated_stats = []
         for elem in player['stats']:
-          if elem['tournament']['alias'] == t_alias and elem['season']['alias'] == s_alias and elem['round']['alias'] == r_alias:
+          if elem['tournament']['alias'] == t_alias and elem['season']['alias'] == s_alias and elem['round']['alias'] == r_alias and (elem['matchday']['alias'] == md_alias if flag == 'MATCHDAY' else True):
             merged_stat = {**elem, **stats, 'team': elem.get('team', stats['team'])}
             updated_stats.append(merged_stat)
           else:
             updated_stats.append(elem)
-        if all(elem['tournament']['alias'] != t_alias or elem['season']['alias'] != s_alias or elem['round']['alias'] != r_alias for elem in player['stats']):
+        if all(elem['tournament']['alias'] != t_alias or elem['season']['alias'] != s_alias or elem['round']['alias'] != r_alias for elem in player['stats'] or (elem['matchday']['alias'] != md_alias if flag == 'MATCHDAY' else True)):
           updated_stats.append(stats)
       else:
         updated_stats = [stats]
@@ -750,7 +750,7 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
         "round.alias":
         r_alias,
         "matchday.alias":
-        matchday['alias']
+        md_alias
       }).to_list(length=None)
       player_card_stats = {}
       await update_player_card_stats("MATCHDAY", matches, player_card_stats)
