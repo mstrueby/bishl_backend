@@ -51,6 +51,10 @@ def import_rosters():
         reader = csv.DictReader(f)
         matches = []
         for row in reader:
+            
+            if int(row['match_id']) not in [7279,7439,7445]:
+                continue
+              
             existing_match = db['matches'].find_one({'matchId': int(row['match_id'])})
             if not existing_match:
                 print("Match not found for roster: ", row['match_id'])
@@ -86,16 +90,18 @@ def import_rosters():
                             match['away_roster'] = []
                         match['away_roster'].append(roster_player)
 
+            print("processed file row: ", row['match_id'], row['team_flag'], player['lastName'])
+
         # Print matches in readable JSON format
         for match in matches:
             match_id = int(match['match_id'])
             # Ensure match_id is an int and retrieve the existing match
-            existing_match = db_collection.find_one({'matchId': 7445})
+            existing_match = db_collection.find_one({'matchId': match_id})
             if existing_match:
                 # Post home roster
                 #print(json.dumps(match['home_roster'], indent=2))
                 response = requests.put(f"{BASE_URL}/matches/{existing_match['_id']}/home/roster/",
-                                        json=match['home_roster'],
+                                        json=match.get('home_roster', []),
                                         headers=headers)
                 if response.status_code == 200:
                     print('--> Successfully put Home Roster for Match ', match_id)
@@ -104,7 +110,7 @@ def import_rosters():
                     exit()
                 # Post away roster
                 response = requests.put(f"{BASE_URL}/matches/{existing_match['_id']}/away/roster/",
-                                        json=match['away_roster'],
+                                        json=match.get('away_roster', []),
                                         headers=headers)
                 if response.status_code == 200:
                     print('--> Successfully put Away Roster for Match ', match_id)

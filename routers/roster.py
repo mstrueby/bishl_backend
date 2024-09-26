@@ -87,7 +87,7 @@ async def update_roster(
   # do update
   try:
     roster_data = jsonable_encoder(roster)
-    result = await request.app.mongodb["matches"].update_one(
+    await request.app.mongodb["matches"].update_one(
       {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})

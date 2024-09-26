@@ -12,6 +12,7 @@ import cloudinary
 import cloudinary.uploader
 
 BASE_URL = os.environ['BE_API_URL']
+DEBUG_LEVEL = int(os.environ['DEBUG_LEVEL'])
 
 
 def configure_cloudinary():
@@ -593,7 +594,7 @@ async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
                         detail=f"Could not update roster in mongoDB, {str(e)}")
 
 
-# Refresh Stats for each player in a tournament/season/round/matchday
+# Refresh Stats for EACH PLAYER(!) in a tournament/season/round/matchday
 # calc sats for round / matchday if createStats is true
 # ----------------------------------------------------------
 async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
@@ -603,6 +604,9 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
     if flag not in ['ROUND', 'MATCHDAY']:
       raise ValueError(
         "Invalid flag, only 'ROUND' or 'MATCHDAY' are accepted.")
+
+    if DEBUG_LEVEL > 10: print("count matches", len(matches))
+
     for match in matches:
       home_roster = match.get('home', {}).get('roster', [])
       away_roster = match.get('away', {}).get('roster', [])
@@ -613,7 +617,8 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
 
       for roster_player in home_roster:
         team = {
-          'team_id': match.get('home', {}).get('teamId'),
+          #'team_id': match.get('home', {}).get('teamId'),
+          'name': match.get('home', {}).get('name'),
           'full_name': match.get('home', {}).get('fullName'),
           'short_name': match.get('home', {}).get('shortName'),
           'tiny_name': match.get('home', {}).get('tinyName'),
@@ -645,7 +650,8 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
 
       for roster_player in away_roster:
         team = {
-          'team_id': match.get('away', {}).get('teamId'),
+          #'team_id': match.get('away', {}).get('teamId'),
+          'name': match.get('away', {}).get('name'),
           'full_name': match.get('away', {}).get('fullName'),
           'short_name': match.get('away', {}).get('shortName'),
           'tiny_name': match.get('away', {}).get('tinyName'),
@@ -676,33 +682,28 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
             'penaltyMinutes', 0)
 
     for player_id, stats in player_card_stats.items():
-      print("### player_id", player_id)
-      print("### stats", stats)
+      if DEBUG_LEVEL > 10: print("### player_id", player_id)
+      if DEBUG_LEVEL > 10: print("### stats", stats)
 
       player = await mongodb['players'].find_one({"_id": player_id})
       if not player:
         raise HTTPException(status_code=404,
                             detail=f"Player {player_id} not found in mongoDB")
-      #print("### player", player)
-      updated_stats = []
+      if DEBUG_LEVEL > 10: print("### player", player)
+      if DEBUG_LEVEL > 10: print("# player.get(stats)", player.get('stats'))
       if player.get('stats'):
-        updated_stats = [
-          {
-            **elem,
-            **stats,
-            'team': elem['team'] if 'team' in elem else stats['team']
-          }
-          if not (
-            elem['tournament']['alias'] == t_alias
-            and elem['season']['alias'] == s_alias
-            and elem['round']['alias'] == r_alias
-            and (flag != 'MATCHDAY' or elem['matchday']['alias'] == md_alias)
-          ) else stats
-          for elem in player['stats']
-        ]
+        updated_stats = []
+        for elem in player['stats']:
+          if elem['tournament']['alias'] == t_alias and elem['season']['alias'] == s_alias and elem['round']['alias'] == r_alias:
+            merged_stat = {**elem, **stats, 'team': elem.get('team', stats['team'])}
+            updated_stats.append(merged_stat)
+          else:
+            updated_stats.append(elem)
+        if all(elem['tournament']['alias'] != t_alias or elem['season']['alias'] != s_alias or elem['round']['alias'] != r_alias for elem in player['stats']):
+          updated_stats.append(stats)
       else:
         updated_stats = [stats]
-      print("### updated_stats", updated_stats)
+      if DEBUG_LEVEL > 10: print("### updated_stats", updated_stats)
 
       result = await mongodb['players'].update_one(
         {"_id": player_id}, {"$set": {
@@ -734,9 +735,9 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
     }).to_list(length=None)
     player_card_stats = {}
     await update_player_card_stats("ROUND", matches, player_card_stats)
-    print("### round - player_card_stats", player_card_stats)
+    if DEBUG_LEVEL > 0: print("### round - player_card_stats", player_card_stats)
   else:
-    print("### no round stats")
+    if DEBUG_LEVEL > 0: print("### no round stats")
     # remove statistics - not implemeted
 
   for matchday in round.get('matchdays', []):
@@ -753,7 +754,7 @@ async def calc_player_card_stats(mongodb: Database, t_alias: str, s_alias: str,
       }).to_list(length=None)
       player_card_stats = {}
       await update_player_card_stats("MATCHDAY", matches, player_card_stats)
-      print("### matchday - player_card_stats", player_card_stats)
+      if DEBUG_LEVEL > 0: print("### matchday - player_card_stats", player_card_stats)
     else:
-      print("### no matchday stats")
+      if DEBUG_LEVEL > 0: print("### no matchday stats")
       # remove statistics - not implemeted
