@@ -13,6 +13,7 @@ from bson import ObjectId
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ.get('BE_API_URL')
+DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL'))
 
 
 # Prepare to convert matchSeconds to seconds for accurate comparison
@@ -139,12 +140,11 @@ async def create_match(
     # get standingsSettings and set points per team
     if all(
       [hasattr(match, 'tournament') and hasattr(match.tournament, 'alias')]):
-      print("do stats")
       stats = calc_match_stats(
         match.matchStatus.key, match.finishType.key,
         jsonable_encoder(match.home.stats), await
         fetch_standings_settings(match.tournament.alias))
-      print("stats: ", stats)
+      if DEBUG_LEVEL > 10: print("stats: ", stats)
       match.home.stats = stats['home']
       match.away.stats = stats['away']
       t_alias = match.tournament.alias
@@ -167,8 +167,7 @@ async def create_match(
     match_data = convert_times_to_seconds(match_data)
 
     # add match to collection matches
-    print("insert into matches")
-    print("match_data: ", match_data)
+    if DEBUG_LEVEL>0: print("match_data: ", match_data)
 
     result = await request.app.mongodb["matches"].insert_one(match_data)
 
@@ -180,9 +179,17 @@ async def create_match(
                                       match.season.alias, match.round.alias,
                                       match.matchday.alias)
     #TODO: Insert calc_roster_stats
+    if DEBUG_LEVEL > 0: print("calc_roster_stats (home) ...")
     await calc_roster_stats(request.app.mongodb, result.inserted_id, 'home')
+    if DEBUG_LEVEL > 0: print("calc_roster_stats (away) ...")
     await calc_roster_stats(request.app.mongodb, result.inserted_id, 'away')
-    await calc_player_card_stats(request.app.mongodb, t_alias, s_alias,
+    
+    # get all player_ids from home and away roster of match
+    home_players = [player.player.player_id for player in match.home.roster]
+    away_players = [player.player.player_id for player in match.away.roster]
+    player_ids = home_players + away_players
+    if DEBUG_LEVEL > 0: print("calc_player_card_stats ...")
+    await calc_player_card_stats(request.app.mongodb, player_ids, t_alias, s_alias,
                                  r_alias, md_alias)
 
     # return complete match document
@@ -320,7 +327,9 @@ async def update_match(
       if update_result.modified_count == 0:
         raise HTTPException(status_code=404,
                             detail=f"Match with id {match_id} not found")
+      if DEBUG_LEVEL > 0: print("calc_roster_stats (home) ...")
       await calc_roster_stats(request.app.mongodb, match_id, 'home')
+      if DEBUG_LEVEL > 0: print("calc_roster_stats (away) ...")
       await calc_roster_stats(request.app.mongodb, match_id, 'away')
 
     except Exception as e:
@@ -333,7 +342,11 @@ async def update_match(
                                  r_alias)
   await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
                                     r_alias, md_alias)
-  await calc_player_card_stats(request.app.mongodb, t_alias, s_alias, r_alias,
+  # get all player_ids from home and away roster of match
+  home_players = [player['player_id'] for player in match_to_update.get('home', {}).get('roster', [])]
+  away_players = [player['player_id'] for player in match_to_update.get('away', {}).get('roster', [])]
+  player_ids = home_players + away_players
+  await calc_player_card_stats(request.app.mongodb, player_ids, t_alias, s_alias, r_alias,
                                md_alias)
 
   updated_match = await get_match_object(request.app.mongodb, match_id)
@@ -361,6 +374,9 @@ async def delete_match(
     s_alias = match.get('season', {}).get('alias', None)
     r_alias = match.get('round', {}).get('alias', None)
     md_alias = match.get('matchday', {}).get('alias', None)
+    home_players = [player['player']['player_id'] for player in match.get('home', {}).get('roster', [])]
+    away_players = [player['player']['player_id'] for player in match.get('away', {}).get('roster', [])]
+    player_ids = home_players + away_players
 
     # delete in matches
     result = await request.app.mongodb["matches"].delete_one({"_id": match_id})
@@ -372,7 +388,7 @@ async def delete_match(
                                    r_alias)
     await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
                                       r_alias, md_alias)
-    await calc_player_card_stats(request.app.mongodb, t_alias, s_alias,
+    await calc_player_card_stats(request.app.mongodb, player_ids, t_alias, s_alias,
                                  r_alias, md_alias)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

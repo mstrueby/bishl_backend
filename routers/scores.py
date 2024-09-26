@@ -146,6 +146,9 @@ async def create_score(
   s_alias = match.get('season', {}).get('alias')
   r_alias = match.get('round', {}).get('alias')
   md_alias = match.get('matchday', {}).get('alias')
+  goal_player_id = score.goalPlayer.player_id if score.goalPlayer else None
+  assist_player_id = score.assistPlayer.player_id if score.assistPlayer else None
+  player_ids = [goal_player_id, assist_player_id]
 
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(jsonable_encoder(match_status),
@@ -195,7 +198,7 @@ async def create_score(
 
     # Use the reusable function to fetch and update roster
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
-    await calc_player_card_stats(request.app.mongodb, t_alias, s_alias,
+    await calc_player_card_stats(request.app.mongodb, player_ids, t_alias, s_alias,
                                  r_alias, md_alias)
 
     # Use the reusable function to return the new score
@@ -280,6 +283,9 @@ async def patch_one_score(
     score_data['matchSeconds'] = parse_time_to_seconds(
       score_data['matchSeconds'])
   score_data = jsonable_encoder(score_data)
+  goal_player_id = score_data.get('goalPlayer', {}).get('player_id')
+  assist_player_id = score_data.get('assistPlayer', {}).get('player_id')
+  player_ids = [goal_player_id, assist_player_id]
 
   update_data = {"$set": {}}
   for key, value in score_data.items():
@@ -300,6 +306,7 @@ async def patch_one_score(
       await calc_roster_stats(request.app.mongodb, match_id, team_flag)
       await calc_player_card_stats(
         request.app.mongodb,
+        player_ids=player_ids,
         t_alias=match.get("tournament").get("alias"),
         s_alias=match.get("season").get("alias"),
         r_alias=match.get("round").get("alias"),
@@ -363,6 +370,9 @@ async def delete_one_score(
   s_alias = match.get('season', {}).get('alias')
   r_alias = match.get('round', {}).get('alias')
   md_alias = match.get('matchday', {}).get('alias')
+  goal_player_id = current_score.get('goalPlayer', {}).get('player_id')
+  assist_player_id = current_score.get('assistPlayer', {}).get('player_id')
+  player_ids = [goal_player_id, assist_player_id]
 
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(jsonable_encoder(match_status),
@@ -400,7 +410,7 @@ async def delete_one_score(
     await calc_standings_per_matchday(request.app.mongodb, t_alias, s_alias,
                                       r_alias, md_alias)
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
-    await calc_player_card_stats(request.app.mongodb, t_alias, s_alias,
+    await calc_player_card_stats(request.app.mongodb, player_ids, t_alias, s_alias,
                                  r_alias, md_alias)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
