@@ -91,7 +91,9 @@ async def update_roster(
       {"_id": match_id}, {"$set": {
         f"{team_flag}.roster": roster_data
       }})
+    print("calc_roster_stats...")
     await calc_roster_stats(request.app.mongodb, match_id, team_flag)
+    print("calc_player_card_stats...")
     await calc_player_card_stats(request.app.mongodb,
                                  t_alias=match.get("tournament").get("alias"),
                                  s_alias=match.get("season").get("alias"),

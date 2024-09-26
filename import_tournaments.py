@@ -52,8 +52,8 @@ def import_rosters():
         matches = []
         for row in reader:
             
-            if int(row['match_id']) not in [7279,7439,7445]:
-                continue
+            #if int(row['match_id']) not in [7279,7439,7445]:
+            #    continue
               
             existing_match = db['matches'].find_one({'matchId': int(row['match_id'])})
             if not existing_match:
