@@ -251,23 +251,23 @@ async def patch_one_penalty(
           status_code=404,
           detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
       await calc_roster_stats(request.app.mongodb, match_id, team_flag)
-      await calc_player_card_stats(
-        request.app.mongodb,
-        player_ids=[penalty_data['penaltyPlayer'].get('player_id')] if penalty_data['penaltyPlayer'].get('player_id') else None,
-        t_alias=match.get("tournament").get("alias"),
-        s_alias=match.get("season").get("alias"),
-        r_alias=match.get("round").get("alias"),
-        md_alias=match.get("matchday").get("alias"),
-      )
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:
     print("No update data")
+    # Use the reusable function to return the updated penalty
 
-  # Use the reusable function to return the updated penalty
   updated_penalty = await get_penalty_object(request.app.mongodb, match_id,
                                              team_flag, penalty_id)
+  await calc_player_card_stats(
+    request.app.mongodb,
+    player_ids=updated_penalty.penaltyPlayer.player_id,
+    t_alias=match.get("tournament").get("alias"),
+    s_alias=match.get("season").get("alias"),
+    r_alias=match.get("round").get("alias"),
+    md_alias=match.get("matchday").get("alias"),
+  )
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(updated_penalty))
 
