@@ -638,7 +638,7 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
               'points': 0,
               'penalty_minutes': 0,
             }
-          if match['matchStatus']['key'] in ['FINISHED', 'INPROGRESS']:
+          if match['matchStatus']['key'] in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
             player_card_stats[player_id]['games_played'] += 1
             player_card_stats[player_id]['goals'] += roster_player.get(
               'goals', 0)
@@ -672,7 +672,7 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
               'points': 0,
               'penalty_minutes': 0,
             }
-          if match['matchStatus']['key'] in ['FINISHED', 'INPROGRESS']:
+          if match['matchStatus']['key'] in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
             player_card_stats[player_id]['games_played'] += 1
             player_card_stats[player_id]['goals'] += roster_player.get(
               'goals', 0)
@@ -682,7 +682,9 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
               'points', 0)
             player_card_stats[player_id]['penalty_minutes'] += roster_player.get(
               'penaltyMinutes', 0)
-  
+
+    if DEBUG_LEVEL> 10: print("### player_card_stats", player_card_stats)
+      
     for player_id, stats in player_card_stats.items():
       if DEBUG_LEVEL > 10: print("### player_id", player_id)
       if DEBUG_LEVEL > 10: print("### stats", stats)
@@ -705,7 +707,7 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
           updated_stats.append(stats)
       else:
         updated_stats = [stats]
-      if DEBUG_LEVEL > 10: print("### updated_stats", updated_stats)
+      if DEBUG_LEVEL > 10: print("# updated_stats", updated_stats)
 
       result = await mongodb['players'].update_one(
         {"_id": player_id}, {"$set": {
