@@ -601,3 +601,41 @@ order by 1,2
 -- fix missing players
 insert into tblteamplayer (id_fk_Team, SeasonYear, id_fk_Player, PassNo,JerseyNo) values (8,2023,1007,'8447',0);
 insert into tblteamplayer (id_fk_Team, SeasonYear, id_fk_Player, PassNo,JerseyNo) values (48,2023,2456,'0035',0);
+
+
+
+----- GET SCORES DATA
+
+select 
+  g.id_tblGame as match_id,
+  case when sb.id_fk_Team=g.id_fk_TeamHome then 'home' else 'away' end as team_flag,
+  -- matchtime
+  json_object(
+    'player_id', pg.py_id,
+    'firstName', pg.display_firstname,
+    'lastName', pg.display_lastname,
+    'jerseyNumber', rg.JerseyNo
+  ) as goalPlayer,
+  case when pa.py_id is null then null else
+      json_object(
+        'player_id', pa.py_id,
+        'firstName', pa.display_firstname,
+        'lastName', pa.display_lastname,
+        'jerseyNumber', ra.JerseyNo
+      ) 
+  end as assistPlayer
+FROM tblscoreboard sb
+JOIN tblgame as g
+  on sb.id_fk_Game = g.id_tblGame
+JOIN tblroster as rg
+  on sb.id_fk_Game=rg.id_fk_Game and sb.id_fk_Team=rg.id_fk_Team and sb.id_fk_GoalBy=rg.id_fk_Player
+JOIN tblplayer as pg
+  on rg.id_fk_Player=pg.id_tblPlayer
+LEFT JOIN tblroster as ra
+  on sb.id_fk_Game=ra.id_fk_Game and sb.id_fk_Team=ra.id_fk_Team and sb.id_fk_AssistBy=ra.id_fk_Player
+LEFT JOIN tblplayer as pa
+  on ra.id_fk_Player=pa.id_tblPlayer
+WHERE 1=1
+  -- and g.id_tblGame = 7445
+  and g.seasonyear = 2023
+  and g.id_fk_championship in (27,49,29)
