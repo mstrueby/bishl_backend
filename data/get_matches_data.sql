@@ -609,7 +609,7 @@ insert into tblteamplayer (id_fk_Team, SeasonYear, id_fk_Player, PassNo,JerseyNo
 select 
   g.id_tblGame as match_id,
   case when sb.id_fk_Team=g.id_fk_TeamHome then 'home' else 'away' end as team_flag,
-  -- matchtime
+  left(cast(GameTime as char), 5) as matchSeconds,
   json_object(
     'player_id', pg.py_id,
     'firstName', pg.display_firstname,
@@ -635,6 +635,41 @@ LEFT JOIN tblroster as ra
   on sb.id_fk_Game=ra.id_fk_Game and sb.id_fk_Team=ra.id_fk_Team and sb.id_fk_AssistBy=ra.id_fk_Player
 LEFT JOIN tblplayer as pa
   on ra.id_fk_Player=pa.id_tblPlayer
+WHERE 1=1
+  -- and g.id_tblGame = 7445
+  and g.seasonyear = 2023
+  and g.id_fk_championship in (27,49,29)
+
+
+----- GET SCORES DATA
+
+select 
+  g.id_tblGame as match_id,
+  case when pb.id_fk_Team=g.id_fk_TeamHome then 'home' else 'away' end as team_flag,
+  left(cast(GameTimeStart as char), 5) as matchSecondsStart,
+  left(cast(GameTimeEnd as char), 5) as matchSecondsEnd,
+  json_object(
+    'player_id', pp.py_id,
+    'firstName', pp.display_firstname,
+    'lastName', pp.display_lastname,
+    'jerseyNumber', rp.JerseyNo
+  ) as penaltyPlayer,
+  json_object(
+    'key', pc.Code,
+    'value', pc.Description
+  ) as penaltyCode,
+  pb.Minutes as penaltyMinutes,
+  case when pb.isGM=1 then 'True' else 'False' end as isGM,
+  case when pb.isMP=1 then 'True' else 'False' end as isMP
+FROM tblpenaltyboard pb
+JOIN tblgame as g
+  on pb.id_fk_Game = g.id_tblGame
+JOIN tblroster as rp
+  on pb.id_fk_Game=rp.id_fk_Game and pb.id_fk_Team=rp.id_fk_Team and pb.id_fk_Player=rp.id_fk_Player
+JOIN tblplayer as pp
+  on rp.id_fk_Player=pp.id_tblPlayer
+JOIN tblpenaltycode as pc
+  on pb.id_fk_PenaltyCode=pc.id_tblPenaltyCode and g.SeasonYear=pc.SeasonYear
 WHERE 1=1
   -- and g.id_tblGame = 7445
   and g.seasonyear = 2023
