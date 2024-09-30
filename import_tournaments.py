@@ -196,6 +196,73 @@ def import_scores():
         )
         exit()
 
+# import penalties
+def import_penalties():
+  with open("data/data_penalties.csv", encoding='utf-8') as f:
+    db_collection = db['matches']
+    reader = csv.DictReader(f)
+    matches = []
+    for i, row in enumerate(reader):
+      #if i >= 7:
+      #  break
+      match_id = int(row['match_id'])
+      existing_match = db_collection.find_one({'matchId': match_id})
+      if not existing_match:
+        print("Match not found for penalties: ", row['match_id'])
+        exit()
+      team_flag = row['team_flag']
+      if isinstance(row.get('penaltyPlayer'), str):
+        penaltyPlayer = json.loads(row['penaltyPlayer'])
+      if isinstance(row.get('penaltyCode'), str):
+        penaltyCode = json.loads(row['penaltyCode'])
+      if isinstance(row.get('isGM'), str):
+        row['isGM'] = row['isGM'].lower() == 'true'
+      if isinstance(row.get('isMP'), str):
+        row['isMP'] = row['isMP'].lower() == 'true'
+      current_penalty = {
+        'matchSecondsStart': row['matchSecondsStart'],
+        'matchSecondsEnd': row['matchSecondsEnd'],
+        'penaltyPlayer': penaltyPlayer,
+        'penaltyCode': penaltyCode,
+        'penaltyMinutes': int(row['penaltyMinutes']),
+        'isGM': row['isGM'],
+        'isMP': row['isMP']
+      }
+      match_exists = False
+      for match in matches:
+        if match.get('match_id') == match_id:
+          match_exists = True
+          match[team_flag]['penalties'].append(current_penalty)
+          break
+      if not match_exists:
+        match = {
+          '_id': existing_match['_id'],
+          'match_id': match_id,
+          'home': {
+            'penalties': []
+          },
+          'away': {
+            'penalties': []
+          }
+        }
+        match[team_flag]['penalties'].append(current_penalty)
+        matches.append(match)
+    
+    #print(json.dumps(matches, indent=2))
+    for match in matches:
+      match_obj_id = match['_id']
+      response = requests.patch(f"{BASE_URL}/matches/{match_obj_id}",
+                                json=match,
+                                headers=headers)
+      if response.status_code == 200:
+        print(f"--> Successfully patched Match {match_obj_id}")
+      else:
+        print(f"Failed to patch Match {match_obj_id} - Status code: {response.status_code}")
+        exit()
+                    
+      
+
+
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Manage tournaments.')
@@ -207,6 +274,9 @@ parser.add_argument('--importAll',
                     help='Import all matches.')
 parser.add_argument('--rosters', action='store_true', help='Import rosters.')
 parser.add_argument('--scores', action='store_true', help='Import scoreboard.')
+parser.add_argument('--penalties',
+                    action='store_true',
+                    help='Import penalties.')
 args = parser.parse_args()
 
 if args.rosters:
@@ -215,6 +285,10 @@ if args.rosters:
 
 if args.scores:
   import_scores()
+  exit()
+
+if args.penalties:
+  import_penalties()
   exit()
 
 if args.deleteAll:
