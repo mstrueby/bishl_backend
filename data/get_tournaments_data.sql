@@ -26,6 +26,7 @@ select
     'pointsLossShootout', cs.PointsLossSO
   ) as defaultSettings,
   */
+  /*
   json_object(
     'pointsWinReg', cs.PointsWinReg,
     'pointsLossReg', cs.PointsLossReg,
@@ -35,6 +36,7 @@ select
     'pointsWinShootout', cs.PointsWinSO,
     'pointsLossShootout', cs.PointsLossSO
   ) as standingsSettings,
+  */
   -- '' as seasons,
   id_tblChampionship as legacyId
 from tblchampionship cs
@@ -94,13 +96,40 @@ db.tournaments.updateMany({}, { $set: { seasons: [{year: 2023, published: true }
         , 'ß', 'ss')
       , '`', '-')
     , '.', '') as alias,
-    cs.py_t_alias as t_alias
+    cs.py_t_alias as t_alias,
+
+  /*
+    cs.name, cs.Code, cs.py_code,
+    cs.pointsWinReg as pointsWinReg,
+    cs.pointsLossReg as pointsLossReg,
+    cs.pointsTie as pointsDrawReg,
+    cs.pointsWinOT as pointsWinOT,
+    cs.pointsLossOT as pointsLossOT,
+    cs.pointsWinSO as pointsWinSO,
+    cs.pointsLossSO as pointsLossSO,
+  */
+    json_object(
+      'pointsWinReg', cs.PointsWinReg,
+      'pointsLossReg', cs.PointsLossReg,
+      'pointsDrawReg', cs.PointsTie,
+      'pointsWinOvertime', cs.PointsWinOT,
+      'pointsLossOvertime', cs.PointsLossOT,
+      'pointsWinShootout', cs.PointsWinSO,
+      'pointsLossShootout', cs.PointsLossSO
+    ) as standingsSettings
   from tblteamchampionship tcs
   join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
+  join tblgame as g on tcs.SeasonYear=g.SeasonYear and cs.id_tblChampionship=g.id_fk_Championship
   where 1=1
-  and tcs.SeasonYear in (2022, 2023)
+  and tcs.SeasonYear not in (2020,2021)
+  and g.SeasonYear <= 2023
   and cs.IsExtern=0
   and cs.id_fk_AgeGroup>0
+  and cs.id_tblChampionship not in (46,34,2,32,8,13,33,4,5)
+  and g.id_fk_gamestatus not in (2,4)
+  order by 3,1
+
+  
 
 db.tournaments.updateOne( {tiny_name: "SL"}, { $push: { seasons: {year:2023, published:true} } } )
 db.tournaments.updateOne( {tiny_name: "BAM"}, { $push: { seasons: {year:2022, published:true} } } )
@@ -121,8 +150,10 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
   select distinct
       cs.py_t_alias as t_alias,
       tcs.SeasonYear as s_alias,
+      cs.id_tblchampionship,
       cs.py_round as name,
       cs.py_round_alias as alias,
+      cs.py_sortOrder as sortOrder,
       cs.py_r_create_table as createStandings, 
       case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
       py_matchdaysType as matchdaysType, -- Spieltag, Turnier, Runde, Gruppe
@@ -146,18 +177,22 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
     join tblchampionship cs on tcs.id_fk_Championship=cs.id_tblChampionship
     join tblgame g on tcs.SeasonYear=g.SeasonYear and cs.id_tblChampionship=g.id_fk_Championship
     where 1=1
-    and tcs.SeasonYear in (2022, 2023)
+    and tcs.SeasonYear not in (2020, 2021)
+    and tcs.SeasonYear <= 2023
     and cs.IsExtern=0
     and cs.id_fk_AgeGroup>0
+    and cs.id_tblChampionship not in (46,34,2,32,8,13,33,4,5)
+    and g.id_fk_gamestatus in (2,4)
     group by tcs.SeasonYear, cs.py_code, cs.py_round, cs.CreateTable, cs.CreateTableByRound  
-  ORDER BY 1,2,3
+  ORDER BY 1,2,4
 
 
 -- get MATCHDAYS data
 select
-	g.SeasonYear as s_alias,
   cs.py_t_alias as t_alias,
+  g.SeasonYear as s_alias,
   cs.py_round_alias as r_alias,
+  cs.id_tblchampionship,cs.name as cs_name,
   COALESCE(g.Round, 'ALL_GAMES') as name,
   COALESCE(g.py_md_alias, 'all_games') as alias,
   json_object(
@@ -184,12 +219,14 @@ select
   'True' as published
 from tblgame as g
 join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
-where g.SeasonYear in (2022,2023)
-and cs.id_tblchampionship not in (-1, 46)
-and id_fk_gamestatus in (2,4)
-group by g.SeasonYear,cs.id_tblchampionship,cs.name,cs.py_code,cs.py_round,g.Round
-order by g.seasonYear, cs.py_code, cs.py_round, g.round, cs.CreateTableByRound
-
+where g.SeasonYear not in (2020,2021)
+  and g.SeasonYear <= 2023
+  and cs.id_tblChampionship not in (46,34,2,32,8,13,33,4,5)
+  and g.id_fk_gamestatus in (2,4)
+  and cs.isExtern=0
+  group by g.SeasonYear,cs.id_tblchampionship,cs.name,cs.py_code,cs.py_round,g.Round
+  order by 1,2,3,7
+  
 
   
 -- alias
@@ -201,7 +238,7 @@ order by g.seasonYear, cs.py_code, cs.py_round, g.round, cs.CreateTableByRound
           replace(  
             replace(
               replace(
-                replace(lower(trim(coalesce(Round, 'ALL_GAMES')), ' ', '-')
+                replace(lower(trim(coalesce(Round, 'ALL_GAMES'))), ' ', '-')
                 , 'ü', 'ue')
             , 'ö', 'oe')
           , 'ä' ,'ae')
@@ -298,3 +335,26 @@ order by seasonyear desc, startdate;
     FROM tblchampionship cs  
     ORDER BY `cs`.`py_name` ASC
 
+
+
+--- legacy settings query
+    SELECT
+        g.seasonyear,
+        cs.Code,cs.py_doc,
+        cs.Name,
+        count(*),
+        g.id_fk_championship,
+        cs.PointsWinReg, cs.PointsLossReg, cs.PointsTie,
+        cs.IsOvertime, cs.PointsWinOT, cs.PointsLossOT,
+        cs.IsShootout, cs.PointsWinSO, cs.PointsLossSO
+    FROM tblgame as g
+    join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
+    where g.id_fk_Championship > 0 and g.id_fk_Championship not in (46,34,2,32,8,13,33)
+    and cs.name like 'Regio%Ost%'
+    and cs.IsExtern=0
+    and g.SeasonYear not in (2020,2021)
+    group by g.SeasonYear, g.id_fk_Championship, cs.Code, cs.Name, cs.py_doc,
+      cs.PointsWinReg, cs.PointsLossReg, cs.PointsTie,
+        cs.IsOvertime, cs.PointsWinOT, cs.PointsLossOT,
+        cs.IsShootout, cs.PointsWinSO, cs.PointsLossSO
+    order by 1,2,3

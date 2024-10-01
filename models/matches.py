@@ -213,6 +213,10 @@ class MatchTeamUpdate(BaseModel):
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
+class MatchVenue(BaseModel):
+  venue_id: str = Field(...)
+  alias: str = Field(...)
+  name: str = Field(...)
 
 # --- main document
 
@@ -229,7 +233,7 @@ class MatchBase(MongoBaseModel):
   referee2: Referee = None
   matchStatus: KeyValue = Field(default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
   finishType: KeyValue = Field(default_factory=lambda: KeyValue(key='REGULAR', value='Regulär'))
-  venue: str = None
+  venue: MatchVenue = None
   startDate: datetime = None
   published: bool = False
 
@@ -254,7 +258,7 @@ class MatchUpdate(MongoBaseModel):
   referee2: Optional[Referee] = None
   matchStatus: Optional[KeyValue] = {}
   finishType: Optional[KeyValue] = {}
-  venue: Optional[str] = None
+  venue: Optional[MatchVenue] = None
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
 

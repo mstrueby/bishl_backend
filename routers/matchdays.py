@@ -140,6 +140,7 @@ async def add_matchday(
         {
           "alias": tournament_alias,
           "seasons.alias": season_alias,
+          "seasons.rounds.alias": round_alias,
         }, {
           "_id": 0,
           "seasons.$": 1
@@ -148,8 +149,8 @@ async def add_matchday(
       if updated_tournament and 'seasons' in updated_tournament:
         season_data = updated_tournament['seasons'][0]
         if 'rounds' in season_data:
-          round_data = season_data['rounds'][0]
-          if 'matchdays' in round_data:
+          round_data = next((r for r in season_data['rounds'] if r.get('alias') == round_alias), None)
+          if round_data and 'matchdays' in round_data:
             matchday_data = round_data['matchdays'][-1]
             return JSONResponse(status_code=status.HTTP_201_CREATED,
                                 content=jsonable_encoder(
