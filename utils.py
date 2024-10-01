@@ -597,8 +597,9 @@ async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
 # Refresh Stats for EACH PLAYER(!) in a tournament/season/round/matchday
 # calc sats for round / matchday if createStats is true
 # ----------------------------------------------------------
-async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_alias: str, s_alias: str,
-                                 r_alias: str, md_alias: str) -> None:
+async def calc_player_card_stats(mongodb: Database, player_ids: List[str],
+                                 t_alias: str, s_alias: str, r_alias: str,
+                                 md_alias: str) -> None:
 
   async def update_player_card_stats(flag, matches, player_card_stats):
     if flag not in ['ROUND', 'MATCHDAY']:
@@ -638,7 +639,9 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
               'points': 0,
               'penalty_minutes': 0,
             }
-          if match['matchStatus']['key'] in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
+          if match['matchStatus']['key'] in [
+              'FINISHED', 'INPROGRESS', 'FORFEITED'
+          ]:
             player_card_stats[player_id]['games_played'] += 1
             player_card_stats[player_id]['goals'] += roster_player.get(
               'goals', 0)
@@ -646,8 +649,8 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
               'assists', 0)
             player_card_stats[player_id]['points'] += roster_player.get(
               'points', 0)
-            player_card_stats[player_id]['penalty_minutes'] += roster_player.get(
-              'penaltyMinutes', 0)
+            player_card_stats[player_id][
+              'penalty_minutes'] += roster_player.get('penaltyMinutes', 0)
 
       for roster_player in away_roster:
         player_id = roster_player['player']['player_id']
@@ -672,7 +675,9 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
               'points': 0,
               'penalty_minutes': 0,
             }
-          if match['matchStatus']['key'] in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
+          if match['matchStatus']['key'] in [
+              'FINISHED', 'INPROGRESS', 'FORFEITED'
+          ]:
             player_card_stats[player_id]['games_played'] += 1
             player_card_stats[player_id]['goals'] += roster_player.get(
               'goals', 0)
@@ -680,11 +685,11 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
               'assists', 0)
             player_card_stats[player_id]['points'] += roster_player.get(
               'points', 0)
-            player_card_stats[player_id]['penalty_minutes'] += roster_player.get(
-              'penaltyMinutes', 0)
+            player_card_stats[player_id][
+              'penalty_minutes'] += roster_player.get('penaltyMinutes', 0)
 
-    if DEBUG_LEVEL> 10: print("### player_card_stats", player_card_stats)
-      
+    if DEBUG_LEVEL > 10: print("### player_card_stats", player_card_stats)
+
     for player_id, stats in player_card_stats.items():
       if DEBUG_LEVEL > 10: print("### player_id", player_id)
       if DEBUG_LEVEL > 10: print("### stats", stats)
@@ -698,12 +703,22 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
       if player.get('stats'):
         updated_stats = []
         for elem in player['stats']:
-          if elem['tournament']['alias'] == t_alias and elem['season']['alias'] == s_alias and elem['round']['alias'] == r_alias and (elem['matchday']['alias'] == md_alias if flag == 'MATCHDAY' else True):
-            merged_stat = {**elem, **stats, 'team': elem.get('team', stats['team'])}
+          if elem['tournament']['alias'] == t_alias and elem['season'][
+              'alias'] == s_alias and elem['round']['alias'] == r_alias and (
+                elem['matchday']['alias'] == md_alias
+                if flag == 'MATCHDAY' else True):
+            merged_stat = {
+              **elem,
+              **stats, 'team': elem.get('team', stats['team'])
+            }
             updated_stats.append(merged_stat)
           else:
             updated_stats.append(elem)
-        if all(elem['tournament']['alias'] != t_alias or elem['season']['alias'] != s_alias or elem['round']['alias'] != r_alias for elem in player['stats'] or (elem['matchday']['alias'] != md_alias if flag == 'MATCHDAY' else True)):
+        if all(elem['tournament']['alias'] != t_alias or elem['season']
+               ['alias'] != s_alias or elem['round']['alias'] != r_alias
+               for elem in player['stats'] or (
+                 elem['matchday']['alias'] != md_alias if flag ==
+                 'MATCHDAY' else True)):
           updated_stats.append(stats)
       else:
         updated_stats = [stats]
@@ -740,7 +755,8 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
     }).to_list(length=None)
     player_card_stats = {}
     await update_player_card_stats("ROUND", matches, player_card_stats)
-    if DEBUG_LEVEL > 0: print("### round - player_card_stats", player_card_stats)
+    if DEBUG_LEVEL > 0:
+      print("### round - player_card_stats", player_card_stats)
   else:
     if DEBUG_LEVEL > 0: print("### no round stats")
     # remove statistics - not implemeted
@@ -748,18 +764,15 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str], t_ali
   for matchday in round.get('matchdays', []):
     if matchday.get('createStats', False):
       matches = await mongodb["matches"].find({
-        "tournament.alias":
-        t_alias,
-        "season.alias":
-        s_alias,
-        "round.alias":
-        r_alias,
-        "matchday.alias":
-        md_alias
+        "tournament.alias": t_alias,
+        "season.alias": s_alias,
+        "round.alias": r_alias,
+        "matchday.alias": md_alias
       }).to_list(length=None)
       player_card_stats = {}
       await update_player_card_stats("MATCHDAY", matches, player_card_stats)
-      if DEBUG_LEVEL > 0: print("### matchday - player_card_stats", player_card_stats)
+      if DEBUG_LEVEL > 0:
+        print("### matchday - player_card_stats", player_card_stats)
     else:
       if DEBUG_LEVEL > 0: print("### no matchday stats")
       # remove statistics - not implemeted

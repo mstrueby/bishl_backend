@@ -141,6 +141,7 @@ class MatchdayUpdate(MongoBaseModel):
 class RoundBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
+  sortOrder: int = Field(0)
   createStandings: bool = False
   createStats: bool = False
   matchdaysType: Dict[str, str] = Field(...)
@@ -172,6 +173,7 @@ class RoundDB(RoundBase):
 class RoundUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
+  sortOrder: Optional[int] = None
   createStandings: Optional[bool] = False
   createStats: Optional[bool] = False
   matchdaysType: Optional[Dict[str, str]] = {}
@@ -199,6 +201,7 @@ class RoundUpdate(MongoBaseModel):
 class SeasonBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
+  standingsSettings: StandingsSettings = {}
   published: bool = False
   rounds: List[RoundBase] = []
 
@@ -214,6 +217,7 @@ class SeasonDB(SeasonBase):
 class SeasonUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
+  standingsSettings: Optional[StandingsSettings] = {}
   published: Optional[bool] = False
   rounds: Optional[List[RoundBase]] = []
 
@@ -234,7 +238,6 @@ class TournamentBase(MongoBaseModel):
   active: bool = False
   external: bool = False
   website: HttpUrl = None
-  standingsSettings: StandingsSettings = {}
   seasons: List[SeasonBase] = None
   legacyId: int = None
 
@@ -264,7 +267,6 @@ class TournamentUpdate(MongoBaseModel):
   active: Optional[bool] = False
   external: Optional[bool] = False
   website: Optional[HttpUrl] = None
-  standingsSettings: Optional[StandingsSettings] = {}
   seasons: Optional[List[SeasonBase]] = None
 
   @validator('website', pre=True, always=True)

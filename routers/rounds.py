@@ -25,7 +25,7 @@ async def get_rounds_for_season(
     {"alias": tournament_alias}, exclusion_projection)) is not None:
     for season in tournament.get("seasons", []):
       if season.get("alias") == season_alias:
-        rounds = [RoundDB(**round) for round in (season.get("rounds") or [])]
+        rounds = [RoundDB(**round) for round in sorted((season.get("rounds") or []), key=lambda r: r.get("sortOrder", 0))]
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(rounds))
     raise HTTPException(
