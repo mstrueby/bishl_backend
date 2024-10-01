@@ -184,7 +184,7 @@ db.tournaments.updateOne( {tiny_name: "MINI"}, { $push: { seasons: {year:2023, p
     and cs.id_tblChampionship not in (46,34,2,32,8,13,33,4,5)
     and g.id_fk_gamestatus in (2,4)
     group by tcs.SeasonYear, cs.py_code, cs.py_round, cs.CreateTable, cs.CreateTableByRound  
-  ORDER BY 1,2,4
+  ORDER BY 1,2,6
 
 
 -- get MATCHDAYS data
@@ -214,7 +214,11 @@ select
   ) as matchSettings,
   -- case cs.CreateTable when 1 then 'True' else 'False' end as createStandings, 
   -- case cs.PlayerStatSortOrder when 'value' then 'True' else 'False' end as createStats,
-  case when g.py_md_alias  like 'gruppe%' then 'True' else 'False' end as createStandings,
+  case 
+    when g.py_md_alias  like 'gruppe%' then 'True'
+    when g.py_md_alias  like 'staffel%' then 'True'
+    else 'False' 
+  end as createStandings,
   'False' as createStats,
   'True' as published
 from tblgame as g
