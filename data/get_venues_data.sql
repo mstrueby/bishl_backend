@@ -1,8 +1,10 @@
 -- get Venues
 
 select
+  py_id,
   name,
-  replace(
+  /*
+    replace(
       replace(
           replace(
               replace(  
@@ -15,6 +17,8 @@ select
               , 'ß', 'ss')
           , '`', '-')
       , '.', '') as alias,
+  */
+  py_alias as alias,
   shortname as shortName,
   addressline1 as street,
   postalcode as zipCode,

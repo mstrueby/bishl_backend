@@ -51,6 +51,7 @@ match collection:
         #rec['longitude'] = float(rec['longitude'])
         rec['active'] = bool(rec['active'])
         rec['legacyId'] = int(rec['legacyId'])
+        rec['_id'] = rec['py_id']
 
         venue = jsonable_encoder(VenueBase(**rec))  
         print("Inserting: ", venue)

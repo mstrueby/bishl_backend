@@ -93,7 +93,7 @@ async def add_matchday(
 ) -> MatchdayDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  print("add matchday")
+  # print("add matchday")
   # check if tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias})) is None:

@@ -51,7 +51,7 @@ async def create_tournament(
 ) -> TournamentDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  print("tournament: ", tournament)
+  # print("tournament: ", tournament)
   tournament = jsonable_encoder(tournament)
 
   # DB processing
@@ -82,7 +82,7 @@ async def update_tournament(
   print("tournament pre exclude: ", tournament)
   tournament = tournament.dict(exclude_unset=True)
   tournament.pop("id", None)
-  print("tournament: ", tournament)
+  #print("tournament: ", tournament)
 
   existing_tournament = await request.app.mongodb['tournaments'].find_one(
     {"_id": tournament_id})

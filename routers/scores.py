@@ -154,7 +154,7 @@ async def create_score(
     stats = calc_match_stats(jsonable_encoder(match_status),
                              jsonable_encoder(finish_type),
                              jsonable_encoder(home_stats), await
-                             fetch_standings_settings(t_alias))
+                             fetch_standings_settings(t_alias, s_alias))
     match['home']['stats'] = stats['home']
     match['away']['stats'] = stats['away']
     print("score/match: ", match)
@@ -378,7 +378,7 @@ async def delete_one_score(
     stats = calc_match_stats(jsonable_encoder(match_status),
                              jsonable_encoder(finish_type),
                              jsonable_encoder(home_stats), await
-                             fetch_standings_settings(t_alias))
+                             fetch_standings_settings(t_alias, s_alias))
     match['home']['stats'] = stats['home']
     match['away']['stats'] = stats['away']
     print("del score/match: ", match)
