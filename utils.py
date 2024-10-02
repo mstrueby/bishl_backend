@@ -105,14 +105,14 @@ def validate_match_seconds(v, field_name: str):
   return v
 
 
-async def fetch_standings_settings(tournament_alias):
+async def fetch_standings_settings(tournament_alias, season_alias):
   async with aiohttp.ClientSession() as session:
     async with session.get(
-        f"{BASE_URL}/tournaments/{tournament_alias}") as response:
+        f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}") as response:
       if response.status != 200:
         raise HTTPException(
           status_code=404,
-          detail=f"Tournament with alias {tournament_alias} not found")
+          detail=f"Tournament/Season with alias {tournament_alias}/{season_alias} not found")
       return (await response.json()).get('standingsSettings')
 
 

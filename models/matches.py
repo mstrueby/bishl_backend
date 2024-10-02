@@ -214,9 +214,9 @@ class MatchTeamUpdate(BaseModel):
     return prevent_empty_str(v, field.name)
 
 class MatchVenue(BaseModel):
-  venue_id: str = Field(...)
-  alias: str = Field(...)
+  venue_id: str = None
   name: str = Field(...)
+  alias: str = Field(...)
 
 # --- main document
 

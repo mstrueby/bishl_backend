@@ -2,16 +2,27 @@
 -- -----------------
 
 -- with history (joining tblteamseason)
--- funktioniert nicht, da py_team_id nicht in tblteamseason vorhanden ist
+
 select
   json_object('name', cs.py_name, 'alias', cs.py_t_alias) as tournament,
   json_object('name', cast(g.SeasonYear as char(4)), 'alias', cast(g.SeasonYear as char(4))) as season,
   json_object('name', cs.py_round, 'alias', cs.py_round_alias) as round,
+    COALESCE(g.Round, 'ALL_GAMES') as matchday_name,
+    COALESCE(g.py_md_alias, 'all_games') as matchday_alias,
   json_object(
     'name', COALESCE(g.Round, 'ALL_GAMES'), 
     'alias', COALESCE(g.py_md_alias, 'all_games')
   ) as matchday,
   g.id_tblGame as matchId,
+    thc.py_alias as H_clubAlias,
+    thc.py_alias as H_teamAlias,
+    th.NameAffix as H_teamName,
+    tsh.name as H_teamFullName,
+    tsh.shortname as H_teamShortname,
+    tsh.tinyName as H_teamTinyName,
+    tsh.py_logo as H_teamLogo,
+    st.GoalsH as H_goalsFor,
+    st.GoalsA as H_goalsAgainst,
   json_object(
     'clubAlias', thc.py_alias,
     'teamAlias', th.py_alias,
@@ -24,12 +35,18 @@ select
     'stats', json_object(
       'goalsFor', st.GoalsH,
       'goalsAgainst', st.GoalsA
-    ),
-    'roster', json_array(
-      
     )
   ) as home,
-  ta.Name, ta.ShortName, ta.tinyName,
+  -- ta.Name, ta.ShortName, ta.tinyName,
+    tac.py_alias as A_clubAlias,
+    ta.py_alias as A_teamAlias,
+    ta.NameAffix as A_teamName,
+    tsa.name as A_teamFullName,
+    tsa.shortname as A_teamShortname,
+    tsa.tinyName as A_teamTinyName,
+    tsa.py_logo as A_teamLogo,
+    st.GoalsA as A_goalsFor,
+    st.GoalsH as A_goalsAgainst,  
   json_object(
     'clubAlias', tac.py_alias,
     'teamAlias', ta.py_alias,
@@ -46,6 +63,11 @@ select
   ) as away,
   gs.py_doc as matchStatus,
   s.Name as venue,
+  json_object(
+    'venue_id', coalesce(s.py_id, ''),
+    'name', coalesce(s.Name, 'unbekannter Ort'),
+    'alias', coalesce(s.py_alias, 'unbekannter-ort')
+  ) as venue,
   case g.IsOvertime when 1 then 'True' else 'False' end as overtime,
   case g.IsShootout when 1 then 'True' else 'False' end as shootout,
   json_object(
@@ -93,13 +115,42 @@ left join tblofficial as r1 on g.id_fk_Referee1=r1.id_tblOfficial
 left join tblclub as r1c on r1.id_fk_Club=r1c.id_tblClub
 left join tblofficial as r2 on g.id_fk_Referee2=r2.id_tblOfficial
 left join tblclub as r2c on r2.id_fk_Club=r2c.id_tblClub
-where g.SeasonYear in (2022,2023)
-and cs.id_tblchampionship not in (-1, 46)
-and id_fk_gamestatus in (2,4)
+where g.SeasonYear not in (2020,2021)
+  and g.SeasonYear <= 2023
+  and g.id_fk_gamestatus in (2,4)
+  and cs.id_tblchampionship not in (46,34,2,32,8,13,33,4,5)
+  and cs.isextern=0
+order by cs.py_t_alias, g.SeasonYear, g.Round, g.MatchDay, g.StartDate
+
+
+-- cehck
+  select g.SeasonYear, g.id_fk_teamhome, tsh.id_fk_Team
+  from tblgame as g
+  join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
+  join tblgamestatus as gs on g.id_fk_GameStatus=gs.id_tblGameStatus
+  join tblstadium as s on g.id_fk_Stadium=s.id_tblStadium
+  left join tblteamseason as tsh on g.id_fk_TeamHome=tsh.id_fk_Team and g.SeasonYear=tsh.SeasonYear
+  where g.SeasonYear not in (2020,2021)
+    and g.SeasonYear <= 2023
+    and g.id_fk_gamestatus in (2,4)
+    and cs.id_tblchampionship not in (46,34,2,32,8,13,33,4,5)
+    and cs.isextern=0
+
+    and tsh.id_fk_Team is null
+
+  -- corrections
+update tblgame set id_fk_teamhome=170 where id_fk_teamhome=137;
+update tblgame set id_fk_teamaway=170 where id_fk_teamaway=137;
+update tblroster set id_fk_team=170 where id_fk_team=137;
+update tblscoreboard set id_fk_team=170 where id_fk_team=137;
+update tblpenaltyboard set id_fk_team=170 where id_fk_team=137;
+update tblteamplayer set id_fk_team=170 where id_fk_team=137;
+update tblteamseason set id_fk_team=170 where id_fk_team=137;
+update tblteamchampionship set id_fk_team=170 where id_fk_team=137;
 
 
 
-
+  
 
 -- without history (NOT joining tblteamseason)
 -- wurde nicht benutzt
@@ -641,8 +692,7 @@ WHERE 1=1
   and g.id_fk_championship in (27,49,29)
 
 
------ GET SCORES DATA
-
+----- GET PENALTIES DATA
 select 
   g.id_tblGame as match_id,
   case when pb.id_fk_Team=g.id_fk_TeamHome then 'home' else 'away' end as team_flag,

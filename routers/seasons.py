@@ -63,7 +63,7 @@ async def create_season(
 ) -> SeasonDB:
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  print("add season")
+  #print("add season")
   # Check if the tournament exists
   if (tournament := await request.app.mongodb['tournaments'].find_one(
     {"alias": tournament_alias})) is None:
