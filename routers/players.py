@@ -311,6 +311,8 @@ async def process_ishd_data(request: Request,
                 lastname=player['last_name'],
                 birthdate=datetime.strptime(player['date_of_birth'],
                                             '%Y-%m-%d'),
+                display_firstname=player['first_name'],
+                display_lastname=player['last_name'],
                 nationality=player['nationality']
                 if 'nationality' in player else None,
                 assigned_teams=[assigned_club],
