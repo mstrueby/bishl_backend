@@ -3,6 +3,7 @@
 import csv
 import json
 import os
+import glob
 import requests
 from pymongo import MongoClient
 import certifi
@@ -44,86 +45,101 @@ db_collection = db['matches']
 
 # import rosters
 def import_rosters():
-  with open("data/data_rosters.csv", encoding='utf-8') as f:
-    reader = csv.DictReader(f)
-    matches = []
-    for row in reader:
+  # Get the list of all files starting with 'data_rosters' in the 'data' directory
+  roster_files = sorted(glob.glob(os.path.join("data", "data_rosters_*.csv")))
+  roster_files = [
+    file for file in roster_files if not file.endswith('_done.csv')
+  ]
+  # Iterate over each file
+  for roster_file in roster_files:
+    print(f"Processing file: {roster_file}")
+    with open(roster_file, encoding='utf-8') as f:
+      reader = csv.DictReader(f)
+      matches = []
+      for row in reader:
 
-      #if int(row['match_id']) not in [7279,7439,7445]:
-      #    continue
+        #if int(row['match_id']) not in [7279,7439,7445]:
+        #    continue
 
-      existing_match = db['matches'].find_one(
-        {'matchId': int(row['match_id'])})
-      if not existing_match:
-        print("Match not found for roster: ", row['match_id'])
-        exit()
-      # parse JSON strings if they are not already dictionaries
-      match_id = int(row['match_id'])
-      team_flag = row['team_flag']
-      if isinstance(row.get('player'), str):
-        player = json.loads(row['player'])
-      if isinstance(row.get('playerPosition'), str):
-        playerPosition = json.loads(row['playerPosition'])
-      passNumber = row['passNumber']
-      roster_player = {
-        'player': player,
-        'playerPosition': playerPosition,
-        'passNumber': passNumber
-      }
+        existing_match = db['matches'].find_one(
+          {'matchId': int(row['match_id'])})
+        if not existing_match:
+          print("Match not found for roster: ", row['match_id'])
+          exit()
+        # parse JSON strings if they are not already dictionaries
+        match_id = int(row['match_id'])
+        team_flag = row['team_flag']
+        if isinstance(row.get('player'), str):
+          player = json.loads(row['player'])
+        if isinstance(row.get('playerPosition'), str):
+          playerPosition = json.loads(row['playerPosition'])
+        passNumber = row['passNumber']
+        print("player", player)
+        roster_player = {
+          'player': player,
+          'playerPosition': playerPosition,
+          'passNumber': passNumber
+        }
 
-      match_exists = any(
-        match.get('match_id') == match_id for match in matches)
-      if not match_exists:
-        match = {'match_id': match_id}
-        matches.append(match)
+        match_exists = any(
+          match.get('match_id') == match_id for match in matches)
+        if not match_exists:
+          match = {'match_id': match_id}
+          matches.append(match)
 
-      # Check if any team_flag roster exists in any match object in matches
+        # Check if any team_flag roster exists in any match object in matches
+        for match in matches:
+          if match['match_id'] == match_id:
+            if team_flag == 'home':
+              if 'home_roster' not in match:
+                match['home_roster'] = []
+              match['home_roster'].append(roster_player)
+            elif team_flag == 'away':
+              if 'away_roster' not in match:
+                match['away_roster'] = []
+              match['away_roster'].append(roster_player)
+
+        print("processed file row: ", row['match_id'], row['team_flag'],
+              player['lastName'])
+
+      # Print matches in readable JSON format
       for match in matches:
-        if match['match_id'] == match_id:
-          if team_flag == 'home':
-            if 'home_roster' not in match:
-              match['home_roster'] = []
-            match['home_roster'].append(roster_player)
-          elif team_flag == 'away':
-            if 'away_roster' not in match:
-              match['away_roster'] = []
-            match['away_roster'].append(roster_player)
-
-      print("processed file row: ", row['match_id'], row['team_flag'],
-            player['lastName'])
-
-    # Print matches in readable JSON format
-    for match in matches:
-      match_id = int(match['match_id'])
-      # Ensure match_id is an int and retrieve the existing match
-      existing_match = db_collection.find_one({'matchId': match_id})
-      if existing_match:
-        # Post home roster
-        #print(json.dumps(match['home_roster'], indent=2))
-        response = requests.put(
-          f"{BASE_URL}/matches/{existing_match['_id']}/home/roster/",
-          json=match.get('home_roster', []),
-          headers=headers)
-        if response.status_code == 200:
-          print('--> Successfully put Home Roster for Match ', match_id)
+        match_id = int(match['match_id'])
+        # Ensure match_id is an int and retrieve the existing match
+        existing_match = db_collection.find_one({'matchId': match_id})
+        if existing_match:
+          # Post home roster
+          #print(json.dumps(match['home_roster'], indent=2))
+          response = requests.put(
+            f"{BASE_URL}/matches/{existing_match['_id']}/home/roster/",
+            json=match.get('home_roster', []),
+            headers=headers)
+          if response.status_code == 200:
+            print('--> Successfully put Home Roster for Match ', match_id)
+          else:
+            print('Failed to put Home Roster for Match ', match_id,
+                  ' - Status code:', response.status_code, response.json())
+            exit()
+          # Post away roster
+          response = requests.put(
+            f"{BASE_URL}/matches/{existing_match['_id']}/away/roster/",
+            json=match.get('away_roster', []),
+            headers=headers)
+          if response.status_code == 200:
+            print('--> Successfully put Away Roster for Match ', match_id)
+          else:
+            print('Failed to put Away Roster for Match ', match_id,
+                  ' - Status code:', response.status_code)
+            exit()
         else:
-          print('Failed to put Home Roster for Match ', match_id,
-                ' - Status code:', response.status_code, response.json())
+          print("Match not found for roster: ", match_id)
           exit()
-        # Post away roster
-        response = requests.put(
-          f"{BASE_URL}/matches/{existing_match['_id']}/away/roster/",
-          json=match.get('away_roster', []),
-          headers=headers)
-        if response.status_code == 200:
-          print('--> Successfully put Away Roster for Match ', match_id)
-        else:
-          print('Failed to put Away Roster for Match ', match_id,
-                ' - Status code:', response.status_code)
-          exit()
-      else:
-        print("Match not found for roster: ", match_id)
-        exit()
+
+    # Rename the roster file to start with an underscore
+    new_roster_file_name = os.path.join(
+      os.path.dirname(roster_file),
+      os.path.splitext(os.path.basename(roster_file))[0] + '_done.csv')
+    os.rename(roster_file, new_roster_file_name)
 
 
 # import scores
@@ -217,6 +233,8 @@ def import_penalties():
         row['isGM'] = row['isGM'].lower() == 'true'
       if isinstance(row.get('isMP'), str):
         row['isMP'] = row['isMP'].lower() == 'true'
+      if len(row['matchSecondsEnd']) == 0:
+        row['matchSecondsEnd'] = None
       current_penalty = {
         'matchSecondsStart': row['matchSecondsStart'],
         'matchSecondsEnd': row['matchSecondsEnd'],
@@ -262,10 +280,10 @@ def import_penalties():
 
 
 # Set up argument parser
-parser = argparse.ArgumentParser(description='Manage tournaments.')
+parser = argparse.ArgumentParser(description='Manage matches.')
 parser.add_argument('--deleteAll',
                     action='store_true',
-                    help='Delete all tournaments.')
+                    help='Delete all matches.')
 parser.add_argument('--importAll',
                     action='store_true',
                     help='Import all matches.')
@@ -316,7 +334,7 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
     if isinstance(row.get('venue'), str):
       row['venue'] = json.loads(row['venue'])
     if len(row['venue']['venue_id']) == 0:
-        row['venue']['venue_id'] = None
+      row['venue']['venue_id'] = None
     if isinstance(row.get('matchStatus'), str):
       row['matchStatus'] = json.loads(row['matchStatus'])
     if isinstance(row.get('finishType'), str):

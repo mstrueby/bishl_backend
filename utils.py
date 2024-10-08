@@ -108,11 +108,14 @@ def validate_match_seconds(v, field_name: str):
 async def fetch_standings_settings(tournament_alias, season_alias):
   async with aiohttp.ClientSession() as session:
     async with session.get(
-        f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}") as response:
+        f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}"
+    ) as response:
       if response.status != 200:
         raise HTTPException(
           status_code=404,
-          detail=f"Tournament/Season with alias {tournament_alias}/{season_alias} not found")
+          detail=
+          f"Tournament/Season with alias {tournament_alias}/{season_alias} not found"
+        )
       return (await response.json()).get('standingsSettings')
 
 
@@ -412,7 +415,7 @@ async def calc_standings_per_round(mongodb: Database, t_alias: str,
     raise HTTPException(status_code=500,
                         detail="Failed to update tournament standings.")
   else:
-    print("update r.standings: ", standings)
+    if DEBUG_LEVEL > 10: print("update r.standings: ", standings)
 
 
 async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
@@ -605,149 +608,120 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str],
     if flag not in ['ROUND', 'MATCHDAY']:
       raise ValueError(
         "Invalid flag, only 'ROUND' or 'MATCHDAY' are accepted.")
-
     if DEBUG_LEVEL > 10: print("count matches", len(matches))
 
+    def update_stats(player_id, team, roster_player, match_info):
+      if player_id not in player_card_stats:
+        player_card_stats[player_id] = {}
+      team_key = team['full_name']
+      if team_key not in player_card_stats[player_id]:
+        player_card_stats[player_id][team_key] = {
+          'tournament': match_info['tournament'],
+          'season': match_info['season'],
+          'round': match_info['round'],
+          'matchday': match_info['matchday'],
+          'team': team,
+          'games_played': 0,
+          'goals': 0,
+          'assists': 0,
+          'points': 0,
+          'penalty_minutes': 0,
+        }
+      if match_info['match_status']['key'] in [
+          'FINISHED', 'INPROGRESS', 'FORFEITED'
+      ]:
+        stats = player_card_stats[player_id][team_key]
+        stats['games_played'] += 1
+        stats['goals'] += roster_player.get('goals', 0)
+        stats['assists'] += roster_player.get('assists', 0)
+        stats['points'] += roster_player.get('points', 0)
+        stats['penalty_minutes'] += roster_player.get('penaltyMinutes', 0)
+
     for match in matches:
+      match_info = {
+        'tournament': match.get('tournament', {}),
+        'season': match.get('season', {}),
+        'round': match.get('round', {}),
+        'matchday': match.get('matchday', {}) if flag == 'MATCHDAY' else None,
+        'match_status': match.get('matchStatus', {})
+      }
+
       home_roster = match.get('home', {}).get('roster', [])
       away_roster = match.get('away', {}).get('roster', [])
-      tournament = match.get('tournament', {})
-      season = match.get('season', {})
-      round = match.get('round', {})
-      matchday = match.get('matchday', {}) if flag == 'MATCHDAY' else None
-
+      home_team = {
+        'name': match.get('home', {}).get('name'),
+        'full_name': match.get('home', {}).get('fullName'),
+        'short_name': match.get('home', {}).get('shortName'),
+        'tiny_name': match.get('home', {}).get('tinyName')
+      }
+      away_team = {
+        'name': match.get('away', {}).get('name'),
+        'full_name': match.get('away', {}).get('fullName'),
+        'short_name': match.get('away', {}).get('shortName'),
+        'tiny_name': match.get('away', {}).get('tinyName')
+      }
       for roster_player in home_roster:
         player_id = roster_player['player']['player_id']
         if player_id in player_ids:
-          team = {
-            #'team_id': match.get('home', {}).get('teamId'),
-            'name': match.get('home', {}).get('name'),
-            'full_name': match.get('home', {}).get('fullName'),
-            'short_name': match.get('home', {}).get('shortName'),
-            'tiny_name': match.get('home', {}).get('tinyName'),
-          }
-          if player_id not in player_card_stats:
-            player_card_stats[player_id] = {
-              'tournament': tournament,
-              'season': season,
-              'round': round,
-              'matchday': matchday,
-              'team': team,
-              'games_played': 0,
-              'goals': 0,
-              'assists': 0,
-              'points': 0,
-              'penalty_minutes': 0,
-            }
-          if match['matchStatus']['key'] in [
-              'FINISHED', 'INPROGRESS', 'FORFEITED'
-          ]:
-            player_card_stats[player_id]['games_played'] += 1
-            player_card_stats[player_id]['goals'] += roster_player.get(
-              'goals', 0)
-            player_card_stats[player_id]['assists'] += roster_player.get(
-              'assists', 0)
-            player_card_stats[player_id]['points'] += roster_player.get(
-              'points', 0)
-            player_card_stats[player_id][
-              'penalty_minutes'] += roster_player.get('penaltyMinutes', 0)
-
+          update_stats(player_id, home_team, roster_player, match_info)
       for roster_player in away_roster:
         player_id = roster_player['player']['player_id']
         if player_id in player_ids:
-          team = {
-            #'team_id': match.get('away', {}).get('teamId'),
-            'name': match.get('away', {}).get('name'),
-            'full_name': match.get('away', {}).get('fullName'),
-            'short_name': match.get('away', {}).get('shortName'),
-            'tiny_name': match.get('away', {}).get('tinyName'),
-          }
-          if player_id not in player_card_stats:
-            player_card_stats[player_id] = {
-              'tournament': tournament,
-              'season': season,
-              'round': round,
-              'matchday': matchday,
-              'team': team,
-              'games_played': 0,
-              'goals': 0,
-              'assists': 0,
-              'points': 0,
-              'penalty_minutes': 0,
-            }
-          if match['matchStatus']['key'] in [
-              'FINISHED', 'INPROGRESS', 'FORFEITED'
-          ]:
-            player_card_stats[player_id]['games_played'] += 1
-            player_card_stats[player_id]['goals'] += roster_player.get(
-              'goals', 0)
-            player_card_stats[player_id]['assists'] += roster_player.get(
-              'assists', 0)
-            player_card_stats[player_id]['points'] += roster_player.get(
-              'points', 0)
-            player_card_stats[player_id][
-              'penalty_minutes'] += roster_player.get('penaltyMinutes', 0)
+          update_stats(player_id, away_team, roster_player, match_info)
 
     if DEBUG_LEVEL > 10: print("### player_card_stats", player_card_stats)
+    for player_id, stats_by_team in player_card_stats.items():
+      for team_key, stats in stats_by_team.items():
+        player = await mongodb['players'].find_one({"_id": player_id})
+        if not player:
+          raise HTTPException(
+            status_code=404, detail=f"Player {player_id} not found in mongoDB")
 
-    for player_id, stats in player_card_stats.items():
-      if DEBUG_LEVEL > 10: print("### player_id", player_id)
-      if DEBUG_LEVEL > 10: print("### stats", stats)
+        if player.get('stats'):
+          updated_stats = []
+          for elem in player['stats']:
+            if (elem['tournament']['alias'] == t_alias and
+                elem['season']['alias'] == s_alias and
+                elem['round']['alias'] == r_alias and
+                (elem['team']['full_name'] == stats['team']['full_name'] and
+                 (elem['matchday']['alias'] == md_alias if flag == 'MATCHDAY' else True))):
+              
+              merged_stat = {**elem, **stats, 'team': elem.get('team', stats['team'])}
+              updated_stats.append(merged_stat)
+            else:
+              updated_stats.append(elem)
 
-      player = await mongodb['players'].find_one({"_id": player_id})
-      if not player:
-        raise HTTPException(status_code=404,
-                            detail=f"Player {player_id} not found in mongoDB")
-      if DEBUG_LEVEL > 10: print("### player", player)
-      if DEBUG_LEVEL > 10: print("# player.get(stats)", player.get('stats'))
-      if player.get('stats'):
-        updated_stats = []
-        for elem in player['stats']:
-          if elem['tournament']['alias'] == t_alias and elem['season'][
-              'alias'] == s_alias and elem['round']['alias'] == r_alias and (
-                elem['matchday']['alias'] == md_alias
-                if flag == 'MATCHDAY' else True):
-            merged_stat = {
-              **elem,
-              **stats, 'team': elem.get('team', stats['team'])
-            }
-            updated_stats.append(merged_stat)
-          else:
-            updated_stats.append(elem)
-        if all(elem['tournament']['alias'] != t_alias or elem['season']
-               ['alias'] != s_alias or elem['round']['alias'] != r_alias
-               for elem in player['stats'] or (
-                 elem['matchday']['alias'] != md_alias if flag ==
-                 'MATCHDAY' else True)):
-          updated_stats.append(stats)
-      else:
-        updated_stats = [stats]
-      if DEBUG_LEVEL > 10: print("# updated_stats", updated_stats)
+          if all((elem['tournament']['alias'] != t_alias or
+                  elem['season']['alias'] != s_alias or
+                  elem['round']['alias'] != r_alias or
+                  elem['team']['full_name'] != stats['team']['full_name'] or
+                  (elem['matchday']['alias'] != md_alias if flag == 'MATCHDAY' else False))
+                  for elem in player['stats']):
+            updated_stats.append(stats)
+        else:
+          updated_stats = [stats]
+        result = await mongodb['players'].update_one(
+          {"_id": player_id}, {"$set": {
+            "stats": updated_stats
+          }})
+        if not result.acknowledged:
+          raise HTTPException(
+            status_code=500,
+            detail=
+            f"Could not update player stats in mongoDB for player {player_id}")
 
-      result = await mongodb['players'].update_one(
-        {"_id": player_id}, {"$set": {
-          "stats": updated_stats
-        }})
-
-      if not result.acknowledged:
-        raise HTTPException(
-          status_code=500,
-          detail=
-          f"Could not update player stats in mongoDB for player {player_id}")
-
-  # main
+  # Main logic
   if not t_alias or not s_alias or not r_alias or not md_alias:
     return
-
   async with httpx.AsyncClient() as client:
     response = await client.get(
       f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}")
     if response.status_code != 200:
       raise HTTPException(status_code=response.status_code,
                           detail="Could not fetch the round information")
-    round = response.json()
+    round_info = response.json()
 
-  if round.get('createStats', False):
+  if round_info.get('createStats', False):
     matches = await mongodb["matches"].find({
       "tournament.alias": t_alias,
       "season.alias": s_alias,
@@ -759,9 +733,9 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str],
       print("### round - player_card_stats", player_card_stats)
   else:
     if DEBUG_LEVEL > 0: print("### no round stats")
-    # remove statistics - not implemeted
+    # remove statistics - not implemented
 
-  for matchday in round.get('matchdays', []):
+  for matchday in round_info.get('matchdays', []):
     if matchday.get('createStats', False):
       matches = await mongodb["matches"].find({
         "tournament.alias": t_alias,
@@ -775,4 +749,4 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str],
         print("### matchday - player_card_stats", player_card_stats)
     else:
       if DEBUG_LEVEL > 0: print("### no matchday stats")
-      # remove statistics - not implemeted
+      # remove statistics - not implemented
