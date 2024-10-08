@@ -12,4 +12,5 @@ SELECT
   id_tblPlayer as legacy_id
 FROM `tblplayer` 
 where dayname(birthday) is not null
+  and id_tblPlayer >0
 ORDER BY firstname, lastname ASC

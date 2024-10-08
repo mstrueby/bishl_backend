@@ -1,5 +1,6 @@
 { pkgs }: {
   deps = [
+    pkgs.utillinux
     pkgs.nano
     pkgs.libxcrypt
     pkgs.cacert

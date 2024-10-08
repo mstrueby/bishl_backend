@@ -381,14 +381,13 @@ GROUP BY g.id_tblGame
 
 -- roster flat
 -- --------------
-
 select *
 from (
   select 
     g.id_tblGame as match_id,
     'home' as team_flag,
     json_object(
-      'player_id', ph.py_id,
+      'player_id', coalesce(ph.py_id, 'n/a'),
       'firstName', ph.display_firstname,
       'lastName', ph.display_lastname,
       'jerseyNumber', rh.JerseyNo
@@ -409,6 +408,7 @@ from (
     ) as playerPosition,
     tph.PassNo as passNumber
   FROM tblgame as g
+  JOIN tblchampionship cs on g.id_fk_Championship=cs.id_tblChampionship
   JOIN tblroster as rh 
     on g.id_tblGame = rh.id_fk_Game
     and g.id_fk_TeamHome=rh.id_fk_Team
@@ -418,9 +418,11 @@ from (
     ON ph.id_tblPlayer = tph.id_fk_Player and g.id_fk_TeamHome=tph.id_fk_Team and g.SeasonYear=tph.SeasonYear
   WHERE 1=1
     -- and id_tblGame = 7445
-    and g.seasonyear=2023
-    and g.id_fk_championship in (27,49,29)
-
+    and g.SeasonYear not in (2020,2021)
+    and g.SeasonYear = 2019
+    and g.id_fk_Championship not in (46,34,2,32,8,13,33,4,5)
+    and g.id_fk_gamestatus in (2,4)
+    and cs.isExtern=0
 
   union all
 
@@ -428,7 +430,7 @@ from (
     g.id_tblGame as match_id,
     'away' as team_flag,
     json_object(
-      'player_id', pa.py_id,
+      'player_id', coalesce(pa.py_id, 'n/a'),
       'firstName', pa.display_firstname,
       'lastName', pa.display_lastname,
       'jerseyNumber', ra.JerseyNo
@@ -449,6 +451,7 @@ from (
     ) as playerPosition,
     tpa.PassNo as passNumber
   FROM tblgame as g
+  JOIN tblchampionship cs on g.id_fk_Championship=cs.id_tblChampionship
   JOIN tblroster as ra
     ON g.id_tblGame = ra.id_fk_Game
     and g.id_fk_TeamAway=ra.id_fk_Team
@@ -458,11 +461,13 @@ from (
     ON pa.id_tblPlayer = tpa.id_fk_Player and g.id_fk_TeamAway=tpa.id_fk_Team and g.SeasonYear=tpa.SeasonYear
   WHERE 1=1
     -- and id_tblGame = 7445
-    and g.seasonyear=2023
-    and g.id_fk_championship in (27,49,29)
+    and g.SeasonYear not in (2020,2021)
+    and g.SeasonYear = 2019
+    and g.id_fk_Championship not in (46,34,2,32,8,13,33,4,5)
+    and g.id_fk_gamestatus in (2,4)
+    and cs.isExtern=0
 ) t
 order by 1,2
-
 
 
 -- update tblteamplayer (hochmelden)
@@ -523,62 +528,70 @@ order by 1,2
   order by 1
 
 -- chcek
-select 
-t.match_id,
-t.team_flag,
-t.py_id,
-t.FirstName,
-t.LastName,
-count(*)
-from (
   select 
-    g.id_tblGame as match_id,
-    'home' as team_flag,
-    ph.py_id,
-    ph.FirstName,
-    ph.LastName
-  FROM tblgame as g
-  JOIN tblroster as rh 
-    on g.id_tblGame = rh.id_fk_Game
-    and g.id_fk_TeamHome=rh.id_fk_Team
-  JOIN tblplayer as ph
-    on rh.id_fk_Player = ph.id_tblPlayer
-  JOIN tblteamplayer as tph
-    ON ph.id_tblPlayer = tph.id_fk_Player and g.id_fk_TeamHome=tph.id_fk_Team and g.SeasonYear=tph.SeasonYear
-  WHERE 1=1
-    -- and id_tblGame = 7445
-    and g.seasonyear=2023
-    and g.id_fk_championship in (27,49,29)
+  t.match_id,
+  t.team_flag,
+  t.py_id,
+  t.FirstName,
+  t.LastName,
+  count(*)
+  from (
+    select 
+      g.id_tblGame as match_id,
+      'home' as team_flag,
+      ph.py_id,
+      ph.FirstName,
+      ph.LastName
+    FROM tblgame as g
+      join tblchampionship cs on g.id_fk_Championship=cs.id_tblChampionship
 
+    JOIN tblroster as rh 
+      on g.id_tblGame = rh.id_fk_Game
+      and g.id_fk_TeamHome=rh.id_fk_Team
+    JOIN tblplayer as ph
+      on rh.id_fk_Player = ph.id_tblPlayer
+    JOIN tblteamplayer as tph
+      ON ph.id_tblPlayer = tph.id_fk_Player and g.id_fk_TeamHome=tph.id_fk_Team and g.SeasonYear=tph.SeasonYear
+    WHERE 1=1
+      -- and id_tblGame = 7445
+      and g.SeasonYear not in (2020,2021)
+      and g.SeasonYear = 2019
+      and g.id_fk_Championship not in (46,34,2,32,8,13,33,4,5)
+      and g.id_fk_gamestatus in (2,4)
+      and cs.isExtern=0
+    union all
 
-  union all
+    select
+      g.id_tblGame as match_id,
+      'away' as team_flag,
+      pa.py_id,
+      pa.FirstName,
+      pa.LastName
+    FROM tblgame as g
+      join tblchampionship cs on g.id_fk_Championship=cs.id_tblChampionship
 
-  select
-    g.id_tblGame as match_id,
-    'away' as team_flag,
-    pa.py_id,
-    pa.FirstName,
-    pa.LastName
-  FROM tblgame as g
-  JOIN tblroster as ra
-    ON g.id_tblGame = ra.id_fk_Game
-    and g.id_fk_TeamAway=ra.id_fk_Team
-  join tblplayer as pa
-    on ra.id_fk_Player = pa.id_tblPlayer
-  join tblteamplayer as tpa
-    ON pa.id_tblPlayer = tpa.id_fk_Player and g.id_fk_TeamAway=tpa.id_fk_Team and g.SeasonYear=tpa.SeasonYear
-  WHERE 1=1
-    -- and id_tblGame = 7445
-    and g.seasonyear=2023
-    and g.id_fk_championship in (27,49,29)
-) t
-group by t.match_id,
-t.team_flag,
-t.py_id,
-t.FirstName,
-t.Lastname
-having count(*) >1
-order by 1,2
+    JOIN tblroster as ra
+      ON g.id_tblGame = ra.id_fk_Game
+      and g.id_fk_TeamAway=ra.id_fk_Team
+    join tblplayer as pa
+      on ra.id_fk_Player = pa.id_tblPlayer
+    join tblteamplayer as tpa
+      ON pa.id_tblPlayer = tpa.id_fk_Player and g.id_fk_TeamAway=tpa.id_fk_Team and g.SeasonYear=tpa.SeasonYear
+    WHERE 1=1
+      -- and id_tblGame = 7445
+      and g.SeasonYear not in (2020,2021)
+      and g.SeasonYear = 2019
+      and g.id_fk_Championship not in (46,34,2,32,8,13,33,4,5)
+      and g.id_fk_gamestatus in (2,4)
+      and cs.isExtern=0
+  ) t
+  group by t.match_id,
+  t.team_flag,
+  t.py_id,
+  t.FirstName,
+  t.Lastname
+  having count(*) >1
+  order by 1,2
 
 -- ergebnis; # legacy_id 1209
 "match_id","team_flag","py_id","FirstName","LastName","count(*)"
@@ -678,6 +691,8 @@ select
 FROM tblscoreboard sb
 JOIN tblgame as g
   on sb.id_fk_Game = g.id_tblGame
+JOIN tblchampionship cs
+  on g.id_fk_Championship=cs.id_tblChampionship
 JOIN tblroster as rg
   on sb.id_fk_Game=rg.id_fk_Game and sb.id_fk_Team=rg.id_fk_Team and sb.id_fk_GoalBy=rg.id_fk_Player
 JOIN tblplayer as pg
@@ -687,10 +702,14 @@ LEFT JOIN tblroster as ra
 LEFT JOIN tblplayer as pa
   on ra.id_fk_Player=pa.id_tblPlayer
 WHERE 1=1
-  -- and g.id_tblGame = 7445
-  and g.seasonyear = 2023
-  and g.id_fk_championship in (27,49,29)
-
+  -- and id_tblGame = 7445
+  and g.SeasonYear not in (2020,2021)
+  and g.SeasonYear <= 2019
+  and g.id_fk_Championship not in (46,34,2,32,8,13,33,4,5)
+  and g.id_fk_gamestatus in (2,4)
+  and cs.isExtern=0
+ORDER BY 1, 2 desc
+  
 
 ----- GET PENALTIES DATA
 select 
@@ -714,6 +733,8 @@ select
 FROM tblpenaltyboard pb
 JOIN tblgame as g
   on pb.id_fk_Game = g.id_tblGame
+JOIN tblchampionship cs
+  on g.id_fk_Championship=cs.id_tblChampionship
 JOIN tblroster as rp
   on pb.id_fk_Game=rp.id_fk_Game and pb.id_fk_Team=rp.id_fk_Team and pb.id_fk_Player=rp.id_fk_Player
 JOIN tblplayer as pp
@@ -721,6 +742,9 @@ JOIN tblplayer as pp
 JOIN tblpenaltycode as pc
   on pb.id_fk_PenaltyCode=pc.id_tblPenaltyCode and g.SeasonYear=pc.SeasonYear
 WHERE 1=1
-  -- and g.id_tblGame = 7445
-  and g.seasonyear = 2023
-  and g.id_fk_championship in (27,49,29)
+  -- and id_tblGame = 7445
+  and g.SeasonYear not in (2020,2021)
+  and g.SeasonYear <= 2019
+  and g.id_fk_Championship not in (46,34,2,32,8,13,33,4,5)
+  and g.id_fk_gamestatus in (2,4)
+  and cs.isExtern=0

@@ -272,7 +272,7 @@ async def update_match(
     match.home.stats = stats['home']
     match.away.stats = stats['away']
 
-  print("### match/after stats: ", match)
+  if DEBUG_LEVEL > 0: print("### match/after stats: ", match)
 
   match.referee1 = existing_match['referee1']
   match.referee2 = existing_match['referee2']
@@ -295,7 +295,7 @@ async def update_match(
       match_data['referee2']['points'] = ref_points
 
   match_data = convert_times_to_seconds(match_data)
-  print("match_data: ", match_data)
+  if DEBUG_LEVEL > 10: print("match_data: ", match_data)
 
   if match_data.get("home") and match_data["home"].get("scores"):
     add_id_to_scores(match_data["home"]["scores"])
@@ -308,7 +308,7 @@ async def update_match(
       if existing is None or key not in existing:
         match_to_update[full_key] = value
       elif isinstance(value, dict):
-        print("val: ", value)
+        #print("val: ", value)
         check_nested_fields(value, existing.get(key, {}), full_key)
       else:
         if value != existing.get(key):
@@ -316,7 +316,7 @@ async def update_match(
 
   match_to_update = {}
   check_nested_fields(match_data, existing_match)
-  print("match_to_update: ", match_to_update)
+  if DEBUG_LEVEL > 0: print("match_to_update: ", match_to_update)
 
   if match_to_update:
     try:
@@ -386,8 +386,9 @@ async def delete_match(
       player['player']['player_id']
       for player in match.get('away', {}).get('roster', [])
     ]
-    print("### home_players: ", home_players)
-    print("### away_players: ", away_players)
+    if DEBUG_LEVEL > 0:
+      print("### home_players: ", home_players)
+      print("### away_players: ", away_players)
 
     player_ids = home_players + away_players
 
@@ -403,11 +404,11 @@ async def delete_match(
                                       r_alias, md_alias)
     # for each player in player_ids loop through stats list and compare tournament, season and round. if found then remove item from list
     for player_id in player_ids:
-      print("player_id: ", player_id)
+      if DEBUG_LEVEL > 10: print("player_id: ", player_id)
       player = await request.app.mongodb['players'].find({
         '_id': player_id
       }).to_list(length=1)
-      print("player: ", player)
+      if DEBUG_LEVEL > 10: print("player: ", player)
       updated_stats = [
         entry for entry in player[0]['stats']
         if entry['tournament'].get('alias') != t_alias and entry['season'].get(
