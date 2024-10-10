@@ -7,6 +7,7 @@ entrypoint = "main.py"
 # A list of globs that specify which files and directories should
 # be hidden in the workspace.
 hidden = ["venv", ".config", "**/__pycache__", "**/.mypy_cache", "**/*.pyc"]
+modules = ["python-3.12"]
 
 # Specifies which nix channel to use when building the environment.
 [nix]
@@ -26,13 +27,6 @@ channel = "stable-22_11"
 #  ]
 #  env = { LD_LIBRARY_PATH = "$PYTHON_LD_LIBRARY_PATH" }
 
-[env]
-VIRTUAL_ENV = "${REPL_HOME}/venv"
-PATH = "${VIRTUAL_ENV}/bin"
-PYTHONPATH = "$PYTHONHOME/lib/python3.10:${VIRTUAL_ENV}/lib/python3.10/site-packages"
-REPLIT_POETRY_PYPI_REPOSITORY = "https://package-proxy.replit.com/pypi/"
-MPLBACKEND = "TkAgg"
-POETRY_CACHE_DIR = "${REPL_HOME}/.cache/pypoetry"
 
 # Enable unit tests. This is only supported for a few languages.
 [unitTest]
