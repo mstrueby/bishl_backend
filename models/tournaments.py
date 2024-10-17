@@ -1,5 +1,5 @@
 from bson import ObjectId
-from datetime import datetime, date
+from datetime import datetime
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List, Dict
 from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings
@@ -31,21 +31,23 @@ class MongoBaseModel(BaseModel):
 
 # sub documents
 
+
 class Teams(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
-  logo: HttpUrl = None
+  logo: Optional[HttpUrl] = None
 
   @validator('logo', pre=True, always=True)
   def validate_logo(cls, v):
     return empty_str_to_none(v, 'logo')
 
+
 class Standings(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
-  logo: HttpUrl = None
+  logo: Optional[HttpUrl] = None
   gamesPlayed: int = Field(...)
   goalsFor: int = Field(...)
   goalsAgainst: int = Field(...)
@@ -57,29 +59,30 @@ class Standings(BaseModel):
   otLosses: int = Field(...)
   soWins: int = Field(...)
   soLosses: int = Field(...)
-  streak: List[str] = None
+  streak: Optional[List[str]] = None
+
 
 # settings at tournament level
 class StandingsSettings(BaseModel):
-  pointsWinReg: int = None
-  pointsLossReg: int = None
-  pointsDrawReg: int = None
-  pointsWinOvertime: int = None
-  pointsLossOvertime: int = None
-  pointsWinShootout: int = None
-  pointsLossShootout: int = None
+  pointsWinReg: Optional[int] = None
+  pointsLossReg: Optional[int] = None
+  pointsDrawReg: Optional[int] = None
+  pointsWinOvertime: Optional[int] = None
+  pointsLossOvertime: Optional[int] = None
+  pointsWinShootout: Optional[int] = None
+  pointsLossShootout: Optional[int] = None
 
 
 # settings on round and matchday level
 class MatchSettings(BaseModel):
-  numOfPeriods: int = None
-  periodLengthMin: int = None
-  overtime: bool = None
-  numOfPeriodsOvertime: int = None
-  periodLengthMinOvertime: int = None
-  shootout: bool = None
-  refereePoints: int = None
-  
+  numOfPeriods: Optional[int] = None
+  periodLengthMin: Optional[int] = None
+  overtime: Optional[bool] = None
+  numOfPeriodsOvertime: Optional[int] = None
+  periodLengthMinOvertime: Optional[int] = None
+  shootout: Optional[bool] = None
+  refereePoints: Optional[int] = None
+
 
 # ------------
 
@@ -88,11 +91,11 @@ class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
   type: Dict[str, str] = Field(...)  # enum, "Playoffs", "Regulär"
-  startDate: datetime = None
-  endDate: datetime = None
+  startDate: Optional[datetime] = None
+  endDate: Optional[datetime] = None
   createStandings: bool = False
   createStats: bool = False
-  matchSettings: MatchSettings = {}
+  matchSettings: Optional[MatchSettings] = None
   published: bool = False
   standings: Dict[str, Standings] = {}
 
@@ -121,7 +124,7 @@ class MatchdayUpdate(MongoBaseModel):
   endDate: Optional[datetime] = None
   createStandings: Optional[bool] = False
   createStats: Optional[bool] = False
-  matchSettings: Optional[MatchSettings] = {}
+  matchSettings: Optional[MatchSettings] = None
   published: Optional[bool] = False
   standings: Optional[Dict[str, Standings]] = {}
 
@@ -146,9 +149,9 @@ class RoundBase(MongoBaseModel):
   createStats: bool = False
   matchdaysType: Dict[str, str] = Field(...)
   matchdaysSortedBy: Dict[str, str] = Field(...)
-  startDate: datetime = None
-  endDate: datetime = None
-  matchSettings: MatchSettings = {}
+  startDate: Optional[datetime] = None
+  endDate: Optional[datetime] = None
+  matchSettings: Optional[MatchSettings] = None
   published: bool = False
   matchdays: List[MatchdayBase] = []
   standings: Dict[str, Standings] = {}
@@ -180,7 +183,7 @@ class RoundUpdate(MongoBaseModel):
   matchdaysSortedBy: Optional[Dict[str, str]] = {}
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
-  matchSettings: Optional[MatchSettings] = {}
+  matchSettings: Optional[MatchSettings] = None
   published: Optional[bool] = False
   matchdays: Optional[List[MatchdayBase]] = []
   standings: Optional[Dict[str, Standings]] = {}
@@ -201,7 +204,7 @@ class RoundUpdate(MongoBaseModel):
 class SeasonBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  standingsSettings: StandingsSettings = {}
+  standingsSettings: Optional[StandingsSettings] = None
   published: bool = False
   rounds: List[RoundBase] = []
 
@@ -217,7 +220,7 @@ class SeasonDB(SeasonBase):
 class SeasonUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
-  standingsSettings: Optional[StandingsSettings] = {}
+  standingsSettings: Optional[StandingsSettings] = None
   published: Optional[bool] = False
   rounds: Optional[List[RoundBase]] = []
 
@@ -237,9 +240,9 @@ class TournamentBase(MongoBaseModel):
   published: bool = False
   active: bool = False
   external: bool = False
-  website: HttpUrl = None
-  seasons: List[SeasonBase] = None
-  legacyId: int = None
+  website: Optional[HttpUrl] = None
+  seasons: Optional[List[SeasonBase]] = None
+  legacyId: Optional[int] = None
 
   @validator('website', pre=True, always=True)
   def validate_string(cls, v, field):
