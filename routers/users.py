@@ -2,54 +2,58 @@
 from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
-import os, httpx, asyncio
+from fastapi.responses import JSONResponse, Response
+import os
+import httpx
 from models.users import UserBase, LoginBase, CurrentUser, UserUpdate
+from models.matches import MatchDB
 from authentication import AuthHandler, TokenPayload
+from datetime import date
 
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ.get("BE_API_URL")
 
 
-@router.post("/register", response_description="Register a new user")
+@router.post("/register",
+             response_description="Register a new user",
+             response_model=CurrentUser)
 async def register(
-  request: Request, newUser: UserBase = Body(...)) -> UserBase:
+    request: Request, newUser: UserBase = Body(...)) -> JSONResponse:
+  mongodb = request.app.state.mongodb
   # Hash the password before inserting into the database
   newUser.password = auth.get_password_hash(newUser.password)
-  newUser = jsonable_encoder(newUser)
 
   # Check for existing user or email
-  existing_user = await request.app.mongodb["users"].find_one(
-    {"email": newUser["email"]})
+  existing_user = await mongodb["users"].find_one({"email": newUser.email})
   if existing_user:
-    raise HTTPException(
-      status_code=status.HTTP_409_CONFLICT,
-      detail=f"Email {newUser['email']} is already registered")
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Email {newUser.email} is already registered")
 
   # Insert the new user into the database
-  result = await request.app.mongodb["users"].insert_one(newUser)
-  created_user = await request.app.mongodb["users"].find_one(
-    {"_id": result.inserted_id})
+  newUser_data = jsonable_encoder(newUser)
+  result = await mongodb["users"].insert_one(newUser_data)
+  created_user = await request.app.state.mongodb["users"].find_one(
+      {"_id": result.inserted_id})
 
   token = auth.encode_token(created_user)
-  response = CurrentUser(**created_user).dict()
-  response["id"] = result.inserted_id
+  response = CurrentUser(**created_user)
 
   return JSONResponse(status_code=status.HTTP_201_CREATED,
                       content={
-                        "token": token,
-                        "user": response
+                          "token": token,
+                          "user": jsonable_encoder(response)
                       })
 
 
 # login user
-@router.post("/login", response_description="Login a user")
+@router.post("/login",
+             response_description="Login a user",
+             response_model=CurrentUser)
 async def login(
-  request: Request, loginUser: LoginBase = Body(...)) -> UserBase:
-
-  existing_user = await request.app.mongodb["users"].find_one(
-    {"email": loginUser.email})
+    request: Request, loginUser: LoginBase = Body(...)) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  existing_user = await mongodb["users"].find_one({"email": loginUser.email})
   if (existing_user is None) or (not auth.verify_password(
       loginUser.password, existing_user["password"])):
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
@@ -58,69 +62,70 @@ async def login(
 
   token = auth.encode_token(existing_user)
 
-  response = CurrentUser(**existing_user).dict()
-  response["id"] = existing_user["_id"]
-  response["roles"] = existing_user["roles"]
+  response = CurrentUser(**existing_user)
 
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content={
-                        "token": token,
-                        "user": response
+                          "token": token,
+                          "user": jsonable_encoder(response)
                       })
 
 
 # get current user
-@router.get("/me", response_description="Get current user")
+@router.get("/me",
+            response_description="Get current user",
+            response_model=CurrentUser)
 async def me(
-  request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
-) -> UserBase:
+    request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> JSONResponse:
+  mongodb = request.app.state.mongodb
   user_id = token_payload.sub
-  user = await request.app.mongodb["users"].find_one({"_id": user_id})
+  user = await mongodb["users"].find_one({"_id": user_id})
 
   if not user:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail="User not found")
 
-  response = CurrentUser(**user).dict()
-  response["id"] = user_id
-  return JSONResponse(status_code=status.HTTP_200_OK, content=response)
+  response = CurrentUser(**user)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(response))
 
 
 # update user details
-@router.patch("/me", response_description="Update a user")
-async def update_user(
-  request: Request,
-  token_payload: TokenPayload = Depends(auth.auth_wrapper),
-  user: UserUpdate = Body(...)
-) -> UserBase:
-
-  user = user.dict(exclude_unset=True)
-  user.pop("id", None)
+@router.patch("/me",
+              response_description="Update a user",
+              response_model=CurrentUser)
+async def update_user(request: Request,
+                      token_payload: TokenPayload = Depends(auth.auth_wrapper),
+                      user: UserUpdate = Body(...)):
+  mongodb = request.app.state.mongodb
+  user_dict = user.dict(exclude_unset=True)
+  user_dict.pop("id", None)
   user_id = token_payload.sub
 
-  existing_user = await request.app.mongodb["users"].find_one({"_id": user_id})
+  existing_user = await mongodb["users"].find_one({"_id": user_id})
   if not existing_user:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail="User not found")
   print("existing_user", existing_user)
-  user_to_update = {k: v for k, v in user.items() if v != existing_user.get(k)}
+  user_to_update = {
+      k: v
+      for k, v in user_dict.items() if v != existing_user.get(k)
+  }
   if not user_to_update:
     print("No fields to update")
-    response = CurrentUser(**existing_user).dict()
-    response["id"] = user_id
-    return JSONResponse(status_code=status.HTTP_304_NOT_MODIFIED,
-                        content=response)
+    return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+
   try:
     print("update user:", user_to_update)
-    update_result = await request.app.mongodb["users"].update_one(
-      {"_id": user_id}, {"$set": user_to_update})
+    update_result = await mongodb["users"].update_one({"_id": user_id},
+                                                      {"$set": user_to_update})
 
     if update_result.modified_count == 1:
-      updated_user = await request.app.mongodb["users"].find_one(
-        {"_id": user_id})
-      response = CurrentUser(**updated_user).dict()
-      response["id"] = user_id
-      return JSONResponse(status_code=status.HTTP_200_OK, content=response)
+      updated_user = await mongodb["users"].find_one({"_id": user_id})
+      response = CurrentUser(**updated_user)
+      return JSONResponse(status_code=status.HTTP_200_OK,
+                          content=jsonable_encoder(response))
 
     raise HTTPException(status_code=status.HTTP_304_NOT_MODIFIED,
                         detail="User not modified")
@@ -130,12 +135,14 @@ async def update_user(
 
 
 @router.get("/matches",
-            response_description="All assigned matches for me as a referee")
+            response_description="All assigned matches for me as a referee",
+            response_model=List[MatchDB])
 async def get_assigned_matches(
-  request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
-) -> List:
+    request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> JSONResponse:
+  mongodb = request.app.state.mongodb
   user_id = token_payload.sub
-  user = await request.app.mongodb["users"].find_one({"_id": user_id})
+  user = await mongodb["users"].find_one({"_id": user_id})
   if not user:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail="User not found")
@@ -145,10 +152,10 @@ async def get_assigned_matches(
 
   # Fetch matches assigned to me as referee using the GET endpoint
   async with httpx.AsyncClient() as client:
-    from datetime import date
     current_date = date.today().strftime('%Y-%m-%d')
-    response = await client.get(f"{BASE_URL}/matches/?referee={user_id}&date_from={current_date}")
+    response = await client.get(
+        f"{BASE_URL}/matches/?referee={user_id}&date_from={current_date}")
     print("response", response)
-    matches = response.json()
-
-  return JSONResponse(status_code=status.HTTP_200_OK, content=matches)
+    # Parse matches into a list of MatchDB objects
+    matches_list = [MatchDB(**match) for match in response.json()]
+    return JSONResponse(status_code=status.HTTP_200_OK, content=matches_list)

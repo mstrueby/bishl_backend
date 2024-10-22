@@ -29,21 +29,22 @@ class MongoBaseModel(BaseModel):
     json_encoders = {ObjectId: str}
 
 
-class User(BaseModel):
-  user_id: str = Field(...)
-  firstname: str = Field(...)
-  lastname: str = Field(...)
 
-  @validator('user_id', 'firstname', 'lastname', pre=True, always=True)
+class User(BaseModel):
+  userId: str = Field(...)
+  firstName: str = Field(...)
+  lastName: str = Field(...)
+
+  @validator('userId', 'firstName', 'lastName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
 
 # Messages
 class MessageBase(MongoBaseModel):
-  receiver_id: str = Field(...)
+  receiverId: str = Field(...)
   content: str = Field(...)
-  timestamp: datetime = Field(default_factory=datetime.utcnow)
+  timestamp: datetime = Field(default_factory=lambda: datetime.now())
   read: bool = False
 
 
@@ -56,7 +57,7 @@ class MessageDB(MongoBaseModel):
 
 
 class MessageUpdate(MongoBaseModel):
-  #sender_id: Optional[str] = "DEFAULT"
-  #receiver_id: Optional[str] = "DEFAULT"
+  #senderId: Optional[str] = "DEFAULT"
+  #receiverId: Optional[str] = "DEFAULT"
   #content: Optional[str] = "DEFAULT"
   read: Optional[bool] = True

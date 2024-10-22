@@ -1,13 +1,13 @@
 from datetime import datetime
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, Field
+from bson import ObjectId
+from typing import List, Callable
 import re
 import os
 import aiohttp
 import httpx
-from pymongo.database import Database
 import cloudinary
 import cloudinary.uploader
 
@@ -15,11 +15,16 @@ BASE_URL = os.environ['BE_API_URL']
 DEBUG_LEVEL = int(os.environ['DEBUG_LEVEL'])
 
 
+def to_camel(string: str) -> str:
+  components = string.split('_')
+  return components[0] + ''.join(x.title() for x in components[1:])
+
+
 def configure_cloudinary():
   cloudinary.config(
-    cloud_name=os.environ["CLDY_CLOUD_NAME"],
-    api_key=os.environ["CLDY_API_KEY"],
-    api_secret=os.environ["CLDY_API_SECRET"],
+      cloud_name=os.environ["CLDY_CLOUD_NAME"],
+      api_key=os.environ["CLDY_API_KEY"],
+      api_secret=os.environ["CLDY_API_SECRET"],
   )
 
 
@@ -94,12 +99,12 @@ def validate_dict_of_strings(v, field_name: str):
   for key, value in v.items():
     if not isinstance(key, str) or not isinstance(value, str):
       raise ValueError(
-        f"Field '{field_name}' must be a dictionary with string key-value pairs"
+          f"Field '{field_name}' must be a dictionary with string key-value pairs"
       )
   return v
 
 
-def validate_match_seconds(v, field_name: str):
+def validate_match_time(v, field_name: str):
   if not isinstance(v, str) or not re.match(r'^\d{1,3}:[0-5][0-9]$', v):
     raise ValueError(f'Field {field_name} must be in the format MIN:SS')
   return v
@@ -112,23 +117,27 @@ async def fetch_standings_settings(tournament_alias, season_alias):
     ) as response:
       if response.status != 200:
         raise HTTPException(
-          status_code=404,
-          detail=
-          f"Tournament/Season with alias {tournament_alias}/{season_alias} not found"
+            status_code=404,
+            detail=
+            f"Tournament/Season with alias {tournament_alias}/{season_alias} not found"
         )
       return (await response.json()).get('standingsSettings')
 
 
-def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
+def calc_match_stats(match_status,
+                     finish_type,
+                     standings_setting,
+                     home_score: int = 0,
+                     away_score: int = 0):
   stats = {'home': {}, 'away': {}}
 
   def reset_points():
     stats['home']['gamePlayed'] = 0
     # reassign goals
-    stats['home']['goalsFor'] = matchStats.get('goalsFor', 0)
-    stats['home']['goalsAgainst'] = matchStats.get('goalsAgainst', 0)
-    stats['away']['goalsFor'] = matchStats.get('goalsAgainst', 0)
-    stats['away']['goalsAgainst'] = matchStats.get('goalsFor', 0)
+    stats['home']['goalsFor'] = home_score
+    stats['home']['goalsAgainst'] = away_score
+    stats['away']['goalsFor'] = away_score
+    stats['away']['goalsAgainst'] = home_score
     stats['home']['points'] = 0
     stats['home']['win'] = 0
     stats['home']['loss'] = 0
@@ -157,21 +166,21 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
       if stats['home']['goalsFor'] > stats['away']['goalsFor']:
         # home team wins in regulation
         stats['home']['win'] = 1
-        stats['home']['points'] = standingsSetting.get("pointsWinReg")
+        stats['home']['points'] = standings_setting.get("pointsWinReg")
         stats['away']['loss'] = 1
-        stats['away']['points'] = standingsSetting.get("pointsLossReg")
+        stats['away']['points'] = standings_setting.get("pointsLossReg")
       elif stats['home']['goalsFor'] < stats['away']['goalsFor']:
         # away team wins in regulation
         stats['home']['loss'] = 1
-        stats['home']['points'] = standingsSetting.get("pointsLossReg")
+        stats['home']['points'] = standings_setting.get("pointsLossReg")
         stats['away']['win'] = 1
-        stats['away']['points'] = standingsSetting.get("pointsWinReg")
+        stats['away']['points'] = standings_setting.get("pointsWinReg")
       else:
         # draw
         stats['home']['draw'] = 1
-        stats['home']['points'] = standingsSetting.get("pointsDrawReg")
+        stats['home']['points'] = standings_setting.get("pointsDrawReg")
         stats['away']['draw'] = 1
-        stats['away']['points'] = standingsSetting.get("pointsDrawReg")
+        stats['away']['points'] = standings_setting.get("pointsDrawReg")
     elif finish_type == 'OVERTIME':
       reset_points()
       stats['home']['gamePlayed'] = 1
@@ -179,15 +188,15 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
       if stats['home']['goalsFor'] > stats['away']['goalsFor']:
         # home team wins in OT
         stats['home']['otWin'] = 1
-        stats['home']['points'] = standingsSetting.get("pointsWinOvertime")
+        stats['home']['points'] = standings_setting.get("pointsWinOvertime")
         stats['away']['otLoss'] = 1
-        stats['away']['points'] = standingsSetting.get("pointsLossOvertime")
+        stats['away']['points'] = standings_setting.get("pointsLossOvertime")
       else:
         # away team wins in OT
         stats['home']['otLoss'] = 1
-        stats['home']['points'] = standingsSetting.get("pointsLossOvertime")
+        stats['home']['points'] = standings_setting.get("pointsLossOvertime")
         stats['away']['otWin'] = 1
-        stats['away']['points'] = standingsSetting.get("pointsWinOvertime")
+        stats['away']['points'] = standings_setting.get("pointsWinOvertime")
     elif finish_type == 'SHOOTOUT':
       reset_points()
       stats['home']['gamePlayed'] = 1
@@ -195,15 +204,15 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
       if stats['home']['goalsFor'] > stats['away']['goalsFor']:
         # home team wins in shootout
         stats['home']['soWin'] = 1
-        stats['home']['points'] = standingsSetting.get("pointsWinShootout")
+        stats['home']['points'] = standings_setting.get("pointsWinShootout")
         stats['away']['soLoss'] = 1
-        stats['away']['points'] = standingsSetting.get("pointsLossShootout")
+        stats['away']['points'] = standings_setting.get("pointsLossShootout")
       else:
         # away team wins in shootout
         stats['home']['soLoss'] = 1
-        stats['home']['points'] = standingsSetting.get("pointsLossShootout")
+        stats['home']['points'] = standings_setting.get("pointsLossShootout")
         stats['away']['soWin'] = 1
-        stats['away']['points'] = standingsSetting.get("pointsWinShootout")
+        stats['away']['points'] = standings_setting.get("pointsWinShootout")
     else:
       print("Unknown finish_type:", finish_type)
   else:
@@ -212,22 +221,23 @@ def calc_match_stats(match_status, finish_type, matchStats, standingsSetting):
   return stats
 
 
-async def fetch_ref_points(match_id: str, t_alias: str, s_alias: str,
-                           r_alias: str, md_alias: str) -> int:
+async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str,
+                           md_alias: str) -> int:
   async with aiohttp.ClientSession() as session:
     async with session.get(
         f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
     ) as response:
       if response.status != 200:
         raise HTTPException(
-          status_code=404,
-          detail=f"Matchday for match ID {match_id} not found")
+            status_code=404,
+            detail=
+            f"Matchday {md_alias} not found for {t_alias} / {s_alias} / {r_alias}"
+        )
       return (await response.json()).get('matchSettings').get('refereePoints')
 
 
-async def check_create_standings_for_round(mongodb: Database,
-                                           round_filter: dict, s_alias: str,
-                                           r_alias: str) -> bool:
+async def check_create_standings_for_round(mongodb, round_filter: dict,
+                                           s_alias: str, r_alias: str) -> bool:
   if (tournament := await
       mongodb['tournaments'].find_one(round_filter)) is not None:
     for season in tournament.get('seasons', []):
@@ -238,12 +248,11 @@ async def check_create_standings_for_round(mongodb: Database,
   return False
 
 
-async def check_create_standings_for_matchday(mongodb: Database,
-                                              md_filter: dict, s_alias: str,
-                                              r_alias: str,
+async def check_create_standings_for_matchday(mongodb, md_filter: dict,
+                                              s_alias: str, r_alias: str,
                                               md_alias: str) -> bool:
-  if (tournament := await
-      mongodb['tournaments'].find_one(md_filter)) is not None:
+  tournament = await mongodb['tournaments'].find_one(md_filter)
+  if tournament is not None:
     for season in tournament.get('seasons', []):
       if season.get("alias") == s_alias:
         for round in season.get("rounds", []):
@@ -280,22 +289,22 @@ def update_streak(team_standings, match_stats):
 def init_team_standings(team_data: dict) -> dict:
   from models.tournaments import Standings
   return Standings(
-    fullName=team_data['fullName'],
-    shortName=team_data['shortName'],
-    tinyName=team_data['tinyName'],
-    logo=team_data['logo'],
-    gamesPlayed=0,
-    goalsFor=0,
-    goalsAgainst=0,
-    points=0,
-    wins=0,
-    losses=0,
-    draws=0,
-    otWins=0,
-    otLosses=0,
-    soWins=0,
-    soLosses=0,
-    streak=[],
+      fullName=team_data['fullName'],
+      shortName=team_data['shortName'],
+      tinyName=team_data['tinyName'],
+      logo=team_data['logo'],
+      gamesPlayed=0,
+      goalsFor=0,
+      goalsAgainst=0,
+      points=0,
+      wins=0,
+      losses=0,
+      draws=0,
+      otWins=0,
+      otLosses=0,
+      soWins=0,
+      soLosses=0,
+      streak=[],
   ).dict()
 
 
@@ -304,16 +313,16 @@ def calc_standings(matches):
 
   for match in matches:
     home_team = {
-      'fullName': match['home']['fullName'],
-      'shortName': match['home']['shortName'],
-      'tinyName': match['home']['tinyName'],
-      'logo': match['home']['logo']
+        'fullName': match['home']['fullName'],
+        'shortName': match['home']['shortName'],
+        'tinyName': match['home']['tinyName'],
+        'logo': match['home']['logo']
     }
     away_team = {
-      'fullName': match['away']['fullName'],
-      'shortName': match['away']['shortName'],
-      'tinyName': match['away']['tinyName'],
-      'logo': match['away']['logo']
+        'fullName': match['away']['fullName'],
+        'shortName': match['away']['shortName'],
+        'tinyName': match['away']['tinyName'],
+        'logo': match['away']['logo']
     }
     h_key = home_team['fullName']
     a_key = away_team['fullName']
@@ -324,15 +333,15 @@ def calc_standings(matches):
       standings[a_key] = init_team_standings(away_team)
 
     standings[h_key]['gamesPlayed'] += match['home']['stats'].get(
-      'gamePlayed', 0)
+        'gamePlayed', 0)
     standings[a_key]['gamesPlayed'] += match['away']['stats'].get(
-      'gamePlayed', 0)
+        'gamePlayed', 0)
     standings[h_key]['goalsFor'] += match['home']['stats'].get('goalsFor', 0)
     standings[h_key]['goalsAgainst'] += match['home']['stats'].get(
-      'goalsAgainst', 0)
+        'goalsAgainst', 0)
     standings[a_key]['goalsFor'] += match['away']['stats'].get('goalsFor', 0)
     standings[a_key]['goalsAgainst'] += match['away']['stats'].get(
-      'goalsAgainst', 0)
+        'goalsAgainst', 0)
     standings[h_key]['points'] += match['home']['stats'].get('points', 0)
     standings[a_key]['points'] += match['away']['stats'].get('points', 0)
     standings[h_key]['wins'] += match['home']['stats'].get('win', 0)
@@ -355,101 +364,106 @@ def calc_standings(matches):
     update_streak(standings[a_key], match['away']['stats'])
 
   sorted_standings = {
-    k: v
-    for k, v in sorted(
-      standings.items(),
-      key=lambda item: (item[1]['points'], item[1]['goalsFor'] - item[1][
-        'goalsAgainst'], item[1]['goalsFor'], -ord(item[1]['fullName'][0])),
-      reverse=True)
+      k: v
+      for k, v in sorted(standings.items(),
+                         key=lambda item: (item[1]['points'], item[1][
+                             'goalsFor'] - item[1]['goalsAgainst'], item[1][
+                                 'goalsFor'], -ord(item[1]['fullName'][0])),
+                         reverse=True)
   }
   return sorted_standings
 
 
-async def calc_standings_per_round(mongodb: Database, t_alias: str,
-                                   s_alias: str, r_alias: str) -> List[dict]:
+async def calc_standings_per_round(mongodb, t_alias: str, s_alias: str,
+                                   r_alias: str) -> None:
   r_filter = {
-    'alias': t_alias,
-    'seasons.alias': s_alias,
-    'seasons.rounds.alias': r_alias,
-    'seasons': {
-      '$elemMatch': {
-        'alias': s_alias,
-        'rounds': {
+      'alias': t_alias,
+      'seasons.alias': s_alias,
+      'seasons.rounds.alias': r_alias,
+      'seasons': {
           '$elemMatch': {
-            'alias': r_alias
+              'alias': s_alias,
+              'rounds': {
+                  '$elemMatch': {
+                      'alias': r_alias
+                  }
+              }
           }
-        }
       }
-    }
   }
 
   if await check_create_standings_for_round(mongodb, r_filter, s_alias,
                                             r_alias):
     matches = await mongodb["matches"].find({
-      "tournament.alias": t_alias,
-      "season.alias": s_alias,
-      "round.alias": r_alias
-    }).sort("startDate", 1).to_list(1000)
+        "tournament.alias": t_alias,
+        "season.alias": s_alias,
+        "round.alias": r_alias
+    }).sort("startDate", 1).to_list(length=None)
 
     if not matches:
       print(f"No matches for {t_alias}, {s_alias}, {r_alias}")
       standings = {}
     else:
       standings = calc_standings(matches)
+
   else:
-    print(f"No standings for {t_alias}, {s_alias}, {r_alias}")
     standings = {}
+    if DEBUG_LEVEL > 0:
+      print(f"No standings for {t_alias}, {s_alias}, {r_alias}")
+
+  if DEBUG_LEVEL > 20:
+    print(f"Standings for {t_alias}, {s_alias}, {r_alias}: {standings}")
 
   response = await mongodb["tournaments"].update_one(
-    r_filter,
-    {'$set': {
-      "seasons.$[season].rounds.$[round].standings": standings
-    }},
-    array_filters=[{
-      'season.alias': s_alias
-    }, {
-      'round.alias': r_alias
-    }],
-    upsert=False)
+      r_filter,
+      {'$set': {
+          "seasons.$[season].rounds.$[round].standings": standings
+      }},
+      array_filters=[{
+          'season.alias': s_alias
+      }, {
+          'round.alias': r_alias
+      }],
+      upsert=False)
   if not response.acknowledged:
     raise HTTPException(status_code=500,
                         detail="Failed to update tournament standings.")
   else:
-    if DEBUG_LEVEL > 10: print("update r.standings: ", standings)
+    if DEBUG_LEVEL > 10:
+      print("update r.standings: ", standings)
 
 
-async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
-                                      s_alias: str, r_alias: str,
-                                      md_alias: str) -> List[dict]:
+async def calc_standings_per_matchday(mongodb, t_alias: str, s_alias: str,
+                                      r_alias: str, md_alias: str) -> None:
   md_filter = {
-    'alias': t_alias,
-    'seasons.alias': s_alias,
-    'seasons.rounds.alias': r_alias,
-    'seasons.rounds.matchdays.alias': md_alias,
-    'seasons': {
-      '$elemMatch': {
-        'alias': s_alias,
-        'rounds': {
+      'alias': t_alias,
+      'seasons.alias': s_alias,
+      'seasons.rounds.alias': r_alias,
+      'seasons.rounds.matchdays.alias': md_alias,
+      'seasons': {
           '$elemMatch': {
-            'alias': r_alias,
-            'matchdays': {
-              '$elemMatch': {
-                'alias': md_alias
+              'alias': s_alias,
+              'rounds': {
+                  '$elemMatch': {
+                      'alias': r_alias,
+                      'matchdays': {
+                          '$elemMatch': {
+                              'alias': md_alias
+                          }
+                      }
+                  }
               }
-            }
           }
-        }
       }
-    }
   }
 
   if await check_create_standings_for_matchday(mongodb, md_filter, s_alias,
                                                r_alias, md_alias):
     matches = await mongodb["matches"].find({
-      "tournament.alias": t_alias,
-      "season.alias": s_alias,
-      "round.alias": r_alias,
-      "matchday.alias": md_alias
+        "tournament.alias": t_alias,
+        "season.alias": s_alias,
+        "round.alias": r_alias,
+        "matchday.alias": md_alias
     }).sort("startDate").to_list(1000)
 
     if not matches:
@@ -463,20 +477,20 @@ async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
     standings = {}
 
   response = await mongodb["tournaments"].update_one(md_filter, {
-    '$set': {
-      "seasons.$[season].rounds.$[round].matchdays.$[matchday].standings":
-      standings
-    }
+      '$set': {
+          "seasons.$[season].rounds.$[round].matchdays.$[matchday].standings":
+          standings
+      }
   },
                                                      array_filters=[{
-                                                       'season.alias':
-                                                       s_alias
+                                                         'season.alias':
+                                                         s_alias
                                                      }, {
-                                                       'round.alias':
-                                                       r_alias
+                                                         'round.alias':
+                                                         r_alias
                                                      }, {
-                                                       'matchday.alias':
-                                                       md_alias
+                                                         'matchday.alias':
+                                                         md_alias
                                                      }],
                                                      upsert=False)
   if not response.acknowledged:
@@ -489,8 +503,8 @@ async def calc_standings_per_matchday(mongodb: Database, t_alias: str,
 async def get_sys_ref_tool_token():
   login_url = f"{os.environ['BE_API_URL']}/users/login"
   login_data = {
-    "email": os.environ['SYS_REF_TOOL_EMAIL'],
-    "password": os.environ['SYS_REF_TOOL_PASSWORD']
+      "email": os.environ['SYS_REF_TOOL_EMAIL'],
+      "password": os.environ['SYS_REF_TOOL_PASSWORD']
   }
 
   async with httpx.AsyncClient() as client:
@@ -506,7 +520,7 @@ async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
   """
   Fetches the team's roster, updates goals and assists for players, and saves back to the database.
 
-  Parameters:
+  Parameters
   - mongodb: FastAPI Request object (monogdb)
   - match_id: The ID of the match
   - team_flag: The team flag ('home'/'away')
@@ -514,28 +528,29 @@ async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
   async with httpx.AsyncClient() as client:
 
     response = await client.get(
-      f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+        f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
     if response.status_code != 200:
       raise HTTPException(status_code=response.status_code,
                           detail=response.text)
     roster = response.json()
 
     response = await client.get(
-      f"{BASE_URL}/matches/{match_id}/{team_flag}/scores/")
+        f"{BASE_URL}/matches/{match_id}/{team_flag}/scores/")
     if response.status_code != 200:
       raise HTTPException(
-        status_code=response.status,
-        detail=
-        f"Failed to fetch scoreboard for {team_flag} team in match {match_id}")
+          status_code=response.status_code,
+          detail=
+          f"Failed to fetch scoreboard for {team_flag} team in match {match_id}"
+      )
     scoreboard = response.json()
 
     response = await client.get(
-      f"{BASE_URL}/matches/{match_id}/{team_flag}/penalties/")
+        f"{BASE_URL}/matches/{match_id}/{team_flag}/penalties/")
     if response.status_code != 200:
       raise HTTPException(
-        status_code=response.status,
-        detail=
-        f"Failed to fetch penaltysheet for {team_flag} team in match {match_id}"
+          status_code=response.status_code,
+          detail=
+          f"Failed to fetch penaltysheet for {team_flag} team in match {match_id}"
       )
     penaltysheet = response.json()
 
@@ -543,72 +558,76 @@ async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
     player_stats = {}
     # Initialize each player from roster in player_stats
     for roster_player in roster:
-      player_id = roster_player['player']['player_id']
+      player_id = roster_player['player']['playerId']
       if player_id not in player_stats:
         player_stats[player_id] = {
-          'goals': 0,
-          'assists': 0,
-          'points': 0,
-          'penaltyMinutes': 0
+            'goals': 0,
+            'assists': 0,
+            'points': 0,
+            'penaltyMinutes': 0
         }
 
     for score in scoreboard:
-      goal_player_id = score['goalPlayer']['player_id']
+      goal_player_id = score['goalPlayer']['playerId']
       if goal_player_id not in player_stats:
         player_stats[goal_player_id] = {'goals': 0, 'assists': 0}
       player_stats[goal_player_id]['goals'] += 1
       player_stats[goal_player_id][
-        'points'] = player_stats[goal_player_id].get('points', 0) + 1
+          'points'] = player_stats[goal_player_id].get('points', 0) + 1
 
       assist_player = score.get('assistPlayer')
       assist_player_id = assist_player.get(
-        'player_id') if assist_player else None
+          'playerId') if assist_player else None
       if assist_player_id:
         if assist_player_id not in player_stats:
           player_stats[assist_player_id] = {'goals': 0, 'assists': 0}
         player_stats[assist_player_id]['assists'] += 1
         player_stats[assist_player_id][
-          'points'] = player_stats[assist_player_id].get('points', 0) + 1
+            'points'] = player_stats[assist_player_id].get('points', 0) + 1
 
     for penalty in penaltysheet:
-      pen_player_id = penalty['penaltyPlayer']['player_id']
+      pen_player_id = penalty['penaltyPlayer']['playerId']
       if pen_player_id not in player_stats:
         player_stats[pen_player_id] = {'penaltyMinutes': 0}
       player_stats[pen_player_id]['penaltyMinutes'] += penalty[
-        'penaltyMinutes']
+          'penaltyMinutes']
 
   # Update roster with summed goals and assists
   for roster_player in roster:
-    player_id = roster_player['player']['player_id']
+    player_id = roster_player['player']['playerId']
     if player_id in player_stats:
       roster_player.update(player_stats[player_id])
 
-  #print("### player_stats", player_stats)
-  #print("### roster: ", roster)
+  if DEBUG_LEVEL > 10:
+    print("### player_stats", player_stats)
+    print("### roster: ", roster)
 
   # update roster for match in mongodb
-  try:
-    await mongodb["matches"].update_one(
-      {"_id": match_id}, {"$set": {
-        f"{team_flag}.roster": roster
-      }})
-  except Exception as e:
-    raise HTTPException(status_code=500,
-                        detail=f"Could not update roster in mongoDB, {str(e)}")
+  if roster:
+    try:
+      await mongodb["matches"].update_one(
+          {"_id": match_id}, {"$set": {
+              f"{team_flag}.roster": roster
+          }})
+    except Exception as e:
+      raise HTTPException(
+          status_code=500,
+          detail=f"Could not update roster in mongoDB, {str(e)}")
 
 
 # Refresh Stats for EACH PLAYER(!) in a tournament/season/round/matchday
 # calc sats for round / matchday if createStats is true
 # ----------------------------------------------------------
-async def calc_player_card_stats(mongodb: Database, player_ids: List[str],
-                                 t_alias: str, s_alias: str, r_alias: str,
+async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
+                                 s_alias: str, r_alias: str,
                                  md_alias: str) -> None:
 
   async def update_player_card_stats(flag, matches, player_card_stats):
     if flag not in ['ROUND', 'MATCHDAY']:
       raise ValueError(
-        "Invalid flag, only 'ROUND' or 'MATCHDAY' are accepted.")
-    if DEBUG_LEVEL > 10: print("count matches", len(matches))
+          "Invalid flag, only 'ROUND' or 'MATCHDAY' are accepted.")
+    if DEBUG_LEVEL > 10:
+      print("count matches", len(matches))
 
     def update_stats(player_id, team, roster_player, match_info):
       if player_id not in player_card_stats:
@@ -616,16 +635,16 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str],
       team_key = team['full_name']
       if team_key not in player_card_stats[player_id]:
         player_card_stats[player_id][team_key] = {
-          'tournament': match_info['tournament'],
-          'season': match_info['season'],
-          'round': match_info['round'],
-          'matchday': match_info['matchday'],
-          'team': team,
-          'games_played': 0,
-          'goals': 0,
-          'assists': 0,
-          'points': 0,
-          'penalty_minutes': 0,
+            'tournament': match_info['tournament'],
+            'season': match_info['season'],
+            'round': match_info['round'],
+            'matchday': match_info['matchday'],
+            'team': team,
+            'games_played': 0,
+            'goals': 0,
+            'assists': 0,
+            'points': 0,
+            'penalty_minutes': 0,
         }
       if match_info['match_status']['key'] in [
           'FINISHED', 'INPROGRESS', 'FORFEITED'
@@ -639,83 +658,93 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str],
 
     for match in matches:
       match_info = {
-        'tournament': match.get('tournament', {}),
-        'season': match.get('season', {}),
-        'round': match.get('round', {}),
-        'matchday': match.get('matchday', {}) if flag == 'MATCHDAY' else None,
-        'match_status': match.get('matchStatus', {})
+          'tournament': match.get('tournament', {}),
+          'season': match.get('season', {}),
+          'round': match.get('round', {}),
+          'matchday':
+          match.get('matchday', {}) if flag == 'MATCHDAY' else None,
+          'match_status': match.get('matchStatus', {})
       }
 
       home_roster = match.get('home', {}).get('roster', [])
       away_roster = match.get('away', {}).get('roster', [])
       home_team = {
-        'name': match.get('home', {}).get('name'),
-        'full_name': match.get('home', {}).get('fullName'),
-        'short_name': match.get('home', {}).get('shortName'),
-        'tiny_name': match.get('home', {}).get('tinyName')
+          'name': match.get('home', {}).get('name'),
+          'full_name': match.get('home', {}).get('fullName'),
+          'short_name': match.get('home', {}).get('shortName'),
+          'tiny_name': match.get('home', {}).get('tinyName')
       }
       away_team = {
-        'name': match.get('away', {}).get('name'),
-        'full_name': match.get('away', {}).get('fullName'),
-        'short_name': match.get('away', {}).get('shortName'),
-        'tiny_name': match.get('away', {}).get('tinyName')
+          'name': match.get('away', {}).get('name'),
+          'full_name': match.get('away', {}).get('fullName'),
+          'short_name': match.get('away', {}).get('shortName'),
+          'tiny_name': match.get('away', {}).get('tinyName')
       }
-      for roster_player in home_roster:
-        player_id = roster_player['player']['player_id']
-        if player_id in player_ids:
-          update_stats(player_id, home_team, roster_player, match_info)
-      for roster_player in away_roster:
-        player_id = roster_player['player']['player_id']
-        if player_id in player_ids:
-          update_stats(player_id, away_team, roster_player, match_info)
+      if home_roster:
+        for roster_player in home_roster:
+          player_id = roster_player['player']['playerId']
+          if player_id in player_ids:
+            update_stats(player_id, home_team, roster_player, match_info)
+      if away_roster:
+        for roster_player in away_roster:
+          player_id = roster_player['player']['playerId']
+          if player_id in player_ids:
+            update_stats(player_id, away_team, roster_player, match_info)
 
-    if DEBUG_LEVEL > 10: print("### player_card_stats", player_card_stats)
+    if DEBUG_LEVEL > 10:
+      print("### player_card_stats", player_card_stats)
     for player_id, stats_by_team in player_card_stats.items():
       for team_key, stats in stats_by_team.items():
         player = await mongodb['players'].find_one({"_id": player_id})
         if not player:
           raise HTTPException(
-            status_code=404, detail=f"Player {player_id} not found in mongoDB")
+              status_code=404,
+              detail=f"Player {player_id} not found in mongoDB")
 
         if player.get('stats'):
           updated_stats = []
           for elem in player['stats']:
-            if (elem['tournament']['alias'] == t_alias and
-                elem['season']['alias'] == s_alias and
-                elem['round']['alias'] == r_alias and
+            if (elem['tournament']['alias'] == t_alias
+                and elem['season']['alias'] == s_alias
+                and elem['round']['alias'] == r_alias and
                 (elem['team']['full_name'] == stats['team']['full_name'] and
-                 (elem['matchday']['alias'] == md_alias if flag == 'MATCHDAY' else True))):
-              
-              merged_stat = {**elem, **stats, 'team': elem.get('team', stats['team'])}
+                 (elem['matchday']['alias'] == md_alias
+                  if flag == 'MATCHDAY' else True))):
+
+              merged_stat = {
+                  **elem,
+                  **stats, 'team': elem.get('team', stats['team'])
+              }
               updated_stats.append(merged_stat)
             else:
               updated_stats.append(elem)
 
-          if all((elem['tournament']['alias'] != t_alias or
-                  elem['season']['alias'] != s_alias or
-                  elem['round']['alias'] != r_alias or
-                  elem['team']['full_name'] != stats['team']['full_name'] or
-                  (elem['matchday']['alias'] != md_alias if flag == 'MATCHDAY' else False))
-                  for elem in player['stats']):
+          if all(
+              (elem['tournament']['alias'] != t_alias or elem['season']
+               ['alias'] != s_alias or elem['round']['alias'] != r_alias
+               or elem['team']['full_name'] != stats['team']['full_name'] or (
+                   elem['matchday']['alias'] != md_alias if flag ==
+                   'MATCHDAY' else False)) for elem in player['stats']):
             updated_stats.append(stats)
         else:
           updated_stats = [stats]
         result = await mongodb['players'].update_one(
-          {"_id": player_id}, {"$set": {
-            "stats": updated_stats
-          }})
+            {"_id": player_id}, {"$set": {
+                "stats": updated_stats
+            }})
         if not result.acknowledged:
           raise HTTPException(
-            status_code=500,
-            detail=
-            f"Could not update player stats in mongoDB for player {player_id}")
+              status_code=500,
+              detail=
+              f"Could not update player stats in mongoDB for player {player_id}"
+          )
 
   # Main logic
   if not t_alias or not s_alias or not r_alias or not md_alias:
     return
   async with httpx.AsyncClient() as client:
     response = await client.get(
-      f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}")
+        f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}")
     if response.status_code != 200:
       raise HTTPException(status_code=response.status_code,
                           detail="Could not fetch the round information")
@@ -723,30 +752,32 @@ async def calc_player_card_stats(mongodb: Database, player_ids: List[str],
 
   if round_info.get('createStats', False):
     matches = await mongodb["matches"].find({
-      "tournament.alias": t_alias,
-      "season.alias": s_alias,
-      "round.alias": r_alias
+        "tournament.alias": t_alias,
+        "season.alias": s_alias,
+        "round.alias": r_alias
     }).to_list(length=None)
     player_card_stats = {}
     await update_player_card_stats("ROUND", matches, player_card_stats)
     if DEBUG_LEVEL > 0:
       print("### round - player_card_stats", player_card_stats)
   else:
-    if DEBUG_LEVEL > 0: print("### no round stats")
+    if DEBUG_LEVEL > 0:
+      print("### no round stats")
     # remove statistics - not implemented
 
   for matchday in round_info.get('matchdays', []):
     if matchday.get('createStats', False):
       matches = await mongodb["matches"].find({
-        "tournament.alias": t_alias,
-        "season.alias": s_alias,
-        "round.alias": r_alias,
-        "matchday.alias": md_alias
+          "tournament.alias": t_alias,
+          "season.alias": s_alias,
+          "round.alias": r_alias,
+          "matchday.alias": md_alias
       }).to_list(length=None)
       player_card_stats = {}
       await update_player_card_stats("MATCHDAY", matches, player_card_stats)
       if DEBUG_LEVEL > 0:
         print("### matchday - player_card_stats", player_card_stats)
     else:
-      if DEBUG_LEVEL > 0: print("### no matchday stats")
+      if DEBUG_LEVEL > 0:
+        print("### no matchday stats")
       # remove statistics - not implemented

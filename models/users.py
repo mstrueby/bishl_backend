@@ -16,16 +16,18 @@ class PyObjectId(ObjectId):
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
-  
+
   @classmethod
   def __modify_schema__(cls, field_schema):
     field_schema.update(type="string")
+
 
 class MongoBaseModel(BaseModel):
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
   class Config:
     json_encoders = {ObjectId: str}
+
 
 class Role(str, Enum):
   admin = "ADMIN"
@@ -37,17 +39,17 @@ class Role(str, Enum):
 
 
 class Club(BaseModel):
-  club_id: str = Field(...)
-  club_name: str = Field(...)
-  
+  clubId: str = Field(...)
+  clubName: str = Field(...)
+
 
 class UserBase(MongoBaseModel):
   email: str = EmailStr(...)
   password: str = Field(...)
-  firstname: str = Field(...)
-  lastname: str = Field(...)
-  club: Club = None
-  roles: List[Role] = None
+  firstName: str = Field(...)
+  lastName: str = Field(...)
+  club: Optional[Club] = None
+  roles: Optional[List[Role]] = Field(default_factory=list)
 
   @validator('email')
   def email_is_valid(cls, v):
@@ -56,14 +58,15 @@ class UserBase(MongoBaseModel):
     except EmailNotValidError as e:
       raise ValueError(e)
     return v
+
 
 class UserUpdate(MongoBaseModel):
   email: Optional[str] = None
   password: Optional[str] = None
-  firstname: Optional[str] = None
-  lastname: Optional[str] = None
+  firstName: Optional[str] = None
+  lastName: Optional[str] = None
   club: Optional[Club] = None
-  roles: Optional[List[Role]] = None
+  roles: Optional[List[Role]] = Field(default_factory=list)
 
   @validator('email')
   def email_is_valid(cls, v):
@@ -72,14 +75,16 @@ class UserUpdate(MongoBaseModel):
     except EmailNotValidError as e:
       raise ValueError(e)
     return v
+
 
 class LoginBase(BaseModel):
   email: str = EmailStr(...)
   password: str = Field(...)
 
+
 class CurrentUser(MongoBaseModel):
   email: str = EmailStr(...)
-  firstname: str = Field(...)
-  lastname: str = Field(...)
-  roles: List[Role] = None
-  club: Club = None
+  firstName: str = Field(...)
+  lastName: str = Field(...)
+  club: Optional[Club] = None
+  roles: Optional[List[Role]] = Field(default_factory=list)

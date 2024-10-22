@@ -1,5 +1,4 @@
 from bson import ObjectId
-#from datetime import date
 from pydantic import Field, BaseModel, HttpUrl, EmailStr, validator
 from typing import Optional, List
 
@@ -43,8 +42,8 @@ class TeamBase(MongoBaseModel):
   teamNumber: int = Field(...)
   active: bool = False
   external: bool = False
-  ishdId: str = None
-  legacyId: int = None
+  ishdId: Optional[str] = None
+  legacyId: Optional[int] = None
 
   @validator('ishdId', pre=True, always=True)
   def empty_str_to_none(cls, v):
@@ -113,20 +112,20 @@ class TeamUpdate(MongoBaseModel):
 class ClubBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  addressName: str = None
-  street: str = None
-  zipCode: str = None
-  city: str = None
+  addressName: Optional[str] = None
+  street: Optional[str] = None
+  zipCode: Optional[str] = None
+  city: Optional[str] = None
   country: str = Field(...)
-  email: EmailStr = None
-  yearOfFoundation: int = None
-  description: str = None
-  website: HttpUrl = None
-  ishdId: int = None
-  active: bool = False
-  teams: List[TeamBase] = None
-  legacyId: int = None
-  logo: HttpUrl = None
+  email: Optional[EmailStr] = None
+  yearOfFoundation: Optional[int] = None
+  description: Optional[str] = None
+  website: Optional[HttpUrl] = None
+  ishdId: Optional[int] = None
+  active: Optional[bool] = False
+  teams: Optional[List[TeamBase]] = Field(default_factory=list)
+  legacyId: Optional[int] = None
+  logo: Optional[HttpUrl] = None
 
   @validator('email',
              'website',
@@ -165,7 +164,7 @@ class ClubUpdate(MongoBaseModel):
   website: Optional[HttpUrl] = None
   ishdId: Optional[int] = None
   active: Optional[bool] = None
-  teams: Optional[List[TeamBase]] = None
+  teams: Optional[List[TeamBase]] = Field(default_factory=list)
   legacyId: Optional[int] = None
   logo: Optional[str] = None
 

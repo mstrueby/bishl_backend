@@ -1,5 +1,5 @@
 from bson import ObjectId
-from pydantic import Field, BaseModel, validator
+from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional
 
 
@@ -41,10 +41,10 @@ class VenueBase(MongoBaseModel):
   country: str = Field(...)
   latitude: str = Field(...)
   longitude: str = Field(...)
-  image: str = None
-  description: str = None
+  image: Optional[HttpUrl] = None
+  description: Optional[str] = None
   active: bool = False
-  legacyId: int = None
+  legacyId: Optional[int] = None
 
   @validator('image', 'description', pre=True, always=True)
   def empty_str_to_none(cls, v):

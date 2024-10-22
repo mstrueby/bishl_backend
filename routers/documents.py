@@ -31,14 +31,14 @@ def upload_to_cloudinary(title: str, file: UploadFile):
 # Helper function to check file format
 def validate_file_type(file: UploadFile):
   allowed_types = [
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ]
   if file.content_type not in allowed_types:
     raise HTTPException(
-      status_code=400,
-      detail="Invalid file type. Only PDF, DOCX and XLSX are allowed.")
+        status_code=400,
+        detail="Invalid file type. Only PDF, DOCX and XLSX are allowed.")
 
 
 # Helper function to delete file from Cloudinary
@@ -56,14 +56,16 @@ def check_reserved_aliases(alias: str):
   reserved_aliases = ["categories"]
   if alias.lower() in reserved_aliases:
     raise HTTPException(
-      status_code=400,
-      detail="Alias/Title is reserved as API endpoint. Please choose another.")
+        status_code=400,
+        detail="Alias/Title is reserved as API endpoint. Please choose another."
+    )
 
 
 # get all catgories
 @router.get("/categories", response_description="Get list of all categories")
-async def get_categories(request: Request, ) -> List[str]:
-  categories = await request.app.mongodb["documents"].distinct("category")
+async def get_categories(request: Request) -> List[str]:
+  mongodb = request.app.state.mongodb
+  categories = await mongodb["documents"].distinct("category")
   categories.sort()
   return categories
 
@@ -73,18 +75,20 @@ async def get_categories(request: Request, ) -> List[str]:
             response_model=List[DocumentDB],
             response_description="Get documents for a category")
 async def get_documents_by_category(
-  request: Request,
-  category: str,
-) -> List[DocumentDB]:
-  documents = await request.app.mongodb["documents"].find({
-    "category": {
-      "$regex": f"^{category}$",
-      "$options": "i"
-    }
+    request: Request,
+    category: str,
+) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  documents = await mongodb["documents"].find({
+      "category": {
+          "$regex": f"^{category}$",
+          "$options": "i"
+      }
   }).to_list(1000)
   documents.sort(key=lambda x: x["title"])
   result = [DocumentDB(**document) for document in documents]
-  return result
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(result))
 
 
 # get one document by alias
@@ -92,45 +96,49 @@ async def get_documents_by_category(
             response_model=DocumentDB,
             response_description="Get document by alias")
 async def get_document(
-  request: Request,
-  alias: str,
-) -> DocumentDB:
+    request: Request,
+    alias: str,
+) -> JSONResponse:
+  mongodb = request.app.state.mongodb
   query = {"alias": alias}
-  document = await request.app.mongodb["documents"].find_one(query)
+  document = await mongodb["documents"].find_one(query)
   if not document:
     raise HTTPException(status_code=404, detail="Document not found")
-  return DocumentDB(**document)
-
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(DocumentDB(**document)))
+                      
 
 # get list of all documents
 @router.get("/",
             response_model=List[DocumentDB],
             response_description="Get list of all documents")
-async def get_documents(request: Request, ) -> List[DocumentDB]:
-  documents = await request.app.mongodb["documents"].find().to_list(1000)
+async def get_documents(request: Request) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  documents = await mongodb["documents"].find().to_list(1000)
   result = [DocumentDB(**document) for document in documents]
-  return result
-
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(result))
+  
 
 # create/upload new document
 @router.post("/",
              response_model=DocumentDB,
              response_description="Upload a new document")
 async def upload_document(
-  request: Request,
-  title: str = Form(...),
-  alias: str = Form(...),
-  file: UploadFile = File(...),
-  category: str = Form(None),
-  token_payload: TokenPayload = Depends(auth.auth_wrapper)
-) -> DocumentDB:
-
+    request: Request,
+    title: str = Form(...),
+    alias: str = Form(...),
+    file: UploadFile = File(...),
+    category: str = Form(None),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> JSONResponse:
+  mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
   # Check if document already exists in db
-  existing_doc = await request.app.mongodb['documents'].find_one(
-    {'title': title})
+  existing_doc = await mongodb['documents'].find_one(
+      {'title': title})
   if existing_doc:
     raise HTTPException(status_code=400,
                         detail=f"Document '{title}' already exists.")
@@ -143,13 +151,14 @@ async def upload_document(
 
   # data preparation for storing in database
   document = DocumentBase(
-    title=title,
-    alias=alias,
-    url=result['secure_url'],
-    public_id=result['public_id'],
-    filename=file.filename,
-    file_type=file.content_type,
-    file_size_byte=file.size,
+      title=title,
+      alias=alias,
+      url=result['secure_url'],
+      publicId=result['public_id'],
+      fileName=file.filename
+      if file.filename is not None else "default_filename",
+      fileType=file.content_type if file.content_type is not None else "",
+      fileSizeByte=file.size if file.size is not None else 0,
   )
   if category:
     document.category = category
@@ -158,20 +167,20 @@ async def upload_document(
 
   document_data = jsonable_encoder(document)
 
-  document_data['create_date'] = datetime.utcnow().replace(microsecond=0)
-  document_data['create_user'] = {
-    "user_id": token_payload.sub,
-    "firstname": token_payload.firstname,
-    "lastname": token_payload.lastname
+  document_data['createDate'] = datetime.now().replace(microsecond=0)
+  document_data['createUser'] = {
+      "userId": token_payload.sub,
+      "firstName": token_payload.firstName,
+      "lastName": token_payload.lastName
   }
-  document_data['update_user'] = None
-  document_data['update_date'] = None
+  document_data['updateUser'] = None
+  document_data['updateDate'] = None
 
   try:
     print("document_data: ", document_data)
-    new_doc = await request.app.mongodb["documents"].insert_one(document_data)
-    created_doc = await request.app.mongodb["documents"].find_one(
-      {"_id": new_doc.inserted_id})
+    new_doc = await mongodb["documents"].insert_one(document_data)
+    created_doc = await mongodb["documents"].find_one(
+        {"_id": new_doc.inserted_id})
     if created_doc:
       return JSONResponse(status_code=status.HTTP_201_CREATED,
                           content=jsonable_encoder(DocumentDB(**created_doc)))
@@ -180,8 +189,8 @@ async def upload_document(
                           detail="Failed to create document")
   except DuplicateKeyError:
     raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail=f"Document {document_data['title']} already exists.")
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Document {document_data['title']} already exists.")
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=str(e))
@@ -191,67 +200,70 @@ async def upload_document(
 @router.patch("/{id}",
               response_model=DocumentDB,
               response_description="Update an existing document")
-async def update_document(
-  request: Request,
-  id: str,
-  title: Optional[str] = Form(None),
-  alias: Optional[str] = Form(None),
-  category: Optional[str] = Form(None),
-  file: UploadFile = File(None),
-  token_payload: TokenPayload = Depends(auth.auth_wrapper)
-) -> DocumentDB:
+async def update_document(request: Request,
+                          id: str,
+                          title: Optional[str] = Form(None),
+                          alias: Optional[str] = Form(None),
+                          category: Optional[str] = Form(None),
+                          file: UploadFile = File(None),
+                          token_payload: TokenPayload = Depends(
+                              auth.auth_wrapper)):
+  mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
-  existing_doc = await request.app.mongodb['documents'].find_one({'_id': id})
+  existing_doc = await mongodb['documents'].find_one({'_id': id})
   if not existing_doc:
     raise HTTPException(status_code=404,
                         detail=f"Document with id {id} not found.")
 
   doc_data = DocumentUpdate(
-    title=title,
-    alias=alias,
-    category=category,
+      title=title,
+      alias=alias,
+      category=category,
   ).dict(exclude_none=True)
   doc_data.pop("id", None)
   print("doc_data: ", doc_data)
 
   if file:
+    if title is None:
+      raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                          detail="Title is required.")
+    result = upload_to_cloudinary(title, file)
     validate_file_type(file)
     await delete_from_cloudinary(existing_doc['public_id'])
     result = upload_to_cloudinary(title, file)
     doc_data['url'] = result['secure_url']
-    doc_data['public_id'] = result['public_id']
+    doc_data['publicId'] = result['public_id']
     doc_data['filename'] = file.filename
-    doc_data['file_type'] = file.content_type
-    doc_data['file_size_byte'] = file.size
+    doc_data['fileType'] = file.content_type
+    doc_data['fileSizeByte'] = file.size
 
-  doc_data['update_date'] = datetime.utcnow().replace(microsecond=0)
-  doc_data['update_user'] = {
-    "user_id": token_payload.sub,
-    "firstname": token_payload.firstname,
-    "lastname": token_payload.lastname
+  doc_data['updateDate'] = datetime.now().replace(microsecond=0)
+  doc_data['updateUser'] = {
+      "userId": token_payload.sub,
+      "firstName": token_payload.firstName,
+      "lastName": token_payload.lastName
   }
 
   # Exclude unchanged data
   doc_to_update = {
-    k: v
-    for k, v in doc_data.items() if v != existing_doc.get(k, None)
+      k: v
+      for k, v in doc_data.items() if v != existing_doc.get(k, None)
   }
   print("doc_to_update: ", doc_to_update)
-  if not doc_to_update or ('update_date' in doc_to_update
+  if not doc_to_update or ('updateDate' in doc_to_update
                            and len(doc_to_update) == 1):
     print("No changes to update")
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(DocumentDB(**existing_doc)))
+    return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   # update doc
   try:
-    update_result = await request.app.mongodb['documents'].update_one(
-      {'_id': id}, {'$set': doc_to_update}, upsert=False)
+    update_result = await mongodb['documents'].update_one(
+        {'_id': id}, {'$set': doc_to_update}, upsert=False)
     if update_result.modified_count == 1:
-      updated_doc = await request.app.mongodb["documents"].find_one(
-        {"_id": id})
+      updated_doc = await mongodb["documents"].find_one(
+          {"_id": id})
       return JSONResponse(status_code=status.HTTP_200_OK,
                           content=jsonable_encoder(DocumentDB(**updated_doc)))
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -260,30 +272,25 @@ async def update_document(
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=str(e))
 
-  return JSONResponse(status_code=200,
-                      content={
-                        "message": "Document replaced successfully",
-                        "document_url": result['secure_url'],
-                        "document_id": result['public_id']
-                      })
-
 
 # delete document
 @router.delete("/{alias}", response_description="Delete an existing document")
 async def delete_document(
-  request: Request,
-  alias: str,
-  token_payload: TokenPayload = Depends(auth.auth_wrapper)) -> None:
+    request: Request,
+    alias: str,
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> Response:
+  mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  existing_doc = await request.app.mongodb['documents'].find_one(
-    {'alias': alias})
+  existing_doc = await mongodb['documents'].find_one(
+      {'alias': alias})
   if not existing_doc:
     raise HTTPException(status_code=404,
                         detail=f"Document with alias {alias} not found.")
-  result = await request.app.mongodb['documents'].delete_one({"alias": alias})
+  result = await mongodb['documents'].delete_one({"alias": alias})
   if result.deleted_count == 1:
-    await delete_from_cloudinary(existing_doc['public_id'])
+    await delete_from_cloudinary(existing_doc['publicId'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                       detail="Failed to delete document")

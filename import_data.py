@@ -9,6 +9,7 @@ from fastapi.encoders import jsonable_encoder
 import certifi
 from urllib.parse import urlparse
 from bson import ObjectId
+from pymongo import MongoClient
 
 # dotenv environment variables
 from dotenv import dotenv_values
@@ -34,7 +35,6 @@ with open(filename, encoding='utf-8') as f:
   name_records = list(csv_reader)
 
 # Mongo db - we do not need Motor here
-from pymongo import MongoClient
 client = MongoClient()
 
 client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
