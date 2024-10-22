@@ -7,6 +7,7 @@ import requests
 from pymongo import MongoClient
 import certifi
 from datetime import datetime
+import argparse
 
 filename = "data/data_players.csv"
 BASE_URL = os.environ['BE_API_URL']
@@ -37,8 +38,6 @@ client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
 db = client[os.environ['DB_NAME']]
 db_collection = db['players']
 
-import argparse
-
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Manage players.')
 parser.add_argument('--deleteAll',
@@ -64,9 +63,9 @@ with open("data/data_players.csv", encoding='utf-8') as f:
     reader = csv.DictReader(f)
     for row in reader:
         # data preparation
-        if isinstance(row.get('full_face_req'), str):
-            row['full_face_req'] = row['full_face_req'].lower() == 'true'
-        row['legacy_id'] = int(row['legacy_id'])
+        if isinstance(row.get('fullFaceReq'), str):
+            row['fullFaceReq'] = row['fullFaceReq'].lower() == 'true'
+        row['legacyId'] = int(row['legacyId'])
 
         try:
             birthdate = datetime.strptime(row['birthdate'],
@@ -77,33 +76,47 @@ with open("data/data_players.csv", encoding='utf-8') as f:
 
         # Retrieve the player from the database by first name, last name, and birth date
         player = db_collection.find_one({
-            'firstname': row['firstname'],
-            'lastname': row['lastname'],
+            'firstName': row['firstName'],
+            'lastName': row['lastName'],
             'birthdate': birthdate
         })
 
         if row['py_id'] != '' and player:
             print(
-                f"Player already exists in the database: {player['_id']} -{player['firstname']} {player['lastname']} {player['birthdate']}"
+                f"Player already exists in the database: {player['_id']} -{player['firstName']} {player['lastName']} {player['birthdate']}"
             )
         elif row['py_id'] != '' and not player:
 
             # Insert the player directly into the database
             new_player = {
-                '_id': row['py_id'],
-                'firstname': row['firstname'],
-                'lastname': row['lastname'],
-                'birthdate': birthdate,
-                'display_firstname': None if row['display_firstname'] == '' else row['display_firstname'],
-                'display_lastname': None if row['display_lastname'] == '' else row['display_lastname'],
-                'nationality': None if row['nationality'] == '' else row['nationality'],
-                'position': row['player_position'],
-                'full_face_req': row['full_face_req'],
-                'source': row['source'],
-                'assigned_teams': [],
+                '_id':
+                row['py_id'],
+                'firstName':
+                row['firstName'],
+                'lastName':
+                row['lastName'],
+                'birthdate':
+                birthdate,
+                'displayFirstName':
+                None if row['displayFirstName'] == '' else
+                row['displayFirstName'],
+                'displayLastName':
+                None
+                if row['displayLastName'] == '' else row['displayLastName'],
+                'nationality':
+                None if row['nationality'] == '' else row['nationality'],
+                'position':
+                row['player_position'],
+                'fullFaceReq':
+                row['fullFaceReq'],
+                'source':
+                row['source'],
+                'assignedTeams': [],
                 'stats': [],
-                'image': None,
-                'legacy_id': row['legacy_id'],
+                'image':
+                None,
+                'legacyId':
+                row['legacyId'],
             }
             insertion_result = db_collection.insert_one(new_player)
             new_player_id = insertion_result.inserted_id
@@ -117,25 +130,21 @@ with open("data/data_players.csv", encoding='utf-8') as f:
             #player = PlayerBase(**row)
             #print("row", row)
 
-            response = requests.post(f"{BASE_URL}/players/",
-                                     files={
-                                         'firstname': (None, row['firstname']),
-                                         'lastname': (None, row['lastname']),
-                                         'birthdate': (None, row['birthdate']),
-                                         'display_firstname': (None,
-                                                              row['display_firstname']),
-                                         'display_lastname': (None,
-                                                              row['display_lastname']),
-                                         'nationality':
-                                         (None, row['nationality']),
-                                         'position':
-                                         (None, row['player_position']),
-                                         'full_face_req':
-                                         (None, row['full_face_req']),
-                                         'source': (None, row['source']),
-                                         'legacy_id': (None, row['legacy_id'])
-                                     },
-                                     headers=headers)
+            response = requests.post(
+                f"{BASE_URL}/players/",
+                data={
+                    'firstName': (None, row['firstName']),
+                    'lastName': (None, row['lastName']),
+                    'birthdate': (None, row['birthdate']),
+                    'displayFirstName': (None, row['displayFirstName']),
+                    'displayLastName': (None, row['displayLastName']),
+                    'nationality': (None, row['nationality']),
+                    'position': (None, row['player_position']),
+                    'fullFaceReq': (None, row['fullFaceReq']),
+                    'source': (None, row['source']),
+                    'legacyId': (None, row['legacyId'])
+                },
+                headers=headers)
             if response.status_code == 422:
                 print('422 Error: Unprocessable Entity')
                 try:
@@ -152,7 +161,7 @@ with open("data/data_players.csv", encoding='utf-8') as f:
                           encoding='utf-8') as log_file:
                     log_writer = csv.writer(log_file)
                     log_writer.writerow([
-                        f"update tblplayer set py_id='{new_player_id}' where id_tblPlayer={row['legacy_id']};"
+                        f"update tblplayer set py_id='{new_player_id}' where id_tblPlayer={row['legacyId']};"
                     ])
                 print(
                     f"--> Successfully posted Player ({new_player_id}): {row}")

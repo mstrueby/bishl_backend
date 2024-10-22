@@ -74,7 +74,7 @@ def import_rosters():
         if isinstance(row.get('playerPosition'), str):
           playerPosition = json.loads(row['playerPosition'])
         passNumber = row['passNumber']
-        print("player", player)
+        #print("player", player)
         roster_player = {
           'player': player,
           'playerPosition': playerPosition,
@@ -155,6 +155,9 @@ def import_scores():
       if not existing_match:
         print("Match not found for scores: ", row['match_id'])
         exit()
+      if len(existing_match['home']['scores']) > 0:
+        print("Match already has scores: ", row['match_id'])
+        continue
       # parse JSON strings if they are not already dictionaries
       team_flag = row['team_flag']
       if isinstance(row.get('goalPlayer'), str):
@@ -164,7 +167,7 @@ def import_scores():
       else:
         assistPlayer = None
       current_score = {
-        'matchSeconds': row['matchSeconds'],
+        'matchTime': row['matchTime'],
         'goalPlayer': goalPlayer
       }
       if assistPlayer:
@@ -233,11 +236,11 @@ def import_penalties():
         row['isGM'] = row['isGM'].lower() == 'true'
       if isinstance(row.get('isMP'), str):
         row['isMP'] = row['isMP'].lower() == 'true'
-      if len(row['matchSecondsEnd']) == 0:
-        row['matchSecondsEnd'] = None
+      if len(row['matchTimeEnd']) == 0:
+        row['matchTimeEnd'] = None
       current_penalty = {
-        'matchSecondsStart': row['matchSecondsStart'],
-        'matchSecondsEnd': row['matchSecondsEnd'],
+        'matchTimeStart': row['matchTimeStart'],
+        'matchTimeEnd': row['matchTimeEnd'],
         'penaltyPlayer': penaltyPlayer,
         'penaltyCode': penaltyCode,
         'penaltyMinutes': int(row['penaltyMinutes']),
@@ -333,8 +336,8 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
       row['away']['logo'] = None
     if isinstance(row.get('venue'), str):
       row['venue'] = json.loads(row['venue'])
-    if len(row['venue']['venue_id']) == 0:
-      row['venue']['venue_id'] = None
+    if len(row['venue']['venueId']) == 0:
+      row['venue']['venueId'] = None
     if isinstance(row.get('matchStatus'), str):
       row['matchStatus'] = json.loads(row['matchStatus'])
     if isinstance(row.get('finishType'), str):

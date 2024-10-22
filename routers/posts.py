@@ -2,8 +2,9 @@ from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, D
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
-from models.posts import PostBase, PostDB, PostUpdate, Revision
+from models.posts import PostBase, PostDB, PostUpdate, Revision, User
 from typing import List, Optional
+from routers.users import update_user
 from utils import configure_cloudinary, my_jsonable_encoder
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
@@ -18,19 +19,19 @@ configure_cloudinary()
 async def handle_image_upload(image: UploadFile, public_id: str) -> str:
   if image:
     result = cloudinary.uploader.upload(
-      image.file,
-      folder="posts",
-      public_id=public_id,
-      overwrite=True,
-      resource_type="image",
-      format='jpg',
-      transformation=[{
-        'width': 1080,
-        # 'aspect_ratio': '16:9',
-        # 'crop': 'fill',
-        # 'gravity': 'auto',
-        'effect': 'sharpen:100',
-      }],
+        image.file,
+        folder="posts",
+        public_id=public_id,
+        overwrite=True,
+        resource_type="image",
+        format='jpg',
+        transformation=[{
+            'width': 1080,
+            # 'aspect_ratio': '16:9',
+            # 'crop': 'fill',
+            # 'gravity': 'auto',
+            'effect': 'sharpen:100',
+        }],
     )
     print(f"Post Image uploaded: {result['url']}")
     return result['url']
@@ -40,37 +41,43 @@ async def handle_image_upload(image: UploadFile, public_id: str) -> str:
 
 # Helper function to delete file from Cloudinary
 async def delete_from_cloudinary(image_url: str):
-  try:
-    public_id = image_url.rsplit('/', 1)[-1].split('.')[0]
-    result = cloudinary.uploader.destroy(f"posts/{public_id}")
-    print("Document deleted from Cloudinary:", f"posts/{public_id}")
-    print("Result:", result)
-    return result
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
-
+  if image_url:
+    try:
+      public_id = image_url.rsplit('/', 1)[-1].split('.')[0]
+      result = cloudinary.uploader.destroy(f"posts/{public_id}")
+      print("Document deleted from Cloudinary:", f"posts/{public_id}")
+      print("Result:", result)
+      return result
+    except Exception as e:
+      raise HTTPException(status_code=500, detail=str(e))
+  
 
 # list all posts
 @router.get("/",
             response_description="List all posts",
             response_model=List[PostDB])
-async def get_posts(request: Request):
+async def get_posts(request: Request) -> JSONResponse:
+  mongodb = request.app.state.mongodb
   query = {}
-  posts = request.app.mongodb["posts"].find(query).sort("create_date", -1)
-  result = [PostDB(**raw_post) async for raw_post in posts]
-  return result
+  posts = await mongodb["posts"].find(query).sort("createDate",
+                                                  -1).to_list(100)
+  result = [PostDB(**raw_post) for raw_post in posts]
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(result))
 
 
 # get post by alias
 @router.get("/{alias}",
             response_description="Get post by alias",
             response_model=PostDB)
-async def get_post(request: Request, alias: str) -> PostDB:
+async def get_post(request: Request, alias: str) -> JSONResponse:
+  mongodb = request.app.state.mongodb
   query = {"alias": alias}
-  post = await request.app.mongodb["posts"].find_one(query)
+  post = await mongodb["posts"].find_one(query)
   if not post:
     raise HTTPException(status_code=404, detail="Post not found")
-  return PostDB(**post)
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(PostDB(**post)))
 
 
 # create post
@@ -85,28 +92,29 @@ async def create_post(
     legacyId: int = Form(None),
     image: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> PostDB:
+) -> JSONResponse:
+  mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
   # Data preparation
   post = PostBase(
-    title=title,
-    alias=alias,
-    content=content,
-    author=json.loads(author) if author else None,
+      title=title,
+      alias=alias,
+      content=content,
+      author=json.loads(author) if author else None,
   )
   post_data = jsonable_encoder(post)
 
   # user and dates
-  post_data['create_date'] = datetime.utcnow().replace(microsecond=0)
-  post_data['create_user'] = {
-    "user_id": token_payload.sub,
-    "firstname": token_payload.firstname,
-    "lastname": token_payload.lastname
+  post_data['createDate'] = datetime.now().replace(microsecond=0)
+  post_data['createUser'] = {
+      "userId": token_payload.sub,
+      "firstName": token_payload.firstName,
+      "lastName": token_payload.lastName
   }
-  post_data['update_user'] = None
-  post_data['update_date'] = None
+  post_data['updateUser'] = None
+  post_data['updateDate'] = None
 
   # Handle image upload
   post_data['image'] = await handle_image_upload(image, post_data["_id"])
@@ -114,29 +122,28 @@ async def create_post(
   # set author
   if post_data['author'] is None:
     post_data['author'] = {
-      'firstname': post_data['create_user']["firstname"],
-      'lastname': post_data['create_user']["lastname"],
+        'firstName': post_data['createUser']["firstName"],
+        'lastName': post_data['createUser']["lastName"],
     }
 
   # Handle alias uniqueness
   upd_alias = post_data['alias']
   alias_suffix = 2
-  while await request.app.mongodb['posts'].find_one({'alias': upd_alias}):
+  while await mongodb['posts'].find_one({'alias': upd_alias}):
     upd_alias = post_data['alias'] + '-' + str(alias_suffix)
     alias_suffix += 1
   post_data['alias'] = upd_alias
-
-  revision = Revision(update_data=post_data,
-                      update_user=post_data['create_user'],
-                      update_date=post_data['create_date'])
+  revision = Revision(updateData=post_data,
+                      updateUser=post_data['createUser'],
+                      updateDate=post_data['createDate'])
   post_data['revisions'] = [my_jsonable_encoder(revision)]
 
   # Insert post
   try:
     print("post_data", post_data)
-    new_post = await request.app.mongodb["posts"].insert_one(post_data)
-    created_post = await request.app.mongodb["posts"].find_one(
-      {"_id": new_post.inserted_id})
+    new_post = await mongodb["posts"].insert_one(post_data)
+    created_post = await mongodb["posts"].find_one(
+        {"_id": new_post.inserted_id})
     if created_post:
       return JSONResponse(status_code=status.HTTP_201_CREATED,
                           content=jsonable_encoder(PostDB(**created_post)))
@@ -160,39 +167,44 @@ async def update_post(
     content: Optional[str] = Form(None),
     author: Optional[str] = Form(None),
     published: Optional[bool] = Form(None),
-    token_payload: Optional[TokenPayload] = Depends(auth.auth_wrapper),
     image: Optional[UploadFile] = File(None),
-    image_url: Optional[str] = Form(None),
-) -> PostDB:
+    imageUrl: Optional[str] = Form(None),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+):
+  mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
   # Retrieve existing post
-  existing_post = await request.app.mongodb["posts"].find_one({"_id": id})
+  existing_post = await mongodb["posts"].find_one({"_id": id})
   if not existing_post:
     raise HTTPException(status_code=404, detail=f"Post with id {id} not found")
 
   # Prepare post data
-  post_data = PostUpdate(
-    title=title,
-    alias=alias,
-    content=content,
-    author=json.loads(author) if author else None,
-    published=published,
-  ).dict(exclude_none=True)
+  try:
+    post_data = PostUpdate(
+        title=title,
+        alias=alias,
+        content=content,
+        author=json.loads(author) if author else None,
+        published=published,
+    ).dict(exclude_none=True)
+  except ValueError as e:
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Failed to parse input data") from e
   post_data.pop('id', None)
-  post_data['update_date'] = datetime.utcnow().replace(microsecond=0)
-  post_data['update_user'] = {
-    "user_id": token_payload.sub,
-    "firstname": token_payload.firstname,
-    "lastname": token_payload.lastname
+  post_data['updateDate'] = datetime.now().replace(microsecond=0)
+  post_data['updateUser'] = {
+      "userId": token_payload.sub,
+      "firstName": token_payload.firstName,
+      "lastName": token_payload.lastName
   }
 
   # Handle image upload
   if image:
     post_data['image'] = await handle_image_upload(image, id)
-  elif image_url:
-    post_data['image'] = image_url
+  elif imageUrl:
+    post_data['image'] = imageUrl
   elif existing_post['image']:
     await delete_from_cloudinary(existing_post['image'])
     post_data['image'] = None
@@ -201,23 +213,27 @@ async def update_post(
 
   # Exclude unchanged data
   post_to_update = {
-    k: v
-    for k, v in post_data.items() if v != existing_post.get(k, None)
+      k: v
+      for k, v in post_data.items() if v != existing_post.get(k, None)
   }
   print("post_to_update", post_to_update)
-  if not post_to_update or ('update_date' in post_to_update
+  if not post_to_update or ('updateDate' in post_to_update
                             and len(post_to_update) == 1):
     print("No changes to update")
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(PostDB(**existing_post)))
+    return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
-  revision = Revision(update_data={
-    k: v
-    for k, v in post_to_update.items()
-    if k != 'update_user' and k != 'update_date'
+  # Create a User instance from dictionary
+  update_user_instance = User(userId=post_data['updateUser']["userId"],
+                              firstName=post_data['updateUser']["firstName"],
+                              lastName=post_data['updateUser']["lastName"])
+
+  revision = Revision(updateData={
+      k: v
+      for k, v in post_to_update.items()
+      if k != 'updateUser' and k != 'updateDate'
   },
-                      update_user=post_data['update_user'],
-                      update_date=post_data['update_date'])
+                      updateUser=update_user_instance,
+                      updateDate=post_data['updateDate'])
   if 'revisions' not in existing_post:
     post_to_update['revisions'] = [my_jsonable_encoder(revision)]
   else:
@@ -226,10 +242,10 @@ async def update_post(
 
   # Update post
   try:
-    update_result = await request.app.mongodb["posts"].update_one(
-      {"_id": id}, {"$set": post_to_update})
+    update_result = await mongodb["posts"].update_one({"_id": id},
+                                                      {"$set": post_to_update})
     if update_result.modified_count == 1:
-      updated_post = await request.app.mongodb["posts"].find_one({"_id": id})
+      updated_post = await mongodb["posts"].find_one({"_id": id})
       return JSONResponse(status_code=status.HTTP_200_OK,
                           content=jsonable_encoder(PostDB(**updated_post)))
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -242,16 +258,18 @@ async def update_post(
 # delete post
 @router.delete("/{alias}", response_description="Delete post")
 async def delete_post(
-  request: Request,
-  alias: str,
-  token_payload: TokenPayload = Depends(auth.auth_wrapper)) -> None:
+    request: Request,
+    alias: str,
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> Response:
+  mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  existing_post = await request.app.mongodb["posts"].find_one({"alias": alias})
+  existing_post = await mongodb["posts"].find_one({"alias": alias})
   if not existing_post:
     raise HTTPException(status_code=404,
                         detail=f"Post with alias {alias} not found")
-  result = await request.app.mongodb["posts"].delete_one({"alias": alias})
+  result = await mongodb["posts"].delete_one({"alias": alias})
   if result.deleted_count == 1:
     await delete_from_cloudinary(existing_post['image'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)

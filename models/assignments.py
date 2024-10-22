@@ -14,7 +14,7 @@ class PyObjectId(ObjectId):
   @classmethod
   def validate(cls, v):
     if not ObjectId.is_valid(v):
-      raise ValueError("Invalid ObjectId")
+      raise ValueError("Invalid objectid")
     return ObjectId(v)
 
   @classmethod
@@ -23,7 +23,7 @@ class PyObjectId(ObjectId):
 
 
 class MongoBaseModel(BaseModel):
-  id: PyObjectId = Field(default_factory=ObjectId, alias="_id")
+  id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
   class Config:
     json_encoders = {ObjectId: str}
@@ -37,18 +37,18 @@ class Status(str, Enum):
 
 
 class Referee(BaseModel):
-  user_id: str = Field(...)
-  firstname: str = Field(...)
-  lastname: str = Field(...)
-  club_id: str = None
-  club_name: str = None
+  userId: str = Field(...)
+  firstName: str = Field(...)
+  lastName: str = Field(...)
+  clubId: Optional[str] = None
+  clubName: Optional[str] = None
   points: int = 0
 
 
 class AssignmentBase(MongoBaseModel):
   status: Status = Field(...)
-  user_id: str = None
-  ref_admin: bool = False
+  userId: Optional[str] = None
+  refAdmin: bool = False
   position: Optional[int] = Field(None,
                                   description='Possible values are 1 and 2',
                                   ge=1,
@@ -56,7 +56,7 @@ class AssignmentBase(MongoBaseModel):
 
 
 class AssignmentDB(MongoBaseModel):
-  match_id: str = Field(...)
+  matchId: str = Field(...)
   status: Status = Field(...)
   referee: Referee = Field(...)
   position: Optional[int] = Field(None,
@@ -66,8 +66,8 @@ class AssignmentDB(MongoBaseModel):
 
 
 class AssignmentUpdate(MongoBaseModel):
-  status: Optional[Status] = "DEFAULT"
-  ref_admin: Optional[bool] = False
+  status: Optional[Status] = None
+  refAdmin: Optional[bool] = False
   position: Optional[int] = Field(None,
                                   description='Possible values are 1 and 2',
                                   ge=1,

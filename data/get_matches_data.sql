@@ -64,7 +64,7 @@ select
   gs.py_doc as matchStatus,
   s.Name as venue,
   json_object(
-    'venue_id', coalesce(s.py_id, ''),
+    'venueId', coalesce(s.py_id, ''),
     'name', coalesce(s.Name, 'unbekannter Ort'),
     'alias', coalesce(s.py_alias, 'unbekannter-ort')
   ) as venue,
@@ -84,20 +84,20 @@ select
   'True' as published,
   case when g.id_fk_referee1 > 0 then
     json_object(
-      'user_id', concat('SYS_LEGACY_ID_', r1.id_tblOfficial),
-      'firstname', r1.firstname,
-      'lastname', r1.lastname,
-      'club_id', concat('SYS_LEGACY_ID_', r1.id_fk_Club),
-      'club_name', r1c.name
+      'userId', concat('SYS_LEGACY_ID_', r1.id_tblOfficial),
+      'firstName', r1.firstName,
+      'lastName', r1.lastName,
+      'clubId', concat('SYS_LEGACY_ID_', r1.id_fk_Club),
+      'clubName', r1c.name
     ) 
   else '' end as referee1,
   case when g.id_fk_referee2 > 0 then
     json_object(
-      'user_id', concat( 'SYS_LEGACY_ID_', r2.id_tblOfficial),
-      'firstname', r2.firstname,
-      'lastname', r2.lastname,
-      'club_id', concat( 'SYS_LEGACY_ID_', r2.id_fk_Club),
-      'club_name', r2c.name
+      'userId', concat( 'SYS_LEGACY_ID_', r2.id_tblOfficial),
+      'firstName', r2.firstName,
+      'lastName', r2.lastName,
+      'clubId', concat( 'SYS_LEGACY_ID_', r2.id_fk_Club),
+      'clubName', r2c.name
     ) 
   else '' end as referee2
 from tblgame as g
@@ -270,8 +270,8 @@ select
               GROUP_CONCAT(
                   json_object(
                       'player', json_object(
-                          'firstname', ph.FirstName,
-                          'lastname', ph.LastName,
+                          'firstName', ph.FirstName,
+                          'lastName', ph.LastName,
                           'jerseyNumber', rh.JerseyNo
                       )
                   )
@@ -315,8 +315,8 @@ select
   case when g.id_fk_referee1 > 0 then
     json_object(
       'user_id', concat('SYS_LEGACY_ID_', r1.id_tblOfficial),
-      'firstname', r1.firstname,
-      'lastname', r1.lastname,
+      'firstName', r1.firstName,
+      'lastName', r1.lastName,
       'club_id', concat('SYS_LEGACY_ID_', r1.id_fk_Club),
       'club_name', r1c.name
     ) 
@@ -324,8 +324,8 @@ select
   case when g.id_fk_referee2 > 0 then
     json_object(
       'user_id', concat( 'SYS_LEGACY_ID_', r2.id_tblOfficial),
-      'firstname', r2.firstname,
-      'lastname', r2.lastname,
+      'firstName', r2.firstName,
+      'lastName', r2.lastName,
       'club_id', concat( 'SYS_LEGACY_ID_', r2.id_fk_Club),
       'club_name', r2c.name
     ) 
@@ -387,9 +387,9 @@ from (
     g.id_tblGame as match_id,
     'home' as team_flag,
     json_object(
-      'player_id', coalesce(ph.py_id, 'n/a'),
-      'firstName', ph.display_firstname,
-      'lastName', ph.display_lastname,
+      'playerId', coalesce(ph.py_id, 'n/a'),
+      'firstName', ph.display_firstName,
+      'lastName', ph.display_lastName,
       'jerseyNumber', rh.JerseyNo
     ) as player,
     json_object(
@@ -430,9 +430,9 @@ from (
     g.id_tblGame as match_id,
     'away' as team_flag,
     json_object(
-      'player_id', coalesce(pa.py_id, 'n/a'),
-      'firstName', pa.display_firstname,
-      'lastName', pa.display_lastname,
+      'playerId', coalesce(pa.py_id, 'n/a'),
+      'firstName', pa.display_firstName,
+      'lastName', pa.display_lastName,
       'jerseyNumber', ra.JerseyNo
     ) as player,
     json_object(
@@ -673,18 +673,18 @@ insert into tblteamplayer (id_fk_Team, SeasonYear, id_fk_Player, PassNo,JerseyNo
 select 
   g.id_tblGame as match_id,
   case when sb.id_fk_Team=g.id_fk_TeamHome then 'home' else 'away' end as team_flag,
-  left(cast(GameTime as char), 5) as matchSeconds,
+  left(cast(GameTime as char), 5) as matchTime,
   json_object(
-    'player_id', pg.py_id,
-    'firstName', pg.display_firstname,
-    'lastName', pg.display_lastname,
+    'playerId', pg.py_id,
+    'firstName', pg.display_firstName,
+    'lastName', pg.display_lastName,
     'jerseyNumber', rg.JerseyNo
   ) as goalPlayer,
   case when pa.py_id is null then null else
       json_object(
-        'player_id', pa.py_id,
-        'firstName', pa.display_firstname,
-        'lastName', pa.display_lastname,
+        'playerId', pa.py_id,
+        'firstName', pa.display_firstName,
+        'lastName', pa.display_lastName,
         'jerseyNumber', ra.JerseyNo
       ) 
   end as assistPlayer
@@ -715,12 +715,12 @@ ORDER BY 1, 2 desc
 select 
   g.id_tblGame as match_id,
   case when pb.id_fk_Team=g.id_fk_TeamHome then 'home' else 'away' end as team_flag,
-  left(cast(GameTimeStart as char), 5) as matchSecondsStart,
-  left(cast(GameTimeEnd as char), 5) as matchSecondsEnd,
+  left(cast(GameTimeStart as char), 5) as matchTimeStart,
+  left(cast(GameTimeEnd as char), 5) as matchTimeEnd,
   json_object(
-    'player_id', pp.py_id,
-    'firstName', pp.display_firstname,
-    'lastName', pp.display_lastname,
+    'playerId', pp.py_id,
+    'firstName', pp.display_firstName,
+    'lastName', pp.display_lastName,
     'jerseyNumber', rp.JerseyNo
   ) as penaltyPlayer,
   json_object(

@@ -59,29 +59,29 @@ class Standings(BaseModel):
   otLosses: int = Field(...)
   soWins: int = Field(...)
   soLosses: int = Field(...)
-  streak: Optional[List[str]] = None
+  streak: Optional[List[str]] = Field(default_factory=list)
 
 
 # settings at tournament level
 class StandingsSettings(BaseModel):
-  pointsWinReg: Optional[int] = None
-  pointsLossReg: Optional[int] = None
-  pointsDrawReg: Optional[int] = None
-  pointsWinOvertime: Optional[int] = None
-  pointsLossOvertime: Optional[int] = None
-  pointsWinShootout: Optional[int] = None
-  pointsLossShootout: Optional[int] = None
+  pointsWinReg: Optional[int] = Field(default=0)
+  pointsLossReg: Optional[int] = Field(default=0)
+  pointsDrawReg: Optional[int] = Field(default=0)
+  pointsWinOvertime: Optional[int] = Field(default=0)
+  pointsLossOvertime: Optional[int] = Field(default=0)
+  pointsWinShootout: Optional[int] = Field(default=0)
+  pointsLossShootout: Optional[int] = Field(default=0)
 
 
 # settings on round and matchday level
 class MatchSettings(BaseModel):
-  numOfPeriods: Optional[int] = None
-  periodLengthMin: Optional[int] = None
-  overtime: Optional[bool] = None
-  numOfPeriodsOvertime: Optional[int] = None
-  periodLengthMinOvertime: Optional[int] = None
-  shootout: Optional[bool] = None
-  refereePoints: Optional[int] = None
+  numOfPeriods: Optional[int] = Field(default=0)
+  periodLengthMin: Optional[int] = Field(default=0)
+  overtime: Optional[bool] = Field(default=False)
+  numOfPeriodsOvertime: Optional[int] = Field(default=0)
+  periodLengthMinOvertime: Optional[int] = Field(default=0)
+  shootout: Optional[bool] = Field(default=False)
+  refereePoints: Optional[int] = Field(default=0)
 
 
 # ------------
@@ -95,9 +95,9 @@ class MatchdayBase(MongoBaseModel):
   endDate: Optional[datetime] = None
   createStandings: bool = False
   createStats: bool = False
-  matchSettings: Optional[MatchSettings] = None
+  matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
   published: bool = False
-  standings: Dict[str, Standings] = {}
+  standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
@@ -119,14 +119,14 @@ class MatchdayDB(MatchdayBase):
 class MatchdayUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
-  type: Optional[Dict[str, str]] = {}
+  type: Optional[Dict[str, str]] = Field(default_factory=dict)
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
   createStandings: Optional[bool] = False
   createStats: Optional[bool] = False
-  matchSettings: Optional[MatchSettings] = None
+  matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
   published: Optional[bool] = False
-  standings: Optional[Dict[str, Standings]] = {}
+  standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
@@ -151,10 +151,10 @@ class RoundBase(MongoBaseModel):
   matchdaysSortedBy: Dict[str, str] = Field(...)
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
-  matchSettings: Optional[MatchSettings] = None
+  matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
   published: bool = False
-  matchdays: List[MatchdayBase] = []
-  standings: Dict[str, Standings] = {}
+  matchdays: Optional[List[MatchdayBase]] = Field(default_factory=list)
+  standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
@@ -179,14 +179,14 @@ class RoundUpdate(MongoBaseModel):
   sortOrder: Optional[int] = None
   createStandings: Optional[bool] = False
   createStats: Optional[bool] = False
-  matchdaysType: Optional[Dict[str, str]] = {}
-  matchdaysSortedBy: Optional[Dict[str, str]] = {}
+  matchdaysType: Optional[Dict[str, str]] = Field(default_factory=dict)
+  matchdaysSortedBy: Optional[Dict[str, str]] = Field(default_factory=dict)
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
-  matchSettings: Optional[MatchSettings] = None
+  matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
   published: Optional[bool] = False
-  matchdays: Optional[List[MatchdayBase]] = []
-  standings: Optional[Dict[str, Standings]] = {}
+  matchdays: Optional[List[MatchdayBase]] = Field(default_factory=list)
+  standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
@@ -204,9 +204,9 @@ class RoundUpdate(MongoBaseModel):
 class SeasonBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  standingsSettings: Optional[StandingsSettings] = None
+  standingsSettings: Optional[StandingsSettings] = Field(default_factory=dict)
   published: bool = False
-  rounds: List[RoundBase] = []
+  rounds: Optional[List[RoundBase]] = Field(default_factory=list)
 
   @validator('name', 'alias', pre=True, always=True)
   def validate_null_strings(cls, v, field):
@@ -220,9 +220,9 @@ class SeasonDB(SeasonBase):
 class SeasonUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
-  standingsSettings: Optional[StandingsSettings] = None
+  standingsSettings: Optional[StandingsSettings] = Field(default_factory=dict)
   published: Optional[bool] = False
-  rounds: Optional[List[RoundBase]] = []
+  rounds: Optional[List[RoundBase]] = Field(default_factory=list)
 
   @validator('name', 'alias', pre=True, always=True)
   def validate_null_strings(cls, v, field):
@@ -241,7 +241,7 @@ class TournamentBase(MongoBaseModel):
   active: bool = False
   external: bool = False
   website: Optional[HttpUrl] = None
-  seasons: Optional[List[SeasonBase]] = None
+  seasons: Optional[List[SeasonBase]] = Field(default_factory=list)
   legacyId: Optional[int] = None
 
   @validator('website', pre=True, always=True)
@@ -265,12 +265,12 @@ class TournamentUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
   tinyName: Optional[str] = "DEFAULT"
-  ageGroup: Optional[Dict[str, str]] = {}
+  ageGroup: Optional[Dict[str, str]] = Field(default_factory=dict)
   published: Optional[bool] = False
   active: Optional[bool] = False
   external: Optional[bool] = False
   website: Optional[HttpUrl] = None
-  seasons: Optional[List[SeasonBase]] = None
+  seasons: Optional[List[SeasonBase]] = Field(default_factory=list)
 
   @validator('website', pre=True, always=True)
   def validate_string(cls, v, field):
@@ -279,7 +279,8 @@ class TournamentUpdate(MongoBaseModel):
   @validator('name', 'alias', 'tinyName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
-
+  
   @validator('ageGroup', pre=True, always=True)
   def validate_type(cls, v, field):
     return validate_dict_of_strings(v, field.name)
+  

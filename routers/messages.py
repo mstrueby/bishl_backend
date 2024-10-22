@@ -21,27 +21,30 @@ async def send_message(
     message: MessageBase = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
+  mongodb = request.app.state.mongodb
+  print("message", message)
   message_data = jsonable_encoder(message)
-  message_data["timestamp"] = datetime.utcnow()
+  print("message_data", message_data)
+  message_data["timestamp"] = datetime.now()
   message_data["sender"] = {}
-  message_data["sender"]["user_id"] = token_payload.sub
-  message_data["sender"]["firstname"] = token_payload.firstname
-  message_data["sender"]["lastname"] = token_payload.lastname
-  # get firstname and lastname of receiver
-  receiver = await request.app.mongodb["users"].find_one(
-    {"_id": message_data["receiver_id"]})
+  message_data["sender"]["userId"] = token_payload.sub
+  message_data["sender"]["firstName"] = token_payload.firstName
+  message_data["sender"]["lastName"] = token_payload.lastName
+  # get firstName and lastName of receiver
+  receiver = await mongodb["users"].find_one(
+    {"_id": message_data["receiverId"]})
   if not receiver:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail="Receiver not found")
   message_data["receiver"] = {}
-  message_data["receiver"]["user_id"] = message_data["receiver_id"]
-  message_data["receiver"]["firstname"] = receiver["firstname"]
-  message_data["receiver"]["lastname"] = receiver["lastname"]
-  del message_data["receiver_id"]
+  message_data["receiver"]["userId"] = message_data["receiverId"]
+  message_data["receiver"]["firstName"] = receiver["firstName"]
+  message_data["receiver"]["lastName"] = receiver["lastName"]
+  del message_data["receiverId"]
 
-  result = await request.app.mongodb['messages'].insert_one(message_data)
+  result = await mongodb['messages'].insert_one(message_data)
   if result.inserted_id:
-    new_message = await request.app.mongodb['messages'].find_one(
+    new_message = await mongodb['messages'].find_one(
       {"_id": result.inserted_id})
     return JSONResponse(status_code=status.HTTP_201_CREATED,
                         content=jsonable_encoder(MessageDB(**new_message)))
@@ -57,16 +60,17 @@ async def get_messages(
     request: Request,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
+  mongodb = request.app.state.mongodb
   user_id = token_payload.sub
-  messages = await request.app.mongodb['messages'].find({
-    "receiver.user_id":
+  messages = await mongodb['messages'].find({
+    "receiver.userId":
     user_id
   }).sort("timestamp", -1).to_list(length=100)
   #update message and set read to true
   for message in messages:
     if not message.get("read",
                        False):  # Default to False if 'read' field is missing
-      await request.app.mongodb['messages'].update_one(
+      await mongodb['messages'].update_one(
         {"_id": message["_id"]}, {"$set": {
           "read": True
         }})
@@ -81,15 +85,16 @@ async def delete_message(
     message_id: str = Path(..., description="The ID of the message to delete"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
+  mongodb = request.app.state.mongodb
   # get sender_id from message_id
-  message = await request.app.mongodb['messages'].find_one({"_id": message_id})
+  message = await mongodb['messages'].find_one({"_id": message_id})
   if message is None:
-    raise HTTPException(status_code=404, detail="Message not found")
-  sender_id = message["sender_id"]
+    raise HTTPException(status_code=404, detail=f"Message with id {message_id} not found")
+  sender_id = message["sender"]["userId"]
   if token_payload.sub != sender_id:
     raise HTTPException(status_code=403, detail="Not authorized")
 
-  delete_result = await request.app.mongodb['messages'].delete_one(
+  delete_result = await mongodb['messages'].delete_one(
     {"_id": message_id})
 
   if delete_result.deleted_count == 1:
@@ -110,21 +115,24 @@ async def get_chat_with_user(
     other_user_id: str = Path(..., description="The ID of the other user"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
+  mongodb = request.app.state.mongodb
   user_id = token_payload.sub
-  messages = await request.app.mongodb['messages'].find({
+  print("user_id", user_id)
+  print("other_user_id", other_user_id)
+  messages = await mongodb['messages'].find({
     "$or": [{
-      "sender.user_id": user_id,
-      "receiver.user_id": other_user_id
+      "sender.userId": user_id,
+      "receiver.userId": other_user_id
     }, {
-      "sender.user_id": other_user_id,
-      "receiver.user_id": user_id
+      "sender.userId": other_user_id,
+      "receiver.userId": user_id
     }]
   }).sort("timestamp", -1).to_list(length=100)
   #update message and set read to true
   for message in messages:
-    if message["receiver"]["user_id"] == user_id and not message.get(
+    if message["receiver"]["userId"] == user_id and not message.get(
         "read", False):  # Default to False if 'read' field is missing
-      await request.app.mongodb['messages'].update_one(
+      await mongodb['messages'].update_one(
         {"_id": message["_id"]}, {"$set": {
           "read": True
         }})
@@ -140,34 +148,35 @@ async def get_chatted_users(
     request: Request,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
+  mongodb = request.app.state.mongodb
   user_id = token_payload.sub
-  sent_message_user_ids = await request.app.mongodb['messages'].distinct(
-    "receiver.user_id", {"sender.user_id": user_id})
-  received_message_user_ids = await request.app.mongodb['messages'].distinct(
-    "sender.user_id", {"receiver.user_id": user_id})
+  sent_message_user_ids = await mongodb['messages'].distinct(
+    "receiver.userId", {"sender.userId": user_id})
+  received_message_user_ids = await mongodb['messages'].distinct(
+    "sender.userId", {"receiver.userId": user_id})
   chatted_user_ids = list(
     set(sent_message_user_ids + received_message_user_ids))
   chatted_users = []
   for chat_user_id in chatted_user_ids:
-    chat_user = await request.app.mongodb['users'].find_one(
+    chat_user = await mongodb['users'].find_one(
       {"_id": chat_user_id}, {
-        "firstname": 1,
-        "lastname": 1
+        "firstName": 1,
+        "lastName": 1
       })
     if chat_user:
       unread_count = 0
-      unread_count = await request.app.mongodb['messages'].count_documents({
-        "sender.user_id":
+      unread_count = await mongodb['messages'].count_documents({
+        "sender.userId":
         chat_user_id,
-        "receiver.user_id":
+        "receiver.userId":
         user_id,
         "read":
         False
       })
       chatted_users.append({
-        "user_id": chat_user_id,
-        "firstname": chat_user["firstname"],
-        "lastname": chat_user["lastname"],
-        "unread_count": unread_count
+        "userId": chat_user_id,
+        "firstName": chat_user["firstName"],
+        "lastName": chat_user["lastName"],
+        "unreadCount": unread_count
       })
   return JSONResponse(status_code=status.HTTP_200_OK, content=chatted_users)

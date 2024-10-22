@@ -2,7 +2,8 @@ from bson import ObjectId
 from pydantic import Field, BaseModel, validator, HttpUrl
 from typing import Optional
 from datetime import datetime
-from utils import prevent_empty_str, empty_str_to_none
+from utils import prevent_empty_str
+
 
 class PyObjectId(ObjectId):
 
@@ -20,46 +21,54 @@ class PyObjectId(ObjectId):
   def __modify_schema__(cls, field_schema):
     field_schema.update(type="string")
 
+
 class MongoBaseModel(BaseModel):
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
   class Config:
     json_encoders = {ObjectId: str}
 
+
 class Author(BaseModel):
-  firstname: str = Field(...)
-  lastname: str = Field(...)
+  firstName: str = Field(...)
+  lastName: str = Field(...)
 
-  @validator('firstname', 'lastname', pre=True, always=True)
+  @validator('firstName', 'lastName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
-  
+
+
 class User(BaseModel):
-  user_id: str = Field(...)
-  firstname: str = Field(...)
-  lastname: str = Field(...)
+  userId: str = Field(...)
+  firstName: str = Field(...)
+  lastName: str = Field(...)
 
-  @validator('user_id', 'firstname', 'lastname', pre=True, always=True)
+  @validator('userId', 'firstName', 'lastName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
+
 
 class Revision(MongoBaseModel):
-  update_data: dict = Field(...)
-  update_user: User = Field(...)
-  update_date: datetime = Field(...)
-  
+  updateData: dict = Field(...)
+  updateUser: User = Field(...)
+  updateDate: datetime = Field(...)
+
+
 # Posts
 # ------------
+
 
 class PostBase(MongoBaseModel):
   title: str = Field(...)
   alias: str = Field(...)
   content: str = Field(...)
-  author: Author = None
-  tags: list = None
-  image: HttpUrl = None
+  author: Optional[Author] = None
+  tags: Optional[list] = Field(default_factory=list)
+  image: Optional[HttpUrl] = None
   published: bool = False
-  legacyId: int = None
+  legacyId: Optional[int] = None
+
+
 """
   @validator('title', 'alias', 'content', pre=True, always=True)
   def validate_null_strings(cls, v, field):
@@ -70,22 +79,23 @@ class PostBase(MongoBaseModel):
     return empty_str_to_none(v, field.name)
 """
 
+
 class PostDB(PostBase):
-  create_date: datetime = None
-  create_user: User = Field(...)
-  update_date: datetime = None
-  update_user: User = None
-  revisions: list[Revision] = []
+  createDate: Optional[datetime] = None
+  createUser: User = Field(...)
+  updateDate: Optional[datetime] = None
+  updateUser: Optional[User] = None
+  revisions: list[Revision] = Field(default_factory=list)
+
 
 class PostUpdate(MongoBaseModel):
   title: Optional[str] = None
   alias: Optional[str] = None
   content: Optional[str] = None
   author: Optional[Author] = None
-  tags: Optional[list] = []
+  tags: Optional[list] = Field(default_factory=list)
   image: Optional[HttpUrl] = None
   published: Optional[bool] = None
-
   """
   @validator('title', 'alias', 'content', pre=True, always=True)
   def validate_null_strings(cls, v, field):

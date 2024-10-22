@@ -2,7 +2,7 @@ from bson import ObjectId
 from datetime import datetime
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List, Dict
-from utils import prevent_empty_str, validate_dict_of_strings, validate_match_seconds
+from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 from models.assignments import Referee
 #from models.clubs import TeamBase
 
@@ -33,9 +33,11 @@ class MongoBaseModel(BaseModel):
 
 # --- sub documents without _id
 
+
 class KeyValue(BaseModel):
   key: str = Field(...)
   value: str = Field(...)
+
 
 class MatchTournament(BaseModel):
   name: str = Field(...)
@@ -58,7 +60,7 @@ class MatchMatchday(BaseModel):
 
 
 class EventPlayer(BaseModel):
-  player_id: str = Field(...)
+  playerId: str = Field(...)
   firstName: str = Field(...)
   lastName: str = Field(...)
   jerseyNumber: int = 0
@@ -75,16 +77,16 @@ class RosterPlayer(BaseModel):
 
 
 class ScoresBase(MongoBaseModel):
-  matchSeconds: str = Field(...)
+  matchTime: str = Field(...)
   goalPlayer: EventPlayer = Field(...)
-  assistPlayer: EventPlayer = None
+  assistPlayer: Optional[EventPlayer] = None
   isPPG: bool = False
   isSHG: bool = False
   isGWG: bool = False
 
-  @validator('matchSeconds', pre=True, always=True)
-  def validate_match_seconds(cls, v, field):
-    return validate_match_seconds(v, field.name)
+  @validator('matchTime', pre=True, always=True)
+  def validate_match_time(cls, v, field):
+    return validate_match_time(v, field.name)
 
 
 class ScoresDB(ScoresBase):
@@ -92,21 +94,21 @@ class ScoresDB(ScoresBase):
 
 
 class ScoresUpdate(MongoBaseModel):
-  matchSeconds: Optional[str] = "00:00"
-  goalPlayer: Optional[EventPlayer] = {}
+  matchTime: Optional[str] = "00:00"
+  goalPlayer: Optional[EventPlayer] = Field(default_factory=dict)
   assistPlayer: Optional[EventPlayer] = None
   isPPG: Optional[bool] = False
   isSHG: Optional[bool] = False
   isGWG: Optional[bool] = False
 
-  @validator('matchSeconds', pre=True, always=True)
-  def validate_match_seconds(cls, v, field):
-    return validate_match_seconds(v, field.name)
+  @validator('matchTime', pre=True, always=True)
+  def validate_match_time(cls, v, field):
+    return validate_match_time(v, field.name)
 
 
 class PenaltiesBase(MongoBaseModel):
-  matchSecondsStart: str = Field(...)
-  matchSecondsEnd: str = None
+  matchTimeStart: str = Field(...)
+  matchTimeEnd: Optional[str] = None
   penaltyPlayer: EventPlayer = Field(...)
   penaltyCode: Dict[str, str] = Field(...)
   penaltyMinutes: int = Field(...)
@@ -117,11 +119,11 @@ class PenaltiesBase(MongoBaseModel):
   def validate_type(cls, v, field):
     return validate_dict_of_strings(v, field.name)
 
-  @validator('matchSecondsStart', 'matchSecondsEnd', pre=True, always=True)
-  def validate_match_seconds(cls, v, field):
-    if field.name == 'matchSecondsEnd' and v is None:
+  @validator('matchTimeStart', 'matchTimeEnd', pre=True, always=True)
+  def validate_match_time(cls, v, field):
+    if field.name == 'matchTimeEnd' and v is None:
       return None
-    return validate_match_seconds(v, field.name)
+    return validate_match_time(v, field.name)
 
 
 class PenaltiesDB(PenaltiesBase):
@@ -129,23 +131,25 @@ class PenaltiesDB(PenaltiesBase):
 
 
 class PenaltiesUpdate(MongoBaseModel):
-  matchSecondsStart: Optional[str] = "00:00"
-  matchSecondsEnd: Optional[str] = None
-  penaltyPlayer: Optional[EventPlayer] = {}
-  penaltyCode: Optional[Dict[str, str]] = {}
+  matchTimeStart: Optional[str] = "00:00"
+  matchTimeEnd: Optional[str] = None
+  penaltyPlayer: Optional[EventPlayer] = Field(default_factory=dict)
+  penaltyCode: Optional[Dict[str, str]] = Field(default_factory=dict)
   penaltyMinutes: Optional[int] = 0
   isGM: Optional[bool] = False
   isMP: Optional[bool] = False
 
   @validator('penaltyCode', pre=True, always=True)
   def validate_type(cls, v, field):
+    if v is None:
+      return v
     return validate_dict_of_strings(v, field.name)
 
-  @validator('matchSecondsStart', 'matchSecondsEnd', pre=True, always=True)
-  def validate_match_seconds(cls, v, field):
-    if field.name == 'matchSecondsEnd' and v is None:
+  @validator('matchTimeStart', 'matchTimeEnd', pre=True, always=True)
+  def validate_match_time(cls, v, field):
+    if field.name == 'matchTimeEnd' and v is None:
       return None
-    return validate_match_seconds(v, field.name)
+    return validate_match_time(v, field.name)
 
 
 class MatchStats(BaseModel):
@@ -177,20 +181,26 @@ class MatchStatsUpdate(BaseModel):
 
 
 class MatchTeam(BaseModel):
-  clubAlias: str = None
+  clubAlias: Optional[str] = None
   teamAlias: str = Field(...)
   #teamId: str = None
   name: str = Field(...)
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
-  logo: HttpUrl = None
-  roster: List[RosterPlayer] = []
-  scores: List[ScoresBase] = []
-  penalties: List[PenaltiesBase] = []
-  stats: MatchStats = {}
+  logo: Optional[HttpUrl] = None
+  roster: Optional[List[RosterPlayer]] = Field(default_factory=list)
+  scores: Optional[List[ScoresBase]] = Field(default_factory=list)
+  penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
+  stats: Optional[MatchStats] = Field(default_factory=dict)
 
-  @validator('teamAlias', 'name', 'fullName', 'shortName', 'tinyName', pre=True, always=True)
+  @validator('teamAlias',
+             'name',
+             'fullName',
+             'shortName',
+             'tinyName',
+             pre=True,
+             always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
@@ -204,37 +214,47 @@ class MatchTeamUpdate(BaseModel):
   shortName: Optional[str] = "DEFAULT"
   tinyName: Optional[str] = "DEFAULT"
   logo: Optional[HttpUrl] = None
-  roster: Optional[List[RosterPlayer]] = []
-  scores: Optional[List[ScoresBase]] = []
-  penalties: Optional[List[PenaltiesBase]] = []
-  stats: Optional[MatchStats] = {}
+  roster: Optional[List[RosterPlayer]] = Field(default_factory=list)
+  scores: Optional[List[ScoresBase]] = Field(default_factory=list)
+  penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
+  stats: Optional[MatchStats] = Field(default_factory=dict)
 
-  @validator('teamAlias', 'name', 'fullName', 'shortName', 'tinyName', pre=True, always=True)
+  @validator('teamAlias',
+             'name',
+             'fullName',
+             'shortName',
+             'tinyName',
+             pre=True,
+             always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
+
 class MatchVenue(BaseModel):
-  venue_id: str = None
+  venueId: Optional[str] = None
   name: str = Field(...)
   alias: str = Field(...)
+
 
 # --- main document
 
 
 class MatchBase(MongoBaseModel):
   matchId: int = 0
-  tournament: MatchTournament = None
-  season: MatchSeason = None
-  round: MatchRound = None
-  matchday: MatchMatchday = None
-  home: MatchTeam = None
-  away: MatchTeam = None
-  referee1: Referee = None
-  referee2: Referee = None
-  matchStatus: KeyValue = Field(default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
-  finishType: KeyValue = Field(default_factory=lambda: KeyValue(key='REGULAR', value='Regulär'))
-  venue: MatchVenue = None
-  startDate: datetime = None
+  tournament: Optional[MatchTournament] = None
+  season: Optional[MatchSeason] = None
+  round: Optional[MatchRound] = None
+  matchday: Optional[MatchMatchday] = None
+  home: Optional[MatchTeam] = None
+  away: Optional[MatchTeam] = None
+  referee1: Optional[Referee] = None
+  referee2: Optional[Referee] = None
+  matchStatus: KeyValue = Field(
+      default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
+  finishType: KeyValue = Field(
+      default_factory=lambda: KeyValue(key='REGULAR', value='Regulär'))
+  venue: Optional[MatchVenue] = None
+  startDate: Optional[datetime] = None
   published: bool = False
 
   ##@validator('matchStatus', pre=True, always=True)
@@ -256,8 +276,8 @@ class MatchUpdate(MongoBaseModel):
   away: Optional[MatchTeamUpdate] = None
   referee1: Optional[Referee] = None
   referee2: Optional[Referee] = None
-  matchStatus: Optional[KeyValue] = {}
-  finishType: Optional[KeyValue] = {}
+  matchStatus: Optional[KeyValue] = Field(default_factory=dict)
+  finishType: Optional[KeyValue] = Field(default_factory=dict)
   venue: Optional[MatchVenue] = None
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
