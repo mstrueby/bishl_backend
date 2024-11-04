@@ -50,17 +50,21 @@ async def delete_from_cloudinary(image_url: str):
       return result
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
-  
+
 
 # list all posts
 @router.get("/",
             response_description="List all posts",
             response_model=List[PostDB])
-async def get_posts(request: Request) -> JSONResponse:
+async def get_posts(request: Request,
+                    featured: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  query = {}
-  posts = await mongodb["posts"].find(query).sort("createDate",
-                                                  -1).to_list(100)
+  query = {"deleted": False}
+  if featured is not None:
+    query["featured"] = featured
+  print("xxx query:", query)
+  posts = await mongodb["posts"].find(query).sort([("updateDate", -1)]
+                                                  ).to_list(100)
   result = [PostDB(**raw_post) for raw_post in posts]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(result))
@@ -89,6 +93,10 @@ async def create_post(
     alias: str = Form(...),
     author: str = Form(None),  # JSON String
     published: bool = Form(False),
+    featured: bool = Form(False),
+    deleted: bool = Form(False),
+    publishDateFrom: Optional[datetime] = Form(None),
+    publishDateTo: Optional[datetime] = Form(None),
     legacyId: int = Form(None),
     image: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
@@ -103,6 +111,9 @@ async def create_post(
       alias=alias,
       content=content,
       author=json.loads(author) if author else None,
+      published=published,
+      featured=featured,
+      deleted=deleted,
   )
   post_data = jsonable_encoder(post)
 
@@ -113,8 +124,10 @@ async def create_post(
       "firstName": token_payload.firstName,
       "lastName": token_payload.lastName
   }
-  post_data['updateUser'] = None
-  post_data['updateDate'] = None
+  post_data['updateUser'] = post_data['createUser']
+  post_data['updateDate'] = post_data['createDate']
+  post_data['publishDateFrom'] = publishDateFrom
+  post_data['publishDateTo'] = publishDateTo
 
   # Handle image upload
   post_data['image'] = await handle_image_upload(image, post_data["_id"])
@@ -167,6 +180,10 @@ async def update_post(
     content: Optional[str] = Form(None),
     author: Optional[str] = Form(None),
     published: Optional[bool] = Form(None),
+    featured: Optional[bool] = Form(None),
+    deleted: Optional[bool] = Form(None),
+    publishDateFrom: Optional[datetime] = Form(None),
+    publishDateTo: Optional[datetime] = Form(None),
     image: Optional[UploadFile] = File(None),
     imageUrl: Optional[str] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
@@ -188,6 +205,8 @@ async def update_post(
         content=content,
         author=json.loads(author) if author else None,
         published=published,
+        featured=featured,
+        deleted=deleted,
     ).dict(exclude_none=True)
   except ValueError as e:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -199,6 +218,9 @@ async def update_post(
       "firstName": token_payload.firstName,
       "lastName": token_payload.lastName
   }
+
+  post_data['publishDateFrom'] = publishDateFrom
+  post_data['publishDateTo'] = publishDateTo
 
   # Handle image upload
   if image:

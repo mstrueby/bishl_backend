@@ -66,6 +66,10 @@ class PostBase(MongoBaseModel):
   tags: Optional[list] = Field(default_factory=list)
   image: Optional[HttpUrl] = None
   published: bool = False
+  featured: bool = False
+  deleted: bool = False
+  publishDateFrom: Optional[datetime] = None
+  publishDateTo: Optional[datetime] = None
   legacyId: Optional[int] = None
 
 
@@ -96,6 +100,10 @@ class PostUpdate(MongoBaseModel):
   tags: Optional[list] = Field(default_factory=list)
   image: Optional[HttpUrl] = None
   published: Optional[bool] = None
+  featured: Optional[bool] = None
+  deleted: Optional[bool] = None
+  publishDateFrom: Optional[datetime] = None
+  publishDateTo: Optional[datetime] = None
   """
   @validator('title', 'alias', 'content', pre=True, always=True)
   def validate_null_strings(cls, v, field):
