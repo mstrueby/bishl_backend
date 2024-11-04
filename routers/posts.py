@@ -35,8 +35,6 @@ async def handle_image_upload(image: UploadFile, public_id: str) -> str:
     )
     print(f"Post Image uploaded: {result['url']}")
     return result['url']
-  raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                      detail="No image uploaded")
 
 
 # Helper function to delete file from Cloudinary
@@ -130,7 +128,8 @@ async def create_post(
   post_data['publishDateTo'] = publishDateTo
 
   # Handle image upload
-  post_data['image'] = await handle_image_upload(image, post_data["_id"])
+  if image:
+    post_data['image'] = await handle_image_upload(image, post_data["_id"])
 
   # set author
   if post_data['author'] is None:
