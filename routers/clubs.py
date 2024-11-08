@@ -60,20 +60,20 @@ async def delete_from_cloudinary(logo_url: str):
             response_model=List[ClubDB])
 async def list_clubs(
     request: Request,
-    # active: bool=True,
+    active: Optional[bool] = None,  # Added active parameter
     page: int = 1,
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
-  # query = {"active":active}
   query = {}
+  if active is not None:  # Filter by active if provided
+    query["active"] = active
   full_query = await mongodb["clubs"].find(query).sort(
       "name", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(length=None)
   clubs = [ClubDB(**raw_club) for raw_club in full_query]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(clubs))
-
 
 # get club by Alias
 @router.get("/{alias}",
