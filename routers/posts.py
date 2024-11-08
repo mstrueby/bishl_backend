@@ -10,13 +10,15 @@ from authentication import AuthHandler, TokenPayload
 from datetime import datetime
 import cloudinary
 import cloudinary.uploader
+import os
 
 router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
 
+DEBUG_LEVEL = int(os.environ['DEBUG_LEVEL'])
 
-async def handle_image_upload(image: UploadFile, public_id: str) -> str:
+async def handle_image_upload(image: UploadFile, public_id: str):
   if image:
     result = cloudinary.uploader.upload(
         image.file,
@@ -60,7 +62,8 @@ async def get_posts(request: Request,
   query = {"deleted": False}
   if featured is not None:
     query["featured"] = featured
-  print("xxx query:", query)
+  if DEBUG_LEVEL>0:
+    print("xxx query:", query)
   posts = await mongodb["posts"].find(query).sort([("updateDate", -1)]
                                                   ).to_list(100)
   result = [PostDB(**raw_post) for raw_post in posts]
@@ -129,7 +132,7 @@ async def create_post(
 
   # Handle image upload
   if image:
-    post_data['image'] = await handle_image_upload(image, post_data["_id"])
+    post_data['imageUrl'] = await handle_image_upload(image, post_data["_id"])
 
   # set author
   if post_data['author'] is None:
@@ -223,12 +226,12 @@ async def update_post(
 
   # Handle image upload
   if image:
-    post_data['image'] = await handle_image_upload(image, id)
+    post_data['imageUrl'] = await handle_image_upload(image, id)
   elif imageUrl:
-    post_data['image'] = imageUrl
-  elif existing_post['image']:
-    await delete_from_cloudinary(existing_post['image'])
-    post_data['image'] = None
+    post_data['imageUrl'] = imageUrl
+  elif existing_post['imageUrl']:
+    await delete_from_cloudinary(existing_post['imageUrl'])
+    post_data['imageUrl'] = None
 
   print("post_data", post_data)
 
@@ -292,7 +295,7 @@ async def delete_post(
                         detail=f"Post with alias {alias} not found")
   result = await mongodb["posts"].delete_one({"alias": alias})
   if result.deleted_count == 1:
-    await delete_from_cloudinary(existing_post['image'])
+    await delete_from_cloudinary(existing_post['imageUrl'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                       detail=f"Post with alias {alias} not found")

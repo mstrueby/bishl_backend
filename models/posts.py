@@ -64,7 +64,7 @@ class PostBase(MongoBaseModel):
   content: str = Field(...)
   author: Optional[Author] = None
   tags: Optional[list] = Field(default_factory=list)
-  image: Optional[HttpUrl] = None
+  imageUrl: Optional[HttpUrl] = None
   published: bool = False
   featured: bool = False
   deleted: bool = False
@@ -78,7 +78,7 @@ class PostBase(MongoBaseModel):
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
-  @validator('image', pre=True, always=True)
+  @validator('imageUrl', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
 """
@@ -98,7 +98,7 @@ class PostUpdate(MongoBaseModel):
   content: Optional[str] = None
   author: Optional[Author] = None
   tags: Optional[list] = Field(default_factory=list)
-  image: Optional[HttpUrl] = None
+  imageUrl: Optional[HttpUrl] = None
   published: Optional[bool] = None
   featured: Optional[bool] = None
   deleted: Optional[bool] = None
@@ -109,7 +109,7 @@ class PostUpdate(MongoBaseModel):
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
-  @validator('image', pre=True, always=True)
+  @validator('imageUrl', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
   """
