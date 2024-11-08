@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
@@ -17,21 +17,21 @@ auth = AuthHandler()
             response_model=List[VenueDB])
 async def list_venues(
     request: Request,
-    # active: bool=True,
+    active: Optional[bool] = None,
     page: int = 1,
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
-  # query = {"active":active}
   query = {}
+  if active is not None:
+    query['active'] = active
   full_query = await mongodb["venues"].find(query).sort(
       "name", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(length=None)
   venues = [VenueDB(**raw_venue) for raw_venue in full_query]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(venues))
-
-
+  
 # get venue by Alias
 @router.get("/{alias}",
             response_description="Get a single venue",

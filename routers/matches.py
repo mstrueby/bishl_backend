@@ -115,7 +115,8 @@ async def list_matches(request: Request,
     except Exception as e:
       raise HTTPException(status_code=400,
                           detail=f"Invalid date format: {str(e)}")
-  print("query: ", query)
+  if DEBUG_LEVEL> 10:
+    print("query: ", query)
   matches = await mongodb["matches"].find(query).to_list(None)
   results = [MatchDB(**match) for match in matches]
   return JSONResponse(status_code=status.HTTP_200_OK,
