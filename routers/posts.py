@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, D
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
+
+from pydantic import HttpUrl
 from models.posts import PostBase, PostDB, PostUpdate, Revision, User
 from typing import List, Optional
 from routers.users import update_user
@@ -17,6 +19,7 @@ auth = AuthHandler()
 configure_cloudinary()
 
 DEBUG_LEVEL = int(os.environ['DEBUG_LEVEL'])
+
 
 async def handle_image_upload(image: UploadFile, public_id: str):
   if image:
@@ -62,7 +65,7 @@ async def get_posts(request: Request,
   query = {"deleted": False}
   if featured is not None:
     query["featured"] = featured
-  if DEBUG_LEVEL>0:
+  if DEBUG_LEVEL > 0:
     print("xxx query:", query)
   posts = await mongodb["posts"].find(query).sort([("updateDate", -1)]
                                                   ).to_list(100)
@@ -187,7 +190,7 @@ async def update_post(
     publishDateFrom: Optional[datetime] = Form(None),
     publishDateTo: Optional[datetime] = Form(None),
     image: Optional[UploadFile] = File(None),
-    imageUrl: Optional[str] = Form(None),
+    imageUrl: Optional[HttpUrl] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb
@@ -231,6 +234,8 @@ async def update_post(
     post_data['imageUrl'] = imageUrl
   elif existing_post['imageUrl']:
     await delete_from_cloudinary(existing_post['imageUrl'])
+    post_data['imageUrl'] = None
+  else:
     post_data['imageUrl'] = None
 
   print("post_data", post_data)
