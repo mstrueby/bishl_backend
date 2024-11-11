@@ -60,20 +60,23 @@ async def delete_from_cloudinary(image_url: str):
             response_description="List all posts",
             response_model=List[PostDB])
 async def get_posts(request: Request,
-                    featured: Optional[bool] = None) -> JSONResponse:
+                    featured: Optional[bool] = None,
+                    published: Optional[bool] = None,
+                    limit: int = 25) -> JSONResponse:
   mongodb = request.app.state.mongodb
   query = {"deleted": False}
   if featured is not None:
     query["featured"] = featured
+  if published is not None:
+    query["published"] = published
   if DEBUG_LEVEL > 0:
     print("xxx query:", query)
   posts = await mongodb["posts"].find(query).sort([("updateDate", -1)]
-                                                  ).to_list(100)
+                                                  ).to_list(limit)
   result = [PostDB(**raw_post) for raw_post in posts]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(result))
-
-
+  
 # get post by alias
 @router.get("/{alias}",
             response_description="Get post by alias",
