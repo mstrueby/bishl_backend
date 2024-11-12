@@ -138,7 +138,7 @@ async def create_post(
 
   # Handle image upload
   if image:
-    post_data['imageUrl'] = await handle_image_upload(image, post_data["_id"])
+    post_data['imageUrl'] = await handle_image_upload(image, post_data["alias"])
 
   # set author
   if post_data['author'] is None:
@@ -232,7 +232,7 @@ async def update_post(
 
   # Handle image upload
   if image:
-    post_data['imageUrl'] = await handle_image_upload(image, id)
+    post_data['imageUrl'] = await handle_image_upload(image, post_data['alias'])
   elif imageUrl:
     post_data['imageUrl'] = imageUrl
   elif existing_post['imageUrl']:
