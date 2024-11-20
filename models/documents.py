@@ -49,6 +49,7 @@ class DocumentBase(MongoBaseModel):
   fileName: str = Field(...)
   fileType: str = Field(...)
   fileSizeByte: int = Field(...)
+  published: bool = False
 
 
 class DocumentDB(DocumentBase):
@@ -67,3 +68,4 @@ class DocumentUpdate(MongoBaseModel):
   filename: Optional[str] = None
   fileType: Optional[str] = None
   fileSizeByte: Optional[int] = None
+  published: Optional[bool] = None
