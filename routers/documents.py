@@ -278,21 +278,21 @@ async def update_document(request: Request,
 
 
 # delete document
-@router.delete("/{alias}", response_description="Delete an existing document")
+@router.delete("/{id}", response_description="Delete an existing document")
 async def delete_document(
     request: Request,
-    alias: str,
+    id: str,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
   existing_doc = await mongodb['documents'].find_one(
-      {'alias': alias})
+      {'_id': id})
   if not existing_doc:
     raise HTTPException(status_code=404,
-                        detail=f"Document with alias {alias} not found.")
-  result = await mongodb['documents'].delete_one({"alias": alias})
+                        detail=f"Document with id {id} not found.")
+  result = await mongodb['documents'].delete_one({"_id": id})
   if result.deleted_count == 1:
     await delete_from_cloudinary(existing_doc['publicId'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -288,22 +288,22 @@ async def update_post(
 
 
 # delete post
-@router.delete("/{alias}", response_description="Delete post")
+@router.delete("/{id}", response_description="Delete post")
 async def delete_post(
     request: Request,
-    alias: str,
+    id: str,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  existing_post = await mongodb["posts"].find_one({"alias": alias})
+  existing_post = await mongodb["posts"].find_one({"_id": id})
   if not existing_post:
     raise HTTPException(status_code=404,
-                        detail=f"Post with alias {alias} not found")
-  result = await mongodb["posts"].delete_one({"alias": alias})
+                        detail=f"Post with id {id} not found")
+  result = await mongodb["posts"].delete_one({"_id": id})
   if result.deleted_count == 1:
     await delete_from_cloudinary(existing_post['imageUrl'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                      detail=f"Post with alias {alias} not found")
+                      detail=f"Post with id {id} not found")
