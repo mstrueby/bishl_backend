@@ -130,6 +130,7 @@ async def upload_document(
     alias: str = Form(...),
     file: UploadFile = File(...),
     category: str = Form(None),
+    published: bool = Form(False),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
@@ -159,6 +160,7 @@ async def upload_document(
       if file.filename is not None else "default_filename",
       fileType=file.content_type if file.content_type is not None else "",
       fileSizeByte=file.size if file.size is not None else 0,
+      published=published
   )
   if category:
     document.category = category
@@ -206,6 +208,7 @@ async def update_document(request: Request,
                           alias: Optional[str] = Form(None),
                           category: Optional[str] = Form(None),
                           file: UploadFile = File(None),
+                          published: Optional[bool] = Form(None),
                           token_payload: TokenPayload = Depends(
                               auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
@@ -221,6 +224,7 @@ async def update_document(request: Request,
       title=title,
       alias=alias,
       category=category,
+      published=published,
   ).dict(exclude_none=True)
   doc_data.pop("id", None)
   print("doc_data: ", doc_data)
