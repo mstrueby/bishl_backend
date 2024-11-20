@@ -33,7 +33,10 @@ def validate_file_type(file: UploadFile):
   allowed_types = [
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "text/plain",
+      "text/csv"
   ]
   if file.content_type not in allowed_types:
     raise HTTPException(
