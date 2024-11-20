@@ -175,8 +175,8 @@ async def upload_document(
       "firstName": token_payload.firstName,
       "lastName": token_payload.lastName
   }
-  document_data['updateUser'] = None
-  document_data['updateDate'] = None
+  document_data['updateUser'] = document_data['createUser']
+  document_data['updateDate'] = document_data['createDate']
 
   try:
     print("document_data: ", document_data)
