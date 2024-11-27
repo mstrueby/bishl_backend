@@ -35,8 +35,7 @@ def validate_file_type(file: UploadFile):
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "text/plain",
-      "text/csv"
+      "text/plain", "text/csv"
   ]
   if file.content_type not in allowed_types:
     raise HTTPException(
@@ -80,14 +79,18 @@ async def get_categories(request: Request) -> List[str]:
 async def get_documents_by_category(
     request: Request,
     category: str,
-) -> JSONResponse:
+    published: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  documents = await mongodb["documents"].find({
-      "category": {
-          "$regex": f"^{category}$",
-          "$options": "i"
-      }
-  }).to_list(1000)
+  query = {'category': {'$regex': rf'^{category}$', '$options': 'i'}}
+  if published is not None:
+    query = {
+        'category': {
+            '$regex': rf'^{category}$',
+            '$options': 'i'
+        },
+        'published': published
+    }
+  documents = await mongodb["documents"].find(query).to_list(1000)
   documents.sort(key=lambda x: x["title"])
   result = [DocumentDB(**document) for document in documents]
   return JSONResponse(status_code=status.HTTP_200_OK,
@@ -109,19 +112,21 @@ async def get_document(
     raise HTTPException(status_code=404, detail="Document not found")
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(DocumentDB(**document)))
-                      
+
 
 # get list of all documents
 @router.get("/",
             response_model=List[DocumentDB],
             response_description="Get list of all documents")
-async def get_documents(request: Request) -> JSONResponse:
+async def get_documents(request: Request,
+                        published: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  documents = await mongodb["documents"].find().to_list(1000)
+  query = {"published": published} if published is not None else {}
+  documents = await mongodb["documents"].find(query).to_list(1000)
   result = [DocumentDB(**document) for document in documents]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(result))
-  
+
 
 # create/upload new document
 @router.post("/",
@@ -141,8 +146,7 @@ async def upload_document(
     raise HTTPException(status_code=403, detail="Not authorized")
 
   # Check if document already exists in db
-  existing_doc = await mongodb['documents'].find_one(
-      {'title': title})
+  existing_doc = await mongodb['documents'].find_one({'title': title})
   if existing_doc:
     raise HTTPException(status_code=400,
                         detail=f"Document '{title}' already exists.")
@@ -163,8 +167,7 @@ async def upload_document(
       if file.filename is not None else "default_filename",
       fileType=file.content_type if file.content_type is not None else "",
       fileSizeByte=file.size if file.size is not None else 0,
-      published=published
-  )
+      published=published)
   if category:
     document.category = category
   else:
@@ -269,8 +272,7 @@ async def update_document(request: Request,
     update_result = await mongodb['documents'].update_one(
         {'_id': id}, {'$set': doc_to_update}, upsert=False)
     if update_result.modified_count == 1:
-      updated_doc = await mongodb["documents"].find_one(
-          {"_id": id})
+      updated_doc = await mongodb["documents"].find_one({"_id": id})
       return JSONResponse(status_code=status.HTTP_200_OK,
                           content=jsonable_encoder(DocumentDB(**updated_doc)))
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -285,13 +287,11 @@ async def update_document(request: Request,
 async def delete_document(
     request: Request,
     id: str,
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
-) -> Response:
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)) -> Response:
   mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  existing_doc = await mongodb['documents'].find_one(
-      {'_id': id})
+  existing_doc = await mongodb['documents'].find_one({'_id': id})
   if not existing_doc:
     raise HTTPException(status_code=404,
                         detail=f"Document with id {id} not found.")
