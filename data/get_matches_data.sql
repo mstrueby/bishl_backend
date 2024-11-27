@@ -80,7 +80,8 @@ select
       case when g.IsShootout = 1 then 'Penaltyschießen' else 'Regulär' end
     end
   ) as finishType,
-  g.startdate as startDate,
+  --g.startdate as startDate,
+  DATE_ADD(g.startdate, INTERVAL 7 MONTH) as startDate,
   'True' as published,
   case when g.id_fk_referee1 > 0 then
     json_object(
@@ -116,9 +117,11 @@ left join tblclub as r1c on r1.id_fk_Club=r1c.id_tblClub
 left join tblofficial as r2 on g.id_fk_Referee2=r2.id_tblOfficial
 left join tblclub as r2c on r2.id_fk_Club=r2c.id_tblClub
 where g.SeasonYear not in (2020,2021)
-  and g.SeasonYear <= 2023
-  and g.id_fk_gamestatus in (2,4)
-  and cs.id_tblchampionship not in (46,34,2,32,8,13,33,4,5)
+  -- and g.SeasonYear <= 2023
+  -- and cs.id_tblchampionship not in (46,34,2,32,8,13,33,4,5)
+  and g.SeasonYear = 2024
+  and cs.id_tblchampionship = 27
+and g.id_fk_gamestatus in (2,4)
   and cs.isextern=0
 order by cs.py_t_alias, g.SeasonYear, g.Round, g.MatchDay, g.StartDate
 
@@ -748,3 +751,17 @@ WHERE 1=1
   and g.id_fk_Championship not in (46,34,2,32,8,13,33,4,5)
   and g.id_fk_gamestatus in (2,4)
   and cs.isExtern=0
+
+
+
+-- fix tblteamseason
+-- check
+SELECT ts.name, t.name as t_name, ts.shortname, t.ShortName as t_shortname, ts.tinyname,t.tinyName as t_tinyname, ts.py_logo, ts.py_team_id,
+t.py_team_id, t.py_logo, t.py_alias FROM `tblteamseason` ts
+join tblteam t on ts.id_fk_team=t.id_tblTeam
+where ts.SeasonYear=2024
+
+UPDATE tblteamseason ts
+inner join tblteam t ON ts.id_fk_team=t.id_tblTeam
+SET ts.tinyName=t.tinyName, ts.py_team_id=t.py_team_id, ts.py_logo=t.py_logo
+WHERE ts.seasonYear=2024;
