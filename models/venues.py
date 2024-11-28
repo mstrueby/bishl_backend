@@ -41,15 +41,18 @@ class VenueBase(MongoBaseModel):
   country: str = Field(...)
   latitude: str = Field(...)
   longitude: str = Field(...)
-  image: Optional[HttpUrl] = None
+  imageUrl: Optional[HttpUrl] = None
   description: Optional[str] = None
   active: bool = False
   legacyId: Optional[int] = None
 
+  """
   @validator('image', 'description', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
+  """
 
+  """
   @validator('name',
              'alias',
              'shortName',
@@ -65,6 +68,7 @@ class VenueBase(MongoBaseModel):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
+  """
 
 
 class VenueDB(VenueBase):
@@ -81,10 +85,11 @@ class VenueUpdate(MongoBaseModel):
   country: Optional[str] = "DEFAULT"
   latitude: Optional[str] = "DEFAULT"
   longitude: Optional[str] = "DEFAULT"
-  image: Optional[str] = None
+  imageUrl: Optional[HttpUrl] = None
   description: Optional[str] = None
   active: Optional[bool] = False
 
+  """
   @validator('image', 'description', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
@@ -104,3 +109,4 @@ class VenueUpdate(MongoBaseModel):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
     return v
+  """
