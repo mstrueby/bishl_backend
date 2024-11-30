@@ -129,7 +129,8 @@ async def create_club(
   )
   club_data = jsonable_encoder(club)
 
-  club_data['logo'] = await handle_logo_upload(logo, alias)
+  if logo:
+    club_data['logo'] = await handle_logo_upload(logo, alias)
 
   # insert club
   try:
