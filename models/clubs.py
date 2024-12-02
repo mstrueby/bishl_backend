@@ -125,13 +125,13 @@ class ClubBase(MongoBaseModel):
   active: Optional[bool] = False
   teams: Optional[List[TeamBase]] = Field(default_factory=list)
   legacyId: Optional[int] = None
-  logo: Optional[HttpUrl] = None
+  logoUrl: Optional[HttpUrl] = None
 
   @validator('email',
              'website',
              'yearOfFoundation',
              'ishdId',
-             'logo',
+             'logoUrl',
              pre=True,
              always=True)
   def empty_str_to_none(cls, v):
@@ -166,9 +166,9 @@ class ClubUpdate(MongoBaseModel):
   active: Optional[bool] = None
   teams: Optional[List[TeamBase]] = Field(default_factory=list)
   legacyId: Optional[int] = None
-  logo: Optional[str] = None
+  logoUrl: Optional[str] = None
 
-  @validator('email', 'website', 'logo', pre=True, always=True)
+  @validator('email', 'website', 'logoUrl', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 

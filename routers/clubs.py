@@ -44,14 +44,15 @@ async def handle_logo_upload(logo: UploadFile, alias: str) -> str:
 
 # Helper function to delete file from Cloudinary
 async def delete_from_cloudinary(logo_url: str):
-  try:
-    public_id = logo_url.rsplit('/', 1)[-1].split('.')[0]
-    result = cloudinary.uploader.destroy(f"logos/{public_id}")
-    print("Document deleted from Cloudinary:", f"logos/{public_id}")
-    print("Result:", result)
-    return result
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+  if logo_url:
+    try:
+      public_id = logo_url.rsplit('/', 1)[-1].split('.')[0]
+      result = cloudinary.uploader.destroy(f"logos/{public_id}")
+      print("Document deleted from Cloudinary:", f"logos/{public_id}")
+      print("Result:", result)
+      return result
+    except Exception as e:
+      raise HTTPException(status_code=500, detail=str(e))
 
 
 # list all clubs
@@ -74,6 +75,7 @@ async def list_clubs(
   clubs = [ClubDB(**raw_club) for raw_club in full_query]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(clubs))
+
 
 # get club by Alias
 @router.get("/{alias}",
@@ -130,7 +132,7 @@ async def create_club(
   club_data = jsonable_encoder(club)
 
   if logo:
-    club_data['logo'] = await handle_logo_upload(logo, alias)
+    club_data['logoUrl'] = await handle_logo_upload(logo, alias)
 
   # insert club
   try:
@@ -173,7 +175,7 @@ async def update_club(
     ishdId: Optional[int] = Form(None),
     active: Optional[bool] = Form(None),
     logo: Optional[UploadFile] = File(None),
-    logoUrl: Optional[str] = Form(None),
+    logoUrl: Optional[HttpUrl] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb
@@ -203,12 +205,13 @@ async def update_club(
 
   # handle image upload
   if logo:
-    club_data['logo'] = await handle_logo_upload(logo, existing_club['alias'])
+    club_data['logoUrl'] = await handle_logo_upload(logo,
+                                                    existing_club['alias'])
   elif logoUrl:
-    club_data['logo'] = logoUrl
-  elif existing_club['logo']:
-    await delete_from_cloudinary(existing_club['logo'])
-    club_data['logo'] = None
+    club_data['logoUrl'] = logoUrl
+  elif existing_club['logoUrl']:
+    await delete_from_cloudinary(existing_club['logoUrl'])
+    club_data['logoUrl'] = None
 
   print("club_data: ", club_data)
 
@@ -242,22 +245,22 @@ async def update_club(
 
 
 # Delete club
-@router.delete("/{alias}", response_description="Delete club")
+@router.delete("/{id}", response_description="Delete club")
 async def delete_club(
     request: Request,
-    alias: str,
+    id: str,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
   mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
-  existing_club = await mongodb["clubs"].find_one({"alias": alias})
+  existing_club = await mongodb["clubs"].find_one({"_id": id})
   if not existing_club:
     raise HTTPException(status_code=404,
-                        detail=f"Club with alias {alias} not found")
-  result = await mongodb['clubs'].delete_one({"alias": alias})
+                        detail=f"Club with id {id} not found")
+  result = await mongodb['clubs'].delete_one({"_id": id})
   if result.deleted_count == 1:
-    await delete_from_cloudinary(existing_club['logo'])
+    await delete_from_cloudinary(existing_club['logoUrl'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=404,
-                      detail=f"Club with alias {alias} not found")
+                      detail=f"Club with id {id} not found")
