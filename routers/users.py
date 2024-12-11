@@ -5,6 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import os
 import httpx
+from models.assignments import AssignmentDB
 from models.users import UserBase, LoginBase, CurrentUser, UserUpdate
 from models.matches import MatchDB
 from authentication import AuthHandler, TokenPayload
@@ -159,3 +160,29 @@ async def get_assigned_matches(
     # Parse matches into a list of MatchDB objects
     matches_list = [MatchDB(**match) for match in response.json()]
     return JSONResponse(status_code=status.HTTP_200_OK, content=matches_list)
+
+
+@router.get("/assignments",
+            response_description="All assignments by me",
+            response_model=List[AssignmentDB])
+async def get_assignments(
+    request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  user_id = token_payload.sub
+  user = await mongodb["users"].find_one({"_id": user_id})
+  if not user:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail="User not found")
+  if "REFEREE" not in user["roles"]:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="User is not a referee")
+
+  # Fetch assignments assigned to me using the GET endpoint
+  async with httpx.AsyncClient() as client:
+    response = await client.get(f"{BASE_URL}/assignments/?referee={user_id}")
+    print("response", response)
+    # Parse assignments into a list of AssignmentDB objects
+    assignments_list = [AssignmentDB(**assignment) for assignment in response.json()]
+    return JSONResponse(status_code=status.HTTP_200_OK, content=assignments_list)
+    

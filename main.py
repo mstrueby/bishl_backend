@@ -84,7 +84,7 @@ app.include_router(
 
 app.include_router(matches_router, prefix="/matches", tags=["matches"])
 app.include_router(assignments_router,
-                   prefix="/matches/{match_id}/assignments",
+                   prefix="/assignments",
                    tags=["assignments"])
 app.include_router(roster_router,
                    prefix="/matches/{match_id}/{team_flag}/roster",

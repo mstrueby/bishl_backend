@@ -46,6 +46,7 @@ class Referee(BaseModel):
 
 
 class AssignmentBase(MongoBaseModel):
+  matchId: str = Field(...)
   status: Status = Field(...)
   userId: Optional[str] = None
   refAdmin: bool = False
