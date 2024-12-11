@@ -74,7 +74,7 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
   return MatchDB(**match)
 
 
-# get all matches --> will be not implemented
+# get matches
 @router.get("/",
             response_model=List[MatchDB],
             response_description="List all matches")

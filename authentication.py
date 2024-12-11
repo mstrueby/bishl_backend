@@ -47,8 +47,8 @@ class AuthHandler:
                           roles=payload["roles"],
                           firstName=payload.get("firstName"),
                           lastName=payload.get("lastName"),
-                          club_id=payload.get("club_id"),
-                          club_name=payload.get("club_name"))
+                          clubId=payload.get("clubId"),
+                          clubName=payload.get("clubName"))
     except jwt.ExpiredSignatureError:
       raise HTTPException(status_code=401, detail="Signature has expired")
     except jwt.InvalidTokenError:
@@ -66,11 +66,11 @@ class TokenPayload:
                roles: list,
                firstName: Optional[str] = None,
                lastName: Optional[str] = None,
-               club_id: Optional[str] = None,
-               club_name: Optional[str] = None):
+               clubId: Optional[str] = None,
+               clubName: Optional[str] = None):
     self.sub = sub
     self.roles = roles
     self.firstName = firstName
     self.lastName = lastName
-    self.club_id = club_id
-    self.club_name = club_name
+    self.clubId = clubId
+    self.clubName = clubName
