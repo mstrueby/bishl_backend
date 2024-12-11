@@ -96,9 +96,9 @@ async def list_matches(request: Request,
     query["matchday.alias"] = matchday
   if referee:
     query["$or"] = [{
-        "referee1.user_id": referee
+        "referee1.userId": referee
     }, {
-        "referee2.user_id": referee
+        "referee2.userId": referee
     }]
   if date_from or date_to:
     date_query = {}
