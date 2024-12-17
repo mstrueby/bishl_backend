@@ -130,7 +130,7 @@ async def get_assignments_by_match(
 # GET all assignments of ONE user ======
 @router.get("/users/{user_id}",
             response_description="List all assignments of a specific user",
-           response_model=AssignmentDB)
+            response_model=AssignmentDB)
 async def get_assignments_by_user(
         request: Request,
         user_id: str = Path(..., description="User ID"),
@@ -144,10 +144,12 @@ async def get_assignments_by_user(
     assignments = await mongodb["assignments"].find({
         "referee.userId": user_id
     }).to_list(length=None)
-    
-    assignments_list = [AssignmentDB(**assignment) for assignment in assignments]
-    return JSONResponse(content=jsonable_encoder(assignments_list), status_code=200)
-        
+
+    assignments_list = [
+        AssignmentDB(**assignment) for assignment in assignments
+    ]
+    return JSONResponse(content=jsonable_encoder(assignments_list),
+                        status_code=200)
 
 
 # POST =====================================================================
@@ -181,7 +183,7 @@ async def create_assignment(
         # check if assignment_data.userId exists
         ref_id = assignment_data.userId
         if not ref_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="User ID for referee is required")
         # check if really ref_admin
         if ref_admin and 'REF_ADMIN' not in token_payload.roles:
@@ -336,7 +338,6 @@ async def update_assignment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Match with id {match_id} not found")
 
-
     # check if match equals match_id of assignement
     if assignment["matchId"] != match_id:
         raise HTTPException(
@@ -442,6 +443,7 @@ async def update_assignment(
         print("update_data", update_data)
         if not update_data:
             print("no update")
+            return Response(status_code=status.HTTP_304_NOT_MODIFIED)
         elif update_data.get("status") and (
                 assignment['status'] == Status.unavailable
                 and update_data["status"] == Status.requested) or (
