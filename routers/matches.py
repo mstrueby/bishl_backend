@@ -85,7 +85,8 @@ async def list_matches(request: Request,
                        matchday: Optional[str] = None,
                        date_from: Optional[str] = None,
                        date_to: Optional[str] = None,
-                       referee: Optional[str] = None) -> JSONResponse:
+                       referee: Optional[str] = None,
+                       assigned: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
   query = {"season.alias": season if season else os.environ['CURRENT_SEASON']}
   if tournament:
@@ -100,6 +101,12 @@ async def list_matches(request: Request,
     }, {
         "referee2.userId": referee
     }]
+  if assigned is not None:
+    if not assigned:  # assigned == False
+      query["$and"] = [{"referee1.userId": {"$exists": False}}, {"referee2.userId": {"$exists": False}}]
+    elif assigned:  # assigned == True
+      query["$or"] = [{"referee1.userId": {"$exists": True}}, {"referee2.userId": {"$exists": True}}]
+      
   if date_from or date_to:
     date_query = {}
     try:
@@ -115,14 +122,12 @@ async def list_matches(request: Request,
     except Exception as e:
       raise HTTPException(status_code=400,
                           detail=f"Invalid date format: {str(e)}")
-  if DEBUG_LEVEL> 10:
+  if DEBUG_LEVEL > 10:
     print("query: ", query)
   matches = await mongodb["matches"].find(query).to_list(None)
   results = [MatchDB(**match) for match in matches]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
-
-
 # get one match by id
 @router.get("/{match_id}",
             response_description="Get one match by id",
