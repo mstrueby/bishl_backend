@@ -10,7 +10,7 @@ import httpx
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = f"https://{os.environ['BE_API_URL']}" if not os.environ['BE_API_URL'].startswith(('http://', 'https://')) else os.environ['BE_API_URL']
+BASE_URL = f"http://0.0.0.0:8080" if os.environ.get('REPLIT_DEPLOYMENT') else (f"https://{os.environ['BE_API_URL']}" if not os.environ['BE_API_URL'].startswith(('http://', 'https://')) else os.environ['BE_API_URL'])
 
 
 async def insert_assignment(db, match_id, referee, status, position=None):
