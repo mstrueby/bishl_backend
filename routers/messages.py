@@ -11,7 +11,6 @@ from datetime import datetime
 router = APIRouter()
 auth = AuthHandler()
 
-
 # Send a message
 @router.post('/',
              response_description="Send a message",
@@ -22,9 +21,7 @@ async def send_message(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb
-  print("message", message)
   message_data = jsonable_encoder(message)
-  print("message_data", message_data)
   message_data["timestamp"] = datetime.now()
   message_data["sender"] = {}
   message_data["sender"]["userId"] = token_payload.sub
@@ -117,8 +114,8 @@ async def get_chat_with_user(
 ):
   mongodb = request.app.state.mongodb
   user_id = token_payload.sub
-  print("user_id", user_id)
-  print("other_user_id", other_user_id)
+  #print("user_id", user_id)
+  #print("other_user_id", other_user_id)
   messages = await mongodb['messages'].find({
     "$or": [{
       "sender.userId": user_id,

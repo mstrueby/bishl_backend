@@ -506,7 +506,6 @@ async def get_sys_ref_tool_token():
       "email": os.environ['SYS_REF_TOOL_EMAIL'],
       "password": os.environ['SYS_REF_TOOL_PASSWORD']
   }
-
   async with httpx.AsyncClient() as client:
     login_response = await client.post(login_url, json=login_data)
 
