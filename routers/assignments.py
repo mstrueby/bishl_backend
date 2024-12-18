@@ -39,9 +39,25 @@ async def set_referee_in_match(db, match_id, referee, position):
     })
 
 
-async def send_message_to_referee(match, receiver_id, content, auth_token: str):
+async def send_message_to_referee(match,
+                                  receiver_id,
+                                  content,
+                                  token_payload: TokenPayload = Depends(
+                                      auth.auth_wrapper)):
+    # Create JWT token for current user
+    user = {
+        "_id": token_payload.sub,
+        "roles": token_payload.roles,
+        "firstName": token_payload.firstName,
+        "lastName": token_payload.lastName,
+        "club": {
+            "clubId": token_payload.clubId,
+            "clubName": token_payload.clubName
+        }
+    }
+    token = auth.encode_token(user)
     headers = {
-        'Authorization': f'Bearer {auth_token}',
+        'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
     }
     match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{match['startDate'].strftime('%d.%m.%Y %H:%M')} Uhr\n{match['venue']['name']}"
@@ -49,7 +65,11 @@ async def send_message_to_referee(match, receiver_id, content, auth_token: str):
         content = f"something happened to you for match:\n\n{match_text}"
     else:
         content = f"{content}\n\n{match_text}"
-    message_data = {"receiverId": receiver_id, "content": content, "sendAsRefAdmin": True}
+    message_data = {
+        "receiverId": receiver_id,
+        "content": content,
+        "sendAsRefAdmin": True
+    }
     url = f"{BASE_URL}/messages/"
     print("message_data", message_data)
     async with httpx.AsyncClient() as client:
@@ -160,7 +180,7 @@ async def create_assignment(
     assignment_data: AssignmentBase = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
-    
+
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
                for role in token_payload.roles):
@@ -183,8 +203,9 @@ async def create_assignment(
         # check if assignment_data.userId exists
         ref_id = assignment_data.userId
         if not ref_id:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="User ID for referee is required")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="User ID for referee is required")
         # check if really ref_admin
         if ref_admin and 'REF_ADMIN' not in token_payload.roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -245,8 +266,7 @@ async def create_assignment(
             receiver_id=referee["userId"],
             content=
             f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
-            auth_token=auth.credentials
-        )
+            token_payload=token_payload)
 
         if new_assignment:
             return JSONResponse(status_code=status.HTTP_201_CREATED,
@@ -397,8 +417,8 @@ async def update_assignment(
                     match=match,
                     receiver_id=ref_id,
                     content=
-                    f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
-                )
+                    f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
+                    token_payload=token_payload)
             else:
                 result = await mongodb["assignments"].update_one(
                     {"_id": assignment_id}, {"$set": update_data})
@@ -412,8 +432,8 @@ async def update_assignment(
                         match=match,
                         receiver_id=ref_id,
                         content=
-                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:"
-                    )
+                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+                        token_payload=token_payload)
             print("update_data before update", update_data)
             if result.modified_count == 1:
                 updated_assignment = await mongodb["assignments"].find_one(
