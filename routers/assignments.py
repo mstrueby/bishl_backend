@@ -75,16 +75,21 @@ async def send_message_to_referee(match,
     print("url", url)
     print("headers", headers)
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=message_data, headers=headers)
-        print("response", response)
-        if response.status_code != 201:
-            error_msg = "Failed to send message"
-            try:
-                error_detail = response.json()
-                error_msg += f": {error_detail}"
-            except:
-                error_msg += f" (Status code: {response.status_code})"
-            raise Exception(error_msg)
+        try:
+            response = await client.post(url, json=message_data, headers=headers)
+            print("Response status:", response.status_code)
+            print("Response content:", response.content)
+            
+            if response.status_code != 201:
+                error_msg = "Failed to send message"
+                try:
+                    error_detail = response.json()
+                    error_msg += f": {error_detail}"
+                except:
+                    error_msg += f" (Status code: {response.status_code}, Content: {response.content})"
+                raise HTTPException(status_code=response.status_code, detail=error_msg)
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
 
 
 # GET all assigments for ONE match ======
