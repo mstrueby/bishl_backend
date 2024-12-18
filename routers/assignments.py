@@ -11,13 +11,14 @@ import httpx
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ['BE_API_URL']
-print("BASE_URL: ", BASE_URL)
+
+
 async def insert_assignment(db, match_id, referee, status, position=None):
     assignment = AssignmentDB(matchId=match_id,
                               referee=referee,
                               status=status,
                               position=position)
-    print(assignment)
+    #print(assignment)
     insert_response = await db["assignments"].insert_one(
         jsonable_encoder(assignment))
     return await db["assignments"].find_one(
@@ -38,58 +39,38 @@ async def set_referee_in_match(db, match_id, referee, position):
     })
 
 
-async def send_message_to_referee(match,
-                                  receiver_id,
-                                  content,
-                                  token_payload: TokenPayload = Depends(
-                                      auth.auth_wrapper)):
-    # Create JWT token for current user
-    user = {
-        "_id": token_payload.sub,
-        "roles": token_payload.roles,
-        "firstName": token_payload.firstName,
-        "lastName": token_payload.lastName,
-        "club": {
-            "clubId": token_payload.clubId,
-            "clubName": token_payload.clubName
-        }
-    }
-    #token = auth.encode_token(user)
+async def send_message_to_referee(match, receiver_id, content):
     token = await get_sys_ref_tool_token()
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
     }
-    match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{match['startDate'].strftime('%d.%m.%Y %H:%M')} Uhr\n{match['venue']['name']}"
+    weekdays_german = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+    weekday_abbr = weekdays_german[match['startDate'].weekday()]
+    match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{weekday_abbr}, {match['startDate'].strftime('%d.%m.%Y')}, {match['startDate'].strftime('%H:%M')} Uhr\n{match['venue']['name']}"
     if content is None:
         content = f"something happened to you for match:\n\n{match_text}"
     else:
         content = f"{content}\n\n{match_text}"
-    message_data = {
-        "receiverId": receiver_id,
-        "content": content,
-        "sendAsRefAdmin": True
-    }
+    message_data = {"receiverId": receiver_id, "content": content}
     url = f"{BASE_URL}/messages/"
-    print("message_data (assignment)", message_data)
-    print("url", url)
-    print("headers", headers)
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(url, json=message_data, headers=headers)
-            print("Response status:", response.status_code)
-            print("Response content:", response.content)
-            
+            response = await client.post(url,
+                                         json=message_data,
+                                         headers=headers)
             if response.status_code != 201:
                 error_msg = "Failed to send message"
                 try:
                     error_detail = response.json()
                     error_msg += f": {error_detail}"
-                except:
-                    error_msg += f" (Status code: {response.status_code}, Content: {response.content})"
-                raise HTTPException(status_code=response.status_code, detail=error_msg)
+                except (KeyError, TypeError) as e:
+                    error_msg += f" (Status code: {response.status_code}, Content: {response.content}, Error: {str(e)})"
+                raise HTTPException(status_code=response.status_code,
+                                    detail=error_msg)
         except httpx.RequestError as e:
-            raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
+            raise HTTPException(status_code=500,
+                                detail=f"Request failed: {str(e)}")
 
 
 # GET all assigments for ONE match ======
@@ -279,8 +260,8 @@ async def create_assignment(
             match=match,
             receiver_id=referee["userId"],
             content=
-            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
-            token_payload=token_payload)
+            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:"
+        )
 
         if new_assignment:
             return JSONResponse(status_code=status.HTTP_201_CREATED,
@@ -398,9 +379,9 @@ async def update_assignment(
                     detail=
                     f"Position must be set for status {assignment_data.status}"
                 )
-        print("update_data", update_data)
+        #print("update_data", update_data)
         if 'status' not in update_data:
-            print("no update")
+            #print("no update")
             return Response(status_code=status.HTTP_304_NOT_MODIFIED)
         elif update_data.get("status") and (
                 assignment['status'] == Status.requested
@@ -409,7 +390,7 @@ async def update_assignment(
                     and update_data["status"] == Status.unavailable) or (
                         assignment['status'] == Status.accepted
                         and update_data["status"] == Status.unavailable):
-            print("do update")
+            #print("do update")
             if 'ref_admin' in update_data:
                 del update_data['ref_admin']
             if update_data['status'] not in [Status.assigned, Status.accepted]:
@@ -431,8 +412,8 @@ async def update_assignment(
                     match=match,
                     receiver_id=ref_id,
                     content=
-                    f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
-                    token_payload=token_payload)
+                    f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
+                )
             else:
                 result = await mongodb["assignments"].update_one(
                     {"_id": assignment_id}, {"$set": update_data})
@@ -446,9 +427,9 @@ async def update_assignment(
                         match=match,
                         receiver_id=ref_id,
                         content=
-                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
-                        token_payload=token_payload)
-            print("update_data before update", update_data)
+                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:"
+                    )
+            #print("update_data before update", update_data)
             if result.modified_count == 1:
                 updated_assignment = await mongodb["assignments"].find_one(
                     {"_id": assignment_id})
@@ -475,7 +456,7 @@ async def update_assignment(
         for key, value in assignment.items():
             if key in update_data and value == update_data[key]:
                 update_data.pop(key)
-        print("update_data", update_data)
+        #print("update_data", update_data)
         if not update_data:
             print("no update")
             return Response(status_code=status.HTTP_304_NOT_MODIFIED)
@@ -486,7 +467,7 @@ async def update_assignment(
                     and update_data["status"] == Status.unavailable) or (
                         assignment['status'] == Status.assigned
                         and update_data["status"] == Status.accepted):
-            print("do update")
+            #print("do update")
             result = await mongodb["assignments"].update_one(
                 {"_id": assignment_id}, {"$set": update_data})
 
