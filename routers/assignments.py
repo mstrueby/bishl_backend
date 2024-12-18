@@ -39,18 +39,17 @@ async def set_referee_in_match(db, match_id, referee, position):
     })
 
 
-async def send_message_to_referee(match, receiver_id, content):
-    token = await get_sys_ref_tool_token()
+async def send_message_to_referee(match, receiver_id, content, auth_token: str):
     headers = {
-        'Authorization': f'Bearer {token}',
+        'Authorization': f'Bearer {auth_token}',
         'Content-Type': 'application/json'
     }
-    match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{match['startDate'].strftime('%d.%m.%Y %H:%M')} Uhr\n{match['venue']}"
+    match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{match['startDate'].strftime('%d.%m.%Y %H:%M')} Uhr\n{match['venue']['name']}"
     if content is None:
         content = f"something happened to you for match:\n\n{match_text}"
     else:
         content = f"{content}\n\n{match_text}"
-    message_data = {"receiverId": receiver_id, "content": content}
+    message_data = {"receiverId": receiver_id, "content": content, "sendAsRefAdmin": True}
     url = f"{BASE_URL}/messages/"
     print("message_data", message_data)
     async with httpx.AsyncClient() as client:
@@ -161,6 +160,7 @@ async def create_assignment(
     assignment_data: AssignmentBase = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
+    
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
                for role in token_payload.roles):
@@ -244,7 +244,8 @@ async def create_assignment(
             match=match,
             receiver_id=referee["userId"],
             content=
-            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:"
+            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+            auth_token=auth.credentials
         )
 
         if new_assignment:
@@ -390,7 +391,7 @@ async def update_assignment(
                 await mongodb['matches'].update_one(
                     {'_id': match_id},
                     {'$set': {
-                        f'referee{assignment["position"]}': {}
+                        f'referee{assignment["position"]}': None
                     }})
                 await send_message_to_referee(
                     match=match,
