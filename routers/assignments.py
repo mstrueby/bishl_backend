@@ -10,9 +10,8 @@ import httpx
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = f"http://0.0.0.0:8080" if os.environ.get('REPLIT_DEPLOYMENT') else (f"https://{os.environ['BE_API_URL']}" if not os.environ['BE_API_URL'].startswith(('http://', 'https://')) else os.environ['BE_API_URL'])
-
-
+BASE_URL = os.environ['BE_API_URL']
+print("BASE_URL: ", BASE_URL)
 async def insert_assignment(db, match_id, referee, status, position=None):
     assignment = AssignmentDB(matchId=match_id,
                               referee=referee,
@@ -55,7 +54,8 @@ async def send_message_to_referee(match,
             "clubName": token_payload.clubName
         }
     }
-    token = auth.encode_token(user)
+    #token = auth.encode_token(user)
+    token = await get_sys_ref_tool_token()
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
@@ -72,10 +72,19 @@ async def send_message_to_referee(match,
     }
     url = f"{BASE_URL}/messages/"
     print("message_data (assignment)", message_data)
+    print("url", url)
+    print("headers", headers)
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=message_data, headers=headers)
+        print("response", response)
         if response.status_code != 201:
-            raise Exception(f"Failed to send message: {response.json()}")
+            error_msg = "Failed to send message"
+            try:
+                error_detail = response.json()
+                error_msg += f": {error_detail}"
+            except:
+                error_msg += f" (Status code: {response.status_code})"
+            raise Exception(error_msg)
 
 
 # GET all assigments for ONE match ======
