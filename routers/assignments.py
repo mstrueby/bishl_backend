@@ -10,7 +10,7 @@ import httpx
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = os.environ['BE_API_URL']
+BASE_URL = f"https://{os.environ['BE_API_URL']}" if not os.environ['BE_API_URL'].startswith(('http://', 'https://')) else os.environ['BE_API_URL']
 
 
 async def insert_assignment(db, match_id, referee, status, position=None):
@@ -71,7 +71,7 @@ async def send_message_to_referee(match,
         "sendAsRefAdmin": True
     }
     url = f"{BASE_URL}/messages/"
-    print("message_data", message_data)
+    print("message_data (assignment)", message_data)
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=message_data, headers=headers)
         if response.status_code != 201:
