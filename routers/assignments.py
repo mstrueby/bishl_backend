@@ -144,12 +144,10 @@ async def get_assignments_by_match(
         assignment_list.append(assignment_obj)
 
     # Filter the list by status
-    print("assignmentStatus", assignmentStatus)
-    print("assignment_list", assignment_list)
-    if assignmentStatus is not None:
+    if assignmentStatus:
         assignment_list = [
             assignment for assignment in assignment_list
-            if AllStatuses(assignment["status"]).name in assignmentStatus
+            if assignment["status"] in [status.value for status in assignmentStatus]
         ]
     
     assignment_list.sort(
