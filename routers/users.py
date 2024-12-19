@@ -183,6 +183,28 @@ async def get_assignments(
     response = await client.get(f"{BASE_URL}/assignments/?referee={user_id}")
     print("response", response)
     # Parse assignments into a list of AssignmentDB objects
-    assignments_list = [AssignmentDB(**assignment) for assignment in response.json()]
-    return JSONResponse(status_code=status.HTTP_200_OK, content=assignments_list)
-    
+    assignments_list = [
+        AssignmentDB(**assignment) for assignment in response.json()
+    ]
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=assignments_list)
+
+
+@router.get("/referees",
+            response_description="Get all referees",
+            response_model=List[CurrentUser])
+async def get_all_referees(
+    request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
+             for role in token_payload.roles):
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized")
+
+  referees_cursor = mongodb["users"].find({"roles": "REFEREE"})
+  referees = await referees_cursor.to_list(length=None)
+
+  response = [CurrentUser(**referee) for referee in referees]
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(response))
