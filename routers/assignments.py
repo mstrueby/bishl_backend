@@ -1,20 +1,17 @@
 # filename: routers/assignments.py
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, Path
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from typing import Optional
 from authentication import AuthHandler, TokenPayload
 import os
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status
 from utils import get_sys_ref_tool_token
 import httpx
-from enum import Enum
 
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ['BE_API_URL']
 
-from models.assignments import Status
 
 async def insert_assignment(db, match_id, referee, status, position=None):
     assignment = AssignmentDB(matchId=match_id,
@@ -82,7 +79,7 @@ async def send_message_to_referee(match, receiver_id, content):
 async def get_assignments_by_match(
     request: Request,
     match_id: str = Path(..., description="Match ID"),
-    assignmentStatus: Optional[list[Status]] = Query(None),
+    status: Optional[list[Status]] = Query(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
@@ -103,10 +100,8 @@ async def get_assignments_by_match(
 
     # Get all assignments for the match with optional status filter
     query = {"matchId": match_id}
-    print("Status: ", assignmentStatus)
-    if assignmentStatus:
-        query["status"] = {"$in": assignmentStatus}
-    print("Query:", query)
+    if status:
+        query["status"] = {"$in": status}
     assignments = await mongodb["assignments"].find(query).to_list(length=None)
     assignment_dict = {
         assignment["referee"]["userId"]: assignment
