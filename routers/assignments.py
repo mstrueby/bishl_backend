@@ -79,6 +79,7 @@ async def send_message_to_referee(match, receiver_id, content):
 async def get_assignments_by_match(
     request: Request,
     match_id: str = Path(..., description="Match ID"),
+    status: Optional[list[Status]] = Query(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
@@ -97,10 +98,11 @@ async def get_assignments_by_match(
         "password": 0
     }).to_list(length=None)
 
-    # Get all assignments for the match
-    assignments = await mongodb["assignments"].find({
-        "matchId": match_id
-    }).to_list(length=None)
+    # Get all assignments for the match with optional status filter
+    query = {"matchId": match_id}
+    if status:
+        query["status"] = {"$in": status}
+    assignments = await mongodb["assignments"].find(query).to_list(length=None)
     assignment_dict = {
         assignment["referee"]["userId"]: assignment
         for assignment in assignments
