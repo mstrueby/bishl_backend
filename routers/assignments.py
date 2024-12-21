@@ -192,7 +192,6 @@ async def create_assignment(
     assignment_data: AssignmentBase = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
-
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
                for role in token_payload.roles):
@@ -218,8 +217,8 @@ async def create_assignment(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="User ID for referee is required")
-        # check if really ref_admin
-        if ref_admin and 'REF_ADMIN' not in token_payload.roles:
+        # check if really ref_admin or admin
+        if ref_admin and 'REF_ADMIN' not in token_payload.roles and 'ADMIN' not in token_payload.roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="Not authorized to be referee admin")
         # check if assignment already exists for match_id and referee.userId = ref_id
@@ -353,7 +352,7 @@ async def update_assignment(
     ref_admin = assignment_data.refAdmin
 
     # check if really ref_admin
-    if ref_admin and 'REF_ADMIN' not in token_payload.roles:
+    if ref_admin and 'REF_ADMIN' not in token_payload.roles and 'ADMIN' not in token_payload.roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Not authorized to be ref_admin")
 
