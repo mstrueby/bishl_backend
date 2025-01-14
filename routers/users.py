@@ -95,28 +95,39 @@ async def me(
 
 
 # update user details
-@router.patch("/me",
+@router.patch("/{user_id}",
               response_description="Update a user",
               response_model=CurrentUser)
 async def update_user(request: Request,
+                      user_id: str,
                       email: Optional[str] = Form(None),
                       password: Optional[str] = Form(None),
                       firstName: Optional[str] = Form(None),
                       lastName: Optional[str] = Form(None),
                       club: Optional[str] = Form(None),
                       roles: Optional[List[Role]] = Form(None),
-                      token_payload: TokenPayload = Depends(auth.auth_wrapper),
-                      #user: UserUpdate = Body(...)
+                      token_payload: TokenPayload = Depends(auth.auth_wrapper)
                      ) -> Response:
   mongodb = request.app.state.mongodb
-  #user_dict = user.dict(exclude_unset=True)
-  #user_dict.pop("id", None)
-  user_id = token_payload.sub
+  
+  # Check if user is trying to update their own profile or is an admin
+  is_admin = "ADMIN" in token_payload.roles
+  is_self_update = user_id == token_payload.sub
+  
+  if not (is_admin or is_self_update):
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized to update this user")
 
   existing_user = await mongodb["users"].find_one({"_id": user_id})
   if not existing_user:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail="User not found")
+  
+  # Only allow role updates for admin users
+  if roles and not is_admin:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Only admins can update roles")
+                        
   print("existing_user", existing_user)
 
   try:
