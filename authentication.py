@@ -16,7 +16,11 @@ class AuthHandler:
     return self.pwd_content.hash(password)
 
   def verify_password(self, plain_password, hashed_password):
-    return self.pwd_content.verify(plain_password, hashed_password)
+    try:
+        return self.pwd_content.verify(plain_password, hashed_password)
+    except:
+        # For existing passwords that may not be properly hashed
+        return False
 
   def encode_token(self, user):
     payload = {
