@@ -6,7 +6,6 @@ import json
 from pydantic import HttpUrl
 from models.posts import PostBase, PostDB, PostUpdate, Revision, User
 from typing import List, Optional
-from routers.users import update_user
 from utils import configure_cloudinary, my_jsonable_encoder
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
