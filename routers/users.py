@@ -1,12 +1,14 @@
 # filename routers/users.py
-from typing import List
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
+from typing import List, Optional
+from cloudinary import USER_AGENT
+from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Form
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import os
 import httpx
+import json
 from models.assignments import AssignmentDB
-from models.users import UserBase, LoginBase, CurrentUser, UserUpdate
+from models.users import Role, UserBase, LoginBase, CurrentUser, UserUpdate
 from models.matches import MatchDB
 from authentication import AuthHandler, TokenPayload
 from datetime import date
@@ -97,11 +99,18 @@ async def me(
               response_description="Update a user",
               response_model=CurrentUser)
 async def update_user(request: Request,
+                      email: Optional[str] = Form(None),
+                      password: Optional[str] = Form(None),
+                      firstName: Optional[str] = Form(None),
+                      lastName: Optional[str] = Form(None),
+                      club: Optional[str] = Form(None),
+                      roles: Optional[List[Role]] = Form(None),
                       token_payload: TokenPayload = Depends(auth.auth_wrapper),
-                      user: UserUpdate = Body(...)):
+                      #user: UserUpdate = Body(...)
+                     ) -> Response:
   mongodb = request.app.state.mongodb
-  user_dict = user.dict(exclude_unset=True)
-  user_dict.pop("id", None)
+  #user_dict = user.dict(exclude_unset=True)
+  #user_dict.pop("id", None)
   user_id = token_payload.sub
 
   existing_user = await mongodb["users"].find_one({"_id": user_id})
@@ -109,10 +118,27 @@ async def update_user(request: Request,
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail="User not found")
   print("existing_user", existing_user)
+
+  try:
+    user_data = UserUpdate(
+      email=email,
+      password=password,
+      firstName=firstName,
+      lastName=lastName,
+      club=json.loads(club) if club else None,
+      roles=roles
+    ).dict(exclude_none=True)
+  except Exception as e:
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Failed to parse input data: {e}") from e
+  print("user_data", user_data)
+  user_data.pop('id', None)
+  
   user_to_update = {
       k: v
-      for k, v in user_dict.items() if v != existing_user.get(k)
+      for k, v in user_data.items() if v != existing_user.get(k, None)
   }
+  print("user_to_update", user_to_update)
   if not user_to_update:
     print("No fields to update")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
