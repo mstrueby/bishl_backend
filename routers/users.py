@@ -1,6 +1,5 @@
 # filename routers/users.py
 from typing import List, Optional
-from cloudinary import USER_AGENT
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Form
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
