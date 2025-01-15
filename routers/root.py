@@ -21,7 +21,7 @@ endpoints = [
 async def get_root():
     return endpoints
 
-@router.get("/test-email")
+@router.get("/test-email", include_in_schema=False)
 async def test_email():
     await send_email(
         subject="Test Email",
