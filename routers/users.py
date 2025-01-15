@@ -1,6 +1,5 @@
 # filename routers/users.py
 from typing import List, Optional
-from cloudinary import USER_AGENT
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Form
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
@@ -8,7 +7,7 @@ import os
 import httpx
 import json
 from models.assignments import AssignmentDB
-from models.users import Role, UserBase, LoginBase, CurrentUser, UserUpdate
+from models.users import Role, Club, UserBase, LoginBase, CurrentUser, UserUpdate
 from models.matches import MatchDB
 from authentication import AuthHandler, TokenPayload
 from datetime import date
@@ -95,39 +94,51 @@ async def me(
 
 
 # update user details
-@router.patch("/me",
+@router.patch("/{user_id}",
               response_description="Update a user",
               response_model=CurrentUser)
 async def update_user(request: Request,
-                      email: Optional[str] = Form(None),
-                      password: Optional[str] = Form(None),
-                      firstName: Optional[str] = Form(None),
-                      lastName: Optional[str] = Form(None),
-                      club: Optional[str] = Form(None),
-                      roles: Optional[List[Role]] = Form(None),
-                      token_payload: TokenPayload = Depends(auth.auth_wrapper),
-                      #user: UserUpdate = Body(...)
+                      user_id: str,
+                      email: Optional[str] = Form(default=None),
+                      password: Optional[str] = Form(default=None),
+                      firstName: Optional[str] = Form(default=None),
+                      lastName: Optional[str] = Form(default=None),
+                      club: Optional[str] = Form(default=None),
+                      roles: Optional[List[str]] = Form(default=None),
+                      token_payload: TokenPayload = Depends(auth.auth_wrapper)
                      ) -> Response:
   mongodb = request.app.state.mongodb
-  #user_dict = user.dict(exclude_unset=True)
-  #user_dict.pop("id", None)
-  user_id = token_payload.sub
+  
+  # Check if user is trying to update their own profile or is an admin
+  is_admin = "ADMIN" in token_payload.roles
+  is_self_update = user_id == token_payload.sub
+  
+  if not (is_admin or is_self_update):
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized to update this user")
 
   existing_user = await mongodb["users"].find_one({"_id": user_id})
   if not existing_user:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail="User not found")
+  
+  # Only allow role updates for admin users
+  if roles and not is_admin:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Only admins can update roles")
+                        
   print("existing_user", existing_user)
 
   try:
     user_data = UserUpdate(
-      email=email,
-      password=password,
+      email=email, 
+      password=auth.get_password_hash(password) if password else None,
       firstName=firstName,
       lastName=lastName,
-      club=json.loads(club) if club else None,
-      roles=roles
+      club=Club(**json.loads(club)) if club else None,
+      roles=[Role(role) for role in roles] if roles else None
     ).dict(exclude_none=True)
+    #user_data = UserUpdate(**user_update_fields).dict(exclude_none=True)
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=f"Failed to parse input data: {e}") from e
@@ -138,11 +149,9 @@ async def update_user(request: Request,
       k: v
       for k, v in user_data.items() if v != existing_user.get(k, None)
   }
-  print("user_to_update", user_to_update)
   if not user_to_update:
     print("No fields to update")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
-
   try:
     print("update user:", user_to_update)
     update_result = await mongodb["users"].update_one({"_id": user_id},
@@ -234,3 +243,79 @@ async def get_all_referees(
   response = [CurrentUser(**referee) for referee in referees]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(response))
+
+
+@router.post("/forgot-password", response_description="Send password reset email")
+async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONResponse:
+    mongodb = request.app.state.mongodb
+    email = payload.get("email")
+    
+    if not email:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Email is required")
+                            
+    user = await mongodb["users"].find_one({"email": email})
+    if not user:
+        # Return success even if email not found to prevent email enumeration
+        return JSONResponse(status_code=status.HTTP_200_OK,
+                            content={"message": "If email exists, reset link has been sent"})
+    
+    # Generate reset token
+    reset_token = auth.encode_reset_token(user)
+
+    # Send password reset email
+    reset_url = f"{os.environ.get('FRONTEND_URL', '')}/reset-password?token={reset_token}"
+    email_body = f"""
+        <p>Hello,</p>
+        <p>Click the link below to reset your password:</p>
+        <p><a href="{reset_url}">Reset Password</a></p>
+        <p>This link will expire in 1 hour.</p>
+    """
+    
+    await send_email(
+        subject="Password Reset Request",
+        recipients=[email],
+        body=email_body
+    )
+    
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content={"message": "Password reset instructions sent to your email"})
+
+
+@router.post("/reset-password", response_description="Reset password with token")
+async def reset_password(
+    request: Request,
+    payload: dict = Body(...)
+) -> JSONResponse:
+    mongodb = request.app.state.mongodb
+    try:
+        # Verify token and get user_id
+        token = payload.get("token")
+        new_password = payload.get("password")
+
+        if not token or not new_password:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                              detail="Token and new password must be provided")
+
+        token_data = auth.decode_reset_token(token)
+        user_id = token_data.sub
+
+        # Hash new password
+        hashed_password = auth.get_password_hash(new_password)
+
+        # Update password in database
+        result = await mongodb["users"].update_one(
+            {"_id": user_id},
+            {"$set": {"password": hashed_password}}
+        )
+
+        if result.modified_count == 1:
+            return JSONResponse(status_code=status.HTTP_200_OK,
+                              content={"message": "Password updated successfully"})
+
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                          detail="Password update failed")
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                          detail="Invalid or expired reset token")

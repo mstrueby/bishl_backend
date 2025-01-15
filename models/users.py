@@ -68,6 +68,7 @@ class UserUpdate(MongoBaseModel):
   club: Optional[Club] = None
   roles: Optional[List[Role]] = Field(default_factory=list)
 
+  """
   @validator('email')
   def email_is_valid(cls, v):
     try:
@@ -76,6 +77,7 @@ class UserUpdate(MongoBaseModel):
       raise ValueError(e)
     return v
 
+  """
 
 class LoginBase(BaseModel):
   email: str = EmailStr(...)
