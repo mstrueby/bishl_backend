@@ -265,12 +265,13 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     reset_token = auth.encode_reset_token(user)
 
     # Send password reset email
-    reset_url = f"{os.environ.get('FRONTEND_URL', '')}/reset-password?token={reset_token}"
+    reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
     email_body = f"""
         <p>Hallo</p>
-        <p>Click the link below to reset your password:</p>
-        <p><a href="{reset_url}">Reset Password</a></p>
+        <p>Click the link below to set your new password:</p>
+        <p><a href="{reset_url}">Set New Password</a></p>
         <p>This link will expire in 1 hour.</p>
+        <p>If you did not request this password reset, please ignore this email.</p>
     """
     
     await send_email(
