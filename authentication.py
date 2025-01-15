@@ -16,11 +16,7 @@ class AuthHandler:
     return self.pwd_content.hash(password)
 
   def verify_password(self, plain_password, hashed_password):
-    try:
-        return self.pwd_content.verify(plain_password, hashed_password)
-    except:
-        # For existing passwords that may not be properly hashed
-        return False
+    return self.pwd_content.verify(plain_password, hashed_password)
 
   def encode_token(self, user):
     payload = {
@@ -47,8 +43,17 @@ class AuthHandler:
   def decode_token(self, token):
     try:
       payload = jwt.decode(token, self.secret, algorithms=["HS256"])
-
-
+      return TokenPayload(sub=payload["sub"],
+        roles=payload["roles"],
+        firstName=payload.get("firstName"),
+        lastName=payload.get("lastName"),
+        clubId=payload.get("clubId"),
+        clubName=payload.get("clubName"))
+    except jwt.ExpiredSignatureError:
+      raise HTTPException(status_code=401, detail="Signature has expired")
+    except jwt.InvalidTokenError:
+      raise HTTPException(status_code=401, detail="Invalid token")
+  
   def encode_reset_token(self, user):
     payload = {
         "exp": datetime.now() + timedelta(hours=1),  # Token expires in 1 hour
@@ -69,16 +74,6 @@ class AuthHandler:
     except jwt.InvalidTokenError:
       raise HTTPException(status_code=401, detail="Invalid reset token")
 
-      return TokenPayload(sub=payload["sub"],
-                          roles=payload["roles"],
-                          firstName=payload.get("firstName"),
-                          lastName=payload.get("lastName"),
-                          clubId=payload.get("clubId"),
-                          clubName=payload.get("clubName"))
-    except jwt.ExpiredSignatureError:
-      raise HTTPException(status_code=401, detail="Signature has expired")
-    except jwt.InvalidTokenError:
-      raise HTTPException(status_code=401, detail="Invalid token")
 
   def auth_wrapper(self,
                    auth: HTTPAuthorizationCredentials = Security(security)):
