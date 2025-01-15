@@ -8,7 +8,7 @@ import os
 import httpx
 import json
 from models.assignments import AssignmentDB
-from models.users import Role, UserBase, LoginBase, CurrentUser, UserUpdate
+from models.users import Role, Club, UserBase, LoginBase, CurrentUser, UserUpdate
 from models.matches import MatchDB
 from authentication import AuthHandler, TokenPayload
 from datetime import date
@@ -131,14 +131,19 @@ async def update_user(request: Request,
   print("existing_user", existing_user)
 
   try:
-    user_data = UserUpdate(
-      email=email,
-      password=password,
-      firstName=firstName,
-      lastName=lastName,
-      club=Club(**json.loads(club)) if club else None,
-      roles=[Role(role) for role in roles] if roles else None
-    ).dict(exclude_none=True)
+    user_update_data = {
+      "email": email,
+      "password": password,
+      "firstName": firstName,
+      "lastName": lastName,
+      "club": Club(**json.loads(club)) if club else None,
+      "roles": [Role(role) for role in roles] if roles else None
+    }
+    print("user_update_data", user_update_data)
+    user_update = UserUpdate(**user_update_data)
+    print("user_update", user_update)
+    user_data = user_update.dict(exclude_none=True)
+    print("user_data", user_data)
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=f"Failed to parse input data: {e}") from e
