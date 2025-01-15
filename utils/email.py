@@ -1,6 +1,7 @@
 
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 import os
+
 
 conf = ConnectionConfig(
     MAIL_USERNAME=os.environ["MAIL_USERNAME"],
@@ -8,9 +9,10 @@ conf = ConnectionConfig(
     MAIL_FROM=os.environ["MAIL_FROM"],
     MAIL_PORT=int(os.environ.get("MAIL_PORT", 587)),
     MAIL_SERVER=os.environ["MAIL_SERVER"],
-    MAIL_SSL_TLS=os.environ.get("MAIL_SSL_TLS", "True").lower() == "true",
-    MAIL_STARTTLS=os.environ.get("MAIL_STARTTLS", "True").lower() == "true",
-    USE_CREDENTIALS=True
+    MAIL_TLS=os.environ.get("MAIL_TLS", "True").lower() == "true",
+    MAIL_SSL=False,
+    USE_CREDENTIALS=True,
+    VALIDATE_CERTS=True
 )
 
 fastmail = FastMail(conf)
@@ -19,7 +21,7 @@ async def send_email(subject: str, recipients: list, body: str):
     message = MessageSchema(
         subject=subject,
         recipients=recipients,
-        body=body,
-        subtype="html"
+        body=body,        
+        subtype=MessageType.html  # Corrected line
     )
     await fastmail.send_message(message)
