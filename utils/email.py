@@ -1,6 +1,7 @@
 
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 import os
+
 
 conf = ConnectionConfig(
     MAIL_USERNAME=os.environ["MAIL_USERNAME"],
@@ -20,7 +21,7 @@ async def send_email(subject: str, recipients: list, body: str):
     message = MessageSchema(
         subject=subject,
         recipients=recipients,
-        body=body,
-        subtype="html"
+        body=body,        
+        subtype=MessageType.html  # Corrected line
     )
     await fastmail.send_message(message)
