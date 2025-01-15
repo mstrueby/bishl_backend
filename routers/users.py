@@ -100,12 +100,12 @@ async def me(
               response_model=CurrentUser)
 async def update_user(request: Request,
                       user_id: str,
-                      email: Optional[str] = Form(None),
-                      password: Optional[str] = Form(None),
-                      firstName: Optional[str] = Form(None),
-                      lastName: Optional[str] = Form(None),
-                      club: Optional[str] = Form(None),
-                      roles: Optional[List[Role]] = Form(None),
+                      email: Optional[str] = Form(default=None),
+                      password: Optional[str] = Form(default=None),
+                      firstName: Optional[str] = Form(default=None),
+                      lastName: Optional[str] = Form(default=None),
+                      club: Optional[str] = Form(default=None),
+                      roles: Optional[List[str]] = Form(default=None),
                       token_payload: TokenPayload = Depends(auth.auth_wrapper)
                      ) -> Response:
   mongodb = request.app.state.mongodb
