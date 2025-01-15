@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from utils.email import send_email
+from email import send_email
 
 router = APIRouter()
 endpoints = [
