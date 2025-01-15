@@ -133,7 +133,7 @@ async def update_user(request: Request,
   try:
     user_update_data = {
       "email": email,
-      "password": password,
+      "password": auth.get_password_hash(password) if password else None,
       "firstName": firstName,
       "lastName": lastName,
       "club": Club(**json.loads(club)) if club else None,
