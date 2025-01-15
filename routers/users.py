@@ -11,6 +11,7 @@ from models.users import Role, Club, UserBase, LoginBase, CurrentUser, UserUpdat
 from models.matches import MatchDB
 from authentication import AuthHandler, TokenPayload
 from datetime import date
+from mail_service import send_email
 
 router = APIRouter()
 auth = AuthHandler()
@@ -266,7 +267,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     # Send password reset email
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/reset-password?token={reset_token}"
     email_body = f"""
-        <p>Hello,</p>
+        <p>Hallo</p>
         <p>Click the link below to reset your password:</p>
         <p><a href="{reset_url}">Reset Password</a></p>
         <p>This link will expire in 1 hour.</p>
