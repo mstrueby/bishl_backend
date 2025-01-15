@@ -131,19 +131,15 @@ async def update_user(request: Request,
   print("existing_user", existing_user)
 
   try:
-    user_update_data = {
-      "email": email,
-      "password": auth.get_password_hash(password) if password else None,
-      "firstName": firstName,
-      "lastName": lastName,
-      "club": Club(**json.loads(club)) if club else None,
-      "roles": [Role(role) for role in roles] if roles else None
-    }
-    print("user_update_data", user_update_data)
-    user_update = UserUpdate(**user_update_data)
-    print("user_update", user_update)
-    user_data = user_update.dict(exclude_none=True)
-    print("user_data", user_data)
+    user_data = UserUpdate(
+      email=email, 
+      password=auth.get_password_hash(password) if password else None,
+      firstName=firstName,
+      lastName=lastName,
+      club=Club(**json.loads(club)) if club else None,
+      roles=[Role(role) for role in roles] if roles else None
+    ).dict(exclude_none=True)
+    #user_data = UserUpdate(**user_update_fields).dict(exclude_none=True)
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=f"Failed to parse input data: {e}") from e
@@ -154,11 +150,9 @@ async def update_user(request: Request,
       k: v
       for k, v in user_data.items() if v != existing_user.get(k, None)
   }
-  print("user_to_update", user_to_update)
   if not user_to_update:
     print("No fields to update")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
-
   try:
     print("update user:", user_to_update)
     update_result = await mongodb["users"].update_one({"_id": user_id},
