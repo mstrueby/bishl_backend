@@ -136,7 +136,7 @@ async def update_user(request: Request,
       password=password,
       firstName=firstName,
       lastName=lastName,
-      club=json.loads(club) if club else None,
+      club=Club(**json.loads(club)) if club else None,
       roles=[Role(role) for role in roles] if roles else None
     ).dict(exclude_none=True)
   except Exception as e:
