@@ -47,6 +47,28 @@ class AuthHandler:
   def decode_token(self, token):
     try:
       payload = jwt.decode(token, self.secret, algorithms=["HS256"])
+
+
+  def encode_reset_token(self, user):
+    payload = {
+        "exp": datetime.now() + timedelta(hours=1),  # Token expires in 1 hour
+        "iat": datetime.now(),
+        "sub": user["_id"],
+        "type": "reset"
+    }
+    return jwt.encode(payload, self.secret, algorithm="HS256")
+
+  def decode_reset_token(self, token):
+    try:
+      payload = jwt.decode(token, self.secret, algorithms=["HS256"])
+      if payload.get("type") != "reset":
+          raise jwt.InvalidTokenError
+      return TokenPayload(sub=payload["sub"], roles=[])
+    except jwt.ExpiredSignatureError:
+      raise HTTPException(status_code=401, detail="Reset token has expired")
+    except jwt.InvalidTokenError:
+      raise HTTPException(status_code=401, detail="Invalid reset token")
+
       return TokenPayload(sub=payload["sub"],
                           roles=payload["roles"],
                           firstName=payload.get("firstName"),

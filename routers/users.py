@@ -177,6 +177,58 @@ async def update_user(request: Request,
             response_model=List[MatchDB])
 async def get_assigned_matches(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
+
+
+@router.post("/forgot-password", response_description="Send password reset email")
+async def forgot_password(request: Request, email: str = Form(...)) -> JSONResponse:
+    mongodb = request.app.state.mongodb
+    user = await mongodb["users"].find_one({"email": email})
+    if not user:
+        # Return success even if email not found to prevent email enumeration
+        return JSONResponse(status_code=status.HTTP_200_OK,
+                          content={"message": "If email exists, reset link has been sent"})
+
+    # Generate reset token
+    reset_token = auth.encode_reset_token(user)
+    
+    # In production, send email with reset link
+    # For demo, just return the token
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                       content={"reset_token": reset_token,
+                               "message": "Password reset token generated"})
+
+@router.post("/reset-password", response_description="Reset password with token")
+async def reset_password(
+    request: Request,
+    token: str = Form(...),
+    new_password: str = Form(...)
+) -> JSONResponse:
+    mongodb = request.app.state.mongodb
+    try:
+        # Verify token and get user_id
+        payload = auth.decode_reset_token(token)
+        user_id = payload.sub
+        
+        # Hash new password
+        hashed_password = auth.get_password_hash(new_password)
+        
+        # Update password in database
+        result = await mongodb["users"].update_one(
+            {"_id": user_id},
+            {"$set": {"password": hashed_password}}
+        )
+        
+        if result.modified_count == 1:
+            return JSONResponse(status_code=status.HTTP_200_OK,
+                              content={"message": "Password updated successfully"})
+        
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                          detail="Password update failed")
+                          
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                          detail="Invalid or expired reset token")
+
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   user_id = token_payload.sub
