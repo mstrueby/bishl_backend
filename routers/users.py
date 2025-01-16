@@ -273,7 +273,6 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
         <p>This link will expire in 1 hour.</p>
         <p>If you did not request this password reset, please ignore this email.</p>
     """
-    
     await send_email(
         subject="Password Reset Request",
         recipients=[email],
