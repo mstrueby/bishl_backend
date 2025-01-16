@@ -89,6 +89,17 @@ async def get_club(alias: str, request: Request) -> JSONResponse:
   raise HTTPException(status_code=404,
                       detail=f"Club with alias {alias} not found")
 
+# get club by ID
+@router.get("/id/{id}",
+            response_description="Get a single club by ID",
+            response_model=ClubDB)
+async def get_club_by_id(id: str, request: Request) -> JSONResponse:
+    mongodb = request.app.state.mongodb
+    if (club := await mongodb["clubs"].find_one({"_id": id})) is not None:
+        return JSONResponse(status_code=status.HTTP_200_OK,
+                          content=jsonable_encoder(ClubDB(**club)))
+    raise HTTPException(status_code=404,
+                       detail=f"Club with id {id} not found")
 
 # create new club
 @router.post("/", response_description="Add new club", response_model=ClubDB)
