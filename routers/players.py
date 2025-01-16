@@ -51,12 +51,11 @@ async def get_paginated_players(mongodb,
             }
         }]
     })
-  print("query", query)
+    print("query", query)
   else:
     query = {}
   players = await mongodb["players"].find(query).sort(
       "firstName", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
-  print("players", players)
   return [PlayerDB(**raw_player) for raw_player in players]
 
 
