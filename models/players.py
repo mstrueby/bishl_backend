@@ -48,6 +48,8 @@ class AssignedTeams(BaseModel):
   passNo: str = Field(...)
   source: SourceEnum = Field(default=SourceEnum.BISHL)
   modifyDate: Optional[datetime] = None
+  active: bool = False
+  jerseyNo: Optional[int] = None
 
 
 class AssignedClubs(BaseModel):
