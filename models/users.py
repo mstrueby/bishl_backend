@@ -36,6 +36,7 @@ class Role(str, Enum):
   publisher = "PUBLISHER"
   referee = "REFEREE"
   doc_admin = "DOC_ADMIN"
+  club_admin = "CLUB_ADMIN"
 
 
 class Club(BaseModel):
