@@ -18,23 +18,22 @@ auth = AuthHandler()
 
 
 # Helper function to search players
-async def get_paginated_players(request,
+async def get_paginated_players(mongodb,
                                 q,
                                 page,
                                 club_alias=None,
                                 team_alias=None):
-  mongodb = request.app.state.mongodb
   RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
   #query = {}
-  query = {"$and": []}
-  if club_alias:
-    query["$and"].append({"assignedTeams.clubAlias": club_alias})
-  if team_alias:
-    query["$and"].append({"assignedTeams.teams.teamAlias": team_alias})
-  #if q and len(q) >= 3:
-  if q:
-    query["$and"].append({
+  if club_alias or team_alias or q:
+    query = {"$and": []}
+    if club_alias:
+      query["$and"].append({"assignedTeams.clubAlias": club_alias})
+    if team_alias:
+      query["$and"].append({"assignedTeams.teams.teamAlias": team_alias})
+    if q:
+      query["$and"].append({
         "$or": [{
             "firstName": {
                 "$regex": f".*{q}.*",
@@ -53,6 +52,8 @@ async def get_paginated_players(request,
         }]
     })
   print("query", query)
+  else:
+    query = {}
   players = await mongodb["players"].find(query).sort(
       "firstName", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
   print("players", players)
