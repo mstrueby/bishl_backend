@@ -631,7 +631,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     def update_stats(player_id, team, roster_player, match_info):
       if player_id not in player_card_stats:
         player_card_stats[player_id] = {}
-      team_key = team['full_name']
+      team_key = team['fullName']
       if team_key not in player_card_stats[player_id]:
         player_card_stats[player_id][team_key] = {
             'tournament': match_info['tournament'],
@@ -669,15 +669,15 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
       away_roster = match.get('away', {}).get('roster', [])
       home_team = {
           'name': match.get('home', {}).get('name'),
-          'full_name': match.get('home', {}).get('fullName'),
-          'short_name': match.get('home', {}).get('shortName'),
-          'tiny_name': match.get('home', {}).get('tinyName')
+          'fullName': match.get('home', {}).get('fullName'),
+          'shortName': match.get('home', {}).get('shortName'),
+          'tinyName': match.get('home', {}).get('tinyName')
       }
       away_team = {
           'name': match.get('away', {}).get('name'),
-          'full_name': match.get('away', {}).get('fullName'),
-          'short_name': match.get('away', {}).get('shortName'),
-          'tiny_name': match.get('away', {}).get('tinyName')
+          'fullName': match.get('away', {}).get('fullName'),
+          'shortName': match.get('away', {}).get('shortName'),
+          'tinyName': match.get('away', {}).get('tinyName')
       }
       if home_roster:
         for roster_player in home_roster:
@@ -706,7 +706,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
             if (elem['tournament']['alias'] == t_alias
                 and elem['season']['alias'] == s_alias
                 and elem['round']['alias'] == r_alias and
-                (elem['team']['full_name'] == stats['team']['full_name'] and
+                (elem['team']['fullName'] == stats['team']['fullName'] and
                  (elem['matchday']['alias'] == md_alias
                   if flag == 'MATCHDAY' else True))):
 
@@ -721,7 +721,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
           if all(
               (elem['tournament']['alias'] != t_alias or elem['season']
                ['alias'] != s_alias or elem['round']['alias'] != r_alias
-               or elem['team']['full_name'] != stats['team']['full_name'] or (
+               or elem['team']['fullName'] != stats['team']['fullName'] or (
                    elem['matchday']['alias'] != md_alias if flag ==
                    'MATCHDAY' else False)) for elem in player['stats']):
             updated_stats.append(stats)

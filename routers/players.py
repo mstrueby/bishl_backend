@@ -26,12 +26,13 @@ async def get_paginated_players(mongodb,
   RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
   #query = {}
+  #{ "assignedTeams": { "$elemMatch": { "clubAlias": "spreewoelfe-berlin", "teams.teamAlias": "1-herren" } } }
   if club_alias or team_alias or q:
     query = {"$and": []}
     if club_alias:
       query["$and"].append({"assignedTeams.clubAlias": club_alias})
-    if team_alias:
-      query["$and"].append({"assignedTeams.teams.teamAlias": team_alias})
+      if team_alias:
+        query["$and"].append({"assignedTeams": {"$elemMatch": {"clubAlias": club_alias, "teams.teamAlias": team_alias}}})
     if q:
       query["$and"].append({
         "$or": [{

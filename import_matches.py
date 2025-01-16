@@ -148,6 +148,7 @@ def import_scores():
     reader = csv.DictReader(f)
     matches = []
     for i, row in enumerate(reader):
+      print(f"Processing file row: {i}")
       #if i >= 37:
       #  break
       match_id = int(row['match_id'])
