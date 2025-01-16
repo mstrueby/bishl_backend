@@ -24,7 +24,7 @@ async def get_paginated_players(request,
                                 club_alias=None,
                                 team_alias=None):
   mongodb = request.app.state.mongodb
-  RESULTS_PER_PAGE = 25
+  RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
   #query = {}
   query = {"$and": []}
@@ -46,7 +46,7 @@ async def get_paginated_players(request,
                 "$options": "i"
             }
         }, {
-            "assignedTeams.teams.pass_no": {
+            "assignedTeams.teams.passNo": {
                 "$regex": f".*{q}.*",
                 "$options": "i"
             }
@@ -55,6 +55,7 @@ async def get_paginated_players(request,
   print("query", query)
   players = await mongodb["players"].find(query).sort(
       "firstName", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
+  print("players", players)
   return [PlayerDB(**raw_player) for raw_player in players]
 
 
