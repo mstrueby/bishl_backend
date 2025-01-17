@@ -1,10 +1,12 @@
+from cloudinary.utils import string
 from fastapi import APIRouter, HTTPException, Form, Request, Body, Depends, status, File
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
 from typing import List, Optional, Dict
 
-from fastapi_mail.schemas import UploadFile
+from fastapi import UploadFile
+from pydantic import HttpUrl
 from pydantic.types import OptionalInt
 from utils import configure_cloudinary, my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
@@ -22,12 +24,12 @@ auth = AuthHandler()
 configure_cloudinary()
 
 # upload file
-async def handle_image_upload(image: UploadFile) -> str:
+async def handle_image_upload(image: UploadFile, playerId) -> str:
   if image:
     result = cloudinary.uploader.upload(
         image.file,
         folder="players/",
-        #public_id=playerId,
+        public_id=playerId,
         overwrite=True,
         crop="scale",
         height=200,
@@ -809,6 +811,8 @@ async def update_player(request: Request,
                         assignedTeams: Optional[str] = Form(None),
                         fullFaceReq: Optional[bool] = Form(None),
                         source: Optional[SourceEnum] = Form(None),
+                        image: Optional[UploadFile] = File(None),
+                        imageUrl: Optional[HttpUrl] = Form(None),
                         token_payload: TokenPayload = Depends(
                             auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
@@ -839,6 +843,9 @@ async def update_player(request: Request,
 
   player_data.pop('id', None)
   print("player_data", player_data)
+
+  if image:
+    player_data['imageUrl'] = await handle_image_upload(image, imageUrl)
 
   player_to_update: Dict[str, Optional[str]] = {}
   for field, value in player_data.items():
