@@ -760,38 +760,39 @@ async def create_player(
   else:
     assigned_teams_dict = []
 
-  player = PlayerBase(firstName=firstName,
-                      lastName=lastName,
-                      birthdate=birthdate,
-                      displayFirstName=displayFirstName,
-                      displayLastName=displayLastName,
-                      nationality=nationality,
-                      position=position,
-                      assignedTeams=assigned_teams_dict,
-                      fullFaceReq=fullFaceReq,
-                      source=SourceEnum[source],
-                      legacyId=legacyId)
+  # Generate a new ID for the player
+  player_id = str(ObjectId())
+
+  player = PlayerBase(id=player_id,
+                     firstName=firstName,
+                     lastName=lastName,
+                     birthdate=birthdate,
+                     displayFirstName=displayFirstName,
+                     displayLastName=displayLastName,
+                     nationality=nationality,
+                     position=position,
+                     assignedTeams=assigned_teams_dict,
+                     fullFaceReq=fullFaceReq,
+                     source=SourceEnum[source],
+                     legacyId=legacyId)
   player = my_jsonable_encoder(player)
   player['create_date'] = datetime.now().replace(microsecond=0)
 
   if image:
-    player['imageUrl'] = await handle_image_upload(image) 
-    
-  #player['birthdate'] = datetime.strptime(player['birthdate'], '%Y-%m-%d')
+    player['imageUrl'] = await handle_image_upload(image, player_id)
+
   try:
-    #print("new player", player)
     new_player = await mongodb["players"].insert_one(player)
-    created_player = await mongodb["players"].find_one(
-        {"_id": new_player.inserted_id})
+    created_player = await mongodb["players"].find_one({"_id": player_id})
     if created_player:
       return JSONResponse(status_code=status.HTTP_201_CREATED,
-                          content=jsonable_encoder(PlayerDB(**created_player)))
+                         content=jsonable_encoder(PlayerDB(**created_player)))
     else:
       raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                          detail="Failed to create player.")
+                         detail="Failed to create player.")
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=str(e))
+                       detail=str(e))
 
 
 # UPDATE PLAYER
