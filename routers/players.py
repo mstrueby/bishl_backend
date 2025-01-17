@@ -8,7 +8,7 @@ from pydantic.types import OptionalInt
 from utils import my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
 import urllib.parse
 import aiohttp, base64
@@ -18,23 +18,23 @@ auth = AuthHandler()
 
 
 # Helper function to search players
-async def get_paginated_players(request,
+async def get_paginated_players(mongodb,
                                 q,
                                 page,
                                 club_alias=None,
                                 team_alias=None):
-  mongodb = request.app.state.mongodb
   RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
   #query = {}
-  query = {"$and": []}
-  if club_alias:
-    query["$and"].append({"assignedTeams.clubAlias": club_alias})
-  if team_alias:
-    query["$and"].append({"assignedTeams.teams.teamAlias": team_alias})
-  #if q and len(q) >= 3:
-  if q:
-    query["$and"].append({
+  #{ "assignedTeams": { "$elemMatch": { "clubAlias": "spreewoelfe-berlin", "teams.teamAlias": "1-herren" } } }
+  if club_alias or team_alias or q:
+    query = {"$and": []}
+    if club_alias:
+      query["$and"].append({"assignedTeams.clubAlias": club_alias})
+      if team_alias:
+        query["$and"].append({"assignedTeams": {"$elemMatch": {"clubAlias": club_alias, "teams.teamAlias": team_alias}}})
+    if q:
+      query["$and"].append({
         "$or": [{
             "firstName": {
                 "$regex": f".*{q}.*",
@@ -52,10 +52,11 @@ async def get_paginated_players(request,
             }
         }]
     })
-  print("query", query)
+    print("query", query)
+  else:
+    query = {}
   players = await mongodb["players"].find(query).sort(
       "firstName", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
-  print("players", players)
   return [PlayerDB(**raw_player) for raw_player in players]
 
 
@@ -102,8 +103,10 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
             "teamAlias": team['alias'],
             "teamIshdId": team['ishdId'],
             "passNo": team_to_assign['passNo'],
-            "source": source,
-            "modifyate": datetime.now().replace(microsecond=0),
+            "jerseyNo": team_to_assign.get('jerseyNo', None),
+            "active": team_to_assign.get('active', False),
+            "source": team_to_assign.get('source', 'BISHL'),
+            "modifyDate": team_to_assign.get('modifyDate', datetime.now(timezone.utc).astimezone().replace(tzinfo=timezone(timedelta(hours=1))).replace(microsecond=0)),
         })
     assigned_teams_dict.append({
         "clubId": club_to_assign.clubId,
