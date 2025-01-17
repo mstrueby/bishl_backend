@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse, Response
 import json
 from typing import List, Optional, Dict
 
-from fastapi_mail.schemas import UploadFile
+from fastapi import UploadFile
 from pydantic.types import OptionalInt
 from utils import configure_cloudinary, my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
