@@ -8,7 +8,7 @@ from pydantic.types import OptionalInt
 from utils import my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
 import urllib.parse
 import aiohttp, base64
@@ -106,7 +106,7 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
             "jerseyNo": team_to_assign.get('jerseyNo', None),
             "active": team_to_assign.get('active', False),
             "source": team_to_assign.get('source', 'BISHL'),
-            "modifyDate": team_to_assign.get('modifyDate', None),
+            "modifyDate": team_to_assign.get('modifyDate', datetime.now(timezone.utc).astimezone().replace(tzinfo=timezone(timedelta(hours=1))).replace(microsecond=0)),
         })
     assigned_teams_dict.append({
         "clubId": club_to_assign.clubId,
