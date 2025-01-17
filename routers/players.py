@@ -8,7 +8,7 @@ from pydantic.types import OptionalInt
 from utils import my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import os
 import urllib.parse
 import aiohttp, base64
@@ -32,26 +32,33 @@ async def get_paginated_players(mongodb,
     if club_alias:
       query["$and"].append({"assignedTeams.clubAlias": club_alias})
       if team_alias:
-        query["$and"].append({"assignedTeams": {"$elemMatch": {"clubAlias": club_alias, "teams.teamAlias": team_alias}}})
+        query["$and"].append({
+            "assignedTeams": {
+                "$elemMatch": {
+                    "clubAlias": club_alias,
+                    "teams.teamAlias": team_alias
+                }
+            }
+        })
     if q:
       query["$and"].append({
-        "$or": [{
-            "firstName": {
-                "$regex": f".*{q}.*",
-                "$options": "i"
-            }
-        }, {
-            "lastName": {
-                "$regex": f".*{q}.*",
-                "$options": "i"
-            }
-        }, {
-            "assignedTeams.teams.passNo": {
-                "$regex": f".*{q}.*",
-                "$options": "i"
-            }
-        }]
-    })
+          "$or": [{
+              "firstName": {
+                  "$regex": f".*{q}.*",
+                  "$options": "i"
+              }
+          }, {
+              "lastName": {
+                  "$regex": f".*{q}.*",
+                  "$options": "i"
+              }
+          }, {
+              "assignedTeams.teams.passNo": {
+                  "$regex": f".*{q}.*",
+                  "$options": "i"
+              }
+          }]
+      })
     print("query", query)
   else:
     query = {}
@@ -98,15 +105,26 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
         )
       else:
         teams.append({
-            "teamId": team['_id'],
-            "teamName": team['name'],
-            "teamAlias": team['alias'],
-            "teamIshdId": team['ishdId'],
-            "passNo": team_to_assign['passNo'],
-            "jerseyNo": team_to_assign.get('jerseyNo', None),
-            "active": team_to_assign.get('active', False),
-            "source": team_to_assign.get('source', 'BISHL'),
-            "modifyDate": team_to_assign.get('modifyDate', datetime.now(timezone.utc).astimezone().replace(tzinfo=timezone(timedelta(hours=1))).replace(microsecond=0)),
+            "teamId":
+            team['_id'],
+            "teamName":
+            team['name'],
+            "teamAlias":
+            team['alias'],
+            "teamIshdId":
+            team['ishdId'],
+            "passNo":
+            team_to_assign['passNo'],
+            "jerseyNo":
+            team_to_assign.get('jerseyNo', None),
+            "active":
+            team_to_assign.get('active', False),
+            "source":
+            team_to_assign.get('source', 'BISHL'),
+            "modifyDate":
+            team_to_assign.get(
+                'modifyDate',
+                datetime.now(timezone.utc).replace(microsecond=0)),
         })
     assigned_teams_dict.append({
         "clubId": club_to_assign.clubId,
@@ -245,19 +263,19 @@ async def process_ishd_data(request: Request,
     #for api_url in api_urls:
 
     ishd_log_base = IshdLogBase(
-      processDate=datetime.now().replace(microsecond=0),
-      clubs=[],
+        processDate=datetime.now().replace(microsecond=0),
+        clubs=[],
     )
-    
+
     for club in ishd_teams:
 
       log_line = f"Processing club {club.club_name} (IshdId: {club.club_ishd_id})"
       print(log_line)
       log_lines.append(log_line)
       ishd_log_club = IshdLogClub(
-        clubName = club.club_name,
-        ishdId = club.club_ishd_id,
-        teams = [],
+          clubName=club.club_name,
+          ishdId=club.club_ishd_id,
+          teams=[],
       )
 
       for team in club.teams:
@@ -266,11 +284,11 @@ async def process_ishd_data(request: Request,
         team_id_str = urllib.parse.quote(str(team['ishdId']))
         api_url = f"{base_url_str}/clubs/{club_ishd_id_str}/teams/{team_id_str}.json"
         ishd_log_team = IshdLogTeam(
-          teamIshdId = team['ishdId'],
-          url = api_url,
-          players = [],
+            teamIshdId=team['ishdId'],
+            url=api_url,
+            players=[],
         )
-        
+
         # get data
         data = {}
         if mode == "test":
@@ -290,7 +308,7 @@ async def process_ishd_data(request: Request,
           log_line = f"Processing team (URL): {club.club_name} / {team['ishdId']} / {api_url}"
           print(log_line)
           log_lines.append(log_line)
-          
+
           async with session.get(api_url, headers=headers) as response:
             if response.status == 200:
               data = await response.json()
@@ -304,12 +322,11 @@ async def process_ishd_data(request: Request,
         if data:
           # loop through players array
           for player in data['players']:
-            ishd_log_player = IshdLogPlayer(
-              firstName=player['first_name'],
-              lastName=player['last_name'],
-              birthdate= datetime.strptime(
-                player['date_of_birth'], '%Y-%m-%d')             
-            )
+            ishd_log_player = IshdLogPlayer(firstName=player['first_name'],
+                                            lastName=player['last_name'],
+                                            birthdate=datetime.strptime(
+                                                player['date_of_birth'],
+                                                '%Y-%m-%d'))
             #if player['first_name'] != "Anabel":
             #  break
             # build assignedTeams object
@@ -460,7 +477,7 @@ async def process_ishd_data(request: Request,
 
             if ishd_log_player.action is not None:
               ishd_log_team.players.append(ishd_log_player)
-          
+
           ishd_data.append(data)
 
           # remove player of a team (still in team loop)
@@ -474,9 +491,9 @@ async def process_ishd_data(request: Request,
           if players:
             for player in players:
               ishd_log_player_remove = IshdLogPlayer(
-                firstName=player['firstName'],
-                lastName=player['lastName'],
-                birthdate=player['birthdate'],
+                  firstName=player['firstName'],
+                  lastName=player['lastName'],
+                  birthdate=player['birthdate'],
               )
               if mode == "test":
                 print("remove player ?", player)
@@ -505,15 +522,14 @@ async def process_ishd_data(request: Request,
                   log_line = f"Removed player from team: {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team.get('ishdId')}"
                   print(log_line)
                   log_lines.append(log_line)
-                  ishd_log_player_remove.action =IshdActionEnum.DEL_TEAM                  
+                  ishd_log_player_remove.action = IshdActionEnum.DEL_TEAM
 
                   # After removing team assignment, if the teams array is empty, remove the club assignment
                   result = await mongodb["players"].update_one(
                       {
                           "_id": player['_id'],
                           "assignedTeams.clubIshdId": club.club_ishd_id
-                      },
-                      {"$pull": {
+                      }, {"$pull": {
                           "assignedTeams": {
                               "teams": {
                                   "$size": 0
@@ -548,7 +564,7 @@ async def process_ishd_data(request: Request,
       #print(f"--- ishd_log_club", ishd_log_club)
       if ishd_log_club:
         ishd_log_base.clubs.append(ishd_log_club)
-    
+
   await session.close()
 
   #with open(file_name, 'w') as logfile:
@@ -558,13 +574,12 @@ async def process_ishd_data(request: Request,
   #ishd_log_base_enc['processDate'] = create_date
   result = await mongodb["ishdLogs"].insert_one(ishd_log_base_enc)
   if result.inserted_id:
-      log_line = "Inserted ISHD log into ishdLogs collection."
-      print(log_line)
-      log_lines.append(log_line)
+    log_line = "Inserted ISHD log into ishdLogs collection."
+    print(log_line)
+    log_lines.append(log_line)
   else:
-      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                          detail="Failed to insert ISHD log.")
-
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to insert ISHD log.")
 
   return JSONResponse(
       status_code=status.HTTP_200_OK,
