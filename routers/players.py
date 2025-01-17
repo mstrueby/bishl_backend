@@ -105,8 +105,8 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
             "passNo": team_to_assign['passNo'],
             "jerseyNo": team_to_assign.get('jerseyNo', None),
             "active": team_to_assign.get('active', False),
-            "source": source,
-            "modifyDate": datetime.now().replace(microsecond=0),
+            "source": team_to_assign.get('source', 'BISHL'),
+            "modifyDate": team_to_assign.get('modifyDate', None),
         })
     assigned_teams_dict.append({
         "clubId": club_to_assign.clubId,
