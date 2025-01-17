@@ -603,7 +603,7 @@ async def get_players_for_club(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
+  if token_payload.roles not in [["ADMIN"], ["CLUB_ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
   # get club
   club = await mongodb["clubs"].find_one({"alias": club_alias})
@@ -629,7 +629,7 @@ async def get_players_for_team(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
+  if token_payload.roles not in [["ADMIN"], ["CLUB_ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
   # get club
   club = await mongodb["clubs"].find_one({"alias": club_alias})
@@ -786,7 +786,7 @@ async def update_player(request: Request,
                         token_payload: TokenPayload = Depends(
                             auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
+  if token_payload.roles not in [["ADMIN"], ["CLUB_ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
 
   existing_player = await mongodb["players"].find_one({"_id": id})
