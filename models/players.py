@@ -98,7 +98,7 @@ class PlayerBase(MongoBaseModel):
   source: SourceEnum = Field(default=SourceEnum.BISHL)
   assignedTeams: Optional[List[AssignedClubs]] = Field(default_factory=list)
   stats: Optional[List[PlayerStats]] = Field(default_factory=list)
-  image: Optional[HttpUrl] = None
+  imageUrl: Optional[HttpUrl] = None
   legacyId: Optional[int] = None
   """
   @validator('firstName', 'lastName', 'position', pre=True, always=True)
@@ -127,7 +127,7 @@ class PlayerUpdate(MongoBaseModel):
   source: Optional[SourceEnum] = None
   assignedTeams: Optional[List[AssignedClubs]] = Field(default_factory=list)
   stats: Optional[List[PlayerStats]] = Field(default_factory=list)
-  image: Optional[HttpUrl] = None
+  imageUrl: Optional[HttpUrl] = None
   """
   @validator('firstName', 'lastName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
