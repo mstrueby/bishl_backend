@@ -33,12 +33,12 @@ async def handle_image_upload(image: UploadFile, playerId) -> str:
         overwrite=True,
         format='jpg',  # Save as JPEG
         transformation=[{
+            'effect': 'background_removal'
+        }, {
             'width': 300, 
             'height': 300, 
             'crop': 'thumb',
-            'gravity': 'face',
-            }, {
-            'effect': 'background_removal'
+            'gravity': 'face'
         }]
     )
     print(f"Player image uploaded to Cloudinary: {result['public_id']}")
