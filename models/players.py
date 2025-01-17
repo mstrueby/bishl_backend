@@ -125,8 +125,8 @@ class PlayerUpdate(MongoBaseModel):
   position: Optional[PositionEnum] = None
   fullFaceReq: Optional[bool] = None
   source: Optional[SourceEnum] = None
-  assignedTeams: Optional[List[AssignedClubs]] = Field(default_factory=list)
-  stats: Optional[List[PlayerStats]] = Field(default_factory=list)
+  assignedTeams: Optional[List[AssignedClubs]] = None
+  stats: Optional[List[PlayerStats]] = None
   imageUrl: Optional[HttpUrl] = None
   """
   @validator('firstName', 'lastName', pre=True, always=True)
