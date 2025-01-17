@@ -28,9 +28,10 @@ async def handle_image_upload(image: UploadFile, playerId) -> str:
   if image:
     result = cloudinary.uploader.upload(
         image.file,
-        folder="players/",
+        folder="players",
         public_id=playerId,
         overwrite=True,
+        resource_type="image",
         format='jpg',  # Save as JPEG
         transformation=[{
             'effect': 'background_removal'
@@ -44,7 +45,7 @@ async def handle_image_upload(image: UploadFile, playerId) -> str:
     print(f"Player image uploaded to Cloudinary: {result['public_id']}")
     return result["secure_url"]
   raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                      detail="No logo uploaded.")
+                      detail="No image uploaded.")
 
 
 # Helper function to search players
