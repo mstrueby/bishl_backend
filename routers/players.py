@@ -1,20 +1,41 @@
-from fastapi import APIRouter, HTTPException, Form, Request, Body, Depends, status
+from fastapi import APIRouter, HTTPException, Form, Request, Body, Depends, status, File
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
 from typing import List, Optional, Dict
 
+from fastapi_mail.schemas import UploadFile
 from pydantic.types import OptionalInt
-from utils import my_jsonable_encoder
+from utils import configure_cloudinary, my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime, timezone
 import os
 import urllib.parse
-import aiohttp, base64
+import aiohttp
+import base64
+import cloudinary
+import cloudinary.uploader
 
 router = APIRouter()
 auth = AuthHandler()
+configure_cloudinary()
+
+# upload file
+async def handle_image_upload(image: UploadFile) -> str:
+  if image:
+    result = cloudinary.uploader.upload(
+        image.file,
+        folder="players/",
+        #public_id=playerId,
+        overwrite=True,
+        crop="scale",
+        height=200,
+    )
+    print(f"Player image uploaded to Cloudinary: {result['public_id']}")
+    return result["secure_url"]
+  raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                      detail="No logo uploaded.")
 
 
 # Helper function to search players
@@ -603,7 +624,7 @@ async def get_players_for_club(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"], ["CLUB_ADMIN"]]:
+  if not any(role in token_payload.roles for role in ["ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Not authorized")
   # get club
   club = await mongodb["clubs"].find_one({"alias": club_alias})
@@ -630,7 +651,7 @@ async def get_players_for_team(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   print(token_payload.roles)
-  if token_payload.roles not in [["ADMIN"], ["CLUB_ADMIN"]]:
+  if not any(role in token_payload.roles for role in ["ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Not authorized")
   # get club
   club = await mongodb["clubs"].find_one({"alias": club_alias})
@@ -712,6 +733,7 @@ async def create_player(
     fullFaceReq: bool = Form(False),
     source: SourceEnum = Form(default=SourceEnum.BISHL),
     legacyId: int = Form(None),
+    image: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
@@ -750,6 +772,9 @@ async def create_player(
   player = my_jsonable_encoder(player)
   player['create_date'] = datetime.now().replace(microsecond=0)
 
+  if image:
+    player['imageUrl'] = await handle_image_upload(image) 
+    
   #player['birthdate'] = datetime.strptime(player['birthdate'], '%Y-%m-%d')
   try:
     #print("new player", player)
@@ -787,7 +812,7 @@ async def update_player(request: Request,
                         token_payload: TokenPayload = Depends(
                             auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"], ["CLUB_ADMIN"]]:
+  if not any(role in token_payload.roles for role in ["ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Not authorized")
 
   existing_player = await mongodb["players"].find_one({"_id": id})
