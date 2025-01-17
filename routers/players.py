@@ -629,6 +629,7 @@ async def get_players_for_team(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
+  print(token_payload.roles)
   if token_payload.roles not in [["ADMIN"], ["CLUB_ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
   # get club
