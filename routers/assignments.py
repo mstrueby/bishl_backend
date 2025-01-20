@@ -165,8 +165,13 @@ async def get_assignments_by_match(
 async def get_assignments_by_user(
         request: Request,
         user_id: str = Path(..., description="User ID"),
+        token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
+    if not (user_id == token_payload.sub or any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized")
+
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
