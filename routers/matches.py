@@ -183,16 +183,24 @@ async def create_match(
 
     if t_alias and s_alias and r_alias and md_alias:
       print("Are we here?")
-      ref_points = await fetch_ref_points(t_alias=t_alias,
-                                          s_alias=s_alias,
-                                          r_alias=r_alias,
-                                          md_alias=md_alias)
-      print("ref_points: ", ref_points)
-      if match.matchStatus.key in ['FINISHED', 'FORFEITED']:
-        if match.referee1 is not None:
-          match.referee1.points = ref_points
-        if match.referee2 is not None:
-          match.referee2.points = ref_points
+      try:
+          ref_points = await fetch_ref_points(t_alias=t_alias,
+                                            s_alias=s_alias,
+                                            r_alias=r_alias,
+                                            md_alias=md_alias)
+          print("ref_points: ", ref_points)
+          if match.matchStatus.key in ['FINISHED', 'FORFEITED']:
+              if match.referee1 is not None:
+                  match.referee1.points = ref_points
+              if match.referee2 is not None:
+                  match.referee2.points = ref_points
+      except HTTPException as e:
+          if e.status_code == 404:
+              raise HTTPException(
+                  status_code=404,
+                  detail=f"Could not fetch referee points: Matchday {md_alias} not found for {t_alias} / {s_alias} / {r_alias}"
+              )
+          raise e
 
     print("xxx match", match)
     match_data = jsonable_encoder(match)
