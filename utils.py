@@ -639,21 +639,21 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
             'round': match_info['round'],
             'matchday': match_info['matchday'],
             'team': team,
-            'games_played': 0,
+            'gamesPlayed': 0,
             'goals': 0,
             'assists': 0,
             'points': 0,
-            'penalty_minutes': 0,
+            'penaltyMinutes': 0,
         }
       if match_info['match_status']['key'] in [
           'FINISHED', 'INPROGRESS', 'FORFEITED'
       ]:
         stats = player_card_stats[player_id][team_key]
-        stats['games_played'] += 1
+        stats['gamesPlayed'] += 1
         stats['goals'] += roster_player.get('goals', 0)
         stats['assists'] += roster_player.get('assists', 0)
         stats['points'] += roster_player.get('points', 0)
-        stats['penalty_minutes'] += roster_player.get('penaltyMinutes', 0)
+        stats['penaltyMinutes'] += roster_player.get('penaltyMinutes', 0)
 
     for match in matches:
       match_info = {
