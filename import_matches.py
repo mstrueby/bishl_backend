@@ -374,20 +374,27 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
     # Check if the match already exists
     match_exists = db_collection.find_one({'matchId': row['matchId']})
     if not match_exists:
-      response = requests.post(f"{BASE_URL}/matches/",
-                               json=jsonable_encoder(row_to_insert),
-                               headers=headers)
-      if response.status_code == 201:
-        print(
-          f"--> Successfully posted Match: {row['matchId']} - {t_alias} / {s_alias} / {r_alias} / {md_alias}"
-        )
-        if not args.importAll:
-          print("--importAll flag not set, exiting.")
-          exit()
-      else:
-        print('Failed to post Match: ', row, ' - Status code:',
-              response.status_code)
-        exit()
+      try:
+          response = requests.post(f"{BASE_URL}/matches/",
+                                 json=jsonable_encoder(row_to_insert),
+                                 headers=headers)
+          response.raise_for_status()
+          if response.status_code == 201:
+              print(
+                  f"--> Successfully posted Match: {row['matchId']} - {t_alias} / {s_alias} / {r_alias} / {md_alias}"
+              )
+              if not args.importAll:
+                  print("--importAll flag not set, exiting.")
+                  exit()
+      except requests.exceptions.RequestException as e:
+          error_detail = ""
+          if hasattr(e.response, 'json'):
+              try:
+                  error_detail = e.response.json()
+              except:
+                  error_detail = e.response.text
+          print(f'Failed to post Match: {row["matchId"]} - Error: {str(e)} - Detail: {error_detail}')
+          exit(1)
     else:
       print(
         f"Match {row['matchId']} for {t_alias} / {s_alias} / {r_alias} / {md_alias} already exists, skipping insertion."
