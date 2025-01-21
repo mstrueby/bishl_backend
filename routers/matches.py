@@ -124,7 +124,7 @@ async def list_matches(request: Request,
                           detail=f"Invalid date format: {str(e)}")
   if DEBUG_LEVEL > 10:
     print("query: ", query)
-  matches = await mongodb["matches"].find(query).to_list(None)
+  matches = await mongodb["matches"].find(query).sort("startDate", 1).to_list(None)
   results = [MatchDB(**match) for match in matches]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
