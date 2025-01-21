@@ -80,8 +80,8 @@ select
       case when g.IsShootout = 1 then 'Penaltyschießen' else 'Regulär' end
     end
   ) as finishType,
-  --g.startdate as startDate,
-  DATE_ADD(g.startdate, INTERVAL 7 MONTH) as startDate,
+  g.startdate as startDate,
+  --DATE_ADD(g.startdate, INTERVAL 7 MONTH) as startDate,
   'True' as published,
   case when g.id_fk_referee1 > 0 then
     json_object(
@@ -118,9 +118,9 @@ left join tblofficial as r2 on g.id_fk_Referee2=r2.id_tblOfficial
 left join tblclub as r2c on r2.id_fk_Club=r2c.id_tblClub
 where g.SeasonYear not in (2020,2021)
   -- and g.SeasonYear <= 2023
-  -- and cs.id_tblchampionship not in (46,34,2,32,8,13,33,4,5)
+  and cs.id_tblchampionship not in (46,34,2,32,8,13,33,4,5)
   and g.SeasonYear = 2024
-  and cs.id_tblchampionship = 27
+  -- and cs.id_tblchampionship = 27
 and g.id_fk_gamestatus in (2,4)
   and cs.isextern=0
 order by cs.py_t_alias, g.SeasonYear, g.Round, g.MatchDay, g.StartDate
