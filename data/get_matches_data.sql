@@ -81,7 +81,7 @@ select
     end
   ) as finishType,
   g.startdate as startDate,
-  --DATE_ADD(g.startdate, INTERVAL 7 MONTH) as startDate,
+  -- DATE_ADD(g.startdate, INTERVAL 7 MONTH) as startDate,
   'True' as published,
   case when g.id_fk_referee1 > 0 then
     json_object(

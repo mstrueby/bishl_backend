@@ -9,7 +9,7 @@ from pymongo import MongoClient
 import certifi
 from fastapi.encoders import jsonable_encoder
 import argparse
-from models.matches import MatchBase
+from models.matches import MatchDB
 
 filename = "data/data_tournaments.csv"
 BASE_URL = os.environ['BE_API_URL']
@@ -348,11 +348,13 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
       row['published'] = row['published'].lower() == 'true'
     if isinstance(row.get('matchId'), str):
       row['matchId'] = int(row['matchId'])
-    if 'referee1' in row and row['referee1'].strip():
+    if 'referee1' in row and len(row['referee1'].strip()) > 0:
       row['referee1'] = json.loads(row['referee1'])
+    else:
       del row['referee1']
-    if 'referee2' in row and row['referee2'].strip():
+    if 'referee2' in row and len(row['referee2'].strip()) > 0:
       row['referee2'] = json.loads(row['referee2'])
+    else:
       del row['referee2']
 
     t_alias = row['tournament']['alias']
@@ -360,22 +362,13 @@ with open("data/data_matches.csv", encoding='utf-8') as f:
     r_alias = row['round']['alias']
     md_alias = row['matchday']['alias']
 
-    row_to_insert = MatchBase(
-        tournament=row['tournament'],
-        season=row['season'],
-        round=row['round'],
-        matchday=row['matchday']
-    )
-    
-    if 'startDate' in row:
-        del row['startDate']
-    print("row", row_to_insert)
+    print("row", row)
 
     # Check if the match already exists
     match_exists = db_collection.find_one({'matchId': row['matchId']})
     if not match_exists:
       response = requests.post(f"{BASE_URL}/matches/",
-                               json=jsonable_encoder(row_to_insert),
+                               json=row,
                                headers=headers)
       if response.status_code == 201:
         print(
