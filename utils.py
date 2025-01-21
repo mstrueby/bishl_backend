@@ -110,18 +110,33 @@ def validate_match_time(v, field_name: str):
   return v
 
 
-async def fetch_standings_settings(tournament_alias, season_alias):
+async def fetch_standings_settings(tournament_alias: str, season_alias: str) -> dict:
+  if not tournament_alias or not season_alias:
+    raise HTTPException(status_code=400, detail="Tournament and season aliases are required")
+    
   async with aiohttp.ClientSession() as session:
-    async with session.get(
-        f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}"
-    ) as response:
-      if response.status != 200:
-        raise HTTPException(
-            status_code=404,
-            detail=
-            f"Tournament/Season with alias {tournament_alias}/{season_alias} not found"
-        )
-      return (await response.json()).get('standingsSettings')
+    try:
+      async with session.get(
+          f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}"
+      ) as response:
+        if response.status != 200:
+          raise HTTPException(
+              status_code=404,
+              detail=f"Could not fetch standings settings: Tournament/Season {tournament_alias}/{season_alias} not found"
+          )
+        data = await response.json()
+        settings = data.get('standingsSettings')
+        if not settings:
+          raise HTTPException(
+              status_code=404,
+              detail=f"No standings settings found for {tournament_alias}/{season_alias}"
+          )
+        return settings
+    except aiohttp.ClientError as e:
+      raise HTTPException(
+          status_code=500,
+          detail=f"Failed to fetch standings settings: {str(e)}"
+      )
 
 
 def calc_match_stats(match_status,
