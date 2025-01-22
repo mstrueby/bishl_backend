@@ -224,7 +224,7 @@ select
 from tblgame as g
 join tblchampionship as cs on g.id_fk_Championship=cs.id_tblChampionship
 where g.SeasonYear not in (2020,2021)
-  and g.SeasonYear <= 2023
+  and g.SeasonYear = 2024
   and cs.id_tblChampionship not in (46,34,2,32,8,13,33,4,5)
   and g.id_fk_gamestatus in (2,4)
   and cs.isExtern=0
