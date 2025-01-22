@@ -254,6 +254,18 @@ async def update_matchday(
             f"Matchday {matchday_id} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
         )
 
+    # get matches for this matchday to determine start/end dates
+    print(tournament_alias, season_alias, round_alias, tournament["seasons"][season_index]["rounds"][round_index]["matchdays"][matchday_index]['alias'])
+    matches = await mongodb['matches'].find({
+        "tournament.alias": tournament_alias,
+        "season.alias": season_alias,
+        "round.alias": round_alias,
+        "matchday.alias": tournament["seasons"][season_index]["rounds"][round_index]["matchdays"][matchday_index]['alias']
+    }).sort("startDate", 1).to_list(length=None)
+    if matches:
+        matchday_dict["startDate"] = min(match["startDate"] for match in matches)
+        matchday_dict["endDate"] = max(match["startDate"] for match in matches)
+
     # update matchday
     # prepare
     update_data = {"$set": {}}

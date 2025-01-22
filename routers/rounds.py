@@ -215,9 +215,8 @@ async def update_round(
   matches = await mongodb["matches"].find({
       "tournament.alias": tournament_alias,
       "season.alias": season_alias,
-      "round.alias": round.alias if round.alias else tournament["seasons"][season_index]["rounds"][round_index]["alias"]
+      "round.alias": tournament["seasons"][season_index]["rounds"][round_index]["alias"]
   }).sort("startDate", 1).to_list(None)
-  
   if matches:
       round_dict["startDate"] = min(match["startDate"] for match in matches)
       round_dict["endDate"] = max(match["startDate"] for match in matches)
