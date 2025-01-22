@@ -837,7 +837,7 @@ async def update_player(request: Request,
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Not authorized")
-
+  print("OK?")
   existing_player = await mongodb["players"].find_one({"_id": id})
   if not existing_player:
     raise HTTPException(status_code=404,
@@ -848,7 +848,6 @@ async def update_player(request: Request,
         assignedTeams, source, request)
   else:
     assigned_teams_dict = None
-
   player_data = PlayerUpdate(firstName=firstName,
                              lastName=lastName,
                              birthdate=birthdate,
@@ -862,16 +861,22 @@ async def update_player(request: Request,
                              source=source).dict(exclude_none=True)
 
   player_data.pop('id', None)
-  print("player_data", player_data)
-
   if image:
     player_data['imageUrl'] = await handle_image_upload(image, id)
+  elif imageUrl:
+    player_data['imageUrl'] = imageUrl
+  elif existing_player.get('imageUrl'):
+    await delete_from_cloudinary(existing_player['imageUrl'])
+    player_data['imageUrl'] = None
+  else:
+    player_data['imageUrl'] = None
+  print("player_data", player_data)
 
-  player_to_update: Dict[str, Optional[str]] = {}
-  for field, value in player_data.items():
-    if value is not None and existing_player.get(field) != value:
-      player_to_update[field] = value
-      #setattr(existing_player, field, value)
+  # exclude unchanged data
+  player_to_update = {
+    k: v
+    for k, v in player_data.items() if v != existing_player.get(k, None)
+  }
 
   print("player_to_update", player_to_update)
   if not player_to_update:
