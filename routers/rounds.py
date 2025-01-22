@@ -211,6 +211,17 @@ async def update_round(
         f"Round with id {round_id} not found in season {season_alias} of tournament {tournament_alias}"
     )
 
+  # Get matches for this round to determine start/end dates
+  matches = await mongodb["matches"].find({
+      "tournament.alias": tournament_alias,
+      "season.alias": season_alias,
+      "round.alias": round.alias if round.alias else tournament["seasons"][season_index]["rounds"][round_index]["alias"]
+  }).sort("startDate", 1).to_list(None)
+  
+  if matches:
+      round_dict["startDate"] = min(match["startDate"] for match in matches)
+      round_dict["endDate"] = max(match["startDate"] for match in matches)
+
   # Prepare the update by excluding unchanged data
   update_data = {"$set": {}}
   for field in round_dict:
@@ -225,18 +236,6 @@ async def update_round(
   if update_data.get("$set"):
     print("to update: ", update_data)
     try:
-      # Get matches for this round to determine start/end dates
-      matches = await mongodb["matches"].find({
-          "tournament.alias": tournament_alias,
-          "season.alias": season_alias,
-          "round.alias": round.alias if round.alias else tournament["seasons"][season_index]["rounds"][round_index]["alias"]
-      }).sort("startDate", 1).to_list(None)
-      
-      if matches:
-          start_date = min(match["startDate"] for match in matches)
-          end_date = max(match["startDate"] for match in matches)
-          update_data["$set"][f"seasons.{season_index}.rounds.{round_index}.startDate"] = start_date
-          update_data["$set"][f"seasons.{season_index}.rounds.{round_index}.endDate"] = end_date
 
       # Update the round in the tournament's season
       result = await mongodb['tournaments'].update_one(
