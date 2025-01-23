@@ -580,6 +580,14 @@ async def process_ishd_data(request: Request,
                         }
                     })
                 if result.modified_count:
+                  # Update existing_players array to remove team assignment
+                  for existing_player in existing_players:
+                    if existing_player['_id'] == player['_id']:
+                      for club_assignment in existing_player.get('assignedTeams', []):
+                        if club_assignment['clubAlias'] == club.club_alias:
+                          club_assignment['teams'] = [t for t in club_assignment['teams'] if t['teamAlias'] != team['alias']]
+                          break
+
                   log_line = f"Removed player from team: {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team.get('ishdId')}"
                   print(log_line)
                   log_lines.append(log_line)
@@ -601,6 +609,12 @@ async def process_ishd_data(request: Request,
                   print("result", result.modified_count)
 
                   if result.modified_count:
+                    # Update existing_players array to remove club assignment
+                    for existing_player in existing_players:
+                      if existing_player['_id'] == player['_id']:
+                        existing_player['assignedTeams'] = [a for a in existing_player.get('assignedTeams', []) if a['clubIshdId'] != club.club_ishd_id]
+                        break
+
                     log_line = f"Removed club assignment for player: {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name}"
                     print(log_line)
                     log_lines.append(log_line)
