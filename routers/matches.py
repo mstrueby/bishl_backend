@@ -10,6 +10,7 @@ import os
 import isodate
 from datetime import datetime
 from bson import ObjectId
+import requests
 
 router = APIRouter()
 auth = AuthHandler()
@@ -149,8 +150,6 @@ async def create_match(
     match: MatchBase = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
-  
-  print("Start...")
   mongodb = request.app.state.mongodb
   if token_payload.roles not in [["ADMIN"]]:
     raise HTTPException(status_code=403, detail="Not authorized")
@@ -182,7 +181,6 @@ async def create_match(
     md_alias = match.matchday.alias if match.matchday is not None else None
 
     if t_alias and s_alias and r_alias and md_alias:
-      print("Are we here?")
       try:
           ref_points = await fetch_ref_points(t_alias=t_alias,
                                             s_alias=s_alias,
@@ -226,8 +224,30 @@ async def create_match(
     result = await mongodb["matches"].insert_one(match_data)
     print("result: ", result)
 
-    # calc standings and set it in round if createStandings is true
+    # Update rounds and matchdays dates, and calc standings
     if t_alias and s_alias and r_alias and md_alias:
+      """ TODO
+      print("Updating rounds and matchdays...")
+      headers = {'Authorization': f"Bearer {token_payload.access_token}"}  # Define headers
+      # Update round dates
+      round_response = requests.patch(
+          f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}",
+          json={},
+          headers=headers
+      )
+      if round_response.status_code not in [200, 304]:
+          print(f"Warning: Failed to update round dates: {round_response.status_code}")
+          
+      # Update matchday dates  
+      matchday_response = requests.patch(
+          f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}",
+          json={},
+          headers=headers
+      )
+      if matchday_response.status_code not in [200, 304]:
+          print(f"Warning: Failed to update matchday dates: {matchday_response.status_code}")
+      """
+
       print("calc standings ...")
       await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
       await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
@@ -406,6 +426,28 @@ async def update_match(request: Request,
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   updated_match = await get_match_object(mongodb, match_id)
+
+  """
+  # Update rounds and matchdays dates
+  print("Updating rounds and matchdays...")
+  # Update round dates
+  round_response = await requests.patch(
+      f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
+      json={},
+      headers=headers
+  )
+  if round_response.status_code not in [200, 304]:
+      print(f"Warning: Failed to update round dates: {round_response.status_code}")
+      
+  # Update matchday dates  
+  matchday_response = await requests.patch(
+      f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_id}",
+      json={},
+      headers=headers
+  )
+  if matchday_response.status_code not in [200, 304]:
+      print(f"Warning: Failed to update matchday dates: {matchday_response.status_code}")
+  """
   # calc standings and set it in round
   await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
   await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
