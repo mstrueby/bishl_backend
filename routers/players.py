@@ -412,7 +412,7 @@ async def process_ishd_data(request: Request,
                   # club already exists
                   team_assignment_exists = False
                   for team_assignment in club_assignment.get('teams', []):
-                    if team_assignment['teamId'] == team['_id']:
+                    if team_assignment.teamId == team['_id']:
                       team_assignment_exists = True
                       break
                   if not team_assignment_exists:
