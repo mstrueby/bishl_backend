@@ -218,7 +218,7 @@ async def process_ishd_data(request: Request,
       {
           "$match": {
               "active": True,
-              #"ishdId": 39,
+              "ishdId": 228,
               "teams.ishdId": {
                   "$ne": None
               },
@@ -278,10 +278,11 @@ async def process_ishd_data(request: Request,
   """
 
   ishd_data = []
-  current_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-  file_name = f'ishd_processing_{current_timestamp}.log'
+  #current_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+  #file_name = f'ishd_processing_{current_timestamp}.log'
 
   # Keep only the 10 most recent log files, delete older ones
+  """
   log_files = sorted([
       f for f in os.listdir('.')
       if f.startswith('ishd_processing_') and f.endswith('.log')
@@ -297,10 +298,11 @@ async def process_ishd_data(request: Request,
         log_line = f"Error deleting file {old_log}: {e.strerror}"
         print(log_line)
         log_lines.append(log_line)
+  """
 
   async with aiohttp.ClientSession() as session:
-    # loop through teaam API URLs
-    #for api_url in api_urls:
+    # loop through team API URLs
+    # for api_url in api_urls:
 
     ishd_log_base = IshdLogBase(
         processDate=datetime.now().replace(microsecond=0),
@@ -319,9 +321,10 @@ async def process_ishd_data(request: Request,
       )
 
       for team in club.teams:
-        print("team", team)
         club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
         team_id_str = urllib.parse.quote(str(team['ishdId']))
+        if team_id_str != '1.%20Herren' and team_id_str != '2.%20Herren':
+          break
         api_url = f"{base_url_str}/clubs/{club_ishd_id_str}/teams/{team_id_str}.json"
         ishd_log_team = IshdLogTeam(
             teamIshdId=team['ishdId'],
@@ -367,7 +370,7 @@ async def process_ishd_data(request: Request,
                                             birthdate=datetime.strptime(
                                                 player['date_of_birth'],
                                                 '%Y-%m-%d'))
-            #if player['first_name'] != "Anabel":
+            #if player['first_name'] != "Leonid":
             #  break
             # build assignedTeams object
             assigned_team = AssignedTeams(teamId=team['_id'],
@@ -384,6 +387,8 @@ async def process_ishd_data(request: Request,
                                           clubAlias=club.club_alias,
                                           clubIshdId=club.club_ishd_id,
                                           teams=[assigned_team])
+            
+            # print("assigned_club", assigned_club)
             # check if player already exists in existing_players array
             player_exists = False
             existing_player = None
@@ -450,6 +455,9 @@ async def process_ishd_data(request: Request,
                 if mode == "test":
                   print("club assignment does not exist / existing_players")
                 # add club assignment to player
+                if existing_player['_id'] == '66f176db633f27247d963a1f':
+                  print("existing_player", existing_player)
+                  print("assigned_club", assigned_club)
                 existing_player['assignedTeams'].append(
                     jsonable_encoder(assigned_club))
                 if mode == "test":
@@ -521,10 +529,14 @@ async def process_ishd_data(request: Request,
           ishd_data.append(data)
 
           # remove player of a team (still in team loop)
-          query = {"$and": []}
-          query["$and"].append({"assignedTeams.clubAlias": club.club_alias})
-          query["$and"].append(
-              {"assignedTeams.teams.teamAlias": team['alias']})
+          query = {
+              "assignedTeams": {
+                  "$elemMatch": {
+                      "clubAlias": club.club_alias,
+                      "teams.teamAlias": team['alias']
+                  }
+              }
+          }
           players = await mongodb["players"].find(query).to_list(length=None)
           if mode == "test":
             print("removing / players:", players)
@@ -543,12 +555,21 @@ async def process_ishd_data(request: Request,
                   player['lastName'] and p['date_of_birth'] ==
                   datetime.strftime(player['birthdate'], '%Y-%m-%d')
                   for p in data['players']):
-                query = {"$and": []}
-                query["$and"].append({"_id": player['_id']})
-                query["$and"].append(
-                    {"assignedTeams.clubAlias": club.club_alias})
-                query["$and"].append(
-                    {"assignedTeams.teams.teamAlias": team['alias']})
+                query = {
+                    "$and": [
+                        {"_id": player['_id']},
+                        {"assignedTeams": {
+                            "$elemMatch": {
+                                "clubAlias": club.club_alias,
+                                "teams": {
+                                    "$elemMatch": {
+                                        "teamAlias": team['alias']
+                                    }
+                                }
+                            }
+                        }}
+                    ]
+                }
                 # print("query", query)
                 result = await mongodb["players"].update_one(
                     query, {
@@ -565,6 +586,7 @@ async def process_ishd_data(request: Request,
                   ishd_log_player_remove.action = IshdActionEnum.DEL_TEAM
 
                   # After removing team assignment, if the teams array is empty, remove the club assignment
+                  print("remove club in player:", player['_id'], club.club_ishd_id)
                   result = await mongodb["players"].update_one(
                       {
                           "_id": player['_id'],
@@ -576,6 +598,7 @@ async def process_ishd_data(request: Request,
                               }
                           }
                       }})
+                  print("result", result.modified_count)
 
                   if result.modified_count:
                     log_line = f"Removed club assignment for player: {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name}"
