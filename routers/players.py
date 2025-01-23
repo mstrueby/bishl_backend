@@ -941,6 +941,164 @@ async def update_player(request: Request,
                         detail=str(e))
 
 
+# VERIFY ISHD DATA
+# ----------------------
+@router.get(
+    "/verify_ishd_data",
+    response_description="Verify player assignments against ISHD data",
+    include_in_schema=False)
+async def verify_ishd_data(
+    request: Request,
+    mode: Optional[str] = None,
+    #token_payload: TokenPayload = Depends(auth.auth_wrapper)
+):
+    mongodb = request.app.state.mongodb
+    #if token_payload.roles not in [["ADMIN"]]:
+    #    raise HTTPException(status_code=403, detail="Not authorized")
+
+    ISHD_API_URL = os.environ.get("ISHD_API_URL")
+    ISHD_API_USER = os.environ.get("ISHD_API_USER")
+    ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
+
+    verification_results = {
+        "missing_in_ishd": [],
+        "missing_in_db": [],
+        "team_mismatches": [],
+        "club_mismatches": []
+    }
+
+    # Get all active clubs with ISHD teams
+    ishd_teams = []
+    async for club in mongodb['clubs'].aggregate([{
+        "$match": {
+            "active": True,
+            "teams.ishdId": {"$ne": None},
+            "teams": {"$ne": []}
+        }
+    }]):
+        for team in club['teams']:
+            if team.get('ishdId'):
+                ishd_teams.append({
+                    'club_id': club['_id'],
+                    'club_name': club['name'],
+                    'club_alias': club['alias'],
+                    'club_ishd_id': club['ishdId'],
+                    'team_id': team['_id'],
+                    'team_name': team['name'],
+                    'team_alias': team['alias'],
+                    'team_ishd_id': team['ishdId']
+                })
+
+    headers = {
+        "Authorization": f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
+        "Connection": "close"
+    }
+
+    # Get all players from database
+    db_players = {}
+    async for player in mongodb['players'].find({}):
+        key = f"{player['firstName']}_{player['lastName']}_{datetime.strftime(player['birthdate'], '%Y-%m-%d')}"
+        db_players[key] = {
+            'player': player,
+            'assignments': []
+        }
+        for club in player.get('assignedTeams', []):
+            for team in club.get('teams', []):
+                db_players[key]['assignments'].append({
+                    'clubId': club['clubId'],
+                    'clubName': club['clubName'],
+                    'teamId': team['teamId'],
+                    'teamName': team['teamName']
+                })
+
+    async with aiohttp.ClientSession() as session:
+        ishd_players = {}
+        
+        for team_info in ishd_teams:
+            club_ishd_id_str = urllib.parse.quote(str(team_info['club_ishd_id']))
+            team_id_str = urllib.parse.quote(str(team_info['team_ishd_id']))
+            api_url = f"{ISHD_API_URL}/clubs/{club_ishd_id_str}/teams/{team_id_str}.json"
+
+            if mode == "test":
+                test_file = f"ishd_test1_{club_ishd_id_str}_{team_info['team_alias']}.json"
+                if os.path.exists(test_file):
+                    with open(test_file, 'r') as file:
+                        data = json.load(file)
+                else:
+                    continue
+            else:
+                async with session.get(api_url, headers=headers) as response:
+                    if response.status != 200:
+                        continue
+                    data = await response.json()
+
+            for player in data['players']:
+                key = f"{player['first_name']}_{player['last_name']}_{player['date_of_birth']}"
+                if key not in ishd_players:
+                    ishd_players[key] = []
+                ishd_players[key].append({
+                    'clubId': team_info['club_id'],
+                    'clubName': team_info['club_name'],
+                    'teamId': team_info['team_id'],
+                    'teamName': team_info['team_name']
+                })
+
+        # Compare players
+        for key, ishd_data in ishd_players.items():
+            if key not in db_players:
+                player_name = key.split('_')
+                verification_results['missing_in_db'].append({
+                    'firstName': player_name[0],
+                    'lastName': player_name[1],
+                    'birthdate': player_name[2],
+                    'ishd_assignments': ishd_data
+                })
+            else:
+                db_data = db_players[key]
+                # Compare assignments
+                for ishd_assignment in ishd_data:
+                    found = False
+                    for db_assignment in db_data['assignments']:
+                        if ishd_assignment['clubId'] == db_assignment['clubId']:
+                            if ishd_assignment['teamId'] != db_assignment['teamId']:
+                                verification_results['team_mismatches'].append({
+                                    'player': {
+                                        'firstName': db_data['player']['firstName'],
+                                        'lastName': db_data['player']['lastName'],
+                                        'birthdate': datetime.strftime(db_data['player']['birthdate'], '%Y-%m-%d')
+                                    },
+                                    'ishd_team': ishd_assignment,
+                                    'db_team': db_assignment
+                                })
+                            found = True
+                            break
+                    if not found:
+                        verification_results['club_mismatches'].append({
+                            'player': {
+                                'firstName': db_data['player']['firstName'],
+                                'lastName': db_data['player']['lastName'],
+                                'birthdate': datetime.strftime(db_data['player']['birthdate'], '%Y-%m-%d')
+                            },
+                            'ishd_assignment': ishd_assignment,
+                            'db_assignments': db_data['assignments']
+                        })
+
+        # Check for players in DB but not in ISHD
+        for key, db_data in db_players.items():
+            if key not in ishd_players:
+                verification_results['missing_in_ishd'].append({
+                    'player': {
+                        'firstName': db_data['player']['firstName'],
+                        'lastName': db_data['player']['lastName'],
+                        'birthdate': datetime.strftime(db_data['player']['birthdate'], '%Y-%m-%d')
+                    },
+                    'db_assignments': db_data['assignments']
+                })
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(verification_results))
+
 # DELETE PLAYER
 # ----------------------
 @router.delete("/{id}", response_description="Delete a player by ID")
