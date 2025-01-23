@@ -779,53 +779,118 @@ async def verify_ishd_data(
         # Compare players
         for key, ishd_data in ishd_players.items():
             if key not in db_players:
+                # Player exists in ISHD but not in DB
                 player_name = key.split('_')
+                # Group assignments by club
+                club_assignments = {}
+                for assignment in ishd_data:
+                    club_id = assignment['clubId']
+                    if club_id not in club_assignments:
+                        club_assignments[club_id] = {
+                            'clubId': club_id,
+                            'clubName': assignment['clubName'],
+                            'teams': []
+                        }
+                    club_assignments[club_id]['teams'].append({
+                        'teamId': assignment['teamId'],
+                        'teamName': assignment['teamName']
+                    })
+                
                 verification_results['missing_in_db'].append({
                     'firstName': player_name[0],
                     'lastName': player_name[1],
                     'birthdate': player_name[2],
-                    'ishd_assignments': ishd_data
+                    'ishd_assignments': list(club_assignments.values())
                 })
             else:
                 db_data = db_players[key]
+                # Create lookup dictionaries for efficient comparison
+                db_assignments_by_club = {}
+                for assignment in db_data['assignments']:
+                    club_id = assignment['clubId']
+                    if club_id not in db_assignments_by_club:
+                        db_assignments_by_club[club_id] = {
+                            'clubName': assignment['clubName'],
+                            'teams': set()
+                        }
+                    db_assignments_by_club[club_id]['teams'].add(assignment['teamId'])
+
+                ishd_assignments_by_club = {}
+                for assignment in ishd_data:
+                    club_id = assignment['clubId']
+                    if club_id not in ishd_assignments_by_club:
+                        ishd_assignments_by_club[club_id] = {
+                            'clubName': assignment['clubName'],
+                            'teams': set()
+                        }
+                    ishd_assignments_by_club[club_id]['teams'].add(assignment['teamId'])
+
                 # Compare assignments
-                for ishd_assignment in ishd_data:
-                    found = False
-                    for db_assignment in db_data['assignments']:
-                        if ishd_assignment['clubId'] == db_assignment['clubId']:
-                            if ishd_assignment['teamId'] != db_assignment['teamId']:
-                                verification_results['team_mismatches'].append({
-                                    'player': {
-                                        'firstName': db_data['player']['firstName'],
-                                        'lastName': db_data['player']['lastName'],
-                                        'birthdate': datetime.strftime(db_data['player']['birthdate'], '%Y-%m-%d')
-                                    },
-                                    'ishd_team': ishd_assignment,
-                                    'db_team': db_assignment
-                                })
-                            found = True
-                            break
-                    if not found:
+                for club_id, ishd_club_data in ishd_assignments_by_club.items():
+                    if club_id not in db_assignments_by_club:
+                        # Club assignment missing in DB
                         verification_results['club_mismatches'].append({
                             'player': {
                                 'firstName': db_data['player']['firstName'],
                                 'lastName': db_data['player']['lastName'],
                                 'birthdate': datetime.strftime(db_data['player']['birthdate'], '%Y-%m-%d')
                             },
-                            'ishd_assignment': ishd_assignment,
+                            'ishd_assignment': {
+                                'clubId': club_id,
+                                'clubName': ishd_club_data['clubName'],
+                                'teams': [{'teamId': t} for t in ishd_club_data['teams']]
+                            },
                             'db_assignments': db_data['assignments']
                         })
+                    else:
+                        # Compare team assignments within club
+                        db_club_data = db_assignments_by_club[club_id]
+                        team_differences = ishd_club_data['teams'] - db_club_data['teams']
+                        if team_differences:
+                            # Teams missing in DB for this club
+                            for team_id in team_differences:
+                                team_data = next((t for t in ishd_data if t['teamId'] == team_id), None)
+                                if team_data:
+                                    verification_results['team_mismatches'].append({
+                                        'player': {
+                                            'firstName': db_data['player']['firstName'],
+                                            'lastName': db_data['player']['lastName'],
+                                            'birthdate': datetime.strftime(db_data['player']['birthdate'], '%Y-%m-%d')
+                                        },
+                                        'ishd_team': {
+                                            'clubId': club_id,
+                                            'clubName': ishd_club_data['clubName'],
+                                            'teamId': team_id,
+                                            'teamName': team_data['teamName']
+                                        },
+                                        'db_assignments': [a for a in db_data['assignments'] if a['clubId'] == club_id]
+                                    })
 
         # Check for players in DB but not in ISHD
         for key, db_data in db_players.items():
             if key not in ishd_players:
+                # Group assignments by club for better readability
+                club_assignments = {}
+                for assignment in db_data['assignments']:
+                    club_id = assignment['clubId']
+                    if club_id not in club_assignments:
+                        club_assignments[club_id] = {
+                            'clubId': club_id,
+                            'clubName': assignment['clubName'],
+                            'teams': []
+                        }
+                    club_assignments[club_id]['teams'].append({
+                        'teamId': assignment['teamId'],
+                        'teamName': assignment['teamName']
+                    })
+                
                 verification_results['missing_in_ishd'].append({
                     'player': {
                         'firstName': db_data['player']['firstName'],
                         'lastName': db_data['player']['lastName'],
                         'birthdate': datetime.strftime(db_data['player']['birthdate'], '%Y-%m-%d')
                     },
-                    'db_assignments': db_data['assignments']
+                    'db_assignments': list(club_assignments.values())
                 })
 
     return JSONResponse(
