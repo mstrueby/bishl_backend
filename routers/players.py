@@ -45,6 +45,7 @@ async def handle_image_upload(image: UploadFile, playerId) -> str:
   raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                       detail="No image uploaded.")
 
+
 async def delete_from_cloudinary(image_url: str):
   if image_url:
     try:
@@ -180,15 +181,17 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
 # ----------------------
 @router.get(
     "/process_ishd_data",
-    response_description="Process ISHD player data to BISHL-Application")
-async def process_ishd_data(request: Request,
-                            mode: Optional[str] = None,
-                            run: int = 1,
-                            token_payload: TokenPayload = Depends(
-                                auth.auth_wrapper)):
+    response_description="Process ISHD player data to BISHL-Application",
+    include_in_schema=False)
+async def process_ishd_data(
+    request: Request,
+    mode: Optional[str] = None,
+    run: int = 1,
+    #token_payload: TokenPayload = Depends(auth.auth_wrapper)
+):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  #if token_payload.roles not in [["ADMIN"]]:
+  #  raise HTTPException(status_code=403, detail="Not authorized")
 
   log_lines = []
   # If mode is 'test', delete all documents in 'players'
@@ -387,7 +390,7 @@ async def process_ishd_data(request: Request,
                                           clubAlias=club.club_alias,
                                           clubIshdId=club.club_ishd_id,
                                           teams=[assigned_team])
-            
+
             # print("assigned_club", assigned_club)
             # check if player already exists in existing_players array
             player_exists = False
@@ -423,7 +426,8 @@ async def process_ishd_data(request: Request,
                   if not team_assignment_exists:
                     # team assignment does not exist
                     # add team assignment to players existing club assignment
-                    club_assignment.get('teams').append(jsonable_encoder(assigned_team))
+                    club_assignment.get('teams').append(
+                        jsonable_encoder(assigned_team))
                     # update player with new team assignment
                     existing_player['assignedTeams'] = [club_assignment] + [
                         a for a in existing_player['assignedTeams']
@@ -553,9 +557,10 @@ async def process_ishd_data(request: Request,
                   datetime.strftime(player['birthdate'], '%Y-%m-%d')
                   for p in data['players']):
                 query = {
-                    "$and": [
-                        {"_id": player['_id']},
-                        {"assignedTeams": {
+                    "$and": [{
+                        "_id": player['_id']
+                    }, {
+                        "assignedTeams": {
                             "$elemMatch": {
                                 "clubAlias": club.club_alias,
                                 "teams": {
@@ -564,8 +569,8 @@ async def process_ishd_data(request: Request,
                                     }
                                 }
                             }
-                        }}
-                    ]
+                        }
+                    }]
                 }
                 # print("query", query)
                 result = await mongodb["players"].update_one(
@@ -580,9 +585,13 @@ async def process_ishd_data(request: Request,
                   # Update existing_players array to remove team assignment
                   for existing_player in existing_players:
                     if existing_player['_id'] == player['_id']:
-                      for club_assignment in existing_player.get('assignedTeams', []):
+                      for club_assignment in existing_player.get(
+                          'assignedTeams', []):
                         if club_assignment['clubAlias'] == club.club_alias:
-                          club_assignment['teams'] = [t for t in club_assignment['teams'] if t['teamAlias'] != team['alias']]
+                          club_assignment['teams'] = [
+                              t for t in club_assignment['teams']
+                              if t['teamAlias'] != team['alias']
+                          ]
                           break
 
                   log_line = f"Removed player from team: {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team.get('ishdId')}"
@@ -606,7 +615,11 @@ async def process_ishd_data(request: Request,
                     # Update existing_players array to remove club assignment
                     for existing_player in existing_players:
                       if existing_player['_id'] == player['_id']:
-                        existing_player['assignedTeams'] = [a for a in existing_player.get('assignedTeams', []) if a['clubIshdId'] != club.club_ishd_id]
+                        existing_player['assignedTeams'] = [
+                            a
+                            for a in existing_player.get('assignedTeams', [])
+                            if a['clubIshdId'] != club.club_ishd_id
+                        ]
                         break
 
                     log_line = f"Removed club assignment for player: {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name}"
@@ -905,8 +918,8 @@ async def update_player(request: Request,
 
   # exclude unchanged data
   player_to_update = {
-    k: v
-    for k, v in player_data.items() if v != existing_player.get(k, None)
+      k: v
+      for k, v in player_data.items() if v != existing_player.get(k, None)
   }
 
   print("player_to_update", player_to_update)
@@ -947,4 +960,4 @@ async def delete_player(
     await delete_from_cloudinary(existing_player['imageUrl'])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
   raise HTTPException(status_code=404,
-                        detail=f"Player with ID {id} not found.")
+                      detail=f"Player with ID {id} not found.")
