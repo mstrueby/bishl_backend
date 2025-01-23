@@ -30,3 +30,8 @@ async def test_email():
         body="<h1>Test Email</h1><p>This is a test email from FastAPI</p>"
     )
     return {"message": "Test email sent"}
+
+@router.get("/cronjob_81243.html", include_in_schema=False)
+async def get_cronjob():
+    from fastapi.responses import FileResponse
+    return FileResponse("cronjob_81243.html")
