@@ -585,7 +585,7 @@ async def process_ishd_data(request: Request,
                     if existing_player['_id'] == player['_id']:
                       for club_assignment in existing_player.get('assignedTeams', []):
                         if club_assignment['clubAlias'] == club.club_alias:
-                          club_assignment['teams'] = [t for t in club_assignment['teams'] if t['teamAlias'] != team['alias']]
+                          club_assignment['teams'] = [t for t in club_assignment['teams'] if t.teamAlias != team['alias']]
                           break
 
                   log_line = f"Removed player from team: {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team.get('ishdId')}"
