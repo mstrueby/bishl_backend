@@ -218,7 +218,7 @@ async def process_ishd_data(request: Request,
       {
           "$match": {
               "active": True,
-              "ishdId": 228,
+              #"ishdId": 228,
               "teams.ishdId": {
                   "$ne": None
               },
@@ -323,8 +323,8 @@ async def process_ishd_data(request: Request,
       for team in club.teams:
         club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
         team_id_str = urllib.parse.quote(str(team['ishdId']))
-        if team_id_str != '1.%20Herren' and team_id_str != '2.%20Herren':
-          break
+        #if team_id_str != '1.%20Herren' and team_id_str != '2.%20Herren':
+        #  break
         api_url = f"{base_url_str}/clubs/{club_ishd_id_str}/teams/{team_id_str}.json"
         ishd_log_team = IshdLogTeam(
             teamIshdId=team['ishdId'],
@@ -423,7 +423,7 @@ async def process_ishd_data(request: Request,
                   if not team_assignment_exists:
                     # team assignment does not exist
                     # add team assignment to players existing club assignment
-                    club_assignment.get('teams').append(assigned_team)
+                    club_assignment.get('teams').append(jsonable_encoder(assigned_team))
                     # update player with new team assignment
                     existing_player['assignedTeams'] = [club_assignment] + [
                         a for a in existing_player['assignedTeams']
@@ -455,9 +455,6 @@ async def process_ishd_data(request: Request,
                 if mode == "test":
                   print("club assignment does not exist / existing_players")
                 # add club assignment to player
-                if existing_player['_id'] == '66f176db633f27247d963a1f':
-                  print("existing_player", existing_player)
-                  print("assigned_club", assigned_club)
                 existing_player['assignedTeams'].append(
                     jsonable_encoder(assigned_club))
                 if mode == "test":
@@ -585,7 +582,7 @@ async def process_ishd_data(request: Request,
                     if existing_player['_id'] == player['_id']:
                       for club_assignment in existing_player.get('assignedTeams', []):
                         if club_assignment['clubAlias'] == club.club_alias:
-                          club_assignment['teams'] = [t for t in club_assignment['teams'] if t.teamAlias != team['alias']]
+                          club_assignment['teams'] = [t for t in club_assignment['teams'] if t['teamAlias'] != team['alias']]
                           break
 
                   log_line = f"Removed player from team: {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')} -> {club.club_name} / {team.get('ishdId')}"
@@ -594,7 +591,6 @@ async def process_ishd_data(request: Request,
                   ishd_log_player_remove.action = IshdActionEnum.DEL_TEAM
 
                   # After removing team assignment, if the teams array is empty, remove the club assignment
-                  print("remove club in player:", player['_id'], club.club_ishd_id)
                   result = await mongodb["players"].update_one(
                       {
                           "_id": player['_id'],
@@ -606,8 +602,6 @@ async def process_ishd_data(request: Request,
                               }
                           }
                       }})
-                  print("result", result.modified_count)
-
                   if result.modified_count:
                     # Update existing_players array to remove club assignment
                     for existing_player in existing_players:
@@ -631,7 +625,7 @@ async def process_ishd_data(request: Request,
                   print("player exists in team - do not remove")
 
               if ishd_log_player_remove.action is not None:
-                print("--- ishd_log_player", ishd_log_player_remove)
+                #print("--- ishd_log_player", ishd_log_player_remove)
                 ishd_log_team.players.append(ishd_log_player_remove)
 
         #print(f"--- ishd_log_team", ishd_log_team)
