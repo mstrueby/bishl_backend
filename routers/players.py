@@ -6,7 +6,7 @@ import json
 from typing import List, Optional, Dict
 from bson.objectid import ObjectId
 from fastapi import UploadFile
-from pydantic import HttpUrl
+from pydantic import HttpUrl, BaseModel
 from pydantic.types import OptionalInt
 from utils import configure_cloudinary, my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
