@@ -969,9 +969,14 @@ async def get_players_for_team(
 
 # GET ALL PLAYERS
 # -------------------
+class PaginatedPlayerResponse(BaseModel):
+    total: int
+    page: int 
+    results: List[PlayerDB]
+
 @router.get("/",
             response_description="Get all players",
-            response_model=List[PlayerDB])
+            response_model=PaginatedPlayerResponse)
 async def get_players(
     request: Request,
     page: int = 1,
