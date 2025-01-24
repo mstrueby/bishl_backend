@@ -66,8 +66,6 @@ async def get_paginated_players(mongodb,
                                 team_alias=None):
   RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
   skip = (page - 1) * RESULTS_PER_PAGE
-  #query = {}
-  #{ "assignedTeams": { "$elemMatch": { "clubAlias": "spreewoelfe-berlin", "teams.teamAlias": "1-herren" } } }
   if club_alias or team_alias or q:
     query = {"$and": []}
     if club_alias:
@@ -103,9 +101,16 @@ async def get_paginated_players(mongodb,
     print("query", query)
   else:
     query = {}
+  
+  total = await mongodb["players"].count_documents(query)
   players = await mongodb["players"].find(query).sort(
       "firstName", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
-  return [PlayerDB(**raw_player) for raw_player in players]
+  
+  return {
+    "total": total,
+    "page": page,
+    "results": [PlayerDB(**raw_player) for raw_player in players]
+  }
 
 
 # Helper function to create assignedTeams dict
@@ -919,9 +924,9 @@ async def get_players_for_club(
   if not club:
     raise HTTPException(status_code=404,
                         detail=f"Club with alias {club_alias} not found")
-  players = await get_paginated_players(mongodb, q, page, club_alias)
+  result = await get_paginated_players(mongodb, q, page, club_alias)
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(players))
+                      content=jsonable_encoder(result))
 
 
 # GET ALL PLAYERS FOR ONE CLUB/TEAM
@@ -956,10 +961,10 @@ async def get_players_for_team(
     raise HTTPException(
         status_code=404,
         detail=f"Team with alias {team_alias} not found in club {club_alias}")
-  players = await get_paginated_players(mongodb, q, page, club_alias,
+  result = await get_paginated_players(mongodb, q, page, club_alias,
                                         team_alias)
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(players))
+                      content=jsonable_encoder(result))
 
 
 # GET ALL PLAYERS
@@ -979,9 +984,9 @@ async def get_players(
                         detail="Not authorized")
   #RESULTS_PER_PAGE = int(os.environ.get("RESULTS_PER_PAGE", 25))
 
-  players = await get_paginated_players(mongodb, q, page)
+  result = await get_paginated_players(mongodb, q, page)
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(players))
+                      content=jsonable_encoder(result))
 
 
 # GET ONE PLAYER
