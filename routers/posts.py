@@ -108,9 +108,9 @@ async def create_post(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
+  if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
     raise HTTPException(status_code=403, detail="Not authorized")
-
+    
   # Data preparation
   post = PostBase(
       title=title,
@@ -196,7 +196,7 @@ async def update_post(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
+  if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
     raise HTTPException(status_code=403, detail="Not authorized")
 
   # Retrieve existing post

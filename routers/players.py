@@ -1099,9 +1099,10 @@ async def get_players(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized")
+    if not any(role in token_payload.roles
+               for role in ["ADMIN", "LEAGUE_ADMIN"]):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
     #RESULTS_PER_PAGE = int(os.environ.get("RESULTS_PER_PAGE", 25))
 
     result = await get_paginated_players(mongodb, q, page)
@@ -1150,7 +1151,8 @@ async def create_player(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
+    if not any(role in token_payload.roles
+               for role in ["ADMIN", "LEAGUE_ADMIN"]):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     player_exists = await mongodb["players"].find_one({
@@ -1233,7 +1235,7 @@ async def update_player(request: Request,
                             auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
-               for role in ["ADMIN", "CLUB_ADMIN"]):
+               for role in ["ADMIN", "CLUB_ADMIN", "LEAGUE_ADMIN"]):
         raise HTTPException(status_code=403, detail="Not authorized")
     existing_player = await mongodb["players"].find_one({"_id": id})
     if not existing_player:
@@ -1247,10 +1249,11 @@ async def update_player(request: Request,
         "firstName": current_first_name,
         "lastName": current_last_name,
         "birthdate": current_birthdate,
-        "_id": {"$ne": id}  # Checking for a different _id
+        "_id": {
+            "$ne": id
+        }  # Checking for a different _id
     })
     if player_exists:
-        print("DOPPELT")
         raise HTTPException(
             status_code=400,
             detail=
@@ -1290,8 +1293,9 @@ async def update_player(request: Request,
     player_to_update = {
         k: v
         for k, v in player_data.items()
-        if (k == 'birthdate' and v.strftime('%Y-%m-%d') != existing_player.get(k, None).strftime('%Y-%m-%d')) or
-           (k != 'birthdate' and v != existing_player.get(k, None))
+        if (k == 'birthdate' and v.strftime('%Y-%m-%d') != existing_player.get(
+            k, None).strftime('%Y-%m-%d')) or (
+                k != 'birthdate' and v != existing_player.get(k, None))
     }
 
     print("player_to_update", player_to_update)
