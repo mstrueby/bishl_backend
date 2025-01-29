@@ -63,9 +63,17 @@ async def get_paginated_players(mongodb,
                                 q,
                                 page,
                                 club_alias=None,
-                                team_alias=None):
+                                team_alias=None,
+                                sortby="firstName"):
     RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
     skip = (page - 1) * RESULTS_PER_PAGE
+    sort_field = {
+        "firstName": "firstName",
+        "lastName": "lastName",
+        "birthdate": "birthdate",
+        "displayFirstName": "displayFirstName",
+        "displayLastName": "displayLastName"
+    }.get(sortby, "firstName")
     if club_alias or team_alias or q:
         query = {"$and": []}
         if club_alias:
@@ -115,7 +123,7 @@ async def get_paginated_players(mongodb,
 
     total = await mongodb["players"].count_documents(query)
     players = await mongodb["players"].find(query).sort(
-        "firstName", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
+        sort_field, 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
 
     return {
         "total": total,
@@ -1026,6 +1034,7 @@ async def get_players_for_club(
     club_alias: str,
     page: int = 1,
     q: Optional[str] = None,
+    sortby: str = "firstName",
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1053,6 +1062,7 @@ async def get_players_for_team(
     team_alias: str,
     page: int = 1,
     q: Optional[str] = None,
+    sortby: str = "firstName",
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1097,6 +1107,7 @@ async def get_players(
     request: Request,
     page: int = 1,
     q: Optional[str] = None,
+    sortby: str = "firstName",
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
