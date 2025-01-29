@@ -510,6 +510,7 @@ async def process_ishd_data(
                                 result = await mongodb["players"].update_one(
                                     {"_id": existing_player['_id']}, {
                                         "$set": {
+                                            "source": SourceEnum.ISHD,
                                             "assignedTeams":
                                             jsonable_encoder(existing_player[
                                                 'assignedTeams'])
