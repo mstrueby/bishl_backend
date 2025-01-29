@@ -1046,7 +1046,7 @@ async def get_players_for_club(
     if not club:
         raise HTTPException(status_code=404,
                             detail=f"Club with alias {club_alias} not found")
-    result = await get_paginated_players(mongodb, q, page, club_alias)
+    result = await get_paginated_players(mongodb, q, page, club_alias, None, sortby)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(result))
 
@@ -1087,7 +1087,7 @@ async def get_players_for_team(
             detail=
             f"Team with alias {team_alias} not found in club {club_alias}")
     result = await get_paginated_players(mongodb, q, page, club_alias,
-                                         team_alias)
+                                         team_alias, sortby)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(result))
 
@@ -1117,7 +1117,7 @@ async def get_players(
 
     #RESULTS_PER_PAGE = int(os.environ.get("RESULTS_PER_PAGE", 25))
 
-    result = await get_paginated_players(mongodb, q, page)
+    result = await get_paginated_players(mongodb, q, page, None, None, sortby)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(result))
 
