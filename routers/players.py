@@ -124,7 +124,6 @@ async def get_paginated_players(mongodb,
     total = await mongodb["players"].count_documents(query)
     players = await mongodb["players"].find(query).sort(
         sort_field, 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
-
     return {
         "total": total,
         "page": page,
