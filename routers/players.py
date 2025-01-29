@@ -74,6 +74,13 @@ async def get_paginated_players(mongodb,
         "displayFirstName": "displayFirstName",
         "displayLastName": "displayLastName"
     }.get(sortby, "firstName")
+    
+    # Configure German collation for proper sorting of umlauts
+    collation = {
+        'locale': 'de',
+        'strength': 1  # Base characters and diacritics are considered primary differences
+    }
+    
     if club_alias or team_alias or q:
         query = {"$and": []}
         if club_alias:
@@ -122,7 +129,7 @@ async def get_paginated_players(mongodb,
         query = {}
 
     total = await mongodb["players"].count_documents(query)
-    players = await mongodb["players"].find(query).sort(
+    players = await mongodb["players"].find(query).collation(collation).sort(
         sort_field, 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(None)
     return {
         "total": total,
