@@ -99,9 +99,24 @@ pattern = "**/*.py"
 start = "pylsp"
 
 [deployment]
-run = ["sh", "-c", "uvicorn main:app --host 0.0.0.0"]
+run = ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 8080"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
 localPort = 8000
 externalPort = 80
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[workflows]
+runButton = "Run"
+
+[[workflows.workflow]]
+name = "Run"
+author = 19449957
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "uvicorn main:app --host 0.0.0.0 --port 8080"
