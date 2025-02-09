@@ -339,8 +339,8 @@ async def update_match(request: Request,
   print("home_stats: ", home_stats)
   print("away_stats: ", away_stats)
   """
-  home_goals = home_stats.get('goalsFor', 0) if home_stats else 0
-  away_goals = away_stats.get('goalsFor', 0) if away_stats else 0
+  home_goals = home_stats.goalsFor if home_stats else 0
+  away_goals = away_stats.goalsFor if away_stats else 0
 
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(match_status, finish_type, await
