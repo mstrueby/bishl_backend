@@ -326,11 +326,11 @@ async def update_match(request: Request,
   home_stats = getattr(match.home, 'stats',
                        existing_match.get('home', {}).get(
                            'stats',
-                           None))  # if getattr(match, 'home', None) else None
+                           None))
   away_stats = getattr(match.away, 'stats',
                        existing_match.get('away', {}).get(
                            'stats',
-                           None))  # if getattr(match, 'away', None) else None
+                           None))
   """
   print("exisiting_match: ", existing_match)
   print("t_alias: ", t_alias)
