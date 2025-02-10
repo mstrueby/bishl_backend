@@ -323,14 +323,14 @@ async def update_match(request: Request,
   finish_type = getattr(match.finishType, 'key',
                         existing_match.get('finishType', {}).get('key', None))
 
-  home_stats = getattr(match.home, 'stats',
+  home_stats = MatchStats(**getattr(match.home, 'stats',
                        existing_match.get('home', {}).get(
                            'stats',
-                           None))
-  away_stats = getattr(match.away, 'stats',
+                           None) or {}))
+  away_stats = MatchStats(**getattr(match.away, 'stats',
                        existing_match.get('away', {}).get(
                            'stats',
-                           None))
+                           None) or {}))
   """
   """
   print("exisiting_match: ", existing_match)
@@ -340,8 +340,8 @@ async def update_match(request: Request,
   print("home_stats: ", home_stats)
   print("away_stats: ", away_stats)
   print("type of home_stats: ", type(home_stats))
-  home_goals = home_stats.get('goalsFor', 0) if home_stats else 0
-  away_goals = away_stats.get('goalsFor', 0) if away_stats else 0
+  home_goals = home_stats.goalsFor if home_stats else 0
+  away_goals = away_stats.goalsFor if away_stats else 0
 
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(match_status, finish_type, await
