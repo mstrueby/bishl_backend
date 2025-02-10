@@ -328,7 +328,7 @@ async def update_match(request: Request,
   
   home_stats = home_stats_data if isinstance(home_stats_data, MatchStats) else MatchStats(**(home_stats_data or {}))
   away_stats = away_stats_data if isinstance(away_stats_data, MatchStats) else MatchStats(**(away_stats_data or {}))
-  """
+  
   """
   print("exisiting_match: ", existing_match)
   print("t_alias: ", t_alias)
@@ -337,6 +337,8 @@ async def update_match(request: Request,
   print("home_stats: ", home_stats)
   print("away_stats: ", away_stats)
   print("type of home_stats: ", type(home_stats))
+  """
+  
   home_goals = home_stats.goalsFor if home_stats else 0
   away_goals = away_stats.goalsFor if away_stats else 0
 
