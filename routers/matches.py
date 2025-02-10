@@ -323,14 +323,14 @@ async def update_match(request: Request,
   finish_type = getattr(match.finishType, 'key',
                         existing_match.get('finishType', {}).get('key', None))
 
-  home_stats = getattr(match.home, 'stats',
+  home_stats = MatchStats(**getattr(match.home, 'stats',
                        existing_match.get('home', {}).get(
                            'stats',
-                           None))
-  away_stats = getattr(match.away, 'stats',
+                           None) or {}))
+  away_stats = MatchStats(**getattr(match.away, 'stats',
                        existing_match.get('away', {}).get(
                            'stats',
-                           None))
+                           None) or {}))
   """
   """
   print("exisiting_match: ", existing_match)
