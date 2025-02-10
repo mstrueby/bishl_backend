@@ -75,7 +75,7 @@ async def get_posts(request: Request,
   result = [PostDB(**raw_post) for raw_post in posts]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(result))
-  
+
 # get post by alias
 @router.get("/{alias}",
             response_description="Get post by alias",
@@ -110,7 +110,7 @@ async def create_post(
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
     raise HTTPException(status_code=403, detail="Not authorized")
-    
+
   # Data preparation
   post = PostBase(
       title=title,
@@ -178,7 +178,7 @@ async def create_post(
 # update Post
 @router.patch("/{id}",
               response_model=PostDB,
-              response_description="Update post")
+              response_model_by_alias=True)
 async def update_post(
     request: Request,
     id: str,
@@ -194,7 +194,16 @@ async def update_post(
     image: Optional[UploadFile] = File(None),
     imageUrl: Optional[HttpUrl] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-):
+) -> JSONResponse:
+    # Handle alias uniqueness if alias is being updated
+    if alias:
+        upd_alias = alias
+        alias_suffix = 2
+        while await request.app.state.mongodb['posts'].find_one({'alias': upd_alias, '_id': {'$ne': id}}):
+            upd_alias = f"{alias}-{alias_suffix}"
+            alias_suffix += 1
+        alias = upd_alias
+
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
     raise HTTPException(status_code=403, detail="Not authorized")
