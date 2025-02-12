@@ -181,9 +181,11 @@ class MatchStatsUpdate(BaseModel):
 
 
 class MatchTeam(BaseModel):
+  clubId: Optional[str] = None
+  clubName: Optional[str] = None
   clubAlias: Optional[str] = None
+  teamId: Optional[str] = None
   teamAlias: str = Field(...)
-  #teamId: str = None
   name: str = Field(...)
   fullName: str = Field(...)
   shortName: str = Field(...)
@@ -206,9 +208,11 @@ class MatchTeam(BaseModel):
 
 
 class MatchTeamUpdate(BaseModel):
+  clubId: Optional[str] = None
+  clubName: Optional[str] = None
   clubAlias: Optional[str] = None
+  teamId: Optional[str] = None
   teamAlias: Optional[str] = "DEFAULT"
-  #teamId: Optional[str] = None
   name: Optional[str] = "DEFAULT"
   fullName: Optional[str] = "DEFAULT"
   shortName: Optional[str] = "DEFAULT"
