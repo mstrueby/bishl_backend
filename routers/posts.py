@@ -194,15 +194,15 @@ async def update_post(
     image: Optional[UploadFile] = File(None),
     imageUrl: Optional[HttpUrl] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> JSONResponse:
-    # Handle alias uniqueness if alias is being updated
-    if alias:
-        upd_alias = alias
-        alias_suffix = 2
-        while await request.app.state.mongodb['posts'].find_one({'alias': upd_alias, '_id': {'$ne': id}}):
-            upd_alias = f"{alias}-{alias_suffix}"
-            alias_suffix += 1
-        alias = upd_alias
+) -> Response:
+  # Handle alias uniqueness if alias is being updated
+  if alias:
+      upd_alias = alias
+      alias_suffix = 2
+      while await request.app.state.mongodb['posts'].find_one({'alias': upd_alias, '_id': {'$ne': id}}):
+          upd_alias = f"{alias}-{alias_suffix}"
+          alias_suffix += 1
+      alias = upd_alias
 
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
