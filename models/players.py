@@ -61,8 +61,8 @@ class AssignedClubs(BaseModel):
 
 class TeamInput(BaseModel):
   teamId: str = Field(...)
-  teamName: str = Field(...)
-  jerseyNo: Optional[int] = 0
+  passNo: str = Field(...)
+  jerseyNo: Optional[int] = None
   active: Optional[bool] = False
   source: Optional[SourceEnum] = Field(default=SourceEnum.BISHL)
   modifyDate: Optional[datetime] = None
