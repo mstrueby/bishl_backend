@@ -65,7 +65,8 @@ async def list_clubs(
     page: int = 1,
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
+  #RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
+  RESULTS_PER_PAGE = 100
   skip = (page - 1) * RESULTS_PER_PAGE
   query = {}
   if active is not None:  # Filter by active if provided

@@ -1121,8 +1121,6 @@ async def get_players(
                for role in ["ADMIN", "LEAGUE_ADMIN"]):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    #RESULTS_PER_PAGE = int(os.environ.get("RESULTS_PER_PAGE", 25))
-
     result = await get_paginated_players(mongodb, q, page, None, None, sortby)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(result))
