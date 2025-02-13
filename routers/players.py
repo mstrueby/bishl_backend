@@ -149,6 +149,7 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
         raise HTTPException(status_code=400,
                             detail="Invalid JSON for assignedTeams")
 
+    print(f"assigned_teams_list: {assigned_teams_list}")
     # Validate and convert to the proper Pydantic models
     assigned_teams_objs = [
         AssignedTeamsInput(**team_dict) for team_dict in assigned_teams_list
