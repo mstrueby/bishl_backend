@@ -168,12 +168,12 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
         for team_to_assign in club_to_assign.teams:
             print("team_to_assign:", club_exists['name'], '/', team_to_assign)
             team = next((team for team in club_exists['teams']
-                         if team['_id'] == team_to_assign['teamId']), None)
+                         if team['_id'] == team_to_assign.teamId), None)
             if not team:
                 raise HTTPException(
                     status_code=400,
                     detail=
-                    f"Team with id {team_to_assign['teamId']} does not exist in club {club_to_assign.clubId}."
+                    f"Team with id {team_to_assign.teamId} does not exist in club {club_to_assign.clubId}."
                 )
             else:
                 teams.append({
@@ -186,17 +186,15 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                     "teamIshdId":
                     team['ishdId'],
                     "passNo":
-                    team_to_assign['passNo'],
+                    team_to_assign.passNo,
                     "jerseyNo":
-                    team_to_assign.get('jerseyNo', None),
+                    team_to_assign.jerseyNo,
                     "active":
-                    team_to_assign.get('active', False),
+                    team_to_assign.active,
                     "source":
-                    team_to_assign.get('source', 'BISHL'),
+                    team_to_assign.source,
                     "modifyDate":
-                    team_to_assign.get(
-                        'modifyDate',
-                        datetime.now(timezone.utc).replace(microsecond=0)),
+                    team_to_assign.modifyDate
                 })
         assigned_teams_dict.append({
             "clubId": club_to_assign.clubId,
