@@ -59,17 +59,17 @@ class AssignedClubs(BaseModel):
   clubIshdId: int = Field(...)
   teams: list[AssignedTeams] = Field(...)
 
+class TeamInput(BaseModel):
+  teamId: str = Field(...)
+  teamName: str = Field(...)
+  jerseyNo: Optional[int] = 0
+  active: Optional[bool] = False
+  source: Optional[SourceEnum] = Field(default=SourceEnum.BISHL)
+  modifyDate: Optional[datetime] = None
 
 class AssignedTeamsInput(BaseModel):
   clubId: str = Field(...)
-  teams: List[dict] = Field([
-      {"teamId": str,
-       "passNo": str,
-       "jerseyNo": Optional[int],
-       "active": Optional[bool],
-       "source": Optional[SourceEnum],
-       "modifyDate": Optional[datetime]}  
-  ])
+  teams: List[TeamInput] = Field(...)
 
 class PlayerStatsTeam(BaseModel):
   #team_id: str = Field(...)
