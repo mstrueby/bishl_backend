@@ -62,8 +62,14 @@ class AssignedClubs(BaseModel):
 
 class AssignedTeamsInput(BaseModel):
   clubId: str = Field(...)
-  teams: List[dict[str, str]] = Field(...)
-
+  teams: List[dict] = Field([
+      {"teamId": str,
+       "passNo": str,
+       "jerseyNo": Optional[int],
+       "active": Optional[bool],
+       "source": Optional[SourceEnum],
+       "modifyDate": Optional[datetime]}  
+  ])
 
 class PlayerStatsTeam(BaseModel):
   #team_id: str = Field(...)
