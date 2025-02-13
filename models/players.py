@@ -1,6 +1,7 @@
+<replit_final_file>
 from bson import ObjectId
 from pydantic import Field, BaseModel, HttpUrl
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 from enum import Enum
 from models.matches import MatchTournament, MatchSeason, MatchRound, MatchMatchday
@@ -40,6 +41,20 @@ class SourceEnum(str, Enum):
   BISHL = 'BISHL'
 
 
+class TeamInput(BaseModel):
+  teamId: str
+  passNo: str
+  jerseyNo: Optional[int] = None
+  active: Optional[bool] = False
+  source: Optional[SourceEnum] = SourceEnum.BISHL
+  modifyDate: Optional[datetime] = None
+
+
+class AssignedTeamsInput(BaseModel):
+  clubId: str = Field(...)
+  teams: List[TeamInput] = Field(...)
+
+
 class AssignedTeams(BaseModel):
   teamId: str = Field(...)
   teamName: str = Field(...)
@@ -58,11 +73,6 @@ class AssignedClubs(BaseModel):
   clubAlias: str = Field(...)
   clubIshdId: int = Field(...)
   teams: list[AssignedTeams] = Field(...)
-
-
-class AssignedTeamsInput(BaseModel):
-  clubId: str = Field(...)
-  teams: List[dict[str, str]] = Field(...)
 
 
 class PlayerStatsTeam(BaseModel):
@@ -108,7 +118,7 @@ class PlayerBase(MongoBaseModel):
   @validator('image', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
-"""
+  """
 
 
 class PlayerDB(PlayerBase):
@@ -136,7 +146,7 @@ class PlayerUpdate(MongoBaseModel):
   @validator('image', pre=True, always=True)
   def validate_strings(cls, v, field):
     return empty_str_to_none(v, field.name)
-"""
+  """
 
 
 # ---- ISHD Log Model
@@ -147,7 +157,6 @@ class IshdActionEnum(str, Enum):
   ADD_TEAM = 'Add team assigment'
   DEL_TEAM = 'Remove team assigment'
   DEL_CLUB = 'Remove club assignment'
-  
 
 
 class IshdLogPlayer(BaseModel):
