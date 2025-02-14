@@ -10,7 +10,7 @@ import os
 import isodate
 from datetime import datetime
 from bson import ObjectId
-import requests
+import httpx
 
 router = APIRouter()
 auth = AuthHandler()
@@ -246,26 +246,38 @@ async def create_match(
                   round_id = round_data["_id"]
                   # Update round dates with round ID
                   print("round_id", round_id)
-                  round_response = requests.patch(
-                      f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
-                      json={},
-                      headers=headers
-                  )
-                  print("round_response: ", round_response)
-                  if round_response.status_code not in [200, 304]:
-                      print(f"Warning: Failed to update round dates: {round_response.status_code}")
+                  async with httpx.AsyncClient() as client:
+                    try:
+                      round_response = await client.patch(
+                          f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
+                          json={},
+                          headers=headers,
+                          timeout=30.0
+                      )
+                      print("round_response: ", round_response)
+                      if round_response.status_code not in [200, 304]:
+                          print(f"Warning: Failed to update round dates: {round_response.status_code}")
+                    except Exception as e:
+                      print(f"Error updating round dates: {str(e)}")
               else:
                   print(f"Warning: Round {r_alias} not found or has no ID")
           
       # Update matchday dates  
-      matchday_response = requests.patch(
-          f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}",
-          json={},
-          headers=headers
-      )
-      print("matchday_response: ", matchday_response)
-      if matchday_response.status_code not in [200, 304]:
-          print(f"Warning: Failed to update matchday dates: {matchday_response.status_code}")
+      """
+      async with httpx.AsyncClient() as client:
+        try:
+          matchday_response = await client.patch(
+              f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}",
+              json={},
+              headers=headers,
+              timeout=30.0
+          )
+          print("matchday_response: ", matchday_response)
+          if matchday_response.status_code not in [200, 304]:
+              print(f"Warning: Failed to update matchday dates: {matchday_response.status_code}")
+        except Exception as e:
+          print(f"Error updating matchday dates: {str(e)}")
+      """
 
       print("calc standings ...")
       await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
