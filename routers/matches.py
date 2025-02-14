@@ -236,15 +236,26 @@ async def create_match(
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
       }
-      # Update round dates
-      round_response = requests.patch(
-          f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}",
-          json={},
-          headers=headers
-      )
-      print("round_response: ", round_response)
-      if round_response.status_code not in [200, 304]:
-          print(f"Warning: Failed to update round dates: {round_response.status_code}")
+      # update round and get round ID first
+      tournament = await mongodb['tournaments'].find_one({"alias": t_alias})
+      if tournament:
+          season = next((s for s in tournament.get("seasons", []) if s.get("alias") == s_alias), None)
+          if season:
+              round_data = next((r for r in season.get("rounds", []) if r.get("alias") == r_alias), None)
+              if round_data and "_id" in round_data:
+                  round_id = round_data["_id"]
+                  # Update round dates with round ID
+                  print("round_id", round_id)
+                  round_response = requests.patch(
+                      f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
+                      json={},
+                      headers=headers
+                  )
+                  print("round_response: ", round_response)
+                  if round_response.status_code not in [200, 304]:
+                      print(f"Warning: Failed to update round dates: {round_response.status_code}")
+              else:
+                  print(f"Warning: Round {r_alias} not found or has no ID")
           
       # Update matchday dates  
       matchday_response = requests.patch(
