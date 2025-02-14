@@ -49,7 +49,10 @@ async def set_referee_in_match(db, match_id, referee, position):
 
 
 async def send_message_to_referee(match, receiver_id, content):
-    token = await get_sys_ref_tool_token()
+    token = await get_sys_ref_tool_token(
+        email=os.environ['SYS_REF_TOOL_EMAIL'],
+        password=os.environ['SYS_REF_TOOL_PASSWORD']
+    )
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
