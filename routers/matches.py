@@ -236,7 +236,7 @@ async def create_match(
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
       }
-      # Get round ID first
+      # update round and get round ID first
       tournament = await mongodb['tournaments'].find_one({"alias": t_alias})
       if tournament:
           season = next((s for s in tournament.get("seasons", []) if s.get("alias") == s_alias), None)
@@ -245,6 +245,7 @@ async def create_match(
               if round_data and "_id" in round_data:
                   round_id = round_data["_id"]
                   # Update round dates with round ID
+                  print("round_id", round_id)
                   round_response = requests.patch(
                       f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
                       json={},
