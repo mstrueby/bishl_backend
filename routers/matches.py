@@ -97,17 +97,29 @@ async def list_matches(request: Request,
   if matchday:
     query["matchday.alias"] = matchday
   if referee:
-    query["$or"] = [{
-        "referee1.userId": referee
-    }, {
-        "referee2.userId": referee
-    }]
+    query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
   if assigned is not None:
     if not assigned:  # assigned == False
-      query["$and"] = [{"referee1.userId": {"$exists": False}}, {"referee2.userId": {"$exists": False}}]
+      query["$and"] = [{
+          "referee1.userId": {
+              "$exists": False
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": False
+          }
+      }]
     elif assigned:  # assigned == True
-      query["$or"] = [{"referee1.userId": {"$exists": True}}, {"referee2.userId": {"$exists": True}}]
-      
+      query["$or"] = [{
+          "referee1.userId": {
+              "$exists": True
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": True
+          }
+      }]
+
   if date_from or date_to:
     date_query = {}
     try:
@@ -125,10 +137,13 @@ async def list_matches(request: Request,
                           detail=f"Invalid date format: {str(e)}")
   if DEBUG_LEVEL > 10:
     print("query: ", query)
-  matches = await mongodb["matches"].find(query).sort("startDate", 1).to_list(None)
+  matches = await mongodb["matches"].find(query).sort("startDate",
+                                                      1).to_list(None)
   results = [MatchDB(**match) for match in matches]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
+
+
 # get one match by id
 @router.get("/{match_id}",
             response_description="Get one match by id",
@@ -182,23 +197,24 @@ async def create_match(
 
     if t_alias and s_alias and r_alias and md_alias:
       try:
-          ref_points = await fetch_ref_points(t_alias=t_alias,
+        ref_points = await fetch_ref_points(t_alias=t_alias,
                                             s_alias=s_alias,
                                             r_alias=r_alias,
                                             md_alias=md_alias)
-          print("ref_points: ", ref_points)
-          if match.matchStatus.key in ['FINISHED', 'FORFEITED']:
-              if match.referee1 is not None:
-                  match.referee1.points = ref_points
-              if match.referee2 is not None:
-                  match.referee2.points = ref_points
+        print("ref_points: ", ref_points)
+        if match.matchStatus.key in ['FINISHED', 'FORFEITED']:
+          if match.referee1 is not None:
+            match.referee1.points = ref_points
+          if match.referee2 is not None:
+            match.referee2.points = ref_points
       except HTTPException as e:
-          if e.status_code == 404:
-              raise HTTPException(
-                  status_code=404,
-                  detail=f"Could not fetch referee points: Matchday {md_alias} not found for {t_alias} / {s_alias} / {r_alias}"
-              )
-          raise e
+        if e.status_code == 404:
+          raise HTTPException(
+              status_code=404,
+              detail=
+              f"Could not fetch referee points: Matchday {md_alias} not found for {t_alias} / {s_alias} / {r_alias}"
+          )
+        raise e
 
     print("xxx match", match)
     match_data = jsonable_encoder(match)
@@ -228,56 +244,68 @@ async def create_match(
     if t_alias and s_alias and r_alias and md_alias:
       print("Updating rounds and matchdays...")
       token = await get_sys_ref_tool_token(
-        email=os.environ['SYS_ADMIN_EMAIL'],
-        password=os.environ['SYS_ADMIN_PASSWORD']
-      )
+          email=os.environ['SYS_ADMIN_EMAIL'],
+          password=os.environ['SYS_ADMIN_PASSWORD'])
       print("token: ", token)
       headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json'
+          'Authorization': f'Bearer {token}',
+          'Content-Type': 'application/json'
       }
       # update round and get round ID first
       tournament = await mongodb['tournaments'].find_one({"alias": t_alias})
       if tournament:
-          season = next((s for s in tournament.get("seasons", []) if s.get("alias") == s_alias), None)
-          if season:
-              round_data = next((r for r in season.get("rounds", []) if r.get("alias") == r_alias), None)
-              if round_data and "_id" in round_data:
-                  round_id = round_data["_id"]
-                  # Update round dates with round ID
-                  print("round_id", round_id)
-                  async with httpx.AsyncClient() as client:
-                    try:
-                      round_response = await client.patch(
-                          f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
-                          json={},
-                          headers=headers,
-                          timeout=30.0
-                      )
-                      print("round_response: ", round_response)
-                      if round_response.status_code not in [200, 304]:
-                          print(f"Warning: Failed to update round dates: {round_response.status_code}")
-                    except Exception as e:
-                      print(f"Error updating round dates: {str(e)}")
-              else:
-                  print(f"Warning: Round {r_alias} not found or has no ID")
-          
-      # Update matchday dates  
-      """
-      async with httpx.AsyncClient() as client:
-        try:
-          matchday_response = await client.patch(
-              f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}",
-              json={},
-              headers=headers,
-              timeout=30.0
-          )
-          print("matchday_response: ", matchday_response)
-          if matchday_response.status_code not in [200, 304]:
-              print(f"Warning: Failed to update matchday dates: {matchday_response.status_code}")
-        except Exception as e:
-          print(f"Error updating matchday dates: {str(e)}")
-      """
+        season = next((s for s in tournament.get("seasons", [])
+                       if s.get("alias") == s_alias), None)
+        if season:
+          round_data = next(
+              (r
+               for r in season.get("rounds", []) if r.get("alias") == r_alias),
+              None)
+          if round_data and "_id" in round_data:
+            round_id = round_data["_id"]
+            # Update round and calc start and end dates 
+            print("round_id", round_id)
+            async with httpx.AsyncClient() as client:
+              try:
+                round_response = await client.patch(
+                    f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
+                    json={},
+                    headers=headers,
+                    timeout=30.0)
+                print("round_response: ", round_response)
+                if round_response.status_code not in [200, 304]:
+                  print(
+                      f"Warning: Failed to update round dates: {round_response.status_code}"
+                  )
+              except Exception as e:
+                print(f"Error updating round dates: {str(e)}")
+
+            print("... now matchdays")
+            matchday_data = next((md for md in round_data.get("matchdays", [])
+                                  if md.get("alias") == md_alias), None)
+            if matchday_data and "_id" in matchday_data:
+              md_id = matchday_data["_id"]
+              # Update matchday and calc start and end dates 
+              print("md_id", md_id)
+              async with httpx.AsyncClient() as client:
+                try:
+                  matchday_response = await client.patch(
+                      f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_id}",
+                      json={},
+                      headers=headers,
+                      timeout=30.0)
+                  print("matchday_response: ", matchday_response)
+                  if matchday_response.status_code not in [200, 304]:
+                    print(
+                        f"Warning: Failed to update matchday dates: {matchday_response.status_code}"
+                    )
+                except Exception as e:
+                  print(f"Error updating matchday dates: {str(e)}")
+            else:
+              print(f"Warning: Matchday {md_alias} not found or has no ID")
+
+          else:
+            print(f"Warning: Round {r_alias} not found or has no ID")
 
       print("calc standings ...")
       await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
@@ -354,12 +382,15 @@ async def update_match(request: Request,
   finish_type = getattr(match.finishType, 'key',
                         existing_match.get('finishType', {}).get('key', None))
 
-  home_stats_data = getattr(match.home, 'stats', existing_match.get('home', {}).get('stats', None))
-  away_stats_data = getattr(match.away, 'stats', existing_match.get('away', {}).get('stats', None))
-  
-  home_stats = home_stats_data if isinstance(home_stats_data, MatchStats) else MatchStats(**(home_stats_data or {}))
-  away_stats = away_stats_data if isinstance(away_stats_data, MatchStats) else MatchStats(**(away_stats_data or {}))
-  
+  home_stats_data = getattr(match.home, 'stats',
+                            existing_match.get('home', {}).get('stats', None))
+  away_stats_data = getattr(match.away, 'stats',
+                            existing_match.get('away', {}).get('stats', None))
+
+  home_stats = home_stats_data if isinstance(
+      home_stats_data, MatchStats) else MatchStats(**(home_stats_data or {}))
+  away_stats = away_stats_data if isinstance(
+      away_stats_data, MatchStats) else MatchStats(**(away_stats_data or {}))
   """
   print("exisiting_match: ", existing_match)
   print("t_alias: ", t_alias)
@@ -369,7 +400,7 @@ async def update_match(request: Request,
   print("away_stats: ", away_stats)
   print("type of home_stats: ", type(home_stats))
   """
-  
+
   home_goals = home_stats.goalsFor if home_stats else 0
   away_goals = away_stats.goalsFor if away_stats else 0
 
@@ -457,7 +488,6 @@ async def update_match(request: Request,
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   updated_match = await get_match_object(mongodb, match_id)
-
   """
   # Update rounds and matchdays dates
   print("Updating rounds and matchdays...")
