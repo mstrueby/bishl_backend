@@ -222,8 +222,9 @@ async def create_match(
 
     # add match to collection matches
     result = await mongodb["matches"].insert_one(match_data)
-    print("result: ", result)
+    print("YYY result: ", result)
 
+    print("token_payload", token_payload.sub)
     # Update rounds and matchdays dates, and calc standings
     if t_alias and s_alias and r_alias and md_alias:
       """ TODO
