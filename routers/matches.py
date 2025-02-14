@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam
 from authentication import AuthHandler, TokenPayload
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token
 import os
 import isodate
 from datetime import datetime
@@ -222,20 +222,27 @@ async def create_match(
 
     # add match to collection matches
     result = await mongodb["matches"].insert_one(match_data)
-    print("YYY result: ", result)
+    print("result: ", result)
 
-    print("token_payload", token_payload.sub)
     # Update rounds and matchdays dates, and calc standings
     if t_alias and s_alias and r_alias and md_alias:
-      """ TODO
       print("Updating rounds and matchdays...")
-      headers = {'Authorization': f"Bearer {token_payload.access_token}"}  # Define headers
+      token = await get_sys_ref_tool_token(
+        email=os.environ['SYS_ADMIN_EMAIL'],
+        password=os.environ['SYS_ADMIN_PASSWORD']
+      )
+      print("token: ", token)
+      headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+      }
       # Update round dates
       round_response = requests.patch(
           f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}",
           json={},
           headers=headers
       )
+      print("round_response: ", round_response)
       if round_response.status_code not in [200, 304]:
           print(f"Warning: Failed to update round dates: {round_response.status_code}")
           
@@ -245,9 +252,9 @@ async def create_match(
           json={},
           headers=headers
       )
+      print("matchday_response: ", matchday_response)
       if matchday_response.status_code not in [200, 304]:
           print(f"Warning: Failed to update matchday dates: {matchday_response.status_code}")
-      """
 
       print("calc standings ...")
       await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)

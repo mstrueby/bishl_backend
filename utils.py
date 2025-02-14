@@ -515,11 +515,11 @@ async def calc_standings_per_matchday(mongodb, t_alias: str, s_alias: str,
     print("update md.standings: ", standings)
 
 
-async def get_sys_ref_tool_token():
+async def get_sys_ref_tool_token(email: str, password: str):
   login_url = f"{os.environ['BE_API_URL']}/users/login"
   login_data = {
-      "email": os.environ['SYS_REF_TOOL_EMAIL'],
-      "password": os.environ['SYS_REF_TOOL_PASSWORD']
+      "email": email,
+      "password": password
   }
   async with httpx.AsyncClient() as client:
     login_response = await client.post(login_url, json=login_data)
@@ -527,7 +527,6 @@ async def get_sys_ref_tool_token():
   if login_response.status_code != 200:
     raise Exception(f"Error logging in: {login_response.json()}")
   return login_response.json()['token']
-
 
 # refresh player stats in roster
 async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
