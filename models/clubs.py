@@ -164,7 +164,6 @@ class ClubUpdate(MongoBaseModel):
   website: Optional[HttpUrl] = None
   ishdId: Optional[int] = None
   active: Optional[bool] = None
-  teams: Optional[List[TeamBase]] = Field(default_factory=list)
   legacyId: Optional[int] = None
   logoUrl: Optional[str] = None
 
