@@ -66,7 +66,7 @@ async def get_paginated_players(mongodb,
                                 team_alias=None,
                                 sortby="firstName",
                                 get_all=False):
-    RESULTS_PER_PAGE = None if get_all else int(os.environ['RESULTS_PER_PAGE'])
+    RESULTS_PER_PAGE = 0 if get_all else int(os.environ['RESULTS_PER_PAGE'])
     skip = 0 if get_all else (page - 1) * RESULTS_PER_PAGE
     sort_field = {
         "firstName": "firstName",
