@@ -11,7 +11,7 @@ import argparse
 from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue, MatchTeam
 from models.tournaments import RoundDB, MatchdayBase, MatchdayType
 
-filename = "data/data_schedule.csv"
+filename = "data/data_schedule_2025.csv"
 BASE_URL = os.environ['BE_API_URL']
 api_url = f"{BASE_URL}/"
 print("api_url", api_url)
@@ -58,14 +58,19 @@ with open(filename, encoding='utf-8') as f:
     season=None
     round=None
     matchday=None
+
+    print("row", row)
     
     # Create tournament object from row data
     tournament_data = row.get('tournament')
+    print("tournament_data", json.loads(row['tournament']))
     # Ensure the data is in string format for JSON parsing
     if isinstance(tournament_data, str):
         # Attempt to parse JSON
         try:
             tournament_data = json.loads(tournament_data)
+            tournament = MatchTournament(**tournament_data)
+            print(f"Tournament: {tournament.name}")
         except json.JSONDecodeError:
             print("Error: tournament data is not valid JSON")
             exit()
@@ -147,13 +152,13 @@ with open(filename, encoding='utf-8') as f:
     if any(obj.alias is None for obj in [tournament, season, round, matchday]):
         print('Error: One of the required fields (tournament, season, round, matchday) is None.')
         exit()
-    else
-      t_alias = tournament.alias
-      s_alias = season.alias
-      r_alias = round.alias
-      md_alias = matchday.alias
-      md_name = matchday.name 
-        
+    else:
+        t_alias = tournament.alias
+        s_alias = season.alias
+        r_alias = round.alias
+        md_alias = matchday.alias
+        md_name = matchday.name 
+          
     # Check if round exists
     round_url = f"{BASE_URL}/tournaments/{tournament.alias}/season/{s_alias}/round/{r_alias}"
     round_response = requests.get(round_url, headers=headers)
@@ -184,6 +189,64 @@ with open(filename, encoding='utf-8') as f:
     #print("row", row)
 
     
+    # Fetch home club and team data
+    home_club_alias = row.get('homeClubAlias')
+    home_team_alias = row.get('homeTeamAlias')
+    home_club_response = requests.get(f"{BASE_URL}/clubs/{home_club_alias}", headers=headers)
+    if home_club_response.status_code != 200:
+        print(f"Error: home club {home_club_alias} not found")
+        exit()
+    home_club = home_club_response.json()
+    
+    home_team_response = requests.get(f"{BASE_URL}/clubs/{home_club_alias}/teams/{home_team_alias}", headers=headers)
+    if home_team_response.status_code != 200:
+        print(f"Error: home team {home_team_alias} not found in club {home_club_alias}")
+        exit()
+    home_team = home_team_response.json()
+    
+    # Create home MatchTeam
+    home = MatchTeam(
+        clubId=home_club.get('_id'),
+        clubName=home_club.get('name'),
+        clubAlias=home_club.get('alias'),
+        teamId=home_team.get('_id'),
+        teamAlias=home_team.get('alias'),
+        name=home_team.get('name'),
+        fullName=home_team.get('fullName'),
+        shortName=home_team.get('shortName'),
+        tinyName=home_team.get('tinyName'),
+        logo=home_club.get('logoUrl')
+    )
+
+    # Fetch away club and team data
+    away_club_alias = row.get('awayClubAlias')
+    away_team_alias = row.get('awayTeamAlias')
+    away_club_response = requests.get(f"{BASE_URL}/clubs/{away_club_alias}", headers=headers)
+    if away_club_response.status_code != 200:
+        print(f"Error: away club {away_club_alias} not found")
+        exit()
+    away_club = away_club_response.json()
+    
+    away_team_response = requests.get(f"{BASE_URL}/clubs/{away_club_alias}/teams/{away_team_alias}", headers=headers)
+    if away_team_response.status_code != 200:
+        print(f"Error: away team {away_team_alias} not found in club {away_club_alias}")
+        exit()
+    away_team = away_team_response.json()
+    
+    # Create away MatchTeam
+    away = MatchTeam(
+        clubId=away_club.get('_id'),
+        clubName=away_club.get('name'),
+        clubAlias=away_club.get('alias'),
+        teamId=away_team.get('_id'),
+        teamAlias=away_team.get('alias'),
+        name=away_team.get('name'),
+        fullName=away_team.get('fullName'),
+        shortName=away_team.get('shortName'),
+        tinyName=away_team.get('tinyName'),
+        logo=away_club.get('logoUrl')
+    )
+
     # Create a new match instance using MatchBase
     new_match = MatchBase(
         tournament=tournament,
@@ -192,14 +255,16 @@ with open(filename, encoding='utf-8') as f:
         matchday=matchday,
         venue=venue,
         published=published_value,
-        # Add other required fields for MatchDB as needed
+        home=home,
+        away=away
     )
 
     # Encode the match object to JSON
-    row = jsonable_encoder(new_match)
+    new_match_data = jsonable_encoder(new_match)
+    print("new_match_data", new_match_data)
 
     response = requests.post(f"{BASE_URL}/matches/",
-                             json=row,
+                             json=new_match_data,
                              headers=headers)
     if response.status_code == 201:
       print(
@@ -209,6 +274,6 @@ with open(filename, encoding='utf-8') as f:
         print("--importAll flag not set, exiting.")
         exit()
     else:
-      print('Failed to post Match: ', row, ' - Status code:',
+      print('Failed to post Match: ', new_match_data, ' - Status code:',
             response.status_code)
       exit()
