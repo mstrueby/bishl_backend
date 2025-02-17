@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional, List, Dict
 from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings
+from enum import Enum
 
 
 class PyObjectId(ObjectId):
@@ -85,12 +86,14 @@ class MatchSettings(BaseModel):
 
 
 # ------------
-
+class MatchdayType(Enum):
+  PLAYOFFS = {"key": "PLAYOFFS", "value": "Playoffs", "sortOrder": 1}
+  REGULAR = {"key": "REGULAR", "value": "Regulär", "sortOrder": 2}
 
 class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  type: Dict[str, str] = Field(...)  # enum, "Playoffs", "Regulär"
+  type: MatchdayType = Field(...)
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
   createStandings: bool = False
