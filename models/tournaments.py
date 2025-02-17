@@ -110,11 +110,6 @@ class MatchdayBase(MongoBaseModel):
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
 
-  @validator('type', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
-
-
 class MatchdayDB(MatchdayBase):
   pass
 
@@ -122,7 +117,7 @@ class MatchdayDB(MatchdayBase):
 class MatchdayUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
-  type: Optional[Dict[str, str]] = Field(default_factory=dict)
+  type: Optional[MatchdayType] = None
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
   createStandings: Optional[bool] = False
@@ -138,10 +133,6 @@ class MatchdayUpdate(MongoBaseModel):
   @validator('name', 'alias', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
-
-  @validator('type', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
 
 
 class RoundBase(MongoBaseModel):

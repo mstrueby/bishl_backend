@@ -10,6 +10,7 @@ from fastapi.encoders import jsonable_encoder
 import argparse
 from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue, MatchTeam
 from models.tournaments import RoundDB, MatchdayBase, MatchdayType
+from datetime import datetime
 
 filename = "data/data_schedule_2025.csv"
 BASE_URL = os.environ['BE_API_URL']
@@ -145,6 +146,17 @@ with open(filename, encoding='utf-8') as f:
     # Ensure whether the value is a boolean or None
     published_value = published_value if isinstance(published_value, bool) else False
 
+    # Handle startDate from the CSV
+    start_date_str = row.get('startDate')
+    start_date = None
+    if start_date_str:
+        try:
+            # Parse the start date from a string to a datetime object
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d %H:%M:%S%z')
+        except ValueError:
+            print(f"Error parsing startDate: {start_date_str}")
+            exit(1)
+
     # Ensure objects are not None before checking alias
     if any(obj is None for obj in [tournament, season, round, matchday]):
         print('Error: One of the required objects (tournament, season, round, matchday) is None.')
@@ -163,7 +175,6 @@ with open(filename, encoding='utf-8') as f:
           
     # Check if round exists
     round_url = f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
-    print(round_url)
     round_response = requests.get(round_url, headers=headers)
     if round_response.status_code != 200:
         print(f"Error: round does not exist {t_alias} / {s_alias} / {r_alias}")
@@ -182,16 +193,13 @@ with open(filename, encoding='utf-8') as f:
           published=True,
           matchSettings=round_data.matchSettings
         )
-        create_md_response = requests.post(f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays",
+        create_md_response = requests.post(f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/",
                                            json=jsonable_encoder(new_matchday),
                                            headers=headers)
         if create_md_response.status_code != 201:
             print("Failed to create new matchday: ", f"{t_alias} / {s_alias} / {r_alias} / {md_alias}", " - Status code:", create_md_response.status_code)
             exit()
 
-    #print("row", row)
-
-    
     # Fetch home club and team data
     home_club_alias = row.get('homeClubAlias')
     home_team_alias = row.get('homeTeamAlias')
@@ -259,7 +267,8 @@ with open(filename, encoding='utf-8') as f:
         venue=venue,
         published=published_value,
         home=home,
-        away=away
+        away=away,
+        startDate=start_date
     )
 
     # Encode the match object to JSON

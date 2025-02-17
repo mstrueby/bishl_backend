@@ -218,8 +218,11 @@ async def update_round(
       "round.alias": tournament["seasons"][season_index]["rounds"][round_index]["alias"]
   }).sort("startDate", 1).to_list(None)
   if matches:
-      round_dict["startDate"] = min(match["startDate"] for match in matches)
-      round_dict["endDate"] = max(match["startDate"] for match in matches)
+      # Ignore matches where startDate is None
+      start_dates = [match['startDate'] for match in matches if match['startDate'] is not None]
+      if start_dates:
+          round_dict["startDate"] = min(start_dates)
+          round_dict["endDate"] = max(start_dates)
 
   # Prepare the update by excluding unchanged data
   update_data = {"$set": {}}
