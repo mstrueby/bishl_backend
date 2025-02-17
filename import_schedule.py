@@ -11,7 +11,7 @@ import argparse
 from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue, MatchTeam
 from models.tournaments import RoundDB, MatchdayBase, MatchdayType
 
-filename = "data/data_schedule.csv"
+filename = "data/data_schedule_2025.csv"
 BASE_URL = os.environ['BE_API_URL']
 api_url = f"{BASE_URL}/"
 print("api_url", api_url)
@@ -58,14 +58,19 @@ with open(filename, encoding='utf-8') as f:
     season=None
     round=None
     matchday=None
+
+    print("row", row)
     
     # Create tournament object from row data
     tournament_data = row.get('tournament')
+    print("tournament_data", json.loads(row['tournament']))
     # Ensure the data is in string format for JSON parsing
     if isinstance(tournament_data, str):
         # Attempt to parse JSON
         try:
             tournament_data = json.loads(tournament_data)
+            tournament = MatchTournament(**tournament_data)
+            print(f"Tournament: {tournament.name}")
         except json.JSONDecodeError:
             print("Error: tournament data is not valid JSON")
             exit()
@@ -147,13 +152,13 @@ with open(filename, encoding='utf-8') as f:
     if any(obj.alias is None for obj in [tournament, season, round, matchday]):
         print('Error: One of the required fields (tournament, season, round, matchday) is None.')
         exit()
-    else
-      t_alias = tournament.alias
-      s_alias = season.alias
-      r_alias = round.alias
-      md_alias = matchday.alias
-      md_name = matchday.name 
-        
+    else:
+        t_alias = tournament.alias
+        s_alias = season.alias
+        r_alias = round.alias
+        md_alias = matchday.alias
+        md_name = matchday.name 
+          
     # Check if round exists
     round_url = f"{BASE_URL}/tournaments/{tournament.alias}/season/{s_alias}/round/{r_alias}"
     round_response = requests.get(round_url, headers=headers)
@@ -255,10 +260,11 @@ with open(filename, encoding='utf-8') as f:
     )
 
     # Encode the match object to JSON
-    row = jsonable_encoder(new_match)
+    new_match_data = jsonable_encoder(new_match)
+    print("new_match_data", new_match_data)
 
     response = requests.post(f"{BASE_URL}/matches/",
-                             json=row,
+                             json=new_match_data,
                              headers=headers)
     if response.status_code == 201:
       print(
@@ -268,6 +274,6 @@ with open(filename, encoding='utf-8') as f:
         print("--importAll flag not set, exiting.")
         exit()
     else:
-      print('Failed to post Match: ', row, ' - Status code:',
+      print('Failed to post Match: ', new_match_data, ' - Status code:',
             response.status_code)
       exit()
