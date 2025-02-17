@@ -58,15 +58,34 @@ with open(filename, encoding='utf-8') as f:
     season=None
     round=None
     matchday=None
-    # parse JSON strings if they are not already dictionaries
+    
+    # Create tournament object from row data
     if isinstance(row.get('tournament'), str):
-      tournament = MatchTournament(**json.loads(row['tournament']))
+        tournament_data = json.loads(row['tournament'])
+    else:
+        tournament_data = row['tournament']
+    tournament = MatchTournament(**tournament_data)
+
+    # Create season object from row data
     if isinstance(row.get('season'), str):
-      season = MatchSeason(**json.loads(row['season']))
+        season_data = json.loads(row['season'])
+    else:
+        season_data = row['season']
+    season = MatchSeason(**season_data)
+
+    # Create round object from row data
     if isinstance(row.get('round'), str):
-      round = MatchRound(**json.loads(row['round']))
+        round_data = json.loads(row['round'])
+    else:
+        round_data = row['round']
+    round = MatchRound(**round_data)
+
+    # Create matchday object from row data
     if isinstance(row.get('matchday'), str):
-      matchday = MatchMatchday(**json.loads(row['matchday']))
+        matchday_data = json.loads(row['matchday'])
+    else:
+        matchday_data = row['matchday']
+    matchday = MatchMatchday(**matchday_data)
     if isinstance(row.get('venue'), str):
       venue = MatchVenue(**json.loads(row['venue']))
         
