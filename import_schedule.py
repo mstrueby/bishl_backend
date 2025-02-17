@@ -8,7 +8,7 @@ from pymongo import MongoClient
 import certifi
 from fastapi.encoders import jsonable_encoder
 import argparse
-from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue
+from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue, MatchTeam
 from models.tournaments import RoundDB, MatchdayBase, MatchdayType
 
 filename = "data/data_schedule.csv"
