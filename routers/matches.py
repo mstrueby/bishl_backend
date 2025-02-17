@@ -74,28 +74,30 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
   match = convert_seconds_to_times(match)
   return MatchDB(**match)
 
-async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias, round_id, md_id):
+
+async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
+                                    round_id, md_id):
   # Update round dates first
   round_response = await client.patch(
       f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
       json={},
       headers=headers,
-      timeout=30.0
-  )
+      timeout=30.0)
   if round_response.status_code not in [200, 304]:
-      print(f"Warning: Failed to update round dates: {round_response.status_code}")
-      return
+    print(
+        f"Warning: Failed to update round dates: {round_response.status_code}")
+    return
 
   # After successful round update, update matchday
   matchday_response = await client.patch(
       f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_id}",
       json={},
       headers=headers,
-      timeout=30.0
-  )
+      timeout=30.0)
   if matchday_response.status_code not in [200, 304]:
-      print(f"Warning: Failed to update matchday dates: {matchday_response.status_code}")
-
+    print(
+        f"Warning: Failed to update matchday dates: {matchday_response.status_code}"
+    )
 
 
 # get matches
@@ -240,21 +242,29 @@ async def create_match(
         raise e
 
     print("xxx match", match)
-    match_data = jsonable_encoder(match)
+    match_data = my_jsonable_encoder(match)
     match_data = convert_times_to_seconds(match_data)
 
     # convert startDate to the required datetime format
-    if 'startDate' in match_data:
+    if 'startDate' in match_data and match_data['startDate'] is not None:
       start_date_str = match_data['startDate']
-      start_date_parts = datetime.fromisoformat(start_date_str)
-      match_data['startDate'] = datetime(start_date_parts.year,
-                                         start_date_parts.month,
-                                         start_date_parts.day,
-                                         start_date_parts.hour,
-                                         start_date_parts.minute,
-                                         start_date_parts.second,
-                                         start_date_parts.microsecond,
-                                         tzinfo=start_date_parts.tzinfo)
+      print(start_date_str)
+      try:
+        start_date_parts = datetime.fromisoformat(str(start_date_str))
+        print(start_date_parts)
+        match_data['startDate'] = datetime(
+          start_date_parts.year,
+          start_date_parts.month,
+          start_date_parts.day,
+          start_date_parts.hour,
+          start_date_parts.minute,
+          start_date_parts.second,
+          start_date_parts.microsecond,
+          tzinfo=start_date_parts.tzinfo
+        )
+      except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+      print(match_data['startDate'])
 
     if DEBUG_LEVEL > 0:
       print("xxx match_data: ", match_data)
@@ -288,7 +298,9 @@ async def create_match(
             if matchday_data and "_id" in matchday_data:
               md_id = matchday_data["_id"]
               async with httpx.AsyncClient() as client:
-                await update_round_and_matchday(client, headers, t_alias, s_alias, r_alias, round_id, md_id)
+                await update_round_and_matchday(client, headers, t_alias,
+                                                s_alias, r_alias, round_id,
+                                                md_id)
             else:
               print(f"Warning: Matchday {md_alias} not found or has no ID")
           else:
@@ -464,7 +476,6 @@ async def update_match(request: Request,
         raise HTTPException(status_code=404,
                             detail=f"Match with id {match_id} not found")
 
-      
       if t_alias and s_alias and r_alias and md_alias:
         token = await get_sys_ref_tool_token(
             email=os.environ['SYS_ADMIN_EMAIL'],
@@ -478,18 +489,19 @@ async def update_match(request: Request,
           season = next((s for s in tournament.get("seasons", [])
                          if s.get("alias") == s_alias), None)
           if season:
-            round_data = next(
-                (r
-                 for r in season.get("rounds", []) if r.get("alias") == r_alias),
-                None)
+            round_data = next((r for r in season.get("rounds", [])
+                               if r.get("alias") == r_alias), None)
             if round_data and "_id" in round_data:
               round_id = round_data["_id"]
-              matchday_data = next((md for md in round_data.get("matchdays", [])
+              matchday_data = next((md
+                                    for md in round_data.get("matchdays", [])
                                     if md.get("alias") == md_alias), None)
               if matchday_data and "_id" in matchday_data:
                 md_id = matchday_data["_id"]
                 async with httpx.AsyncClient() as client:
-                  await update_round_and_matchday(client, headers, t_alias, s_alias, r_alias, round_id, md_id)
+                  await update_round_and_matchday(client, headers, t_alias,
+                                                  s_alias, r_alias, round_id,
+                                                  md_id)
               else:
                 print(f"Warning: Matchday {md_alias} not found or has no ID")
             else:
@@ -498,7 +510,7 @@ async def update_match(request: Request,
       if DEBUG_LEVEL > 0:
         print("calc_roster_stats (home) ...")
       await calc_roster_stats(mongodb, match_id, 'home')
-      if DEBUG_LEVEL > 0: 
+      if DEBUG_LEVEL > 0:
         print("calc_roster_stats (away) ...")
       await calc_roster_stats(mongodb, match_id, 'away')
 
