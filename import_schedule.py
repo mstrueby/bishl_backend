@@ -52,14 +52,12 @@ args = parser.parse_args()
 
 # import matches
 with open(filename, encoding='utf-8') as f:
-    # Skip header row that contains field descriptions
-    next(f)
-    reader = csv.DictReader(f, 
-                           delimiter=';',
-                           quotechar='"',
-                           doublequote=True,
-                           skipinitialspace=True)
-    for row in reader:
+  reader = csv.DictReader(f, 
+                         delimiter=';',
+                         quotechar='"',
+                         doublequote=True,
+                         skipinitialspace=True)
+  for row in reader:
     tournament=None
     season=None
     round=None
@@ -69,14 +67,12 @@ with open(filename, encoding='utf-8') as f:
     
     # Create tournament object from row data
     tournament_data = row.get('tournament')
-    print("tournament_data", json.loads(row['tournament']))
     # Ensure the data is in string format for JSON parsing
     if isinstance(tournament_data, str):
         # Attempt to parse JSON
         try:
             tournament_data = json.loads(tournament_data)
             tournament = MatchTournament(**tournament_data)
-            print(f"Tournament: {tournament.name}")
         except json.JSONDecodeError:
             print("Error: tournament data is not valid JSON")
             exit()
@@ -166,7 +162,8 @@ with open(filename, encoding='utf-8') as f:
         md_name = matchday.name 
           
     # Check if round exists
-    round_url = f"{BASE_URL}/tournaments/{tournament.alias}/season/{s_alias}/round/{r_alias}"
+    round_url = f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
+    print(round_url)
     round_response = requests.get(round_url, headers=headers)
     if round_response.status_code != 200:
         print(f"Error: round does not exist {t_alias} / {s_alias} / {r_alias}")
@@ -185,7 +182,7 @@ with open(filename, encoding='utf-8') as f:
           published=True,
           matchSettings=round_data.matchSettings
         )
-        create_md_response = requests.post(f"{BASE_URL}/tournaments/{t_alias}/season/{s_alias}/round/{r_alias}/matchdays",
+        create_md_response = requests.post(f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays",
                                            json=jsonable_encoder(new_matchday),
                                            headers=headers)
         if create_md_response.status_code != 201:
