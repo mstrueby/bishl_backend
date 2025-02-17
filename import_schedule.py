@@ -8,7 +8,7 @@ from pymongo import MongoClient
 import certifi
 from fastapi.encoders import jsonable_encoder
 import argparse
-from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue
+from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue, MatchTeam
 from models.tournaments import RoundDB, MatchdayBase, MatchdayType
 
 filename = "data/data_schedule.csv"
@@ -58,20 +58,85 @@ with open(filename, encoding='utf-8') as f:
     season=None
     round=None
     matchday=None
-    # parse JSON strings if they are not already dictionaries
-    if isinstance(row.get('tournament'), str):
-      tournament = MatchTournament(**json.loads(row['tournament']))
-    if isinstance(row.get('season'), str):
-      season = MatchSeason(**json.loads(row['season']))
-    if isinstance(row.get('round'), str):
-      round = MatchRound(**json.loads(row['round']))
-    if isinstance(row.get('matchday'), str):
-      matchday = MatchMatchday(**json.loads(row['matchday']))
-    if isinstance(row.get('venue'), str):
-      venue = MatchVenue(**json.loads(row['venue']))
-        
-    if isinstance(row.get('published'), str):
-      row['published'] = row['published'].lower() == 'true'
+    
+    # Create tournament object from row data
+    tournament_data = row.get('tournament')
+    # Ensure the data is in string format for JSON parsing
+    if isinstance(tournament_data, str):
+        # Attempt to parse JSON
+        try:
+            tournament_data = json.loads(tournament_data)
+        except json.JSONDecodeError:
+            print("Error: tournament data is not valid JSON")
+            exit()
+    # Ensure tournament_data is a dictionary and all keys are strings
+    if isinstance(tournament_data, dict) and all(isinstance(k, str) for k in tournament_data.keys()):
+        tournament = MatchTournament(**tournament_data)
+    else:
+        print("Error: tournament data is not a valid dictionary with string keys")
+        exit()
+
+    # Create season object from row data
+    season_data = row.get('season')
+    if isinstance(season_data, str):
+        try:
+            season_data = json.loads(season_data)
+        except json.JSONDecodeError:
+            print("Error: season data is not valid JSON")
+            exit()
+    if isinstance(season_data, dict) and all(isinstance(k, str) for k in season_data.keys()):
+        season = MatchSeason(**season_data)
+    else:
+        print("Error: season data is not a valid dictionary with string keys")
+        exit()
+
+    # Create round object from row data
+    round_data = row.get('round')
+    if isinstance(round_data, str):
+        try:
+            round_data = json.loads(round_data)
+        except json.JSONDecodeError:
+            print("Error: round data is not valid JSON")
+            exit()
+    if isinstance(round_data, dict) and all(isinstance(k, str) for k in round_data.keys()):
+        round = MatchRound(**round_data)
+    else:
+        print("Error: round data is not a valid dictionary with string keys")
+        exit()
+
+    # Create matchday object from row data
+    matchday_data = row.get('matchday')
+    if isinstance(matchday_data, str):
+        try:
+            matchday_data = json.loads(matchday_data)
+        except json.JSONDecodeError:
+            print("Error: matchday data is not valid JSON")
+            exit()
+    if isinstance(matchday_data, dict) and all(isinstance(k, str) for k in matchday_data.keys()):
+        matchday = MatchMatchday(**matchday_data)
+    else:
+        print("Error: matchday data is not a valid dictionary with string keys")
+        exit()
+
+    # Create venue object from row data
+    venue_data = row.get('venue')
+    if isinstance(venue_data, str):
+        try:
+            venue_data = json.loads(venue_data)
+        except json.JSONDecodeError:
+            print("Error: venue data is not valid JSON")
+            exit()
+    if isinstance(venue_data, dict) and all(isinstance(k, str) for k in venue_data.keys()):
+        venue = MatchVenue(**venue_data)
+    else:
+        print("Error: venue data is not a valid dictionary with string keys")
+        exit()
+
+    published_value = row.get('published')
+    if isinstance(published_value, str):
+        published_value = published_value.lower() == 'true'
+    # Ensure whether the value is a boolean or None
+    published_value = published_value if isinstance(published_value, bool) else False
 
     # Ensure objects are not None before checking alias
     if any(obj is None for obj in [tournament, season, round, matchday]):
@@ -88,10 +153,8 @@ with open(filename, encoding='utf-8') as f:
       r_alias = round.alias
       md_alias = matchday.alias
       md_name = matchday.name 
-    
-
-    
-    # Check if matchday exists
+        
+    # Check if round exists
     round_url = f"{BASE_URL}/tournaments/{tournament.alias}/season/{s_alias}/round/{r_alias}"
     round_response = requests.get(round_url, headers=headers)
     if round_response.status_code != 200:
@@ -111,7 +174,6 @@ with open(filename, encoding='utf-8') as f:
           published=True,
           matchSettings=round_data.matchSettings
         )
-      
         create_md_response = requests.post(f"{BASE_URL}/tournaments/{t_alias}/season/{s_alias}/round/{r_alias}/matchdays",
                                            json=jsonable_encoder(new_matchday),
                                            headers=headers)
@@ -124,12 +186,12 @@ with open(filename, encoding='utf-8') as f:
     
     # Create a new match instance using MatchBase
     new_match = MatchBase(
-        tournament=row['tournament'],
-        season=s_alias,
-        round=r_alias,
-        matchday=md_alias,
-        venue=row.get('venue'),
-        published=row.get('published'),
+        tournament=tournament,
+        season=season,
+        round=round,
+        matchday=matchday,
+        venue=venue,
+        published=published_value,
         # Add other required fields for MatchDB as needed
     )
 
