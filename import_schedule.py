@@ -52,8 +52,14 @@ args = parser.parse_args()
 
 # import matches
 with open(filename, encoding='utf-8') as f:
-  reader = csv.DictReader(f)
-  for row in reader:
+    # Skip header row that contains field descriptions
+    next(f)
+    reader = csv.DictReader(f, 
+                           delimiter=';',
+                           quotechar='"',
+                           doublequote=True,
+                           skipinitialspace=True)
+    for row in reader:
     tournament=None
     season=None
     round=None
