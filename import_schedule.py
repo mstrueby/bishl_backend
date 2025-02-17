@@ -184,6 +184,64 @@ with open(filename, encoding='utf-8') as f:
     #print("row", row)
 
     
+    # Fetch home club and team data
+    home_club_alias = row.get('homeClubAlias')
+    home_team_alias = row.get('homeTeamAlias')
+    home_club_response = requests.get(f"{BASE_URL}/clubs/{home_club_alias}", headers=headers)
+    if home_club_response.status_code != 200:
+        print(f"Error: home club {home_club_alias} not found")
+        exit()
+    home_club = home_club_response.json()
+    
+    home_team_response = requests.get(f"{BASE_URL}/clubs/{home_club_alias}/teams/{home_team_alias}", headers=headers)
+    if home_team_response.status_code != 200:
+        print(f"Error: home team {home_team_alias} not found in club {home_club_alias}")
+        exit()
+    home_team = home_team_response.json()
+    
+    # Create home MatchTeam
+    home = MatchTeam(
+        clubId=home_club.get('_id'),
+        clubName=home_club.get('name'),
+        clubAlias=home_club.get('alias'),
+        teamId=home_team.get('_id'),
+        teamAlias=home_team.get('alias'),
+        name=home_team.get('name'),
+        fullName=home_team.get('fullName'),
+        shortName=home_team.get('shortName'),
+        tinyName=home_team.get('tinyName'),
+        logo=home_club.get('logoUrl')
+    )
+
+    # Fetch away club and team data
+    away_club_alias = row.get('awayClubAlias')
+    away_team_alias = row.get('awayTeamAlias')
+    away_club_response = requests.get(f"{BASE_URL}/clubs/{away_club_alias}", headers=headers)
+    if away_club_response.status_code != 200:
+        print(f"Error: away club {away_club_alias} not found")
+        exit()
+    away_club = away_club_response.json()
+    
+    away_team_response = requests.get(f"{BASE_URL}/clubs/{away_club_alias}/teams/{away_team_alias}", headers=headers)
+    if away_team_response.status_code != 200:
+        print(f"Error: away team {away_team_alias} not found in club {away_club_alias}")
+        exit()
+    away_team = away_team_response.json()
+    
+    # Create away MatchTeam
+    away = MatchTeam(
+        clubId=away_club.get('_id'),
+        clubName=away_club.get('name'),
+        clubAlias=away_club.get('alias'),
+        teamId=away_team.get('_id'),
+        teamAlias=away_team.get('alias'),
+        name=away_team.get('name'),
+        fullName=away_team.get('fullName'),
+        shortName=away_team.get('shortName'),
+        tinyName=away_team.get('tinyName'),
+        logo=away_club.get('logoUrl')
+    )
+
     # Create a new match instance using MatchBase
     new_match = MatchBase(
         tournament=tournament,
@@ -192,7 +250,8 @@ with open(filename, encoding='utf-8') as f:
         matchday=matchday,
         venue=venue,
         published=published_value,
-        # Add other required fields for MatchDB as needed
+        home=home,
+        away=away
     )
 
     # Encode the match object to JSON
