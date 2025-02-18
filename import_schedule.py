@@ -65,7 +65,7 @@ with open(filename, encoding='utf-8') as f:
     matchday=None
 
     print("row", row)
-    
+
     # Create tournament object from row data
     tournament_data = row.get('tournament')
     # Ensure the data is in string format for JSON parsing
@@ -172,7 +172,7 @@ with open(filename, encoding='utf-8') as f:
         r_alias = round.alias
         md_alias = matchday.alias
         md_name = matchday.name 
-          
+
     # Check if round exists
     round_url = f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
     round_response = requests.get(round_url, headers=headers)
@@ -208,13 +208,13 @@ with open(filename, encoding='utf-8') as f:
         print(f"Error: home club {home_club_alias} not found")
         exit()
     home_club = home_club_response.json()
-    
+
     home_team_response = requests.get(f"{BASE_URL}/clubs/{home_club_alias}/teams/{home_team_alias}", headers=headers)
     if home_team_response.status_code != 200:
         print(f"Error: home team {home_team_alias} not found in club {home_club_alias}")
         exit()
     home_team = home_team_response.json()
-    
+
     # Create home MatchTeam
     home = MatchTeam(
         clubId=home_club.get('_id'),
@@ -237,13 +237,13 @@ with open(filename, encoding='utf-8') as f:
         print(f"Error: away club {away_club_alias} not found")
         exit()
     away_club = away_club_response.json()
-    
+
     away_team_response = requests.get(f"{BASE_URL}/clubs/{away_club_alias}/teams/{away_team_alias}", headers=headers)
     if away_team_response.status_code != 200:
         print(f"Error: away team {away_team_alias} not found in club {away_club_alias}")
         exit()
     away_team = away_team_response.json()
-    
+
     # Create away MatchTeam
     away = MatchTeam(
         clubId=away_club.get('_id'),
@@ -275,17 +275,30 @@ with open(filename, encoding='utf-8') as f:
     new_match_data = jsonable_encoder(new_match)
     print("new_match_data", new_match_data)
 
-    response = requests.post(f"{BASE_URL}/matches/",
-                             json=new_match_data,
-                             headers=headers)
-    if response.status_code == 201:
-      print(
-        f"--> Successfully posted Match for {t_alias} / {s_alias} / {r_alias} / {md_alias}"
-      )
-      if not args.importAll:
-        print("--importAll flag not set, exiting.")
-        exit()
+    # Check if the match already exists based on multiple criteria
+    query = {
+        'startDate': start_date,
+        'home.clubId': home.clubId,
+        'home.teamId': home.teamId,
+        'away.clubId': away.clubId,
+        'away.teamId': away.teamId
+    }
+    match_exists = db_collection.find_one(query)
+
+    if not match_exists:
+        response = requests.post(f"{BASE_URL}/matches/",
+                                 json=new_match_data,
+                                 headers=headers)
+        if response.status_code == 201:
+          print(
+            f"--> Successfully posted Match for {t_alias} / {s_alias} / {r_alias} / {md_alias}"
+          )
+          if not args.importAll:
+            print("--importAll flag not set, exiting.")
+            exit()
+        else:
+          print('Failed to post Match: ', new_match_data, ' - Status code:',
+                response.status_code)
+          exit()
     else:
-      print('Failed to post Match: ', new_match_data, ' - Status code:',
-            response.status_code)
-      exit()
+        print(f"Match already exists: {query}")
