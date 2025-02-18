@@ -87,8 +87,10 @@ class MatchSettings(BaseModel):
 
 # ------------
 class MatchdayType(Enum):
-  PLAYOFFS = {"key": "PLAYOFFS", "value": "Playoffs", "sortOrder": 1}
-  REGULAR = {"key": "REGULAR", "value": "Regulär", "sortOrder": 2}
+  #PLAYOFFS = {"key": "PLAYOFFS", "value": "Playoffs", "sortOrder": 1}
+  #REGULAR = {"key": "REGULAR", "value": "Regulär", "sortOrder": 2}
+  PLAYOFFS = {"key": "PLAYOFFS", "value": "Playoffs"}
+  REGULAR = {"key": "REGULAR", "value": "Regulär"}
 
 class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
