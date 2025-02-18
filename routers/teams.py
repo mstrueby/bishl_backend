@@ -68,7 +68,11 @@ async def create_team(
     shortName: str = Form(...),
     tinyName: str = Form(...),
     fullName: str = Form(...),
-    ishdId: Optional[int] = Form(None),
+    ageGroup: str = Form(...),
+    teamNumber: int = Form(...),
+    active: bool = Form(False),
+    external: bool = Form(False),
+    ishdId: Optional[str] = Form(None),
     legacyId: Optional[int] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
@@ -94,6 +98,10 @@ async def create_team(
         shortName=shortName,
         tinyName=tinyName,
         fullName=fullName,
+        ageGroup=ageGroup,
+        teamNumber=teamNumber,
+        active=active,
+        external=external,
         ishdId=ishdId,
         legacyId=legacyId
     )
@@ -146,7 +154,11 @@ async def update_team(
     shortName: Optional[str] = Form(None),
     tinyName: Optional[str] = Form(None),
     fullName: Optional[str] = Form(None),
-    ishdId: Optional[int] = Form(None),
+    ageGroup: Optional[str] = Form(None),
+    teamNumber: Optional[int] = Form(None),
+    active: Optional[bool] = Form(None),
+    external: Optional[bool] = Form(None),
+    ishdId: Optional[str] = Form(None),
     legacyId: Optional[int] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
@@ -155,17 +167,21 @@ async def update_team(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Create team update object
-    team = TeamUpdate(
+    team_data = TeamUpdate(
         name=name,
         alias=alias,
         shortName=shortName,
         tinyName=tinyName,
         fullName=fullName,
+        ageGroup=ageGroup,
+        teamNumber=teamNumber,
+        active=active,
+        external=external,
         ishdId=ishdId,
         legacyId=legacyId
-    )
-    team_data = team.dict(exclude_unset=True)
-
+    ).dict(exclude_none=True)
+    team_data.pop('id', None)
+    
     # check if club exists
     club = await mongodb["clubs"].find_one({"alias": club_alias})
     if not club:
