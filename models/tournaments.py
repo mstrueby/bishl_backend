@@ -95,7 +95,7 @@ class MatchdayType(Enum):
 class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  type: MatchdayType = Field(...)
+  type: Dict[str, str] = Field(...)
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
   createStandings: bool = False
@@ -119,7 +119,7 @@ class MatchdayDB(MatchdayBase):
 class MatchdayUpdate(MongoBaseModel):
   name: Optional[str] = "DEFAULT"
   alias: Optional[str] = "DEFAULT"
-  type: Optional[MatchdayType] = None
+  type: Optional[Dict[str, str]] = Field(default_factory=dict)
   startDate: Optional[datetime] = None
   endDate: Optional[datetime] = None
   createStandings: Optional[bool] = False

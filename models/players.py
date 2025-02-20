@@ -105,6 +105,7 @@ class PlayerBase(MongoBaseModel):
   assignedTeams: Optional[List[AssignedClubs]] = Field(default_factory=list)
   stats: Optional[List[PlayerStats]] = Field(default_factory=list)
   imageUrl: Optional[HttpUrl] = None
+  imageVisible: bool = False
   legacyId: Optional[int] = None
   """
   @validator('firstName', 'lastName', 'position', pre=True, always=True)
@@ -134,6 +135,7 @@ class PlayerUpdate(MongoBaseModel):
   assignedTeams: Optional[List[AssignedClubs]] = None
   stats: Optional[List[PlayerStats]] = None
   imageUrl: Optional[HttpUrl] = None
+  imageVisible: Optional[bool] = None
   """
   @validator('firstName', 'lastName', pre=True, always=True)
   def validate_null_strings(cls, v, field):

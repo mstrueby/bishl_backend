@@ -14,8 +14,6 @@ from datetime import datetime
 
 filename = "data/data_schedule_2025.csv"
 BASE_URL = os.environ['BE_API_URL']
-api_url = f"{BASE_URL}/"
-print("api_url", api_url)
 
 # first login user
 login_url = f"{BASE_URL}/users/login"
