@@ -65,7 +65,7 @@ async def register(
 async def login(
     request: Request, loginUser: LoginBase = Body(...)) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    existing_user = await mongodb["users"].find_one({"email": loginUser.email})
+    existing_user = await mongodb["users"].find_one({"email": {"$regex": f"^{loginUser.email}$", "$options": "i"}})
     if (existing_user is None) or (not auth.verify_password(
             loginUser.password, existing_user["password"])):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
