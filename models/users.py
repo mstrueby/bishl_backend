@@ -38,6 +38,7 @@ class Role(str, Enum):
   doc_admin = "DOC_ADMIN"
   club_admin = "CLUB_ADMIN"
   league_admin = "LEAGUE_ADMIN"
+  player_admin = "PLAYER_ADMIN"
 
 
 class Club(BaseModel):
