@@ -252,10 +252,10 @@ async def process_ishd_data(
         {
             "$match": {
                 "active": True,
-                #"ishdId": 228,
-                "teams.ishdId": {
-                    "$ne": None
-                },
+                #"ishdId": 143,
+                #"teams.ishdId": {
+                #    "$ne": None
+                #},
                 "teams": {
                     "$ne": []
                 }
@@ -269,11 +269,18 @@ async def process_ishd_data(
                 "alias": 1,
                 "teams": 1
             }
+        },
+        {
+            "$sort": {
+                "ishdId": 1
+            }
         }
     ]):
         ishd_teams.append(
             IshdTeams(club['_id'], club['ishdId'], club['name'], club['alias'],
                       club['teams']))
+
+    print("ishd teams" + str(ishd_teams))
 
     # get exisiting players
     existing_players = []
@@ -355,6 +362,8 @@ async def process_ishd_data(
             )
 
             for team in club.teams:
+                if not team['ishdId']:
+                    continue
                 club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
                 team_id_str = urllib.parse.quote(str(team['ishdId']))
                 #if team_id_str != '1.%20Herren' and team_id_str != '2.%20Herren':
@@ -401,6 +410,17 @@ async def process_ishd_data(
                 if data:
                     # loop through players array
                     for player in data['players']:
+                        # check ifplayer['date_of_birth'] is valid date
+                        try:
+                            birthdate = datetime.strptime(
+                                player['date_of_birth'], '%Y-%m-%d')
+                        except ValueError:
+                            log_line = (f"ERROR: Invalid date format for player "
+                                        f"{player['first_name']} {player['last_name']} "
+                                        f"from club {club.club_name} and team {team['name']}")
+                            print(log_line)
+                            log_lines.append(log_line)
+                            continue
                         ishd_log_player = IshdLogPlayer(
                             firstName=player['first_name'],
                             lastName=player['last_name'],

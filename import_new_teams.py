@@ -11,6 +11,7 @@ from models.clubs import TeamBase
 # Get environment variables
 filename = "data/data_new_teams.csv"
 BASE_URL = os.environ['BE_API_URL']
+BASE_URL = os.environ['BE_API_URL_PROD']
 
 # MongoDB setup
 client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
@@ -26,8 +27,8 @@ args = parser.parse_args()
 # First login user to get token
 login_url = f"{BASE_URL}/users/login"
 login_data = {
-    "email": os.environ['ADMIN_USER'],
-    "password": os.environ['ADMIN_PASSWORD']
+    "email": os.environ['SYS_ADMIN_EMAIL'],
+    "password": os.environ['SYS_ADMIN_PASSWORD']
 }
 
 try:
