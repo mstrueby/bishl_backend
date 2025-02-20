@@ -61,7 +61,7 @@ try:
       modify_date = None
       if date_string:
           modify_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S%z')
-      
+
       # get player from db#
       existing_player = db.players.find_one({"firstName": first_name, "lastName": last_name, "birthdate": {"$regex": f"^{year_of_birth}"}})
       if existing_player is None:
@@ -79,13 +79,13 @@ try:
         club = ClubDB(**club_res)
 
       # Ensure that 'assigned_teams_input' is initialized as a list
-      assigned_clubs = []
+      assigned_teams_input = []
 
       # Iterate over the current assignments and ensure proper initialization
       for assignment in player.assignedTeams or []:
           if isinstance(assignment, dict):
               assigned_team_object = AssignedClubs(**assignment)
-              assigned_clubs.append(assigned_team_object)
+              assigned_teams_input.append(assigned_team_object)
 
       # Create instances of TeamInput
       team_input = TeamInput(
@@ -96,45 +96,30 @@ try:
           modifyDate=modify_date
       )
 
-      # Add the new instance to the AssignedTeamsInput
-      new_club_assignment = AssignedTeamsInput(
+      # Create new team assignment
+      new_team_assignment = AssignedTeamsInput(
           clubId=str(club.id),
           teams=[team_input]
       )
 
-      
+      # Check if club already exists in assigned_teams_input
+      existing_club = next(
+          (x for x in assigned_teams_input if x.clubId == str(club.id)), None)
 
-"""
-[
-  {
-    "clubId": "67164b509906266bcbeca54c",
-    "teams": [
-      {
-        "teamId": "66d84106c2abe16162b45642",
-        "passNo": "4711",
-        "jerseyNo": 33,
-        "active": "True",
-        "source": "ISHD",
-        "modifyDate": "2025-01-17T11:26:06+00:00"
-      },
-      {
-        "teamId": "66d84106c2abe16162b45644",
-        "passNo": "no",
-        "source": "BISHL",
-        "modifyDate": "2025-01-17T11:26:06+00:00"
-      }
-    ]
-  },
-  {
-    "clubId": "67164b509906266bcbeca548",
-    "teams": [
-      {
-        "teamId": "66d84106c2abe16162b45641",
-        "passNo": "0815",
-        "jerseyNo": 66,
-        "source": "ISHD"
-      }
-    ]
-  }
-]
-"""
+      if existing_club:
+          # Club exists, add new team to existing club's teams
+          existing_club.teams.append(team_input)
+      else:
+          # Club doesn't exist, append new club assignment
+          assigned_teams_input.append(new_team_assignment)
+
+except Exception as e:
+  print(f"An error occurred: {e}")
+  exit(1)
+
+#Update player's assignedTeams in the database
+try:
+    db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_teams_input]}})
+except Exception as e:
+    print(f"An error occurred while updating the database: {e}")
+    exit(1)
