@@ -1,10 +1,11 @@
 # filename: routers/teams.py
 from typing import List, Optional
+from urllib.parse import _NetlocResultMixinBytes
 from fastapi import APIRouter, Request, Body, UploadFile, status, HTTPException, Path, Depends, Form, File
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
-from models.clubs import TeamBase, TeamDB, TeamUpdate
+from models.clubs import TeamBase, TeamDB, TeamPartnerships, TeamUpdate
 from authentication import AuthHandler, TokenPayload
 from pydantic import HttpUrl
 from utils import configure_cloudinary
@@ -223,7 +224,13 @@ async def update_team(
             status_code=404,
             detail=f"Team with id {team_id} not found in club {club_alias}")
 
-    team_partnership_dict = json.loads(teamPartnership.strip()) if teamPartnership and teamPartnership.strip() else None
+    team_partnership_dict = None
+    if teamPartnership:
+        team_partnership_list = []
+        team_partnership_list = json.loads(teamPartnership)
+        team_partnership_dict = [
+            TeamPartnerships(**team_partnership) for team_partnership in team_partnership_list
+        ]
 
     # Create team update object
     team_data = TeamUpdate(
