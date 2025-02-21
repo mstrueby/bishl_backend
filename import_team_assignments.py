@@ -79,13 +79,13 @@ try:
         club = ClubDB(**club_res)
 
       # Ensure that 'assigned_teams_input' is initialized as a list
-      assigned_teams_input = []
+      assigned_clubs = []
 
       # Iterate over the current assignments and ensure proper initialization
       for assignment in player.assignedTeams or []:
           if isinstance(assignment, dict):
               assigned_team_object = AssignedClubs(**assignment)
-              assigned_teams_input.append(assigned_team_object)
+              assigned_clubs.append(assigned_team_object)
 
       # Create instances of TeamInput
       team_input = TeamInput(
@@ -97,29 +97,28 @@ try:
       )
 
       # Create new team assignment
-      new_team_assignment = AssignedTeamsInput(
+      new_club_assignment = AssignedTeamsInput(
           clubId=str(club.id),
           teams=[team_input]
       )
 
       # Check if club already exists in assigned_teams_input
       existing_club = next(
-          (x for x in assigned_teams_input if x.clubId == str(club.id)), None)
+          (x for x in assigned_clubs if x.clubId == str(club.id)), None)
 
       if existing_club:
           # Club exists, add new team to existing club's teams
           existing_club.teams.append(team_input)
       else:
           # Club doesn't exist, append new club assignment
-          assigned_teams_input.append(new_team_assignment)
+          assigned_clubs.append(new_club_assignment)
+
+      try:
+          db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_clubs]}})
+      except Exception as e:
+          print(f"An error occurred while updating the database: {e}")
+          exit(1)
 
 except Exception as e:
   print(f"An error occurred: {e}")
   exit(1)
-
-#Update player's assignedTeams in the database
-try:
-    db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_teams_input]}})
-except Exception as e:
-    print(f"An error occurred while updating the database: {e}")
-    exit(1)

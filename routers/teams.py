@@ -1,13 +1,48 @@
 # filename: routers/teams.py
 from typing import List, Optional
-from fastapi import APIRouter, Request, Body, status, HTTPException, Path, Depends, Form
+from fastapi import APIRouter, Request, Body, UploadFile, status, HTTPException, Path, Depends, Form, File
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
+import json
 from models.clubs import TeamBase, TeamDB, TeamUpdate
 from authentication import AuthHandler, TokenPayload
+from pydantic import HttpUrl
+from utils import configure_cloudinary
+import cloudinary
+import cloudinary.uploader
 
 router = APIRouter()
 auth = AuthHandler()
+configure_cloudinary()
+
+# upload file
+async def handle_logo_upload(logo: UploadFile, alias: str) -> str:
+  if logo:
+    result = cloudinary.uploader.upload(
+        logo.file,
+        folder="logos/teams",
+        public_id=alias,
+        overwrite=True,
+        crop="scale",
+        height=200,
+    )
+    print(f"Logo uploaded to Cloudinary: {result['public_id']}")
+    return result["secure_url"]
+  raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                      detail="No logo uploaded.")
+
+
+# Helper function to delete file from Cloudinary
+async def delete_from_cloudinary(logo_url: str):
+  if logo_url:
+    try:
+      public_id = logo_url.rsplit('/', 1)[-1].split('.')[0]
+      result = cloudinary.uploader.destroy(f"logos/teams/{public_id}")
+      print("Logo deleted from Cloudinary:", f"logos/teams/{public_id}")
+      print("Result:", result)
+      return result
+    except Exception as e:
+      raise HTTPException(status_code=500, detail=str(e))
 
 
 # list all teams of one club
@@ -74,6 +109,7 @@ async def create_team(
     external: bool = Form(False),
     ishdId: Optional[str] = Form(None),
     legacyId: Optional[int] = Form(None),
+    logo: UploadFile = File(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -109,6 +145,9 @@ async def create_team(
     # add team to club
     try:
         team_data = jsonable_encoder(team)
+        if logo:
+            team_data['logoUrl'] = await handle_logo_upload(logo, f"{club_alias}--{alias}")
+
         result = await mongodb["clubs"].update_one(
             {"alias": club_alias}, {"$push": {
                 "teams": team_data
@@ -156,32 +195,19 @@ async def update_team(
     fullName: Optional[str] = Form(None),
     ageGroup: Optional[str] = Form(None),
     teamNumber: Optional[int] = Form(None),
+    teamPartnership: Optional[str] = Form(None),
     active: Optional[bool] = Form(None),
     external: Optional[bool] = Form(None),
     ishdId: Optional[str] = Form(None),
     legacyId: Optional[int] = Form(None),
+    logo: Optional[UploadFile] = File(None),
+    logoUrl: Optional[HttpUrl] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
     mongodb = request.app.state.mongodb
     if token_payload.roles not in [["ADMIN"]]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Create team update object
-    team_data = TeamUpdate(
-        name=name,
-        alias=alias,
-        shortName=shortName,
-        tinyName=tinyName,
-        fullName=fullName,
-        ageGroup=ageGroup,
-        teamNumber=teamNumber,
-        active=active,
-        external=external,
-        ishdId=ishdId,
-        legacyId=legacyId
-    ).dict(exclude_none=True)
-    team_data.pop('id', None)
-    
     # check if club exists
     club = await mongodb["clubs"].find_one({"alias": club_alias})
     if not club:
@@ -197,6 +223,36 @@ async def update_team(
             status_code=404,
             detail=f"Team with id {team_id} not found in club {club_alias}")
 
+    team_partnership_dict = json.loads(teamPartnership) if teamPartnership else None;
+
+    # Create team update object
+    team_data = TeamUpdate(
+        name=name,
+        alias=alias,
+        shortName=shortName,
+        tinyName=tinyName,
+        fullName=fullName,
+        ageGroup=ageGroup,
+        teamNumber=teamNumber,
+        teamPartnership=team_partnership_dict,
+        active=active,
+        external=external,
+        ishdId=ishdId,
+        legacyId=legacyId
+    ).dict(exclude_none=True)
+    team_data.pop('id', None)
+   
+    # handle image upload
+    if logo:
+        team_data['logoUrl'] = await handle_logo_upload(logo,
+                                                    f"{club['alias']}--{club["teams"][team_index].get('alias')}")
+    elif logoUrl:
+        team_data['logoUrl'] = logoUrl
+    elif club['logoUrl']:
+        await delete_from_cloudinary(club['logoUrl'])
+        team_data['logoUrl'] = None
+
+    print("team_data: ", team_data)
     team_enc = jsonable_encoder(team_data)
 
     # prepare the update by excluding unchanged data
