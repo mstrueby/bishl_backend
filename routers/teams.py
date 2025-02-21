@@ -223,7 +223,7 @@ async def update_team(
             status_code=404,
             detail=f"Team with id {team_id} not found in club {club_alias}")
 
-    team_partnership_dict = json.loads(teamPartnership) if teamPartnership else None;
+    team_partnership_dict = json.loads(teamPartnership.strip()) if teamPartnership and teamPartnership.strip() else None
 
     # Create team update object
     team_data = TeamUpdate(
