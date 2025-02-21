@@ -30,6 +30,14 @@ class MongoBaseModel(BaseModel):
 # Clubs
 # ------------
 
+class TeamPartnerships(BaseModel):
+  clubId: str = Field(...)
+  clubAlias: str = Field(...)
+  clubName: str = Field(...)
+  teamId: str = Field(...)
+  teamAlias: str = Field(...)
+  teamName: str = Field(...)
+
 
 # sub documents
 class TeamBase(MongoBaseModel):
@@ -40,8 +48,10 @@ class TeamBase(MongoBaseModel):
   tinyName: str = Field(...)
   ageGroup: str = Field(...)
   teamNumber: int = Field(...)
-  active: bool = False
-  external: bool = False
+  teamPartnership: List[TeamPartnerships] = Field(default_factory=list)
+  active: Optional[bool] = False
+  external: Optional[bool] = False
+  logoUrl: Optional[HttpUrl] = None
   ishdId: Optional[str] = None
   legacyId: Optional[int] = None
 
@@ -84,8 +94,10 @@ class TeamUpdate(MongoBaseModel):
   tinyName: Optional[str] = None
   ageGroup: Optional[str] = None
   teamNumber: Optional[int] = None
+  teamPartnership: Optional[List[TeamPartnerships]] = None
   active: Optional[bool] = False
   external: Optional[bool] = False
+  logoUrl: Optional[HttpUrl] = None
   ishdId: Optional[str] = None
   legacyId: Optional[int] = None
 

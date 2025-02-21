@@ -36,7 +36,7 @@ async def handle_logo_upload(logo: UploadFile, alias: str) -> str:
         crop="scale",
         height=200,
     )
-    print(f"Document uploaded to Cloudinary: {result['public_id']}")
+    print(f"Logo uploaded to Cloudinary: {result['public_id']}")
     return result["secure_url"]
   raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                       detail="No logo uploaded.")
@@ -48,7 +48,7 @@ async def delete_from_cloudinary(logo_url: str):
     try:
       public_id = logo_url.rsplit('/', 1)[-1].split('.')[0]
       result = cloudinary.uploader.destroy(f"logos/{public_id}")
-      print("Document deleted from Cloudinary:", f"logos/{public_id}")
+      print("Logo deleted from Cloudinary:", f"logos/{public_id}")
       print("Result:", result)
       return result
     except Exception as e:
