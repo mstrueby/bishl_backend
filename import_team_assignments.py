@@ -63,7 +63,15 @@ try:
           modify_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S%z')
 
       # get player from db#
-      existing_player = db.players.find_one({"firstName": first_name, "lastName": last_name, "birthdate": {"$regex": f"^{year_of_birth}"}})
+#      existing_player = db.players.find_one({"firstName": first_name, "lastName": last_name, "birthdate": {"$regex": f"^{year_of_birth}"}})
+      query = {"firstName": first_name, "lastName": last_name}
+      existing_player = db.players.find(query)
+
+      # Use count_documents method to get the number of matching documents
+      count = db.players.count_documents(query)
+      if count > 1:
+        print(f"More than one player found for {first_name} {last_name} ({year_of_birth})")
+
       if existing_player is None:
         print(f"Player {first_name} {last_name} ({year_of_birth}) not found in db")
         continue
@@ -114,7 +122,8 @@ try:
           assigned_clubs.append(new_club_assignment)
 
       try:
-          db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_clubs]}})
+          # db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_clubs]}})
+          print("DUMMY - Updating player ... ", first_name, last_name, [x.dict() for x in assigned_clubs])
       except Exception as e:
           print(f"An error occurred while updating the database: {e}")
           exit(1)
