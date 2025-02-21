@@ -63,20 +63,23 @@ try:
           modify_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S%z')
 
       # get player from db#
-#      existing_player = db.players.find_one({"firstName": first_name, "lastName": last_name, "birthdate": {"$regex": f"^{year_of_birth}"}})
       query = {"firstName": first_name, "lastName": last_name}
-      existing_player = db.players.find(query)
+      players_cursor = db.players.find(query)
+
+      # Convert cursor to list
+      existing_players = list(players_cursor)
 
       # Use count_documents method to get the number of matching documents
       count = db.players.count_documents(query)
       if count > 1:
         print(f"More than one player found for {first_name} {last_name} ({year_of_birth})")
 
-      if existing_player is None:
+      if not existing_players:
         print(f"Player {first_name} {last_name} ({year_of_birth}) not found in db")
         continue
       else:
-        player = PlayerDB(**existing_player)
+        # Use the first matching player
+        player = PlayerDB(**existing_players[0])
 
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
