@@ -224,13 +224,16 @@ async def update_team(
             status_code=404,
             detail=f"Team with id {team_id} not found in club {club_alias}")
 
-    team_partnership_dict = None
-    if teamPartnership:
-        team_partnership_list = []
-        team_partnership_list = json.loads(teamPartnership)
-        team_partnership_dict = [
-            TeamPartnerships(**team_partnership) for team_partnership in team_partnership_list
-        ]
+    try:
+        team_partnership_dict = json.loads(teamPartnership.strip()) if teamPartnership and teamPartnership.strip() else None
+        if team_partnership_dict:
+            if not isinstance(team_partnership_dict, list):
+                team_partnership_dict = [team_partnership_dict]
+            team_partnership_dict = [TeamPartnerships(**partnership) for partnership in team_partnership_dict]
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON format for teamPartnership: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid teamPartnership format: {str(e)}")
 
     # Create team update object
     team_data = TeamUpdate(
