@@ -106,11 +106,12 @@ async def create_team(
     fullName: str = Form(...),
     ageGroup: str = Form(...),
     teamNumber: int = Form(...),
+    teamPartnership: str = Form(None),
     active: bool = Form(False),
     external: bool = Form(False),
     ishdId: Optional[str] = Form(None),
     legacyId: Optional[int] = Form(None),
-    logo: UploadFile = File(...),
+    logo: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -128,6 +129,17 @@ async def create_team(
             status_code=409,
             detail=f"Team with alias {alias} already exists for club {club_alias}")
 
+    try:
+        team_partnership_dict = json.loads(teamPartnership.strip()) if teamPartnership and teamPartnership.strip() else None
+        if team_partnership_dict:
+            if not isinstance(team_partnership_dict, list):
+                team_partnership_dict = [team_partnership_dict]
+            team_partnership_dict = [TeamPartnerships(**partnership) for partnership in team_partnership_dict]
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON format for teamPartnership: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid teamPartnership format: {str(e)}")
+
     # create team object
     team = TeamBase(
         name=name,
@@ -137,6 +149,7 @@ async def create_team(
         fullName=fullName,
         ageGroup=ageGroup,
         teamNumber=teamNumber,
+        teamPartnership=team_partnership_dict or [],
         active=active,
         external=external,
         ishdId=ishdId,
