@@ -5,7 +5,7 @@ import certifi
 import argparse
 import requests
 from pymongo import MongoClient
-from models.players import AssignedClubs, PlayerDB, AssignedTeamsInput, TeamInput, SourceEnum
+from models.players import AssignedTeams, AssignedClubs, PlayerDB, AssignedTeamsInput, TeamInput, SourceEnum
 from models.clubs import ClubDB, TeamDB
 from datetime import datetime
 
@@ -14,7 +14,9 @@ parser = argparse.ArgumentParser(description='Manage teams.')
 parser.add_argument('--importAll',
                     action='store_true',
                     help='Import all teams.')
-parser.add_argument('--prod', action='store_true', help='Import into production.')
+parser.add_argument('--prod',
+                    action='store_true',
+                    help='Import into production.')
 args = parser.parse_args()
 
 # Get environment variables
@@ -47,21 +49,21 @@ try:
   headers = {"Authorization": f"Bearer {token}"}
 
   with open(filename, encoding='utf-8') as f:
-    reader = csv.DictReader(f, 
-                         delimiter=';',
-                         quotechar='"',
-                         doublequote=True,
-                         skipinitialspace=True)
+    reader = csv.DictReader(f,
+                            delimiter=';',
+                            quotechar='"',
+                            doublequote=True,
+                            skipinitialspace=True)
     for row in reader:
-      club_alias=row['clubAlias']
-      team_alias=row['teamAlias']
-      first_name=row['firstName']
-      last_name=row['lastName']
-      year_of_birth=int(row['yearOfBirth'])
+      club_alias = row['clubAlias']
+      team_alias = row['teamAlias']
+      first_name = row['firstName']
+      last_name = row['lastName']
+      year_of_birth = int(row['yearOfBirth'])
       date_string = row.get('modifiedDate', '')
       modify_date = None
       if date_string:
-          modify_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S')
+        modify_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S')
 
       # get player from db#
       query = {
@@ -80,10 +82,14 @@ try:
       # Use count_documents method to get the number of matching documents
       count = db.players.count_documents(query)
       if count > 1:
-        print(f"More than one player found for {first_name} {last_name} ({year_of_birth})")
+        print(
+            f"More than one player found for {first_name} {last_name} ({year_of_birth})"
+        )
 
       if not existing_players:
-        print(f"Player {first_name} {last_name} ({year_of_birth}) not found in db")
+        print(
+            f"Player {first_name} {last_name} ({year_of_birth}) not found in db"
+        )
         continue
       else:
         # Use the first matching player
@@ -105,7 +111,6 @@ try:
         continue
       else:
         team_db = TeamDB(**team_response.json())
-              
 
       # Ensure that 'assigned_teams_input' is initialized as a list
       assigned_clubs = []
@@ -114,7 +119,6 @@ try:
       for assignment in player.assignedTeams or []:
         assigned_team_object = AssignedClubs(**assignment.dict())
         assigned_clubs.append(assigned_team_object)
-        
 
       #print(f"Assigning {len(assigned_clubs)} teams to {first_name} {last_name}")
       #if len(assigned_clubs) == 0:
@@ -129,20 +133,31 @@ try:
           club_team_list.append(f"{club_name} ({team_name})")
 
       # Print all club-team assignments in one line
-      print(f"{first_name};{last_name};({year_of_birth});", ";".join(club_team_list))
+      print(f"{first_name};{last_name};({year_of_birth});",
+            ";".join(club_team_list))
       # Create instances of TeamInput
-      team_input = TeamInput(
+      new_team_assignemnt = AssignedTeams(
           teamId=str(team_db.id),
           passNo=row.get('passNo', ''),
-          active=True, 
+          active=True,
           source=SourceEnum.BISHL,
-          modifyDate=modify_date
+          modifyDate=modify_date,
+          teamName=team_db.name,  # Assuming team_db has an attribute `name`
+          teamAlias=team_db.alias,  # Using the `team_alias` from the CSV row
+          teamIshdId=team_db.ishdId if team_db.ishdId is not None else
+          ""  # Provide a default empty string if None
       )
 
       # Create new team assignment
-      new_club_assignment = AssignedTeamsInput(
+      new_club_assignment = AssignedClubs(
           clubId=str(club.id),
-          teams=[team_input]
+          clubName=club.name,  # Assuming `club` object has an attribute `name`
+          clubAlias=club_alias,  # Using club alias from the CSV
+          clubIshdId=club.ishdId
+          if club.ishdId is not None else 0,  # Provide a default value of 0
+          teams=[
+              new_team_assignemnt
+          ]  # Correct the input to use the correct team assignment variable
       )
 
       # Check if club already exists in assigned_teams_input
@@ -150,23 +165,23 @@ try:
           (x for x in assigned_clubs if x.clubId == str(club.id)), None)
 
       if existing_club:
-          # Club exists, add new team to existing club's teams
-          existing_club.teams.append(team_input)
+        # Club exists, add new team to existing club's teams
+        existing_club.teams.append(new_team_assignemnt)
       else:
-          # Club doesn't exist, append new club assignment
-          assigned_clubs.append(new_club_assignment)
-      
+        # Club doesn't exist, append new club assignment
+        assigned_clubs.append(new_club_assignment)
+
       try:
-          # db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_clubs]}})
-          from pprint import pprint
-          print("DUMMY - Updating player ... ", first_name, last_name)
-          pprint([x.dict() for x in assigned_clubs], indent=4)
-          # Print existing player.assignedTeams before append happens
-          
-          #print("DUMMY - Updating player ... ", first_name, last_name, year_of_birth, [x.dict() for x in assigned_team_object])
+        # db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_clubs]}})
+        from pprint import pprint
+        print("DUMMY - Updating player ... ", first_name, last_name)
+        pprint([x.dict() for x in assigned_clubs], indent=4)
+        # Print existing player.assignedTeams before append happens
+
+        #print("DUMMY - Updating player ... ", first_name, last_name, year_of_birth, [x.dict() for x in assigned_team_object])
       except Exception as e:
-          print(f"An error occurred while updating the database: {e}")
-          exit(1)
+        print(f"An error occurred while updating the database: {e}")
+        exit(1)
 
 except Exception as e:
   print(f"An error occurred: {e}")
