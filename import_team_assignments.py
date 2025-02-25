@@ -6,7 +6,7 @@ import argparse
 import requests
 from pymongo import MongoClient
 from models.players import AssignedClubs, PlayerDB, AssignedTeamsInput, TeamInput, SourceEnum
-from models.clubs import ClubDB
+from models.clubs import ClubDB, TeamDB
 from datetime import datetime
 
 # Set up argument parser
@@ -54,16 +54,24 @@ try:
                          skipinitialspace=True)
     for row in reader:
       club_alias=row['clubAlias']
+      team_alias=row['teamAlias']
       first_name=row['firstName']
       last_name=row['lastName']
-      year_of_birth=row['yearOfBirth']
-      date_string = row.get('modifyDate', '')
+      year_of_birth=int(row['yearOfBirth'])
+      date_string = row.get('modifiedDate', '')
       modify_date = None
       if date_string:
-          modify_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S%z')
+          modify_date = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S')
 
       # get player from db#
-      query = {"firstName": first_name, "lastName": last_name}
+      query = {
+          "firstName": first_name,
+          "lastName": last_name,
+          "birthdate": {
+              "$gte": datetime(year_of_birth, 1, 1),
+              "$lte": datetime(year_of_birth, 12, 31, 23, 59, 59)
+          }
+      }
       players_cursor = db.players.find(query)
 
       # Convert cursor to list
@@ -89,18 +97,42 @@ try:
       else:
         club = ClubDB(**club_res)
 
+      # get team from API endpoint
+      team_url = f"{BASE_URL}/clubs/{club_alias}/teams/{team_alias}"
+      team_response = requests.get(team_url, headers=headers)
+      if team_response.status_code != 200:
+        print(f"Error getting team {team_alias}")
+        continue
+      else:
+        team_db = TeamDB(**team_response.json())
+              
+
       # Ensure that 'assigned_teams_input' is initialized as a list
       assigned_clubs = []
 
       # Iterate over the current assignments and ensure proper initialization
       for assignment in player.assignedTeams or []:
-          if isinstance(assignment, dict):
-              assigned_team_object = AssignedClubs(**assignment)
-              assigned_clubs.append(assigned_team_object)
+        assigned_team_object = AssignedClubs(**assignment.dict())
+        assigned_clubs.append(assigned_team_object)
+        
 
+      #print(f"Assigning {len(assigned_clubs)} teams to {first_name} {last_name}")
+      #if len(assigned_clubs) == 0:
+      #  print(f"{first_name};{last_name};({year_of_birth});No assignments found")
+      #  continue
+      # Print current assignments, returning clubName and teams.teamName only
+      club_team_list = []
+      for assignment in assigned_clubs:
+        club_name = assignment.clubName
+        for team in assignment.teams:
+          team_name = team.teamName
+          club_team_list.append(f"{club_name} ({team_name})")
+
+      # Print all club-team assignments in one line
+      print(f"{first_name};{last_name};({year_of_birth});", ";".join(club_team_list))
       # Create instances of TeamInput
       team_input = TeamInput(
-          teamId=row.get('teamId', ''),
+          teamId=str(team_db.id),
           passNo=row.get('passNo', ''),
           active=True, 
           source=SourceEnum.BISHL,
@@ -123,10 +155,15 @@ try:
       else:
           # Club doesn't exist, append new club assignment
           assigned_clubs.append(new_club_assignment)
-
+      
       try:
           # db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_clubs]}})
-          print("DUMMY - Updating player ... ", first_name, last_name, [x.dict() for x in assigned_clubs])
+          from pprint import pprint
+          print("DUMMY - Updating player ... ", first_name, last_name)
+          pprint([x.dict() for x in assigned_clubs], indent=4)
+          # Print existing player.assignedTeams before append happens
+          
+          #print("DUMMY - Updating player ... ", first_name, last_name, year_of_birth, [x.dict() for x in assigned_team_object])
       except Exception as e:
           print(f"An error occurred while updating the database: {e}")
           exit(1)

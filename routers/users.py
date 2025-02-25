@@ -278,7 +278,7 @@ async def forgot_password(
 
     # Generate reset token
     reset_token = auth.encode_reset_token(user)
-
+    
     # Send password reset email
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
     email_body = f"""
@@ -294,8 +294,10 @@ async def forgot_password(
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content={"message": "Password reset instructions sent to your email"})
-
+        content={
+            "message": "Password reset instructions sent to your email",
+            "reset_token": reset_token
+        })
 
 @router.post("/reset-password",
              response_description="Reset password with token")
