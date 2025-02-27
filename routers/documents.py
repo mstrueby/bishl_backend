@@ -239,13 +239,13 @@ async def update_document(request: Request,
     if title is None:
       raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                           detail="Title is required.")
-    result = upload_to_cloudinary(title, file)
+    #result = upload_to_cloudinary(title, file)
     validate_file_type(file)
-    await delete_from_cloudinary(existing_doc['public_id'])
+    await delete_from_cloudinary(existing_doc['publicId'])
     result = upload_to_cloudinary(title, file)
     doc_data['url'] = result['secure_url']
     doc_data['publicId'] = result['public_id']
-    doc_data['filename'] = file.filename
+    doc_data['fileName'] = file.filename
     doc_data['fileType'] = file.content_type
     doc_data['fileSizeByte'] = file.size
 

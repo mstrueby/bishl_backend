@@ -192,6 +192,7 @@ class MatchTeam(BaseModel):
   tinyName: str = Field(...)
   logo: Optional[HttpUrl] = None
   roster: Optional[List[RosterPlayer]] = Field(default_factory=list)
+  rosterPublished: Optional[bool] = False
   scores: Optional[List[ScoresBase]] = Field(default_factory=list)
   penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
   stats: Optional[MatchStats] = Field(default_factory=dict)
@@ -219,6 +220,7 @@ class MatchTeamUpdate(BaseModel):
   tinyName: Optional[str] = "DEFAULT"
   logo: Optional[HttpUrl] = None
   roster: Optional[List[RosterPlayer]] = Field(default_factory=list)
+  rosterPublished: Optional[bool] = None
   scores: Optional[List[ScoresBase]] = Field(default_factory=list)
   penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
   stats: Optional[MatchStats] = Field(default_factory=dict)
