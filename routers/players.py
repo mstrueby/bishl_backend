@@ -65,7 +65,8 @@ async def get_paginated_players(mongodb,
                                 club_alias=None,
                                 team_alias=None,
                                 sortby="firstName",
-                                get_all=False):
+                                get_all=False,
+                                active=None):
     RESULTS_PER_PAGE = 0 if get_all else int(os.environ['RESULTS_PER_PAGE'])
     skip = 0 if get_all else (page - 1) * RESULTS_PER_PAGE
     sort_field = {
@@ -82,7 +83,7 @@ async def get_paginated_players(mongodb,
         'strength': 1  # Base characters and diacritics are considered primary differences
     }
     
-    if club_alias or team_alias or q:
+    if club_alias or team_alias or q or active is not None:
         query = {"$and": []}
         if club_alias:
             query["$and"].append({"assignedTeams.clubAlias": club_alias})
@@ -123,6 +124,10 @@ async def get_paginated_players(mongodb,
                         "$options": "i"
                     }
                 }]
+            })
+        if active is not None:
+            query["$and"].append({
+                "assignedTeams.teams.active": active
             })
         if DEBUG_LEVEL > 10:
             print("query", query)
@@ -1062,6 +1067,7 @@ async def get_players_for_club(
     q: Optional[str] = None,
     sortby: str = "firstName",
     all: bool = False,
+    active: Optional[bool] = None,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1073,7 +1079,7 @@ async def get_players_for_club(
     if not club:
         raise HTTPException(status_code=404,
                             detail=f"Club with alias {club_alias} not found")
-    result = await get_paginated_players(mongodb, q, page, club_alias, None, sortby, all)
+    result = await get_paginated_players(mongodb, q, page, club_alias, None, sortby, all, active)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(result))
 
@@ -1091,6 +1097,7 @@ async def get_players_for_team(
     q: Optional[str] = None,
     sortby: str = "firstName",
     all: bool = False,
+    active: Optional[bool] = None,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1115,7 +1122,7 @@ async def get_players_for_team(
             detail=
             f"Team with alias {team_alias} not found in club {club_alias}")
     result = await get_paginated_players(mongodb, q, page, club_alias,
-                                         team_alias, sortby, all)
+                                         team_alias, sortby, all, active)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(result))
 
@@ -1137,6 +1144,7 @@ async def get_players(
     q: Optional[str] = None,
     sortby: str = "firstName",
     all: bool = False,
+    active: Optional[bool] = None,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1144,7 +1152,7 @@ async def get_players(
                for role in ["ADMIN", "LEAGUE_ADMIN"]):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    result = await get_paginated_players(mongodb, q, page, None, None, sortby, all)
+    result = await get_paginated_players(mongodb, q, page, None, None, sortby, all, active)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(result))
 
