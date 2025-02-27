@@ -62,7 +62,7 @@ with open(filename, encoding='utf-8') as f:
     round=None
     matchday=None
 
-    print("row", row)
+    #print("row", row)
 
     # Create tournament object from row data
     tournament_data = row.get('tournament')
@@ -187,7 +187,7 @@ with open(filename, encoding='utf-8') as f:
         new_matchday = MatchdayBase(
           alias=md_alias, 
           name=md_name,
-          type=MatchdayType.REGULAR,
+          type={"key": "REGULAR", "value": "Regulär"},
           published=True,
           matchSettings=round_data.matchSettings
         )
@@ -271,7 +271,7 @@ with open(filename, encoding='utf-8') as f:
 
     # Encode the match object to JSON
     new_match_data = jsonable_encoder(new_match)
-    print("new_match_data", new_match_data)
+    #print("new_match_data", new_match_data)
 
     # Check if the match already exists based on multiple criteria
     query = {
@@ -300,3 +300,5 @@ with open(filename, encoding='utf-8') as f:
           exit()
     else:
         print(f"Match already exists: {query}")
+
+print("Done...")
