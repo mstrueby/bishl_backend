@@ -130,14 +130,14 @@ async def get_paginated_players(mongodb,
             if active:
                 # If we're looking for active=true, field must exist and be true
                 query["$and"].append({
-                    "assignedTeams.teams.active": true
+                    "assignedTeams.teams.active": True
                 })
             else:
                 # If we're looking for active=false, either field doesn't exist or is false
                 query["$and"].append({
                     "$or": [
-                        {"assignedTeams.teams.active": false},
-                        {"assignedTeams.teams.active": {"$exists": false}}
+                        {"assignedTeams.teams.active": False},
+                        {"assignedTeams.teams.active": {"$exists": False}}
                     ]
                 })
         if DEBUG_LEVEL > 10:

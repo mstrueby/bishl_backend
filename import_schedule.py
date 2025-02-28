@@ -12,8 +12,34 @@ from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, Mat
 from models.tournaments import RoundDB, MatchdayBase, MatchdayType
 from datetime import datetime
 
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Manage matches.')
+parser.add_argument('--importAll',
+                    action='store_true',
+                    help='Import all matches.')
+parser.add_argument('--prod',
+                    action='store_true',
+                    help='Import matches to production.')
+args = parser.parse_args()
+
+
 filename = "data/data_schedule_2025.csv"
-BASE_URL = os.environ['BE_API_URL']
+if args.prod:
+    BASE_URL = os.environ['BE_API_URL_PROD']
+    DB_URL = os.environ['DB_URL_PROD']
+    DB_NAME = 'bishl'
+else:
+    BASE_URL = os.environ['BE_API_URL']
+    DB_URL = os.environ['DB_URL']
+    DB_NAME = 'bishl_dev'
+
+# Connect to the MongoDB collection
+client = MongoClient(DB_URL, tlsCAFile=certifi.where())
+db = client[DB_NAME]
+db_collection = db['matches']
+
+print("BASE_URL: ", BASE_URL)
+print("DB_NAME", DB_NAME)
 
 # first login user
 login_url = f"{BASE_URL}/users/login"
@@ -36,18 +62,6 @@ headers = {
   'Authorization': f'Bearer {token}',
   'Content-Type': 'application/json'
 }
-
-# Connect to the MongoDB collection
-client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
-db = client[os.environ['DB_NAME']]
-db_collection = db['matches']
-
-# Set up argument parser
-parser = argparse.ArgumentParser(description='Manage matches.')
-parser.add_argument('--importAll',
-                    action='store_true',
-                    help='Import all matches.')
-args = parser.parse_args()
 
 # import matches
 with open(filename, encoding='utf-8') as f:
@@ -289,7 +303,7 @@ with open(filename, encoding='utf-8') as f:
                                  headers=headers)
         if response.status_code == 201:
           print(
-            f"--> Successfully posted Match for {t_alias} / {s_alias} / {r_alias} / {md_alias}"
+            f"--> Successfully posted Match in {t_alias} / {r_alias} / {md_alias}: {home.fullName} - {away.fullName}"
           )
           if not args.importAll:
             print("--importAll flag not set, exiting.")
@@ -299,6 +313,6 @@ with open(filename, encoding='utf-8') as f:
                 response.status_code)
           exit()
     else:
-        print(f"Match already exists: {query}")
+        print(f"Match already exists in {t_alias} / {r_alias} / {md_alias}: {home.fullName} - {away.fullName}")
 
 print("Done...")
