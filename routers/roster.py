@@ -94,7 +94,7 @@ async def update_roster(
   # Validate that only one player is assigned as captain
   captain_count = 0
   for player in roster:
-    if player.playerPosition.key == 'C':
+    if player.playerPosition and getattr(player.playerPosition, 'key', None) == 'C':
       captain_count += 1
   
   if captain_count > 1:
