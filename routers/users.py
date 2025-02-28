@@ -281,22 +281,26 @@ async def forgot_password(
     
     # Send password reset email
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
-    email_body = f"""
-        <p>Hallo</p>
-        <p>Click the link below to set your new password:</p>
-        <p><a href="{reset_url}">Set New Password</a></p>
-        <p>This link will expire in 1 hour.</p>
-        <p>If you did not request this password reset, please ignore this email.</p>
-    """
-    await send_email(subject="Password Reset Request",
+    try:
+        email_body = f"""
+            <p>Hallo,</p>
+            <p>Klicke auf den folgenden Link, um ein neues Passwort zu setzen::</p>
+            <p><a href="{reset_url}">Neues Passwort erstellen</a></p>
+            <p>Dieser Link ist eine Stunde gültig.</p>
+            <p>Wenn Sie das Zurücksetzen des Passworts nicht beantragt haben, ignorieren Sie bitte diese E-Mail.</p>
+        """
+        await send_email(subject="Passwort zurücksetzen",
                      recipients=[email],
                      body=email_body)
-
+    except Exception as e:
+        print("Error sending email:", e)
+        print("reset_url", reset_url)
+        print("token", reset_token)
+        
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
-            "message": "Password reset instructions sent to your email",
-            "reset_token": reset_token
+            "message": "Password reset instructions sent to your email"
         })
 
 @router.post("/reset-password",
