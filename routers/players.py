@@ -125,8 +125,43 @@ async def get_paginated_players(mongodb,
                     }
                 }]
             })
-        if active is not None:
-            # Handle case where active field might not exist in the document
+        if active is not None and team_alias:
+            # Use $elemMatch to ensure we're filtering the right team when team_alias is specified
+            if active:
+                # If we're looking for active=true, field must exist and be true for the correct team
+                query["$and"].append({
+                    "assignedTeams": {
+                        "$elemMatch": {
+                            "clubAlias": club_alias,
+                            "teams": {
+                                "$elemMatch": {
+                                    "teamAlias": team_alias,
+                                    "active": True
+                                }
+                            }
+                        }
+                    }
+                })
+            else:
+                # If we're looking for active=false for a specific team
+                query["$and"].append({
+                    "assignedTeams": {
+                        "$elemMatch": {
+                            "clubAlias": club_alias,
+                            "teams": {
+                                "$elemMatch": {
+                                    "teamAlias": team_alias,
+                                    "$or": [
+                                        {"active": False},
+                                        {"active": {"$exists": False}}
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                })
+        elif active is not None:
+            # If no team_alias specified, use the original logic across all teams
             if active:
                 # If we're looking for active=true, field must exist and be true
                 query["$and"].append({
