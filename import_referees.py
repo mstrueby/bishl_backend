@@ -72,13 +72,13 @@ with open(filename, encoding='utf-8') as f:
                          doublequote=True,
                          skipinitialspace=True)
   for row in reader:
-    print("row", row)
+    #print("row", row)
     first_name = row['Vorname']
     last_name = row['Nachname']
     email = row['Email']
     club = None
-    if isinstance(row.get('Verein'), str):
-      club = json.loads(row['Verein'])
+    if isinstance(row.get('club'), str):
+      club = json.loads(row['club'])
     # skip row if no club is found
     if not club:
       print("No club found for referee", row)
@@ -126,21 +126,25 @@ with open(filename, encoding='utf-8') as f:
           from mail_service import send_email
           
           # Prepare email content
-          subject = "Welcome to BISHL - Referee Account"
+          subject = "BISHL - Schiedsrichter-Account angelegt"
+          #email='marian.strueby@web.de'
           recipients = [email]
           body = f"""
-            <h2>Welcome to BISHL!</h2>
-            <p>Hello {first_name} {last_name},</p>
-            <p>Your referee account has been created successfully.</p>
-            <p>Here are your login details:</p>
+            <h2>Willkommen auf der BISHL-Website!</h2>
+            <p>Hallo {first_name},</p>
+            <p>dein Schiedsrichter-Account wurde erfolgreich angelegt.</p>
+            <p>Hier sind deine Login-Details:</p>
             <ul>
-              <li><strong>Email:</strong> {email}</li>
-              <li><strong>Password:</strong> {random_password}</li>
+              <li><strong>E-Mail:</strong> {email}</li>
+              <li><strong>Passwort:</strong> {random_password}</li>
             </ul>
-            <p>Please log in at <a href="{os.environ.get('FRONTEND_URL', '')}">{os.environ.get('FRONTEND_URL', '')}</a> and change your password as soon as possible.</p>
-            <p>If you have any questions, please contact the BISHL admin team.</p>
-            <p>Best regards,<br>BISHL Team</p>
+            <p>Bitte logge dich bei www.bishl.de ein und ändere dein Passwort.</p>
+            <p>Falls du Fragen hast, melde dich bitte über website@bishl.de</p>
+            <p>Viele Grüße,<br>Marian</p>
           """
+          #print("reciepient", recipients)
+          #print("subject", subject)
+          #print("body", body)
           
           # Run the async function in a separate event loop
           loop = asyncio.new_event_loop()
@@ -149,6 +153,9 @@ with open(filename, encoding='utf-8') as f:
           loop.close()
           
           print(f"Welcome email sent to {email}")
+          if not args.importAll:
+            print("--importAll flag not set, exiting.")
+            exit()
         except Exception as e:
           print(f"Failed to send welcome email to {email}: {str(e)}")
       else:
