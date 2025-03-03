@@ -101,6 +101,8 @@ with open(filename, encoding='utf-8') as f:
       # generate a random password
       password_length = 12
       random_password = ''.join(random.choices(string.ascii_letters + string.digits, k=password_length))
+      
+      # Create user via API endpoint instead of direct DB insertion
       new_user = {
         'email': email,
         'password': random_password,
@@ -109,5 +111,13 @@ with open(filename, encoding='utf-8') as f:
         'roles': ['REFEREE'],
         'club': club
       }
-      db_collection.insert_one(new_user)
-      print(f"User {email} created.")
+      
+      # Use the API endpoint to register the user
+      register_url = f"{BASE_URL}/users/register"
+      register_response = requests.post(register_url, json=new_user, headers=headers)
+      
+      if register_response.status_code == 201:
+        print(f"User {email} created via API endpoint.")
+      else:
+        print(f"Failed to create user {email} via API. Status code: {register_response.status_code}")
+        print(f"Response: {register_response.text}")
