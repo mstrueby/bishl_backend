@@ -118,6 +118,39 @@ with open(filename, encoding='utf-8') as f:
       
       if register_response.status_code == 201:
         print(f"User {email} created via API endpoint.")
+        
+        # Send welcome email to the new user
+        try:
+          # Import here to avoid circular imports
+          import asyncio
+          from mail_service import send_email
+          
+          # Prepare email content
+          subject = "Welcome to BISHL - Referee Account"
+          recipients = [email]
+          body = f"""
+            <h2>Welcome to BISHL!</h2>
+            <p>Hello {first_name} {last_name},</p>
+            <p>Your referee account has been created successfully.</p>
+            <p>Here are your login details:</p>
+            <ul>
+              <li><strong>Email:</strong> {email}</li>
+              <li><strong>Password:</strong> {random_password}</li>
+            </ul>
+            <p>Please log in at <a href="{os.environ.get('FRONTEND_URL', '')}">{os.environ.get('FRONTEND_URL', '')}</a> and change your password as soon as possible.</p>
+            <p>If you have any questions, please contact the BISHL admin team.</p>
+            <p>Best regards,<br>BISHL Team</p>
+          """
+          
+          # Run the async function in a separate event loop
+          loop = asyncio.new_event_loop()
+          asyncio.set_event_loop(loop)
+          loop.run_until_complete(send_email(subject, recipients, body))
+          loop.close()
+          
+          print(f"Welcome email sent to {email}")
+        except Exception as e:
+          print(f"Failed to send welcome email to {email}: {str(e)}")
       else:
         print(f"Failed to create user {email} via API. Status code: {register_response.status_code}")
         print(f"Response: {register_response.text}")
