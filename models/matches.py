@@ -74,6 +74,7 @@ class RosterPlayer(BaseModel):
   assists: int = 0
   points: int = 0
   penaltyMinutes: int = 0
+  called: bool = False
 
 
 class ScoresBase(MongoBaseModel):
