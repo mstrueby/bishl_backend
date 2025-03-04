@@ -80,6 +80,41 @@ async def send_message_to_referee(match, receiver_id, content):
                     error_msg += f" (Status code: {response.status_code}, Content: {response.content}, Error: {str(e)})"
                 raise HTTPException(status_code=response.status_code,
                                     detail=error_msg)
+            
+            # After successfully sending the message, also send an email
+            try:
+                from mail_service import send_email
+                
+                # Get referee's email by making a request to users endpoint
+                user_url = f"{BASE_URL}/users/{receiver_id}"
+                user_response = await client.get(user_url, headers=headers)
+                if user_response.status_code == 200:
+                    user_data = user_response.json()
+                    referee_email = user_data.get("email")
+                    
+                    if referee_email:
+                        # Format the email content as HTML
+                        email_subject = "BISHL - Schiedsrichter-Information"
+                        email_content = f"""
+                        <h2>BISHL - Schiedsrichter-Information</h2>
+                        <p>{content.replace('\n', '<br>')}</p>
+                        <p>Hinweis: Du kannst weitere Details zu diesem Spiel auf der BISHL-Website einsehen.</p>
+                        """
+                        
+                        await send_email(
+                            subject=email_subject,
+                            recipients=[referee_email],
+                            body=email_content
+                        )
+                        print(f"Email sent to referee {receiver_id} at {referee_email}")
+                    else:
+                        print(f"Referee {receiver_id} has no email address")
+                else:
+                    print(f"Failed to get referee {receiver_id} data: {user_response.status_code}")
+            except Exception as e:
+                # Just log email sending failure but don't fail the request
+                print(f"Failed to send email to referee {receiver_id}: {str(e)}")
+                
         except httpx.RequestError as e:
             raise HTTPException(status_code=500,
                                 detail=f"Request failed: {str(e)}")
