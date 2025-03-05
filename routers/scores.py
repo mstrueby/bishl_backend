@@ -387,8 +387,12 @@ async def delete_one_score(
   r_alias = match.get('round', {}).get('alias')
   md_alias = match.get('matchday', {}).get('alias')
   goal_player_id = current_score.get('goalPlayer', {}).get('playerId')
-  assist_player_id = current_score.get('assistPlayer', {}).get('playerId')
-  player_ids = [goal_player_id, assist_player_id]
+  
+  # Safely handle assistPlayer which might be None
+  assist_player = current_score.get('assistPlayer')
+  assist_player_id = assist_player.get('playerId') if assist_player else None
+  
+  player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
 
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(match_status=jsonable_encoder(match_status),
