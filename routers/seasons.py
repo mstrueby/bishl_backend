@@ -74,8 +74,8 @@ async def create_season(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   #print("add season")
   # Check if the tournament exists
   if (tournament := await
@@ -146,8 +146,8 @@ async def update_season(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   print("input season: ", season)
   # exclude unset
   season_dict = season.dict(exclude_unset=True)
@@ -242,8 +242,8 @@ async def delete_season(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   delete_result = await mongodb['tournaments'].update_one(
       {"alias": tournament_alias},
       {"$pull": {

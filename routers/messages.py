@@ -89,7 +89,7 @@ async def delete_message(
     raise HTTPException(status_code=404, detail=f"Message with id {message_id} not found")
   sender_id = message["sender"]["userId"]
   if token_payload.sub != sender_id:
-    raise HTTPException(status_code=403, detail="Not authorized")
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   delete_result = await mongodb['messages'].delete_one(
     {"_id": message_id})

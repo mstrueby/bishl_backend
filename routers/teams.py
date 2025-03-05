@@ -115,8 +115,8 @@ async def create_team(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if "ADMIN" not in token_payload.roles:
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
     
     # check if club exists
     if (club := await mongodb["clubs"].find_one({"alias": club_alias})) is None:
@@ -219,8 +219,8 @@ async def update_team(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if "ADMIN" not in token_payload.roles:
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
     # check if club exists
     club = await mongodb["clubs"].find_one({"alias": club_alias})
@@ -331,8 +331,8 @@ async def delete_team(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
   mongodb = request.app.state.mongodb    
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   delete_result = await mongodb["clubs"].update_one(
       {"alias": club_alias}, {"$pull": {
           "teams": {
