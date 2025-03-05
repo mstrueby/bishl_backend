@@ -55,7 +55,7 @@ async def update_roster(
   token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  if "ADMIN" not in token_payload.roles:
+  if "ADMIN" not in token_payload.roles and "LEAGUE_ADMIN" not in token_payload.roles:
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
   #print("new roster: ", roster)
   team_flag = team_flag.lower()
