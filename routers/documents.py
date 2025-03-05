@@ -142,8 +142,8 @@ async def upload_document(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   # Check if document already exists in db
   existing_doc = await mongodb['documents'].find_one({'title': title})
@@ -218,8 +218,8 @@ async def update_document(request: Request,
                           token_payload: TokenPayload = Depends(
                               auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   existing_doc = await mongodb['documents'].find_one({'_id': id})
   if not existing_doc:
@@ -289,8 +289,8 @@ async def delete_document(
     id: str,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)) -> Response:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   existing_doc = await mongodb['documents'].find_one({'_id': id})
   if not existing_doc:
     raise HTTPException(status_code=404,

@@ -109,8 +109,8 @@ async def create_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   #check
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -202,8 +202,8 @@ async def patch_one_penalty(
         ..., description="The penalty to be added to the penaltiesheet"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   # Data validation and conversion
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -294,8 +294,8 @@ async def delete_one_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
