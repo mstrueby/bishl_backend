@@ -353,7 +353,7 @@ async def update_match(request: Request,
                        token_payload: TokenPayload = Depends(
                            auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
-  if "ADMIN" not in token_payload.roles:
+  if not any(role in token_payload.roles for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   # Helper function to add _id to new nested documents
