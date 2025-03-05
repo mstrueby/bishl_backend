@@ -94,8 +94,8 @@ async def add_round(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   #print("add round, data: ", round)
   # Check if the tournament exists
   if (tournament := await
@@ -179,8 +179,8 @@ async def update_round(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   round_dict = round.dict(exclude_unset=True)
   print("round: ", round_dict)
   # Check if the tournament exists
@@ -310,8 +310,8 @@ async def delete_round(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   delete_result = await mongodb['tournaments'].update_one(
       {
           "alias": tournament_alias,

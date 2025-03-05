@@ -60,8 +60,8 @@ async def create_tournament(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if "ADMIN" not in token_payload.roles:
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
     # print("tournament: ", tournament)
     tournament_data = jsonable_encoder(tournament)
 
@@ -93,8 +93,8 @@ async def update_tournament(request: Request,
                             token_payload: TokenPayload = Depends(
                                 auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if "ADMIN" not in token_payload.roles:
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
     print("tournament pre exclude: ", tournament)
     tournament_dict = tournament.dict(exclude_unset=True)
     tournament_dict.pop("id", None)
@@ -156,8 +156,8 @@ async def delete_tournament(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if "ADMIN" not in token_payload.roles:
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
     result = await mongodb['tournaments'].delete_one(
         {"alias": tournament_alias})
     if result.deleted_count == 1:

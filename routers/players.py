@@ -271,8 +271,8 @@ async def process_ishd_data(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
-      raise HTTPException(status_code=403, detail="Not authorized")
+    if "ADMIN" not in token_payload.roles:
+      raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
     log_lines = []
     # If mode is 'test', delete all documents in 'players'
@@ -841,8 +841,8 @@ async def verify_ishd_data(
     #token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
-    #if token_payload.roles not in [["ADMIN"]]:
-    #    raise HTTPException(status_code=403, detail="Not authorized")
+    #if "ADMIN" not in token_payload.roles:
+    #    raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
     ISHD_API_USER = os.environ.get("ISHD_API_USER")
@@ -1119,7 +1119,7 @@ async def get_players_for_club(
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
                for role in ["ADMIN", "CLUB_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
     # get club
     club = await mongodb["clubs"].find_one({"alias": club_alias})
     if not club:
@@ -1150,7 +1150,7 @@ async def get_players_for_team(
     print(token_payload.roles)
     if not any(role in token_payload.roles
                for role in ["ADMIN", "CLUB_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
     # get club
     club = await mongodb["clubs"].find_one({"alias": club_alias})
     if not club:
@@ -1196,7 +1196,7 @@ async def get_players(
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
                for role in ["ADMIN", "LEAGUE_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
     result = await get_paginated_players(mongodb, q, page, None, None, sortby, all, active)
     return JSONResponse(status_code=status.HTTP_200_OK,
@@ -1247,7 +1247,7 @@ async def create_player(
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
                for role in ["ADMIN", "PLAYER_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
     player_exists = await mongodb["players"].find_one({
         "firstName": firstName,
@@ -1332,7 +1332,7 @@ async def update_player(request: Request,
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
                for role in ["ADMIN", "CLUB_ADMIN", "PLAYER_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
     existing_player = await mongodb["players"].find_one({"_id": id})
     if not existing_player:
         raise HTTPException(status_code=404,
@@ -1423,8 +1423,8 @@ async def delete_player(
     id: str,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)) -> Response:
     mongodb = request.app.state.mongodb
-    if token_payload.roles not in [["ADMIN"]]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    if "ADMIN" not in token_payload.roles:
+        raise HTTPException(status_code=403, detail="Nicht authorisiert")
     existing_player = await mongodb["players"].find_one({"_id": id})
     if not existing_player:
         raise HTTPException(status_code=404,

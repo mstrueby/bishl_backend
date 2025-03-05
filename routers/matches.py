@@ -191,8 +191,8 @@ async def create_match(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   try:
     # get standingsSettings and set points per team
     if (match.tournament is not None and match.season is not None
@@ -353,8 +353,8 @@ async def update_match(request: Request,
                        token_payload: TokenPayload = Depends(
                            auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if not any(role in token_payload.roles for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   # Helper function to add _id to new nested documents
   def add_id_to_scores(scores):
@@ -548,8 +548,8 @@ async def delete_match(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   # check and get match
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:

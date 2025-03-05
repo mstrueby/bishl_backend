@@ -72,13 +72,13 @@ with open(filename, encoding='utf-8') as f:
                          doublequote=True,
                          skipinitialspace=True)
   for row in reader:
-    print("row", row)
+    #print("row", row)
     first_name = row['Vorname']
     last_name = row['Nachname']
     email = row['Email']
     club = None
-    if isinstance(row.get('Verein'), str):
-      club = json.loads(row['Verein'])
+    if isinstance(row.get('club'), str):
+      club = json.loads(row['club'])
     # skip row if no club is found
     if not club:
       print("No club found for referee", row)
@@ -101,6 +101,8 @@ with open(filename, encoding='utf-8') as f:
       # generate a random password
       password_length = 12
       random_password = ''.join(random.choices(string.ascii_letters + string.digits, k=password_length))
+      
+      # Create user via API endpoint instead of direct DB insertion
       new_user = {
         'email': email,
         'password': random_password,
@@ -109,5 +111,53 @@ with open(filename, encoding='utf-8') as f:
         'roles': ['REFEREE'],
         'club': club
       }
-      db_collection.insert_one(new_user)
-      print(f"User {email} created.")
+      
+      # Use the API endpoint to register the user
+      register_url = f"{BASE_URL}/users/register"
+      register_response = requests.post(register_url, json=new_user, headers=headers)
+      
+      if register_response.status_code == 201:
+        print(f"User {email} created via API endpoint.")
+        
+        # Send welcome email to the new user
+        try:
+          # Import here to avoid circular imports
+          import asyncio
+          from mail_service import send_email
+          
+          # Prepare email content
+          subject = "BISHL - Schiedsrichter-Account angelegt"
+          #email='marian.strueby@web.de'
+          recipients = [email]
+          body = f"""
+            <h2>Willkommen auf der BISHL-Website!</h2>
+            <p>Hallo {first_name},</p>
+            <p>dein Schiedsrichter-Account wurde erfolgreich angelegt.</p>
+            <p>Hier sind deine Login-Details:</p>
+            <ul>
+              <li><strong>E-Mail:</strong> {email}</li>
+              <li><strong>Passwort:</strong> {random_password}</li>
+            </ul>
+            <p>Bitte logge dich bei www.bishl.de ein und ändere dein Passwort.</p>
+            <p>Falls du Fragen hast, melde dich bitte über website@bishl.de</p>
+            <p>Viele Grüße,<br>Marian</p>
+          """
+          #print("reciepient", recipients)
+          #print("subject", subject)
+          #print("body", body)
+          
+          # Run the async function in a separate event loop
+          loop = asyncio.new_event_loop()
+          asyncio.set_event_loop(loop)
+          loop.run_until_complete(send_email(subject, recipients, body))
+          loop.close()
+          
+          print(f"Welcome email sent to {email}")
+          if not args.importAll:
+            print("--importAll flag not set, exiting.")
+            exit()
+        except Exception as e:
+          print(f"Failed to send welcome email to {email}: {str(e)}")
+      else:
+        print(f"Failed to create user {email} via API. Status code: {register_response.status_code}")
+        print(f"Response: {register_response.text}")

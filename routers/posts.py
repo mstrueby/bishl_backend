@@ -109,7 +109,7 @@ async def create_post(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
-    raise HTTPException(status_code=403, detail="Not authorized")
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   # Data preparation
   post = PostBase(
@@ -206,7 +206,7 @@ async def update_post(
 
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
-    raise HTTPException(status_code=403, detail="Not authorized")
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   # Retrieve existing post
   existing_post = await mongodb["posts"].find_one({"_id": id})
@@ -303,8 +303,8 @@ async def delete_post(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  if token_payload.roles not in [["ADMIN"]]:
-    raise HTTPException(status_code=403, detail="Not authorized")
+  if "ADMIN" not in token_payload.roles:
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
   existing_post = await mongodb["posts"].find_one({"_id": id})
   if not existing_post:
     raise HTTPException(status_code=404,
