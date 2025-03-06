@@ -23,14 +23,19 @@ args = parser.parse_args()
 filename = "data/data_new_team_assignments.csv"
 if args.prod:
   BASE_URL = os.environ['BE_API_URL_PROD']
+  DB_URL = os.environ['DB_URL_PROD']
+  DB_NAME = 'bishl'
 else:
   BASE_URL = os.environ['BE_API_URL']
+  DB_URL = os.environ['DB_URL']
+  DB_NAME = 'bishl_dev'
 print("BASE_URL: ", BASE_URL)
-print("DB_NAME", os.environ['DB_NAME'])
+print("DB_URL: ", DB_URL)
+print("DB_NAME", DB_NAME)
 
 # MongoDB setup
-client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
-db = client[os.environ['DB_NAME']]
+client = MongoClient(DB_URL, tlsCAFile=certifi.where())
+db = client[DB_NAME]
 db_players = db['players']
 
 # Login setup
