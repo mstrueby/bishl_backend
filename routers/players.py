@@ -271,8 +271,8 @@ async def process_ishd_data(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
-    if "ADMIN" not in token_payload.roles:
-      raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    #if "ADMIN" not in token_payload.roles:
+    #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
     log_lines = []
     # If mode is 'test', delete all documents in 'players'

@@ -140,8 +140,8 @@ async def create_penalty(
     if penalty_data["matchTimeEnd"] is not None:
       penalty_data["matchSecondsEnd"] = parse_time_to_seconds(
           penalty_data['matchTimeEnd'])
-    penalty_data.pop('matchTimeStart')
-    penalty_data.pop('matchTimeEnd')
+    #penalty_data.pop('matchTimeStart')
+    #penalty_data.pop('matchTimeEnd')
     penalty_data = jsonable_encoder(penalty_data)
 
     update_result = await mongodb["matches"].update_one(
@@ -238,11 +238,11 @@ async def patch_one_penalty(
   if 'matchTimeStart' in penalty_data:
     penalty_data['matchSecondsStart'] = parse_time_to_seconds(
         penalty_data['matchTimeStart'])
-    penalty_data.pop('matchTimeStart')
+    #penalty_data.pop('matchTimeStart')
   if 'matchTimeEnd' in penalty_data:
     penalty_data['matchSecondsEnd'] = parse_time_to_seconds(
         penalty_data['matchTimeEnd'])
-    penalty_data.pop('matchTimeEnd')
+    #penalty_data.pop('matchTimeEnd')
   penalty_data = jsonable_encoder(penalty_data)
 
   update_data = {"$set": {}}
