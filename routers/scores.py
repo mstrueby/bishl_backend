@@ -106,8 +106,8 @@ async def create_score(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+  #if "ADMIN" not in token_payload.roles:
+  #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
   #check
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
