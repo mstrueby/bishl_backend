@@ -80,7 +80,11 @@ try:
 
       # Convert cursor to list
       existing_players = list(players_cursor)
-      print("existing_players", existing_players)
+      existing_id =existing_players[0]["_id"]
+      print("existing_players", existing_players[0]["_id"])
+
+      player_check = db_players.find({"_id":existing_id})
+      print("player_check", list(player_check))
 
       # Use count_documents method to get the number of matching documents
       count = db.players.count_documents(query)
@@ -93,7 +97,7 @@ try:
         print(
             f"Player {first_name} {last_name} ({year_of_birth}) not found in db"
         )
-        continue
+        exit()
       else:
         # Use the first matching player
         player = PlayerDB(**existing_players[0])
@@ -108,26 +112,29 @@ try:
       
       # Convert ID to ObjectId if it's a string
       player_id = player.id
+      # Convert player_id to ObjectId if it's a string
       if isinstance(player_id, str):
           player_id = ObjectId(player_id)
       
       # Verify we can find the player with the correct ID
-      found_player = db.players.find_one({"_id": player_id})
+      print("player_id", player_id)
+      # Since player_id must be an ObjectId, use the proper format for the query
+      found_player = db_players.find_one({"_id": player_id})
       
       # Print debug information
       print("db_players collection name:", db_players.name)
       print("db_players database:", db_players.database.name)
-      print("found_player:", found_player is not None)
+      print("found_player:", found_player)
       
       if not found_player:
           print(f"ERROR: Could not find player with ID {player_id}")
-          continue
+          exit()
 
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
       if club_res is None:
         print(f"Club {club_alias} not found in db")
-        continue
+        exit()
       else:
         club = ClubDB(**club_res)
 
@@ -136,7 +143,7 @@ try:
       team_response = requests.get(team_url, headers=headers)
       if team_response.status_code != 200:
         print(f"Error getting team {team_alias}")
-        continue
+        exit()
       else:
         team_db = TeamDB(**team_response.json())
 
