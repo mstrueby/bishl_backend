@@ -26,10 +26,12 @@ if args.prod:
 else:
   BASE_URL = os.environ['BE_API_URL']
 print("BASE_URL: ", BASE_URL)
+print("DB_NAME", os.environ['DB_NAME'])
 
 # MongoDB setup
 client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
 db = client[os.environ['DB_NAME']]
+db_players = db['players']
 
 # Login setup
 login_url = f"{BASE_URL}/users/login"
@@ -74,10 +76,11 @@ try:
               "$lte": datetime(year_of_birth, 12, 31, 23, 59, 59)
           }
       }
-      players_cursor = db.players.find(query)
+      players_cursor = db_players.find(query)
 
       # Convert cursor to list
       existing_players = list(players_cursor)
+      print("existing_players", existing_players)
 
       # Use count_documents method to get the number of matching documents
       count = db.players.count_documents(query)
@@ -94,6 +97,14 @@ try:
       else:
         # Use the first matching player
         player = PlayerDB(**existing_players[0])
+        print("player", player)
+
+      # Find found player again searching by _id
+      found_player = db.players.find_one({"_id": player.id})
+
+      # Print db_players collection information
+      print("db_players information:", db_players)
+      print("found_player", found_player)
 
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
@@ -173,21 +184,42 @@ try:
 
       try:
         from pprint import pprint
-        print("Updating player ... ", first_name, last_name, player.id)
-        pprint([x.dict() for x in assigned_clubs], indent=4)
-        db.players.update_one(
+        print(f"Updating player ... {first_name} {last_name} (ID: {player.id})")
+        assignments_data = [x.dict() for x in assigned_clubs]
+        pprint(assignments_data, indent=4)
+        
+        # Perform the update
+        update_result = db.players.update_one(
             {"_id": player.id},
             {"$set": {
-                "assignedTeams": [x.dict() for x in assigned_clubs]
+                "assignedTeams": assignments_data
             }})
         
-        # Check if the update was successful
-        if db.players.find_one({"_id": player.id, "assignedTeams": [x.dict() for x in assigned_clubs]}):
-            print(f"Update confirmed for Player: {first_name}, {last_name}")
+        # Check update operation result
+        if update_result.matched_count == 0:
+          print(f"ERROR: No player matched with ID {player.id}")
+          exit(1)
+        
+        if update_result.modified_count == 0:
+          print(f"WARNING: Player found but no modifications made. Data might be identical.")
+        
+        # Verify the update by fetching the player again
+        updated_player = db.players.find_one({"_id": player.id})
+        if updated_player:
+          actual_teams_count = len(updated_player.get("assignedTeams", []))
+          expected_teams_count = len(assignments_data)
+          
+          print(f"Update stats: Found={update_result.matched_count}, Modified={update_result.modified_count}")
+          print(f"Team counts: Expected={expected_teams_count}, Actual={actual_teams_count}")
+          
+          if actual_teams_count == expected_teams_count:
+            print(f"✅ Successfully updated Player: {first_name} {last_name}")
+          else:
+            print(f"⚠️ Team count mismatch after update for {first_name} {last_name}")
+            print(f"Saved teams count: {actual_teams_count}, Expected: {expected_teams_count}")
         else:
-            print(f"Update failed for Player: {first_name}, {last_name}")
-            exit(1)
-        print(f"--> Successfully updated Player:, {first_name}, {last_name}")
+          print(f"ERROR: Couldn't retrieve player after update")
+          exit(1)
 
         if not args.importAll:
           print("--importAll flag not set, exiting.")
@@ -195,6 +227,9 @@ try:
 
       except Exception as e:
         print(f"An error occurred while updating the database: {e}")
+        print(f"Exception type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
         exit(1)
 
 except Exception as e:
