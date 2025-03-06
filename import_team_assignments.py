@@ -102,38 +102,9 @@ try:
         # Use the first matching player
         player = PlayerDB(**existing_players[0])
         print("player", player)
-
-      # Debug player id type and value
-      print("Player ID:", player.id)
-      print("Player ID type:", type(player.id))
-      
-      # MongoDB requires ObjectId for _id queries unless the _id is stored as a string in the database
-      from bson import ObjectId
-      
-      # Handle _id conversion properly - try both string and ObjectId approaches
+     
       player_id_str = str(player.id)  # Convert to string (works if _id is stored as string)
-      player_id_obj = player.id       # Keep as is if already ObjectId
       
-      # Convert to ObjectId if it's a string representation of ObjectId
-      if isinstance(player_id_obj, str) and ObjectId.is_valid(player_id_obj):
-          player_id_obj = ObjectId(player_id_obj)
-      
-      # Try to find the player using both approaches
-      print("Looking for player with string ID:", player_id_str)
-      print("Looking for player with ObjectId:", player_id_obj)
-      
-      
-      found_player = db_players.find_one({"_id": player_id_str})
-      
-      # Print debug information
-      print("db_players collection name:", db_players.name)
-      print("db_players database:", db_players.database.name)
-      print("found_player exists:", found_player is not None)
-      
-      if not found_player:
-          print(f"ERROR: Could not find player with ID {player_id_str}")
-          exit()
-
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
       if club_res is None:
