@@ -175,8 +175,21 @@ try:
           (x for x in assigned_clubs if x.clubId == str(club.id)), None)
 
       if existing_club:
-        # Club exists, add new team to existing club's teams
-        existing_club.teams.append(new_team_assignemnt)
+        # Club exists, check if team already exists in this club's teams
+        existing_team = next(
+            (t for t in existing_club.teams if t.teamId == str(team_db.id)), None)
+        
+        if existing_team:
+          # Team already exists, update its properties if needed
+          print(f"Team {team_db.name} already assigned to {first_name} {last_name} in club {club.name}")
+          # Update team properties if needed (e.g., passNo, active status)
+          existing_team.passNo = row.get('passNo', '')
+          existing_team.active = True
+          existing_team.source = SourceEnum.BISHL
+          existing_team.modifyDate = modify_date
+        else:
+          # Team doesn't exist in this club, add new team to existing club's teams
+          existing_club.teams.append(new_team_assignemnt)
       else:
         # Club doesn't exist, append new club assignment
         assigned_clubs.append(new_club_assignment)
