@@ -122,12 +122,8 @@ try:
       print("Looking for player with string ID:", player_id_str)
       print("Looking for player with ObjectId:", player_id_obj)
       
-      # First try with ObjectId
-      found_player = db_players.find_one({"_id": player_id_obj})
       
-      # If not found, try with string ID
-      if not found_player and player_id_str != str(player_id_obj):
-          found_player = db_players.find_one({"_id": player_id_str})
+      found_player = db_players.find_one({"_id": player_id_str})
       
       # Print debug information
       print("db_players collection name:", db_players.name)
@@ -135,7 +131,7 @@ try:
       print("found_player exists:", found_player is not None)
       
       if not found_player:
-          print(f"ERROR: Could not find player with ID {player_id}")
+          print(f"ERROR: Could not find player with ID {player_id_str}")
           exit()
 
       # get club from db
@@ -219,32 +215,24 @@ try:
         print(f"Updating player ... {first_name} {last_name} (ID: {player.id})")
         assignments_data = [x.dict() for x in assigned_clubs]
         pprint(assignments_data, indent=4)
-        
-        # Ensure we have the proper ObjectId format for MongoDB operations
-        from bson import ObjectId
-        
-        # Convert ID to ObjectId if it's a string (ensure consistency)
-        player_id = player.id
-        if isinstance(player_id, str):
-            player_id = ObjectId(player_id)
-        
+
         # Perform the update with the correct ID format
         update_result = db.players.update_one(
-            {"_id": player_id},
+            {"_id": player_id_str},
             {"$set": {
                 "assignedTeams": assignments_data
             }})
         
         # Check update operation result
         if update_result.matched_count == 0:
-          print(f"ERROR: No player matched with ID {player_id}")
+          print(f"ERROR: No player matched with ID {player_id_str}")
           exit(1)
         
         if update_result.modified_count == 0:
           print(f"WARNING: Player found but no modifications made. Data might be identical.")
         
         # Verify the update by fetching the player again with the same ID format
-        updated_player = db.players.find_one({"_id": player_id})
+        updated_player = db.players.find_one({"_id": player_id_str})
         if updated_player:
           actual_teams_count = len(updated_player.get("assignedTeams", []))
           expected_teams_count = len(assignments_data)
