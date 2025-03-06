@@ -61,6 +61,7 @@ def convert_seconds_to_times(data):
       if penalty.get('matchSecondsEnd') is not None:
         penalty["matchTimeEnd"] = parse_time_from_seconds(
             penalty["matchSecondsEnd"])
+  print("data", data)
   return data
 
 
