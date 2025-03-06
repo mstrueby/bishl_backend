@@ -101,10 +101,11 @@ class ScoresUpdate(MongoBaseModel):
   isPPG: Optional[bool] = False
   isSHG: Optional[bool] = False
   isGWG: Optional[bool] = False
-
+"""
   @validator('matchTime', pre=True, always=True)
   def validate_match_time(cls, v, field):
     return validate_match_time(v, field.name)
+"""
 
 
 class PenaltiesBase(MongoBaseModel):
@@ -119,13 +120,14 @@ class PenaltiesBase(MongoBaseModel):
   @validator('penaltyCode', pre=True, always=True)
   def validate_type(cls, v, field):
     return validate_dict_of_strings(v, field.name)
-
+"""
   @validator('matchTimeStart', 'matchTimeEnd', pre=True, always=True)
   def validate_match_time(cls, v, field):
     if field.name == 'matchTimeEnd' and v is None:
       return None
     return validate_match_time(v, field.name)
 
+"""
 
 class PenaltiesDB(PenaltiesBase):
   pass

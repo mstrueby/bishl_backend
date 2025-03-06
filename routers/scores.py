@@ -175,7 +175,7 @@ async def create_score(
     score_data['matchSeconds'] = parse_time_to_seconds(
         score_data['matchTime'])
     score_data = jsonable_encoder(score_data)
-    score_data.pop('matchTime')
+    #score_data.pop('matchTime')
     print("XXX score_data: ", score_data)
 
     update_result = await mongodb['matches'].update_one(
@@ -295,7 +295,7 @@ async def patch_one_score(
   if 'matchTime' in score_data:
     score_data['matchSeconds'] = parse_time_to_seconds(
         score_data['matchTime'])
-  score_data.pop('matchTime')
+  #score_data.pop('matchTime')
   score_data = jsonable_encoder(score_data)
   goal_player_id = score_data.get('goalPlayer', {}).get('playerId')
   assist_player_id = score_data.get('assistPlayer', {}).get('playerId')
@@ -387,8 +387,12 @@ async def delete_one_score(
   r_alias = match.get('round', {}).get('alias')
   md_alias = match.get('matchday', {}).get('alias')
   goal_player_id = current_score.get('goalPlayer', {}).get('playerId')
-  assist_player_id = current_score.get('assistPlayer', {}).get('playerId')
-  player_ids = [goal_player_id, assist_player_id]
+  
+  # Safely handle assistPlayer which might be None
+  assist_player = current_score.get('assistPlayer')
+  assist_player_id = assist_player.get('playerId') if assist_player else None
+  
+  player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
 
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(match_status=jsonable_encoder(match_status),
