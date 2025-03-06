@@ -107,24 +107,32 @@ try:
       print("Player ID:", player.id)
       print("Player ID type:", type(player.id))
       
-      # Ensure we're using the correct ObjectId format for MongoDB operations
+      # MongoDB requires ObjectId for _id queries unless the _id is stored as a string in the database
       from bson import ObjectId
       
-      # Convert ID to ObjectId if it's a string
-      player_id = player.id
-      # Convert player_id to ObjectId if it's a string
-      if isinstance(player_id, str):
-          player_id = ObjectId(player_id)
+      # Handle _id conversion properly - try both string and ObjectId approaches
+      player_id_str = str(player.id)  # Convert to string (works if _id is stored as string)
+      player_id_obj = player.id       # Keep as is if already ObjectId
       
-      # Verify we can find the player with the correct ID
-      print("player_id", player_id)
-      # Since player_id must be an ObjectId, use the proper format for the query
-      found_player = db_players.find_one({"_id": player_id})
+      # Convert to ObjectId if it's a string representation of ObjectId
+      if isinstance(player_id_obj, str) and ObjectId.is_valid(player_id_obj):
+          player_id_obj = ObjectId(player_id_obj)
+      
+      # Try to find the player using both approaches
+      print("Looking for player with string ID:", player_id_str)
+      print("Looking for player with ObjectId:", player_id_obj)
+      
+      # First try with ObjectId
+      found_player = db_players.find_one({"_id": player_id_obj})
+      
+      # If not found, try with string ID
+      if not found_player and player_id_str != str(player_id_obj):
+          found_player = db_players.find_one({"_id": player_id_str})
       
       # Print debug information
       print("db_players collection name:", db_players.name)
       print("db_players database:", db_players.database.name)
-      print("found_player:", found_player)
+      print("found_player exists:", found_player is not None)
       
       if not found_player:
           print(f"ERROR: Could not find player with ID {player_id}")
