@@ -26,10 +26,12 @@ if args.prod:
 else:
   BASE_URL = os.environ['BE_API_URL']
 print("BASE_URL: ", BASE_URL)
+print("DB_NAME", os.environ['DB_NAME'])
 
 # MongoDB setup
 client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
 db = client[os.environ['DB_NAME']]
+db_players = db['players']
 
 # Login setup
 login_url = f"{BASE_URL}/users/login"
@@ -74,10 +76,11 @@ try:
               "$lte": datetime(year_of_birth, 12, 31, 23, 59, 59)
           }
       }
-      players_cursor = db.players.find(query)
+      players_cursor = db_players.find(query)
 
       # Convert cursor to list
       existing_players = list(players_cursor)
+      print("existing_players", existing_players)
 
       # Use count_documents method to get the number of matching documents
       count = db.players.count_documents(query)
@@ -94,6 +97,14 @@ try:
       else:
         # Use the first matching player
         player = PlayerDB(**existing_players[0])
+        print("player", player)
+
+      # Find found player again searching by _id
+      found_player = db.players.find_one({"_id": player.id})
+
+      # Print db_players collection information
+      print("db_players information:", db_players)
+      print("found_player", found_player)
 
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
