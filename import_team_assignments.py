@@ -80,7 +80,11 @@ try:
 
       # Convert cursor to list
       existing_players = list(players_cursor)
-      print("existing_players", existing_players)
+      existing_id =existing_players[0]["_id"]
+      print("existing_players", existing_players[0]["_id"])
+
+      player_check = db_players.find({"_id":existing_id})
+      print("player_check", list(player_check))
 
       # Use count_documents method to get the number of matching documents
       count = db.players.count_documents(query)
@@ -93,24 +97,44 @@ try:
         print(
             f"Player {first_name} {last_name} ({year_of_birth}) not found in db"
         )
-        continue
+        exit()
       else:
         # Use the first matching player
         player = PlayerDB(**existing_players[0])
         print("player", player)
 
-      # Find found player again searching by _id
-      found_player = db.players.find_one({"_id": player.id})
-
-      # Print db_players collection information
-      print("db_players information:", db_players)
-      print("found_player", found_player)
+      # Debug player id type and value
+      print("Player ID:", player.id)
+      print("Player ID type:", type(player.id))
+      
+      # Ensure we're using the correct ObjectId format for MongoDB operations
+      from bson import ObjectId
+      
+      # Convert ID to ObjectId if it's a string
+      player_id = player.id
+      # Convert player_id to ObjectId if it's a string
+      if isinstance(player_id, str):
+          player_id = ObjectId(player_id)
+      
+      # Verify we can find the player with the correct ID
+      print("player_id", player_id)
+      # Since player_id must be an ObjectId, use the proper format for the query
+      found_player = db_players.find_one({"_id": player_id})
+      
+      # Print debug information
+      print("db_players collection name:", db_players.name)
+      print("db_players database:", db_players.database.name)
+      print("found_player:", found_player)
+      
+      if not found_player:
+          print(f"ERROR: Could not find player with ID {player_id}")
+          exit()
 
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
       if club_res is None:
         print(f"Club {club_alias} not found in db")
-        continue
+        exit()
       else:
         club = ClubDB(**club_res)
 
@@ -119,7 +143,7 @@ try:
       team_response = requests.get(team_url, headers=headers)
       if team_response.status_code != 200:
         print(f"Error getting team {team_alias}")
-        continue
+        exit()
       else:
         team_db = TeamDB(**team_response.json())
 
@@ -188,23 +212,31 @@ try:
         assignments_data = [x.dict() for x in assigned_clubs]
         pprint(assignments_data, indent=4)
         
-        # Perform the update
+        # Ensure we have the proper ObjectId format for MongoDB operations
+        from bson import ObjectId
+        
+        # Convert ID to ObjectId if it's a string (ensure consistency)
+        player_id = player.id
+        if isinstance(player_id, str):
+            player_id = ObjectId(player_id)
+        
+        # Perform the update with the correct ID format
         update_result = db.players.update_one(
-            {"_id": player.id},
+            {"_id": player_id},
             {"$set": {
                 "assignedTeams": assignments_data
             }})
         
         # Check update operation result
         if update_result.matched_count == 0:
-          print(f"ERROR: No player matched with ID {player.id}")
+          print(f"ERROR: No player matched with ID {player_id}")
           exit(1)
         
         if update_result.modified_count == 0:
           print(f"WARNING: Player found but no modifications made. Data might be identical.")
         
-        # Verify the update by fetching the player again
-        updated_player = db.players.find_one({"_id": player.id})
+        # Verify the update by fetching the player again with the same ID format
+        updated_player = db.players.find_one({"_id": player_id})
         if updated_player:
           actual_teams_count = len(updated_player.get("assignedTeams", []))
           expected_teams_count = len(assignments_data)
