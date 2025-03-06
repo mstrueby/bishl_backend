@@ -172,13 +172,27 @@ try:
         assigned_clubs.append(new_club_assignment)
 
       try:
-        # db.players.update_one({"_id": player.id}, {"$set": {"assignedTeams": [x.dict() for x in assigned_clubs]}})
         from pprint import pprint
-        print("DUMMY - Updating player ... ", first_name, last_name)
+        print("Updating player ... ", first_name, last_name, player.id)
         pprint([x.dict() for x in assigned_clubs], indent=4)
-        # Print existing player.assignedTeams before append happens
+        db.players.update_one(
+            {"_id": player.id},
+            {"$set": {
+                "assignedTeams": [x.dict() for x in assigned_clubs]
+            }})
+        
+        # Check if the update was successful
+        if db.players.find_one({"_id": player.id, "assignedTeams": [x.dict() for x in assigned_clubs]}):
+            print(f"Update confirmed for Player: {first_name}, {last_name}")
+        else:
+            print(f"Update failed for Player: {first_name}, {last_name}")
+            exit(1)
+        print(f"--> Successfully updated Player:, {first_name}, {last_name}")
 
-        #print("DUMMY - Updating player ... ", first_name, last_name, year_of_birth, [x.dict() for x in assigned_team_object])
+        if not args.importAll:
+          print("--importAll flag not set, exiting.")
+          exit()
+
       except Exception as e:
         print(f"An error occurred while updating the database: {e}")
         exit(1)

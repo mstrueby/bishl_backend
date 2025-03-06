@@ -268,7 +268,7 @@ async def process_ishd_data(
     request: Request,
     mode: Optional[str] = None,
     run: int = 1,
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    #token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
     #if "ADMIN" not in token_payload.roles:
