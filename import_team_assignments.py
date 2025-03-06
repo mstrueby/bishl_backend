@@ -99,12 +99,33 @@ try:
         player = PlayerDB(**existing_players[0])
         print("player", player)
 
-      # Find found player again searching by _id
-      found_player = db.players.find_one({"_id": player.id})
-
+      # Debug player id type and value
+      print("Player ID:", player.id)
+      print("Player ID type:", type(player.id))
+      
+      # Find found player again searching by _id - using proper ObjectId handling
+      from bson import ObjectId
+      player_id_obj = player.id
+      if isinstance(player_id_obj, str):
+          player_id_obj = ObjectId(player_id_obj)
+      
+      # Try both ways to be safe
+      found_player_by_id = db.players.find_one({"_id": player_id_obj})
+      found_player_by_str_id = db.players.find_one({"_id": str(player_id_obj)})
+      
+      # Print results of both lookup attempts
+      print("Found player by ObjectId:", found_player_by_id is not None)
+      print("Found player by string ID:", found_player_by_str_id is not None)
+      
+      # Let's use the one that works
+      found_player = found_player_by_id if found_player_by_id else found_player_by_str_id
+      
       # Print db_players collection information
-      print("db_players information:", db_players)
-      print("found_player", found_player)
+      print("db_players collection name:", db_players.name)
+      print("db_players database:", db_players.database.name)
+      print("found_player:", found_player is not None)
+      if found_player:
+          print("found_player ID matches original:", str(found_player.get("_id")) == str(player.id))
 
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
