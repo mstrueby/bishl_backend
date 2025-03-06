@@ -81,10 +81,10 @@ try:
       # Convert cursor to list
       existing_players = list(players_cursor)
       existing_id =existing_players[0]["_id"]
-      print("existing_players", existing_players[0]["_id"])
+      #print("existing_players", existing_players[0]["_id"])
 
       player_check = db_players.find({"_id":existing_id})
-      print("player_check", list(player_check))
+      #print("player_check", list(player_check))
 
       # Use count_documents method to get the number of matching documents
       count = db.players.count_documents(query)
@@ -101,7 +101,7 @@ try:
       else:
         # Use the first matching player
         player = PlayerDB(**existing_players[0])
-        print("player", player)
+        #print("player", player)
      
       player_id_str = str(player.id)  # Convert to string (works if _id is stored as string)
       
@@ -149,7 +149,7 @@ try:
       new_team_assignemnt = AssignedTeams(
           teamId=str(team_db.id),
           passNo=row.get('passNo', ''),
-          active=True,
+          active=False,
           source=SourceEnum.BISHL,
           modifyDate=modify_date,
           teamName=team_db.name,  # Assuming team_db has an attribute `name`
@@ -213,7 +213,8 @@ try:
           exit(1)
         
         if update_result.modified_count == 0:
-          print(f"WARNING: Player found but no modifications made. Data might be identical.")
+          print(f"⚠️ WARNING: Player found but no modifications made. Data might be identical.")
+          continue
         
         # Verify the update by fetching the player again with the same ID format
         updated_player = db.players.find_one({"_id": player_id_str})
