@@ -23,14 +23,19 @@ args = parser.parse_args()
 filename = "data/data_new_team_assignments.csv"
 if args.prod:
   BASE_URL = os.environ['BE_API_URL_PROD']
+  DB_URL = os.environ['DB_URL_PROD']
+  DB_NAME = 'bishl'
 else:
   BASE_URL = os.environ['BE_API_URL']
+  DB_URL = os.environ['DB_URL']
+  DB_NAME = 'bishl_dev'
 print("BASE_URL: ", BASE_URL)
-print("DB_NAME", os.environ['DB_NAME'])
+print("DB_URL: ", DB_URL)
+print("DB_NAME", DB_NAME)
 
 # MongoDB setup
-client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
-db = client[os.environ['DB_NAME']]
+client = MongoClient(DB_URL, tlsCAFile=certifi.where())
+db = client[DB_NAME]
 db_players = db['players']
 
 # Login setup
@@ -81,10 +86,10 @@ try:
       # Convert cursor to list
       existing_players = list(players_cursor)
       existing_id =existing_players[0]["_id"]
-      print("existing_players", existing_players[0]["_id"])
+      #print("existing_players", existing_players[0]["_id"])
 
       player_check = db_players.find({"_id":existing_id})
-      print("player_check", list(player_check))
+      #print("player_check", list(player_check))
 
       # Use count_documents method to get the number of matching documents
       count = db.players.count_documents(query)
@@ -101,35 +106,10 @@ try:
       else:
         # Use the first matching player
         player = PlayerDB(**existing_players[0])
-        print("player", player)
-
-      # Debug player id type and value
-      print("Player ID:", player.id)
-      print("Player ID type:", type(player.id))
+        #print("player", player)
+     
+      player_id_str = str(player.id)  # Convert to string (works if _id is stored as string)
       
-      # Ensure we're using the correct ObjectId format for MongoDB operations
-      from bson import ObjectId
-      
-      # Convert ID to ObjectId if it's a string
-      player_id = player.id
-      # Convert player_id to ObjectId if it's a string
-      if isinstance(player_id, str):
-          player_id = ObjectId(player_id)
-      
-      # Verify we can find the player with the correct ID
-      print("player_id", player_id)
-      # Since player_id must be an ObjectId, use the proper format for the query
-      found_player = db_players.find_one({"_id": player_id})
-      
-      # Print debug information
-      print("db_players collection name:", db_players.name)
-      print("db_players database:", db_players.database.name)
-      print("found_player:", found_player)
-      
-      if not found_player:
-          print(f"ERROR: Could not find player with ID {player_id}")
-          exit()
-
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
       if club_res is None:
@@ -174,7 +154,7 @@ try:
       new_team_assignemnt = AssignedTeams(
           teamId=str(team_db.id),
           passNo=row.get('passNo', ''),
-          active=True,
+          active=False,
           source=SourceEnum.BISHL,
           modifyDate=modify_date,
           teamName=team_db.name,  # Assuming team_db has an attribute `name`
@@ -200,8 +180,21 @@ try:
           (x for x in assigned_clubs if x.clubId == str(club.id)), None)
 
       if existing_club:
-        # Club exists, add new team to existing club's teams
-        existing_club.teams.append(new_team_assignemnt)
+        # Club exists, check if team already exists in this club's teams
+        existing_team = next(
+            (t for t in existing_club.teams if t.teamId == str(team_db.id)), None)
+        
+        if existing_team:
+          # Team already exists, update its properties if needed
+          print(f"Team {team_db.name} already assigned to {first_name} {last_name} in club {club.name}")
+          # Update team properties if needed (e.g., passNo, active status)
+          existing_team.passNo = row.get('passNo', '')
+          existing_team.active = True
+          existing_team.source = SourceEnum.BISHL
+          existing_team.modifyDate = modify_date
+        else:
+          # Team doesn't exist in this club, add new team to existing club's teams
+          existing_club.teams.append(new_team_assignemnt)
       else:
         # Club doesn't exist, append new club assignment
         assigned_clubs.append(new_club_assignment)
@@ -211,32 +204,25 @@ try:
         print(f"Updating player ... {first_name} {last_name} (ID: {player.id})")
         assignments_data = [x.dict() for x in assigned_clubs]
         pprint(assignments_data, indent=4)
-        
-        # Ensure we have the proper ObjectId format for MongoDB operations
-        from bson import ObjectId
-        
-        # Convert ID to ObjectId if it's a string (ensure consistency)
-        player_id = player.id
-        if isinstance(player_id, str):
-            player_id = ObjectId(player_id)
-        
+
         # Perform the update with the correct ID format
         update_result = db.players.update_one(
-            {"_id": player_id},
+            {"_id": player_id_str},
             {"$set": {
                 "assignedTeams": assignments_data
             }})
         
         # Check update operation result
         if update_result.matched_count == 0:
-          print(f"ERROR: No player matched with ID {player_id}")
+          print(f"ERROR: No player matched with ID {player_id_str}")
           exit(1)
         
         if update_result.modified_count == 0:
-          print(f"WARNING: Player found but no modifications made. Data might be identical.")
+          print(f"⚠️ WARNING: Player found but no modifications made. Data might be identical.")
+          continue
         
         # Verify the update by fetching the player again with the same ID format
-        updated_player = db.players.find_one({"_id": player_id})
+        updated_player = db.players.find_one({"_id": player_id_str})
         if updated_player:
           actual_teams_count = len(updated_player.get("assignedTeams", []))
           expected_teams_count = len(assignments_data)
