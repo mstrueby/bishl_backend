@@ -385,10 +385,6 @@ async def update_match(request: Request,
   home_stats_data = match.home.stats if (match.home and match.home.stats and match.home.stats != {}) else existing_match.get('home', {}).get('stats', {})
   away_stats_data = match.away.stats if (match.away and match.away.stats and match.away.stats != {}) else existing_match.get('away', {}).get('stats', {})
                             
-  print("XXX match.away", match.away)
-  print("XXX existing_match.away", existing_match.get('away', {}))
-  print("XXX existing_match.away.stats", existing_match.get('away', {}).get('stats', None))
-  print("XXX away_stats_data: ", away_stats_data)
   home_stats = home_stats_data if isinstance(
       home_stats_data, MatchStats) else MatchStats(**(home_stats_data or {}))
   away_stats = away_stats_data if isinstance(
@@ -403,10 +399,8 @@ async def update_match(request: Request,
   print("type of home_stats: ", type(home_stats))
   """
 
-  print("XXX away_stats: ", away_stats)
   home_goals = home_stats.goalsFor if (home_stats and home_stats.goalsFor is not None) else existing_match['home']['stats']['goalsFor']
   away_goals = away_stats.goalsFor if (away_stats and away_stats.goalsFor is not None) else existing_match['away']['stats']['goalsFor']
-  print("XXX away_goals: ", away_goals)
   
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(match_status, finish_type, await
