@@ -382,11 +382,9 @@ async def update_match(request: Request,
   finish_type = getattr(match.finishType, 'key',
                         existing_match.get('finishType', {}).get('key', None))
 
-  home_stats_data = getattr(match.home, 'stats',
-                            existing_match.get('home', {}).get('stats', None))
-  away_stats_data = getattr(match.away, 'stats',
-                            existing_match.get('away', {}).get('stats', None))
-
+  home_stats_data = match.home.stats if (match.home and match.home.stats and match.home.stats != {}) else existing_match.get('home', {}).get('stats', {})
+  away_stats_data = match.away.stats if (match.away and match.away.stats and match.away.stats != {}) else existing_match.get('away', {}).get('stats', {})
+                            
   home_stats = home_stats_data if isinstance(
       home_stats_data, MatchStats) else MatchStats(**(home_stats_data or {}))
   away_stats = away_stats_data if isinstance(
@@ -401,9 +399,9 @@ async def update_match(request: Request,
   print("type of home_stats: ", type(home_stats))
   """
 
-  home_goals = home_stats.goalsFor if home_stats else 0
-  away_goals = away_stats.goalsFor if away_stats else 0
-
+  home_goals = home_stats.goalsFor if (home_stats and home_stats.goalsFor is not None) else existing_match['home']['stats']['goalsFor']
+  away_goals = away_stats.goalsFor if (away_stats and away_stats.goalsFor is not None) else existing_match['away']['stats']['goalsFor']
+  
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(match_status, finish_type, await
                              fetch_standings_settings(t_alias, s_alias),

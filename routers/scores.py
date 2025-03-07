@@ -251,8 +251,8 @@ async def patch_one_score(
         ..., description="The score to be added to the scoresheet"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
-  if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+  #if "ADMIN" not in token_payload.roles:
+  #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
   # Data validation and conversion
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -349,8 +349,8 @@ async def delete_one_score(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+  #if "ADMIN" not in token_payload.roles:
+  #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")

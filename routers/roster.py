@@ -15,13 +15,14 @@ BASE_URL = os.environ['BE_API_URL']
 
 
 # get roster of a team
-@router.get("/", response_description="Get roster of a team",
-           response_model=List[RosterPlayer])
+@router.get("/",
+            response_description="Get roster of a team",
+            response_model=List[RosterPlayer])
 async def get_roster(
-  request: Request,
-  match_id: str = Path(..., description="The match id of the roster"),
-  team_flag: str = Path(...,
-                        description="The team flag (home/away) of the roster")
+    request: Request,
+    match_id: str = Path(..., description="The match id of the roster"),
+    team_flag: str = Path(
+        ..., description="The team flag (home/away) of the roster")
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   team_flag = team_flag.lower()
@@ -43,19 +44,21 @@ async def get_roster(
 
 
 # update roster of a team
-@router.put("/", response_description="Update roster of a team",
-           response_model=List[RosterPlayer])
+@router.put("/",
+            response_description="Update roster of a team",
+            response_model=List[RosterPlayer])
 async def update_roster(
-  request: Request,
-  match_id: str = Path(..., description="The match id of the roster"),
-  team_flag: str = Path(...,
-                        description="The team flag (home/away) of the roster"),
-  roster: List[RosterPlayer] = Body(...,
-                                    description="The roster to be updated"),
-  token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    request: Request,
+    match_id: str = Path(..., description="The match id of the roster"),
+    team_flag: str = Path(
+        ..., description="The team flag (home/away) of the roster"),
+    roster: List[RosterPlayer] = Body(...,
+                                      description="The roster to be updated"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  if not any(role in token_payload.roles for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
+  if not any(role in token_payload.roles
+             for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
   #print("new roster: ", roster)
   team_flag = team_flag.lower()
@@ -69,46 +72,50 @@ async def update_roster(
   # check if any player from the new roster exists in scores or penalties array of the match
   scores = match.get(team_flag, {}).get("scores") or []
   penalties = match.get(team_flag, {}).get("penalties") or []
-  existing_player_ids = {player['player']['playerId'] for player in (match.get(team_flag, {}).get('roster') or [])}
+  existing_player_ids = {
+      player['player']['playerId']
+      for player in (match.get(team_flag, {}).get('roster') or [])
+  }
   new_player_ids = {player.player.playerId for player in roster}
   added_player_ids = list(new_player_ids - existing_player_ids)
   removed_player_ids = list(existing_player_ids - new_player_ids)
   all_effected_player_ids = added_player_ids + removed_player_ids
 
   for score in scores:
-    if score['goalPlayer']['playerId'] not in new_player_ids or score[
-        'assistPlayer']['playerId'] not in new_player_ids:
+    if score['goalPlayer']['playerId'] not in new_player_ids or \
+       (score['assistPlayer'] and score['assistPlayer']['playerId'] not in new_player_ids):
       raise HTTPException(
-        status_code=400,
-        detail=
-        "Roster can not be updated. All players in scores must be in roster")
+          status_code=400,
+          detail=
+          "Roster can not be updated. All players in scores must be in roster")
 
   for penalty in penalties:
     if penalty['penaltyPlayer']['playerId'] not in new_player_ids:
       raise HTTPException(
-        status_code=400,
-        detail=
-        "Roster can not be updated. All players in penalties must be in roster"
+          status_code=400,
+          detail=
+          "Roster can not be updated. All players in penalties must be in roster"
       )
-  
+
   # do update
   try:
     roster_data = jsonable_encoder(roster)
     await mongodb["matches"].update_one(
-      {"_id": match_id}, {"$set": {
-        f"{team_flag}.roster": roster_data
-      }})
+        {"_id": match_id}, {"$set": {
+            f"{team_flag}.roster": roster_data
+        }})
     # print("calc_roster_stats...") - muss nicht
     # await calc_roster_stats(mongodb, match_id, team_flag)
     # print("calc_player_card_stats...")
     # do this only if match_status is INPROESS or FINISHED
     if match.get("matchStatus").get("key") in ["INPROGRESS", "FINISHED"]:
-      await calc_player_card_stats(mongodb,
-                                   player_ids = all_effected_player_ids,
-                                   t_alias=match.get("tournament").get("alias"),
-                                   s_alias=match.get("season").get("alias"),
-                                   r_alias=match.get("round").get("alias"),
-                                   md_alias=match.get("matchday").get("alias"))
+      await calc_player_card_stats(
+          mongodb,
+          player_ids=all_effected_player_ids,
+          t_alias=match.get("tournament").get("alias"),
+          s_alias=match.get("season").get("alias"),
+          r_alias=match.get("round").get("alias"),
+          md_alias=match.get("matchday").get("alias"))
     #async with httpx.AsyncClient() as client:
     #  return await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
     return await get_roster(request, match_id, team_flag)
