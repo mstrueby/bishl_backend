@@ -1118,7 +1118,7 @@ async def get_players_for_club(
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
-               for role in ["ADMIN", "CLUB_ADMIN"]):
+               for role in ["ADMIN", "CLUB_ADMIN", "LEAGUE_ADMIN"]):
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
     # get club
     club = await mongodb["clubs"].find_one({"alias": club_alias})
@@ -1149,7 +1149,7 @@ async def get_players_for_team(
     mongodb = request.app.state.mongodb
     print(token_payload.roles)
     if not any(role in token_payload.roles
-               for role in ["ADMIN", "CLUB_ADMIN"]):
+               for role in ["ADMIN", "CLUB_ADMIN", "LEAGUE_ADMIN"]):
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
     # get club
     club = await mongodb["clubs"].find_one({"alias": club_alias})
