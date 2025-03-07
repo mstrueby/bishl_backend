@@ -82,7 +82,6 @@ async def update_roster(
   all_effected_player_ids = added_player_ids + removed_player_ids
 
   for score in scores:
-    print("SCORE", score)
     if score['goalPlayer']['playerId'] not in new_player_ids or \
        (score['assistPlayer'] and score['assistPlayer']['playerId'] not in new_player_ids):
       raise HTTPException(
