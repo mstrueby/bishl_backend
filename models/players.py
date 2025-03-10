@@ -28,27 +28,6 @@ class MongoBaseModel(BaseModel):
 
   class Config:
     json_encoders = {ObjectId: str}
-    
-    @staticmethod
-    def schema_extra(schema, model):
-        """Add properties to the schema documentation"""
-        for prop_name in dir(model):
-            if isinstance(getattr(model, prop_name, None), property):
-                schema.setdefault('properties', {})[prop_name] = {'type': 'string'}
-
-    def dict(self, *args, **kwargs):
-        """Include all property values in serialized dict"""
-        self_dict = super().dict(*args, **kwargs)
-        
-        # Get all properties from the class
-        for prop_name in dir(self.__class__):
-            if isinstance(getattr(self.__class__, prop_name, None), property):
-                try:
-                    self_dict[prop_name] = getattr(self, prop_name)
-                except Exception:
-                    self_dict[prop_name] = None
-                
-        return self_dict
 
 
 class PositionEnum(str, Enum):
@@ -166,21 +145,6 @@ class PlayerDB(PlayerBase):
       # it should be sex, but it is not included in the data
       # return "MEN" if self.position == PositionEnum.SKATER else "WOMEN"
       return "ADULT"
-      
-  class Config:
-    json_encoders = {ObjectId: str}
-    
-    @staticmethod
-    def schema_extra(schema: dict, model: type):
-      # Add property to the JSON schema
-      props = schema.setdefault("properties", {})
-      props["ageGroup"] = {"type": "string"}
-    
-    def dict(self, *args, **kwargs):
-      # Include property when converting to dict
-      result = super().dict(*args, **kwargs)
-      result["ageGroup"] = self.ageGroup
-      return result
 
 class PlayerUpdate(MongoBaseModel):
   firstName: Optional[str] = None
