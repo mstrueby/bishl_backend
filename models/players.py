@@ -28,6 +28,27 @@ class MongoBaseModel(BaseModel):
 
   class Config:
     json_encoders = {ObjectId: str}
+    
+    def schema_extra(schema, model):
+        for prop_name, prop in model.__dict__.get('__annotations__', {}).items():
+            if isinstance(getattr(model, prop_name, None), property):
+                schema.setdefault('properties', {})[prop_name] = {'type': 'string'}
+
+    @classmethod
+    def get_properties(cls):
+        return [prop for prop in dir(cls) if isinstance(getattr(cls, prop), property)]
+        
+    def dict(self, *args, **kwargs):
+        self_dict = super().dict(*args, **kwargs)
+        
+        # Include all property values
+        for prop in self.__class__.get_properties():
+            try:
+                self_dict[prop] = getattr(self, prop)
+            except Exception:
+                self_dict[prop] = None
+                
+        return self_dict
 
 
 class PositionEnum(str, Enum):
@@ -149,6 +170,23 @@ class PlayerDB(PlayerBase):
       # it should be sex, but it is not included in the data
       # return "MEN" if self.position == PositionEnum.SKATER else "WOMEN"
       return "ADULT"
+      
+  class Config:
+    json_encoders = {ObjectId: str}
+    
+    @staticmethod
+    def schema_extra(schema: dict, model: type):
+      # Add properties to the JSON schema
+      props = schema.setdefault("properties", {})
+      props["ageGroup"] = {"type": "string"}
+      props["something"] = {"type": "string"}
+      
+    def dict(self, *args, **kwargs):
+      # Include properties when converting to dict
+      result = super().dict(*args, **kwargs)
+      result["ageGroup"] = self.ageGroup
+      result["something"] = self.something
+      return result
 
 class PlayerUpdate(MongoBaseModel):
   firstName: Optional[str] = None
