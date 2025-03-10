@@ -28,6 +28,9 @@ class MongoBaseModel(BaseModel):
 
   class Config:
     json_encoders = {ObjectId: str}
+    
+    def dict(self, *args, **kwargs):
+      return super().dict(*args, **kwargs)
 
 
 class PositionEnum(str, Enum):
@@ -141,10 +144,22 @@ class PlayerDB(PlayerBase):
     elif birth_year >= current_year - 18:  # 2007-2009 for current year 2025
       return "U19"
     else:  # 2006 and older for current year 2025
-      # For adults, we could distinguish between MEN and WOMEN based on another field if needed
-      # it should be sex, but it is not included in the data
-      # return "MEN" if self.position == PositionEnum.SKATER else "WOMEN"
       return "ADULT"
+      
+  class Config:
+    json_encoders = {ObjectId: str}
+    
+    @staticmethod
+    def schema_extra(schema, model):
+      """Add properties to the schema documentation"""
+      props = schema.setdefault("properties", {})
+      props["ageGroup"] = {"type": "string"}
+    
+    def dict(self, *args, **kwargs):
+      """Include properties when converting to dict"""
+      result = super().dict(*args, **kwargs)
+      result["ageGroup"] = self.ageGroup
+      return result
 
 class PlayerUpdate(MongoBaseModel):
   firstName: Optional[str] = None
