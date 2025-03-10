@@ -125,7 +125,7 @@ class PlayerDB(PlayerBase):
   def ageGroup(self) -> str:
     """Calculate age group based on birth year dynamically"""
     if not self.birthdate:
-      return "unknown"
+      return "UNKNOWN"
 
     current_year = datetime.now().year
     birth_year = self.birthdate.year
