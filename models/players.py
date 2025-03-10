@@ -121,10 +121,6 @@ class PlayerBase(MongoBaseModel):
 class PlayerDB(PlayerBase):
   createDate: Optional[datetime] = None
   @property
-  def something(self) -> str:
-    return 'something'
-    
-  @property
   def ageGroup(self) -> str:
     """Calculate age group based on birth year dynamically"""
     if not self.birthdate:
