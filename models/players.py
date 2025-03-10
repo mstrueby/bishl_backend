@@ -120,6 +120,30 @@ class PlayerBase(MongoBaseModel):
 
 class PlayerDB(PlayerBase):
   createDate: Optional[datetime] = None
+  
+  @property
+  def ageGroup(self) -> str:
+    """Calculate age group based on birth year dynamically"""
+    if not self.birthdate:
+      return None
+      
+    current_year = 2025  # Current year
+    birth_year = self.birthdate.year
+    
+    # Age group classification based on birth year for 2025
+    if birth_year >= 2020:  # 2020+ for year 2025
+      return "U8"
+    elif birth_year >= 2018 and birth_year <= 2019:  # 2018-2019 for year 2025
+      return "U10"
+    elif birth_year >= 2015 and birth_year <= 2017:  # 2015-2017 for year 2025
+      return "U13"
+    elif birth_year >= 2012 and birth_year <= 2014:  # 2012-2014 for year 2025
+      return "U16"
+    elif birth_year >= 2009 and birth_year <= 2011:  # 2009-2011 for year 2025
+      return "U19"
+    else:  # 2008 and older for year 2025
+      # For adults, determine gender based on position
+      return "MEN" if self.position == PositionEnum.SKATER else "WOMEN"
 
 
 class PlayerUpdate(MongoBaseModel):
