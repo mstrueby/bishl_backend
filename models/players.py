@@ -29,24 +29,24 @@ class MongoBaseModel(BaseModel):
   class Config:
     json_encoders = {ObjectId: str}
     
+    @staticmethod
     def schema_extra(schema, model):
-        for prop_name, prop in model.__dict__.get('__annotations__', {}).items():
+        """Add properties to the schema documentation"""
+        for prop_name in dir(model):
             if isinstance(getattr(model, prop_name, None), property):
                 schema.setdefault('properties', {})[prop_name] = {'type': 'string'}
 
-    @classmethod
-    def get_properties(cls):
-        return [prop for prop in dir(cls) if isinstance(getattr(cls, prop), property)]
-        
     def dict(self, *args, **kwargs):
+        """Include all property values in serialized dict"""
         self_dict = super().dict(*args, **kwargs)
         
-        # Include all property values
-        for prop in self.__class__.get_properties():
-            try:
-                self_dict[prop] = getattr(self, prop)
-            except Exception:
-                self_dict[prop] = None
+        # Get all properties from the class
+        for prop_name in dir(self.__class__):
+            if isinstance(getattr(self.__class__, prop_name, None), property):
+                try:
+                    self_dict[prop_name] = getattr(self, prop_name)
+                except Exception:
+                    self_dict[prop_name] = None
                 
         return self_dict
 
@@ -142,10 +142,6 @@ class PlayerBase(MongoBaseModel):
 class PlayerDB(PlayerBase):
   createDate: Optional[datetime] = None
   @property
-  def something(self) -> str:
-    return 'something'
-    
-  @property
   def ageGroup(self) -> str:
     """Calculate age group based on birth year dynamically"""
     if not self.birthdate:
@@ -176,16 +172,14 @@ class PlayerDB(PlayerBase):
     
     @staticmethod
     def schema_extra(schema: dict, model: type):
-      # Add properties to the JSON schema
+      # Add property to the JSON schema
       props = schema.setdefault("properties", {})
       props["ageGroup"] = {"type": "string"}
-      props["something"] = {"type": "string"}
-      
+    
     def dict(self, *args, **kwargs):
-      # Include properties when converting to dict
+      # Include property when converting to dict
       result = super().dict(*args, **kwargs)
       result["ageGroup"] = self.ageGroup
-      result["something"] = self.something
       return result
 
 class PlayerUpdate(MongoBaseModel):
