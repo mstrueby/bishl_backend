@@ -331,8 +331,6 @@ async def process_ishd_data(
             IshdTeams(club['_id'], club['ishdId'], club['name'], club['alias'],
                       club['teams']))
 
-    print("ishd teams" + str(ishd_teams))
-
     # get exisiting players
     existing_players = []
     async for player in mongodb['players'].find({}, {
