@@ -476,6 +476,21 @@ async def process_ishd_data(
                             print(log_line)
                             log_lines.append(log_line)
                             continue
+                            
+                        # Check if player exists and has managedByISHD=false
+                        existing_player_check = None
+                        for existing_player in existing_players:
+                            if (existing_player['firstName'] == player['first_name'] and 
+                                existing_player['lastName'] == player['last_name'] and 
+                                datetime.strftime(existing_player['birthdate'], '%Y-%m-%d') == player['date_of_birth']):
+                                existing_player_check = existing_player
+                                break
+                                
+                        if existing_player_check and existing_player_check.get('managedByISHD') is False:
+                            log_line = f"Skipping player (managedByISHD=false): {player['first_name']} {player['last_name']} {player['date_of_birth']}"
+                            print(log_line)
+                            log_lines.append(log_line)
+                            continue
                         ishd_log_player = IshdLogPlayer(
                             firstName=player['first_name'],
                             lastName=player['last_name'],
@@ -699,6 +714,13 @@ async def process_ishd_data(
                                             team_source_is_ishd = True
                                             break
 
+                            # Skip players with managedByISHD=false
+                            if player.get('managedByISHD') is False:
+                                log_line = f"Skipping player (managedByISHD=false): {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')}"
+                                print(log_line)
+                                log_lines.append(log_line)
+                                continue
+                                
                             if team_source_is_ishd and not any(
                                     p['first_name'] == player['firstName']
                                     and p['last_name'] == player['lastName']
