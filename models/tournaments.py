@@ -92,6 +92,11 @@ class MatchdayType(Enum):
   PLAYOFFS = {"key": "PLAYOFFS", "value": "Playoffs"}
   REGULAR = {"key": "REGULAR", "value": "Regulär"}
 
+class MatchdayOwner(BaseModel):
+  clubId: str = Field(...)
+  clubName: str = Field(...)
+  clubAlias: str = Field(...)
+
 class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
@@ -103,6 +108,7 @@ class MatchdayBase(MongoBaseModel):
   matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
   published: bool = False
   standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
+  owner: Optional[MatchdayOwner] = Field(default_factory=dict)
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
@@ -127,6 +133,7 @@ class MatchdayUpdate(MongoBaseModel):
   matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
   published: Optional[bool] = False
   standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
+  owner: Optional[MatchdayOwner] = Field(default_factory=dict)
 
   @validator('startDate', 'endDate', pre=True, always=True)
   def validate_strings(cls, v, field):
