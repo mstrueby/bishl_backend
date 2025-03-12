@@ -76,13 +76,13 @@ async def get_paginated_players(mongodb,
         "displayFirstName": "displayFirstName",
         "displayLastName": "displayLastName"
     }.get(sortby, "firstName")
-    
+
     # Configure German collation for proper sorting of umlauts
     collation = {
         'locale': 'de',
         'strength': 1  # Base characters and diacritics are considered primary differences
     }
-    
+
     if club_alias or team_alias or q or active is not None:
         query = {"$and": []}
         if club_alias:
@@ -686,8 +686,16 @@ async def process_ishd_data(
                             )
                             if mode == "test":
                                 print("remove player ?", player)
-                            # remove player from team
-                            if not any(
+                            # remove player from team only if source is ISHD
+                            team_source_is_ishd = False
+                            for club_assignment in player.get('assignedTeams', []):
+                                if club_assignment.get('clubAlias') == club.club_alias:
+                                    for team_assignment in club_assignment.get('teams', []):
+                                        if team_assignment.get('teamAlias') == team['alias'] and team_assignment.get('source') == 'ISHD':
+                                            team_source_is_ishd = True
+                                            break
+
+                            if team_source_is_ishd and not any(
                                     p['first_name'] == player['firstName']
                                     and p['last_name'] == player['lastName']
                                     and p['date_of_birth'] == datetime.
@@ -837,7 +845,7 @@ async def process_ishd_data(
             include_in_schema=False)
 async def verify_ishd_data(
     request: Request,
-    mode: Optional[str] = None,
+    mode: Optional[str] =None,
     #token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
