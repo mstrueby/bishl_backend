@@ -400,6 +400,12 @@ async def process_ishd_data(
         )
 
         for club in ishd_teams:
+            # Skip clubs with no ISHD ID
+            if club.club_ishd_id is None:
+                log_line = f"Skipping club {club.club_name} (no ISHD ID)"
+                print(log_line)
+                log_lines.append(log_line)
+                continue
 
             log_line = f"Processing club {club.club_name} (IshdId: {club.club_ishd_id})"
             print(log_line)
