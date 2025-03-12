@@ -227,7 +227,8 @@ try:
         # Perform the update with the correct ID format
         update_result = db.players.update_one(
             {"_id": player_id}, {"$set": {
-                "assignedTeams": assignments_data
+                "assignedTeams": assignments_data,
+                "managedByISHD": False
             }})
 
         # Check update operation result
