@@ -28,6 +28,9 @@ class MongoBaseModel(BaseModel):
 
   class Config:
     json_encoders = {ObjectId: str}
+    
+    def dict(self, *args, **kwargs):
+      return super().dict(*args, **kwargs)
 
 
 class PositionEnum(str, Enum):
@@ -117,34 +120,45 @@ class PlayerBase(MongoBaseModel):
     return empty_str_to_none(v, field.name)
 """
 
-
 class PlayerDB(PlayerBase):
   createDate: Optional[datetime] = None
+
   @property
   def ageGroup(self) -> str:
-    """Calculate age group based on birth year dynamically"""
-    if not self.birthdate:
-      return "UNKNOWN"
+      """Calculate age group based on birth year dynamically"""
+      if not self.birthdate:
+          return "UNKNOWN"
 
-    current_year = datetime.now().year
-    birth_year = self.birthdate.year
-    
-    # Age group classification based on birth year
-    if birth_year >= current_year - 7:  # 2018+ for current year 2025
-      return "U8"
-    elif birth_year >= current_year - 9:  # 2016-2017 for current year 2025
-      return "U10"
-    elif birth_year >= current_year - 12:  # 2013-2015 for current year 2025
-      return "U13"
-    elif birth_year >= current_year - 15:  # 2010-2012 for current year 2025
-      return "U16"
-    elif birth_year >= current_year - 18:  # 2007-2009 for current year 2025
-      return "U19"
-    else:  # 2006 and older for current year 2025
-      # For adults, we could distinguish between MEN and WOMEN based on another field if needed
-      # it should be sex, but it is not included in the data
-      # return "MEN" if self.position == PositionEnum.SKATER else "WOMEN"
-      return "ADULT"
+      current_year = datetime.now().year
+      birth_year = self.birthdate.year
+
+      # Age group classification based on birth year
+      if birth_year >= current_year - 7:  # 2018+ for current year
+          return "U8"
+      elif birth_year >= current_year - 9:  # 2016-2017 for current year
+          return "U10"
+      elif birth_year >= current_year - 12:  # 2013-2015 for current year
+          return "U13"
+      elif birth_year >= current_year - 15:  # 2010-2012 for current year
+          return "U16"
+      elif birth_year >= current_year - 18:  # 2007-2009 for current year
+          return "U19"
+      else:  # 2006 and older for current year
+          return "ADULT"
+
+  class Config(MongoBaseModel.Config):
+      @staticmethod
+      def schema_extra(schema, model):
+          """Add properties to the schema documentation"""
+          props = schema.setdefault("properties", {})
+          props["ageGroup"] = {"type": "string"}
+
+  def dict(self, *args, **kwargs):  # <- Moved this method out of the Config subclass
+      """Include properties when converting to dict"""
+      result = super().dict(*args, **kwargs)
+      result["ageGroup"] = self.ageGroup  # Now this access is correct
+      return result
+
 
 class PlayerUpdate(MongoBaseModel):
   firstName: Optional[str] = None
