@@ -110,6 +110,7 @@ class PlayerBase(MongoBaseModel):
   imageUrl: Optional[HttpUrl] = None
   imageVisible: bool = False
   legacyId: Optional[int] = None
+  managedByISHD: bool = True
   """
   @validator('firstName', 'lastName', 'position', pre=True, always=True)
   def validate_null_strings(cls, v, field):
@@ -174,6 +175,7 @@ class PlayerUpdate(MongoBaseModel):
   stats: Optional[List[PlayerStats]] = None
   imageUrl: Optional[HttpUrl] = None
   imageVisible: Optional[bool] = None
+  managedByISHD: Optional[bool] = None
   """
   @validator('firstName', 'lastName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
