@@ -486,7 +486,7 @@ async def process_ishd_data(
                                 existing_player_check = existing_player
                                 break
                                 
-                        if existing_player_check and existing_player_check.get('managedByISHD') is False:
+                        if existing_player_check and existing_player_check.get('managedByISHD', True) is False:
                             log_line = f"Skipping player (managedByISHD=false): {player['first_name']} {player['last_name']} {player['date_of_birth']}"
                             print(log_line)
                             log_lines.append(log_line)
@@ -715,7 +715,7 @@ async def process_ishd_data(
                                             break
 
                             # Skip players with managedByISHD=false
-                            if player.get('managedByISHD') is False:
+                            if player.get('managedByISHD', True) is False:
                                 log_line = f"Skipping player (managedByISHD=false): {player.get('firstName')} {player.get('lastName')} {datetime.strftime(player.get('birthdate'), '%Y-%m-%d')}"
                                 print(log_line)
                                 log_lines.append(log_line)
