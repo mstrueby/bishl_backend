@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 import os
 import csv
@@ -11,6 +10,9 @@ from bson.objectid import ObjectId
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Update matchday owners in tournaments collection.')
 parser.add_argument('--prod', action='store_true', help='Update production database.')
+parser.add_argument('--importAll',
+    action='store_true',
+    help='Import all teams.')
 args = parser.parse_args()
 
 # Get environment variables and setup MongoDB connection
@@ -31,7 +33,6 @@ with open('data/data_matchday_owners.csv', encoding='utf-8') as f:
     reader = csv.DictReader(f, delimiter=';', quotechar='"')
     for row in reader:
         matchday_owners[row['alias']] = {
-            'name': row['name'],
             'clubName': row['clubName'],
             'clubAlias': row['clubAlias'],
             'clubId': row['clubId']
@@ -86,5 +87,8 @@ for tournament in tournaments:
                             print(f"      ⚠️ No changes made for matchday: {matchday.get('name', 'unknown')} ({matchday_alias})")
                     else:
                         print(f"      ℹ️ No owner data for matchday: {matchday.get('name', 'unknown')} ({matchday_alias})")
-
+        if not args.importAll:
+            print("--importAll flag not set, exiting.")
+            exit()
+            
 print(f"\nSummary: Updated {updated_count} of {total_matchdays} matchdays")
