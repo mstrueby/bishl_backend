@@ -47,7 +47,7 @@ class AssignedTeams(BaseModel):
   teamId: str = Field(...)
   teamName: str = Field(...)
   teamAlias: str = Field(...)
-  teamIshdId: str = Field(...)
+  teamIshdId: Optional[str] = None
   passNo: str = Field(...)
   source: SourceEnum = Field(default=SourceEnum.BISHL)
   modifyDate: Optional[datetime] = None
