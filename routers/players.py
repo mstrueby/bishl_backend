@@ -1272,6 +1272,7 @@ async def create_player(
     position: PositionEnum = Form(default=PositionEnum.SKATER),
     assignedTeams: str = Form(None),  # JSON string
     fullFaceReq: bool = Form(False),
+    managedByISHD: bool = Form(False),
     source: SourceEnum = Form(default=SourceEnum.BISHL),
     legacyId: int = Form(None),
     image: UploadFile = File(None),
@@ -1313,6 +1314,7 @@ async def create_player(
                         position=position,
                         assignedTeams=assigned_teams_dict,
                         fullFaceReq=fullFaceReq,
+                        managedByISHD=managedByISHD,
                         source=SourceEnum[source],
                         imageVisible=imageVisible,
                         legacyId=legacyId)
@@ -1357,6 +1359,7 @@ async def update_player(request: Request,
                         assignedTeams: Optional[str] = Form(None),
                         stats: Optional[str] = Form(None),
                         fullFaceReq: Optional[bool] = Form(None),
+                        managedByISHD: Optional[bool] = Form(None),
                         source: Optional[SourceEnum] = Form(None),
                         image: Optional[UploadFile] = File(None),
                         imageUrl: Optional[HttpUrl] = Form(None),
@@ -1405,6 +1408,7 @@ async def update_player(request: Request,
                                assignedTeams=assigned_teams_dict,
                                stats=json.loads(stats) if stats else None,
                                fullFaceReq=fullFaceReq,
+                               managedByISHD=managedByISHD,
                                imageVisible=imageVisible,
                                source=source).dict(exclude_none=True)
 
