@@ -25,7 +25,8 @@ db = client[DB_NAME]
 
 def get_gender_from_api(name):
     try:
-        response = requests.get(f"https://api.genderize.io/?name={name}")
+        api_key = os.environ.get('GENDERIZE_API_KEY')
+        response = requests.get(f"https://api.genderize.io/?name={name}&apikey={api_key}")
         data = response.json()
         if data['probability'] > 0.8:  # Only use predictions with high confidence
             return SexEnum.WOMAN if data['gender'] == 'female' else SexEnum.MAN
