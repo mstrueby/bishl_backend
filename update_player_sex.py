@@ -22,6 +22,7 @@ else:
 print(f"Connecting to database: {DB_NAME}")
 client = MongoClient(DB_URL, tlsCAFile=certifi.where())
 db = client[DB_NAME]
+print("connected")
 
 def get_gender_from_api(name):
     try:
@@ -29,10 +30,10 @@ def get_gender_from_api(name):
         response = requests.get(f"https://api.genderize.io/?name={name}&apikey={api_key}")
         data = response.json()
         if data['probability'] > 0.8:  # Only use predictions with high confidence
-            return SexEnum.WOMAN if data['gender'] == 'female' else SexEnum.MAN
-        return SexEnum.MAN  # Default to MAN if unsure
+            return SexEnum.FEMALE if data['gender'] == 'female' else SexEnum.MALE
+        return SexEnum.MALE  # Default to MAN if unsure
     except:
-        return SexEnum.MAN  # Default to MAN on API failure
+        return SexEnum.MALE  # Default to MAN on API failure
 
 # Process all players
 players = db['players'].find({})
@@ -45,7 +46,7 @@ for player in players:
     
     if first_name:
         predicted_sex = get_gender_from_api(first_name)
-        current_sex = player.get('sex', SexEnum.MAN)
+        current_sex = player.get('sex', SexEnum.MALE)
         
         if current_sex != predicted_sex:
             update_result = db['players'].update_one(
@@ -57,6 +58,8 @@ for player in players:
                 updated_players += 1
                 print(f"  ✅ Updated player: {player.get('firstName', 'Unknown')} {player.get('lastName', 'Unknown')} - {current_sex} -> {predicted_sex}")
             else:
-                print(f"  ⚠️ No changes needed for player: {player.get('firstName', 'Unknown')} {player.get('lastName', 'Unknown')} - {current_sex}")
+                print(f"  ❌ Change not successfull for player: {player.get('firstName', 'Unknown')} {player.get('lastName', 'Unknown')} - {current_sex}")
+        #else:
+        #    print(f"  ⚠️ No changes needed for player: {player.get('firstName', 'Unknown')} {player.get('lastName', 'Unknown')} - {current_sex}")
 
 print(f"\nSummary: Updated {updated_players} of {total_players} players")

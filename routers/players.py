@@ -9,7 +9,7 @@ from fastapi import UploadFile
 from pydantic import HttpUrl, BaseModel
 from pydantic.types import OptionalInt
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
-from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
+from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, SexEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime, timezone
 import os
@@ -1274,6 +1274,7 @@ async def create_player(
     fullFaceReq: bool = Form(False),
     managedByISHD: bool = Form(False),
     source: SourceEnum = Form(default=SourceEnum.BISHL),
+    sex: SexEnum = Form(default=SexEnum.MALE),
     legacyId: int = Form(None),
     image: UploadFile = File(None),
     imageVisible: bool = Form(False),
@@ -1316,6 +1317,7 @@ async def create_player(
                         fullFaceReq=fullFaceReq,
                         managedByISHD=managedByISHD,
                         source=SourceEnum[source],
+                        sex=SexEnum[sex],
                         imageVisible=imageVisible,
                         legacyId=legacyId)
     player = my_jsonable_encoder(player)
@@ -1361,6 +1363,7 @@ async def update_player(request: Request,
                         fullFaceReq: Optional[bool] = Form(None),
                         managedByISHD: Optional[bool] = Form(None),
                         source: Optional[SourceEnum] = Form(None),
+                        sex: Optional[SexEnum] = Form(None),
                         image: Optional[UploadFile] = File(None),
                         imageUrl: Optional[HttpUrl] = Form(None),
                         imageVisible: Optional[bool] = Form(None),
@@ -1410,7 +1413,8 @@ async def update_player(request: Request,
                                fullFaceReq=fullFaceReq,
                                managedByISHD=managedByISHD,
                                imageVisible=imageVisible,
-                               source=source).dict(exclude_none=True)
+                               source=source,
+                               sex=sex).dict(exclude_none=True)
 
     player_data.pop('id', None)
     if image:
