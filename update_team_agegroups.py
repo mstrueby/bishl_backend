@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 import os
 import certifi
@@ -24,13 +23,13 @@ db = client[DB_NAME]
 
 # Define age group mapping
 age_group_mapping = {
-    'Herren': 'MEN',
-    'Damen': 'WOMEN',
-    'U19': 'U19',
-    'U16': 'U16',
-    'U13': 'U13',
-    'U10': 'U10',
-    'U8': 'U8'
+    'MEN': 'HERREN',
+    'WOMEN': 'DAMEN',
+    'Junioren': 'U19',
+    'Jugend': 'U16',
+    'Schüler': 'U13',
+    'Bambini': 'U10',
+    'Mini': 'U8'
 }
 
 # Update all clubs
@@ -55,6 +54,7 @@ for club in clubs:
                 {'$set': {f'teams.{team_idx}.ageGroup': new_age_group}}
             )
             
+            #if True:
             if update_result.modified_count > 0:
                 updated_teams += 1
                 print(f"  ✅ Updated team: {team.get('name', 'Unknown')} - {current_age_group} -> {new_age_group}")
