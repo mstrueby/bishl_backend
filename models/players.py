@@ -151,7 +151,7 @@ class PlayerDB(PlayerBase):
       elif birth_year >= current_year - 18:  # 2007-2009 for current year
           return "U19"
       else:  # 2006 and older for current year
-          return "ADULT"
+          return "HERREN" if self.sex == SexEnum.MAN else "DAMEN"
 
   class Config(MongoBaseModel.Config):
       @staticmethod
@@ -177,6 +177,7 @@ class PlayerUpdate(MongoBaseModel):
   position: Optional[PositionEnum] = None
   fullFaceReq: Optional[bool] = None
   source: Optional[SourceEnum] = None
+  sex: Optional[SexEnum] = None
   assignedTeams: Optional[List[AssignedClubs]] = None
   stats: Optional[List[PlayerStats]] = None
   imageUrl: Optional[HttpUrl] = None
