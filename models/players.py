@@ -43,6 +43,11 @@ class SourceEnum(str, Enum):
   BISHL = 'BISHL'
 
 
+class SexEnum(str, Enum):
+  MAN = 'MAN'
+  WOMAN = 'WOMAN'
+
+
 class AssignedTeams(BaseModel):
   teamId: str = Field(...)
   teamName: str = Field(...)
@@ -105,6 +110,7 @@ class PlayerBase(MongoBaseModel):
   position: PositionEnum = Field(default=PositionEnum.SKATER)
   fullFaceReq: bool = False
   source: SourceEnum = Field(default=SourceEnum.BISHL)
+  sex: SexEnum = Field(default=SexEnum.MAN)
   assignedTeams: Optional[List[AssignedClubs]] = Field(default_factory=list)
   stats: Optional[List[PlayerStats]] = Field(default_factory=list)
   imageUrl: Optional[HttpUrl] = None
