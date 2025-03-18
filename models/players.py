@@ -44,8 +44,8 @@ class SourceEnum(str, Enum):
 
 
 class SexEnum(str, Enum):
-  MAN = 'MAN'
-  WOMAN = 'WOMAN'
+  MALE = 'männlich'
+  FEMALE = 'weiblich'
 
 
 class AssignedTeams(BaseModel):
@@ -110,7 +110,7 @@ class PlayerBase(MongoBaseModel):
   position: PositionEnum = Field(default=PositionEnum.SKATER)
   fullFaceReq: bool = False
   source: SourceEnum = Field(default=SourceEnum.BISHL)
-  sex: SexEnum = Field(default=SexEnum.MAN)
+  sex: SexEnum = Field(default=SexEnum.MALE)
   assignedTeams: Optional[List[AssignedClubs]] = Field(default_factory=list)
   stats: Optional[List[PlayerStats]] = Field(default_factory=list)
   imageUrl: Optional[HttpUrl] = None
@@ -151,7 +151,7 @@ class PlayerDB(PlayerBase):
       elif birth_year >= current_year - 18:  # 2007-2009 for current year
           return "U19"
       else:  # 2006 and older for current year
-          return "HERREN" if self.sex == SexEnum.MAN else "DAMEN"
+          return "HERREN" if self.sex == SexEnum.MALE else "DAMEN"
 
   class Config(MongoBaseModel.Config):
       @staticmethod
