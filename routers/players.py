@@ -1317,7 +1317,7 @@ async def create_player(
                         fullFaceReq=fullFaceReq,
                         managedByISHD=managedByISHD,
                         source=SourceEnum[source],
-                        sex=SexEnum[sex],
+                        sex=sex if isinstance(sex, SexEnum) else SexEnum(sex),
                         imageVisible=imageVisible,
                         legacyId=legacyId)
     player = my_jsonable_encoder(player)
