@@ -132,38 +132,55 @@ class PlayerDB(PlayerBase):
 
   @property
   def ageGroup(self) -> str:
-      """Calculate age group based on birth year dynamically"""
-      if not self.birthdate:
+      """Determine age group dynamically based on birth year"""
+      if self.birthdate is None:
           return "UNKNOWN"
 
       current_year = datetime.now().year
       birth_year = self.birthdate.year
 
-      # Age group classification based on birth year
-      if birth_year >= current_year - 7:  # 2018+ for current year
+      # Determine age group classification using birth year and current year
+      if birth_year >= current_year - 7:  # for year 2025: 2018 and above
           return "U8"
-      elif birth_year >= current_year - 9:  # 2016-2017 for current year
+      elif birth_year >= current_year - 9:  # for year 2025: from 2016 to 2017
           return "U10"
-      elif birth_year >= current_year - 12:  # 2013-2015 for current year
+      elif birth_year >= current_year - 12:  # for year 2025: from 2013 to 2015
           return "U13"
-      elif birth_year >= current_year - 15:  # 2010-2012 for current year
+      elif birth_year >= current_year - 15:  # for year 2025: from 2010 to 2012
           return "U16"
-      elif birth_year >= current_year - 18:  # 2007-2009 for current year
+      elif birth_year >= current_year - 18:  # for year 2025: from 2007 to 2009
           return "U19"
-      else:  # 2006 and older for current year
+      else:
           return "HERREN" if self.sex == SexEnum.MALE else "DAMEN"
+
+  @property
+  def overAge(self) -> bool:
+    """Evaluate compliance with Bambini over age rule """
+    if not self.birthdate:
+        return False
+
+    current_year = datetime.now().year
+
+    if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 10:
+      return True
+    elif self.sex == SexEnum.MALE and self.birthdate > datetime(current_year - 10, 8, 31) and self.birthdate < datetime(current_year - 9, 1, 1):
+      return True
+    else:
+      return False
 
   class Config(MongoBaseModel.Config):
       @staticmethod
       def schema_extra(schema, model):
-          """Add properties to the schema documentation"""
+          """Enhance schema documentation by adding properties"""
           props = schema.setdefault("properties", {})
           props["ageGroup"] = {"type": "string"}
+          props["overAge"] = {"type": "boolean"}
 
-  def dict(self, *args, **kwargs):  # <- Moved this method out of the Config subclass
-      """Include properties when converting to dict"""
+  def dict(self, *args, **kwargs):
+      """Incorporate properties when converting to dictionary"""
       result = super().dict(*args, **kwargs)
-      result["ageGroup"] = self.ageGroup  # Now this access is correct
+      result["ageGroup"] = self.ageGroup
+      result["overAge"] = self.overAge
       return result
 
 
