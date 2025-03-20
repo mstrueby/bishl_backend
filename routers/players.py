@@ -235,6 +235,8 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                     team['name'],
                     "teamAlias":
                     team['alias'],
+                    'teamAgeGroup':
+                    team['ageGroup'],
                     "teamIshdId":
                     team['ishdId'],
                     "passNo":
@@ -503,6 +505,7 @@ async def process_ishd_data(
                             teamId=team['_id'],
                             teamName=team['name'],
                             teamAlias=team['alias'],
+                            teamAgeGroup=team['ageGroup'],
                             teamIshdId=team['ishdId'],
                             passNo=player['license_number'],
                             source=SourceEnum.ISHD,
