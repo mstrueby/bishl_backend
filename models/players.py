@@ -52,6 +52,7 @@ class AssignedTeams(BaseModel):
   teamId: str = Field(...)
   teamName: str = Field(...)
   teamAlias: str = Field(...)
+  teamAgeGroup: str = Field(...)
   teamIshdId: Optional[str] = None
   passNo: str = Field(...)
   source: SourceEnum = Field(default=SourceEnum.BISHL)
@@ -161,13 +162,31 @@ class PlayerDB(PlayerBase):
 
     current_year = datetime.now().year
 
-    if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 10:
-      return True
-    elif self.sex == SexEnum.MALE and self.birthdate > datetime(current_year - 10, 8, 31) and self.birthdate < datetime(current_year - 9, 1, 1):
-      return True
+    if self.ageGroup == "U13":
+      if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 10:
+        return True
+      elif self.sex == SexEnum.MALE and self.birthdate > datetime(current_year - 10, 8, 31) and self.birthdate < datetime(current_year - 9, 1, 1):
+        return True
+      else:
+        return False
+    elif self.ageGroup == "U16":
+      if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 13:
+        return True
+      else:
+        return False
+    elif self.ageGroup == "U19":
+      if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 16:
+        return True
+      else:
+        return False
+    elif self.ageGroup == "DAMEN":
+      if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 19:
+        return True
+      else:
+        return False
     else:
       return False
-
+  
   class Config(MongoBaseModel.Config):
       @staticmethod
       def schema_extra(schema, model):
