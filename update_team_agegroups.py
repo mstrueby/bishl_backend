@@ -35,6 +35,7 @@ age_group_mapping = {
     'Junioren': 'U19',
     'Jugend': 'U16',
     'Schüler': 'U13',
+    'Schueler': 'U13',
     'Bambini': 'U10',
     'Mini': 'U8'
 }
