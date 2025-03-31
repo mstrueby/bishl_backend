@@ -65,7 +65,11 @@ async def register(
 async def login(
     request: Request, loginUser: LoginBase = Body(...)) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    existing_user = await mongodb["users"].find_one({"email": {"$regex": f"^{loginUser.email}$", "$options": "i"}})
+    existing_user = await mongodb["users"].find_one(
+        {"email": {
+            "$regex": f"^{loginUser.email}$",
+            "$options": "i"
+        }})
     if (existing_user is None) or (not auth.verify_password(
             loginUser.password, existing_user["password"])):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
@@ -116,6 +120,7 @@ async def update_user(
     lastName: Optional[str] = Form(default=None),
     club: Optional[str] = Form(default=None),
     roles: Optional[List[str]] = Form(default=None),
+    referee: Optional[str] = Form(default=None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
     mongodb = request.app.state.mongodb
@@ -147,7 +152,8 @@ async def update_user(
             firstName=firstName,
             lastName=lastName,
             club=Club(**json.loads(club)) if club else None,
-            roles=[Role(role) for role in roles] if roles else None).dict(
+            roles=[Role(role) for role in roles] if roles else None,
+            referee=json.loads(referee) if referee else None).dict(
                 exclude_none=True)
         #user_data = UserUpdate(**user_update_fields).dict(exclude_none=True)
     except Exception as e:
@@ -278,7 +284,7 @@ async def forgot_password(
 
     # Generate reset token
     reset_token = auth.encode_reset_token(user)
-    
+
     # Send password reset email
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
     try:
@@ -290,18 +296,17 @@ async def forgot_password(
             <p>Wenn Sie das Zurücksetzen des Passworts nicht beantragt haben, ignorieren Sie bitte diese E-Mail.</p>
         """
         await send_email(subject="Passwort zurücksetzen",
-                     recipients=[email],
-                     body=email_body)
+                         recipients=[email],
+                         body=email_body)
     except Exception as e:
         print("Error sending email:", e)
         print("reset_url", reset_url)
         print("token", reset_token)
-        
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content={
-            "message": "Password reset instructions sent to your email"
-        })
+        content={"message": "Password reset instructions sent to your email"})
+
 
 @router.post("/reset-password",
              response_description="Reset password with token")

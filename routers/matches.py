@@ -113,6 +113,8 @@ async def list_matches(request: Request,
                        date_from: Optional[str] = None,
                        date_to: Optional[str] = None,
                        referee: Optional[str] = None,
+                       club: Optional[str] = None,
+                       team: Optional[str] = None,
                        assigned: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
   query = {"season.alias": season if season else os.environ['CURRENT_SEASON']}
@@ -124,6 +126,14 @@ async def list_matches(request: Request,
     query["matchday.alias"] = matchday
   if referee:
     query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+  if club:
+    if team:
+      query["$or"] = [
+          {"$and": [{"home.clubAlias": club}, {"home.teamAlias": team}]},
+          {"$and": [{"away.clubAlias": club}, {"away.teamAlias": team}]}
+      ]
+    else:
+      query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
   if assigned is not None:
     if not assigned:  # assigned == False
       query["$and"] = [{
