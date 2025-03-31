@@ -41,6 +41,19 @@ class Role(str, Enum):
   player_admin = "PLAYER_ADMIN"
 
 
+class RefereeLevel(str, Enum):
+  NA = "n/a"
+  SM = "SM"  # Schiri Mentor
+  SP = "S"  # Schiedsrichter
+  SR = "SR"  # Schiri Rookie
+  PM = "PS"  # Perspektiv-Schiedsrichter
+  PR = "PR"  # Perspektiv Rookie
+
+class Referee(BaseModel):
+  level: RefereeLevel = Field(default=RefereeLevel.NA)
+  passNo: Optional[str] = None
+  ishdLevel: Optional[int] = None
+
 class Club(BaseModel):
   clubId: str = Field(...)
   clubName: str = Field(...)
@@ -53,6 +66,7 @@ class UserBase(MongoBaseModel):
   lastName: str = Field(...)
   club: Optional[Club] = None
   roles: Optional[List[Role]] = Field(default_factory=list)
+  referee: Optional[Referee] = None
 
   @validator('email')
   def email_is_valid(cls, v):
@@ -70,7 +84,7 @@ class UserUpdate(MongoBaseModel):
   lastName: Optional[str] = None
   club: Optional[Club] = None
   roles: Optional[List[Role]] = Field(default_factory=list)
-
+  referee: Optional[Referee] = None
   """
   @validator('email')
   def email_is_valid(cls, v):
@@ -81,6 +95,7 @@ class UserUpdate(MongoBaseModel):
     return v
 
   """
+
 
 class LoginBase(BaseModel):
   email: str = EmailStr(...)
@@ -93,3 +108,4 @@ class CurrentUser(MongoBaseModel):
   lastName: str = Field(...)
   club: Optional[Club] = None
   roles: Optional[List[Role]] = Field(default_factory=list)
+  referee: Optional[Referee] = None
