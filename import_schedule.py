@@ -3,6 +3,7 @@ import csv
 import json
 import os
 import glob
+from bson.codec_options import TypeRegistry
 import requests
 from pymongo import MongoClient
 import certifi
@@ -71,10 +72,13 @@ with open(filename, encoding='utf-8') as f:
                          doublequote=True,
                          skipinitialspace=True)
   for row in reader:
+    # match dicts
     tournament=None
     season=None
     round=None
     matchday=None
+    # new matchday for creation
+    newMatchday=None
 
     #print("row", row)
 
@@ -124,7 +128,7 @@ with open(filename, encoding='utf-8') as f:
         print("Error: round data is not a valid dictionary with string keys")
         exit()
 
-    # Create matchday object from row data
+    # Create matchday object (for match doc) from row data
     matchday_data = row.get('matchday')
     if isinstance(matchday_data, str):
         try:
@@ -137,7 +141,7 @@ with open(filename, encoding='utf-8') as f:
     else:
         print("Error: matchday data is not a valid dictionary with string keys")
         exit()
-
+  
     # Create venue object from row data
     venue_data = row.get('venue')
     if isinstance(venue_data, str):
@@ -183,7 +187,6 @@ with open(filename, encoding='utf-8') as f:
         s_alias = season.alias
         r_alias = round.alias
         md_alias = matchday.alias
-        md_name = matchday.name 
 
     # Check if round exists
     round_url = f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
@@ -192,19 +195,27 @@ with open(filename, encoding='utf-8') as f:
         print(f"Error: round does not exist {t_alias} / {s_alias} / {r_alias}")
         exit()
     round_data = RoundDB(**round_response.json())
+    
     # Check if matchday exists in round_data
     if not round_data.matchdays or not any(md.alias == md_alias for md in round_data.matchdays):
         print(f"Creating new matchday {md_alias} for {t_alias} / {s_alias} / {r_alias}...")
-        if not md_name:
-          print("Error: matchday name is None")
-          exit(1)
-        new_matchday = MatchdayBase(
-          alias=md_alias, 
-          name=md_name,
-          type={"key": "REGULAR", "value": "Regulär"},
-          published=True,
-          matchSettings=round_data.matchSettings
-        )
+        # Create new Matchday object for tournament doc from row data
+        new_matchday_data = row.get('newMatchday')
+        if isinstance(new_matchday_data, str):
+            try:
+                new_matchday_data = json.loads(new_matchday_data)
+            except json.JSONDecodeError as e:
+                print("Error: newMatchday data is not valid JSON")
+                print(f"JSONDecodeError: {e}")  # Debugging information about the JSON error
+                print(f"Attempted to parse: {new_matchday_data}")  # Debug the invalid JSON content
+                exit()
+        if isinstance(new_matchday_data, dict) and all(isinstance(k, str) for k in new_matchday_data.keys()):
+            new_matchday = MatchdayBase(**new_matchday_data)
+            new_matchday.published=True
+            new_matchday.matchSettings=round_data.matchSettings
+        else:
+            print("Error: newMatchday data is not a valid dictionary with string keys")
+            exit()
         create_md_response = requests.post(f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/",
                                            json=jsonable_encoder(new_matchday),
                                            headers=headers)

@@ -174,7 +174,8 @@ try:
           modifyDate=modify_date,
           teamName=team_db.name,  # Assuming team_db has an attribute `name`
           teamAlias=team_db.alias,  # Using the `team_alias` from the CSV row
-          teamIshdId=team_db.ishdId if team_db.ishdId is not None else ""
+          teamIshdId=team_db.ishdId if team_db.ishdId is not None else "",
+          teamAgeGroup=team_db.ageGroup
           # Provide a default empty string if None
       )
 

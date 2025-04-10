@@ -9,6 +9,8 @@ from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, S
 from utils import get_sys_ref_tool_token
 import httpx
 from enum import Enum
+from mail_service import send_email
+
 
 router = APIRouter()
 auth = AuthHandler()
@@ -82,9 +84,7 @@ async def send_message_to_referee(match, receiver_id, content):
                                     detail=error_msg)
             
             # After successfully sending the message, also send an email
-            try:
-                from mail_service import send_email
-                
+            try:                
                 # Get referee's email by making a request to users endpoint
                 user_url = f"{BASE_URL}/users/{receiver_id}"
                 user_response = await client.get(user_url, headers=headers)
@@ -101,12 +101,15 @@ async def send_message_to_referee(match, receiver_id, content):
                         <p>Hinweis: Du kannst weitere Details zu diesem Spiel auf der BISHL-Website einsehen.</p>
                         """
                         
-                        await send_email(
-                            subject=email_subject,
-                            recipients=[referee_email],
-                            body=email_content
-                        )
-                        print(f"Email sent to referee {receiver_id} at {referee_email}")
+                        if os.environ.get('ENV') == 'production':
+                            await send_email(
+                                subject=email_subject,
+                                recipients=[referee_email],
+                                body=email_content
+                            )
+                            print(f"Email sent to referee {receiver_id} at {referee_email}")
+                        else:
+                            print(f"Email not sent because of ENV = {os.environ.get('ENV')}")
                     else:
                         print(f"Referee {receiver_id} has no email address")
                 else:
@@ -170,7 +173,8 @@ async def get_assignments_by_match(
             "firstName": referee["firstName"],
             "lastName": referee["lastName"],
             "clubId": club_id,
-            "clubName": club_name
+            "clubName": club_name,
+            "level": referee.get("referee", {}).get("level", "n/a"),
         }
         assignment_obj["_id"] = ref_status.get("_id", None)
         assignment_obj["matchId"] = match_id
