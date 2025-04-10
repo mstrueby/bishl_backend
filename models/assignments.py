@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional
 from enum import Enum
 from utils import prevent_empty_str
-
+from models.users import RefereeLevel
 
 class PyObjectId(ObjectId):
 
@@ -43,6 +43,7 @@ class Referee(BaseModel):
   clubId: Optional[str] = None
   clubName: Optional[str] = None
   points: int = 0
+  level: Optional[RefereeLevel] = RefereeLevel.NA
 
 
 class AssignmentBase(MongoBaseModel):
