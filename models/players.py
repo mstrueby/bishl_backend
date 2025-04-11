@@ -65,7 +65,7 @@ class AssignedClubs(BaseModel):
   clubId: str = Field(...)
   clubName: str = Field(...)
   clubAlias: str = Field(...)
-  clubIshdId: int = Field(...)
+  clubIshdId: Optional[int] = None
   teams: list[AssignedTeams] = Field(...)
 
 class TeamInput(BaseModel):
