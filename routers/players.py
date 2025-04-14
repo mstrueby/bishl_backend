@@ -340,6 +340,7 @@ async def process_ishd_data(
             'lastName': 1,
             'birthdate': 1,
             'assignedTeams': 1,
+            'managedByISHD': 1,
     }):
         existing_players.append(player)
 
@@ -487,7 +488,7 @@ async def process_ishd_data(
                                 datetime.strftime(existing_player['birthdate'], '%Y-%m-%d') == player['date_of_birth']):
                                 existing_player_check = existing_player
                                 break
-                                
+
                         if existing_player_check and existing_player_check.get('managedByISHD', True) is False:
                             log_line = f"Skipping player (managedByISHD=false): {player['first_name']} {player['last_name']} {player['date_of_birth']}"
                             print(log_line)
