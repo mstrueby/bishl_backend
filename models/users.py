@@ -53,6 +53,7 @@ class Referee(BaseModel):
   level: RefereeLevel = Field(default=RefereeLevel.NA)
   passNo: Optional[str] = None
   ishdLevel: Optional[int] = None
+  active: bool = True
 
 class Club(BaseModel):
   clubId: str = Field(...)
