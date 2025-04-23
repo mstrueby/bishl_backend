@@ -107,25 +107,6 @@ async def me(
                         content=jsonable_encoder(response))
 
 
-# get one user
-@router.get("/{user_id}",
-            response_description="Get a user by ID",
-            response_model=CurrentUser)
-async def get_user(
-    request: Request,
-    user_id: str,
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
-) -> JSONResponse:
-    mongodb = request.app.state.mongodb
-    user = await mongodb["users"].find_one({"_id": user_id})
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="User not found")
-    response = CurrentUser(**user)
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(response))
-
-
 # update user details
 @router.patch("/{user_id}",
               response_description="Update a user",
@@ -279,6 +260,24 @@ async def get_all_referees(
     referees = await referees_cursor.to_list(length=None)
 
     response = [CurrentUser(**referee) for referee in referees]
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(response))
+
+# get one user
+@router.get("/{user_id}",
+            response_description="Get a user by ID",
+            response_model=CurrentUser)
+async def get_user(
+    request: Request,
+    user_id: str,
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> JSONResponse:
+    mongodb = request.app.state.mongodb
+    user = await mongodb["users"].find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="User not found")
+    response = CurrentUser(**user)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(response))
 
