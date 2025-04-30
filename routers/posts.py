@@ -68,8 +68,6 @@ async def get_posts(request: Request,
     query["featured"] = featured
   if published is not None:
     query["published"] = published
-  if DEBUG_LEVEL > 0:
-    print("xxx query:", query)
   posts = await mongodb["posts"].find(query).sort([("updateDate", -1)]
                                                   ).to_list(limit)
   result = [PostDB(**raw_post) for raw_post in posts]
