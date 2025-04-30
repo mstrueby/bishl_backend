@@ -44,15 +44,19 @@ class Role(str, Enum):
 class RefereeLevel(str, Enum):
   NA = "n/a"
   SM = "SM"  # Schiri Mentor
-  SP = "S"  # Schiedsrichter
-  SR = "SR"  # Schiri Rookie
-  PM = "PS"  # Perspektiv-Schiedsrichter
-  PR = "PR"  # Perspektiv Rookie
+  S3 = "S3"  # Schiedsrichter gut
+  S2 = "S2"  # Schiedsrichter mittel
+  S1 = "S1"  # Schiedsrichter unerfahren
+  PM = "PM"  # Perspektiv Mentor (ehemaliger Schiedsrichter)
+  P3 = "P3"  # Perspektiv-Schiedsrichter gut
+  P2 = "P2"  # Perspektiv-Schiedsrichter mittel
+  P1 = "P1"  # Perspektiv-Schiedsrichter unerfahren
 
 class Referee(BaseModel):
   level: RefereeLevel = Field(default=RefereeLevel.NA)
   passNo: Optional[str] = None
   ishdLevel: Optional[int] = None
+  active: bool = True
 
 class Club(BaseModel):
   clubId: str = Field(...)

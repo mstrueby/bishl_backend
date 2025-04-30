@@ -126,14 +126,16 @@ async def update_user(
     mongodb = request.app.state.mongodb
 
     # Check if user is trying to update their own profile or is an admin
-    is_admin = "ADMIN" in token_payload.roles
+    is_admin = any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles)
     is_self_update = user_id == token_payload.sub
 
     if not (is_admin or is_self_update):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Not authorized to update this user")
 
-    existing_user = await mongodb["users"].find_one({"_id": user_id})
+    existing_user_data = await mongodb["users"].find_one({"_id": user_id})
+    existing_user_obj = CurrentUser(**existing_user_data) if existing_user_data else None
+    existing_user = jsonable_encoder(existing_user_obj) if existing_user_obj else None
     if not existing_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="User not found")
@@ -144,6 +146,7 @@ async def update_user(
                             detail="Only admins can update roles")
 
     print("existing_user", existing_user)
+    print("roles", roles)
 
     try:
         user_data = UserUpdate(
@@ -154,7 +157,8 @@ async def update_user(
             club=Club(**json.loads(club)) if club else None,
             roles=[Role(role) for role in roles] if roles else None,
             referee=json.loads(referee) if referee else None).dict(
-                exclude_none=True)
+                exclude_none=True,
+        )
         #user_data = UserUpdate(**user_update_fields).dict(exclude_none=True)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -260,6 +264,24 @@ async def get_all_referees(
     referees = await referees_cursor.to_list(length=None)
 
     response = [CurrentUser(**referee) for referee in referees]
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(response))
+
+# get one user
+@router.get("/{user_id}",
+            response_description="Get a user by ID",
+            response_model=CurrentUser)
+async def get_user(
+    request: Request,
+    user_id: str,
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> JSONResponse:
+    mongodb = request.app.state.mongodb
+    user = await mongodb["users"].find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="User not found")
+    response = CurrentUser(**user)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(response))
 

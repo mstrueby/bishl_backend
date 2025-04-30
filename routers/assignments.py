@@ -9,6 +9,8 @@ from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, S
 from utils import get_sys_ref_tool_token
 import httpx
 from enum import Enum
+from mail_service import send_email
+
 
 router = APIRouter()
 auth = AuthHandler()
@@ -82,9 +84,7 @@ async def send_message_to_referee(match, receiver_id, content):
                                     detail=error_msg)
             
             # After successfully sending the message, also send an email
-            try:
-                from mail_service import send_email
-                
+            try:                
                 # Get referee's email by making a request to users endpoint
                 user_url = f"{BASE_URL}/users/{receiver_id}"
                 user_response = await client.get(user_url, headers=headers)
@@ -101,12 +101,15 @@ async def send_message_to_referee(match, receiver_id, content):
                         <p>Hinweis: Du kannst weitere Details zu diesem Spiel auf der BISHL-Website einsehen.</p>
                         """
                         
-                        await send_email(
-                            subject=email_subject,
-                            recipients=[referee_email],
-                            body=email_content
-                        )
-                        print(f"Email sent to referee {receiver_id} at {referee_email}")
+                        if os.environ.get('ENV') == 'production':
+                            await send_email(
+                                subject=email_subject,
+                                recipients=[referee_email],
+                                body=email_content
+                            )
+                            print(f"Email sent to referee {receiver_id} at {referee_email}")
+                        else:
+                            print(f"Email not sent because of ENV = {os.environ.get('ENV')}")
                     else:
                         print(f"Referee {receiver_id} has no email address")
                 else:
@@ -170,7 +173,8 @@ async def get_assignments_by_match(
             "firstName": referee["firstName"],
             "lastName": referee["lastName"],
             "clubId": club_id,
-            "clubName": club_name
+            "clubName": club_name,
+            "level": referee.get("referee", {}).get("level", "n/a"),
         }
         assignment_obj["_id"] = ref_status.get("_id", None)
         assignment_obj["matchId"] = match_id
@@ -546,3 +550,50 @@ async def update_assignment(
 
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail="Can not update assignment")
+
+# delete assignment
+@router.delete("/{id}",
+               response_description="Delete an assignment")
+async def delete_assignment(
+    request: Request,
+    id: str = Path(..., description="Assignment ID"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+) -> Response:
+    mongodb = request.app.state.mongodb
+    if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized")
+    # check if assignment exists
+    assignment = await mongodb["assignments"].find_one({"_id": id})
+    if not assignment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Assignment with id {id} not found")
+    match_id = assignment["matchId"]
+    ref_id = assignment["referee"]["userId"]
+
+    # check if match exists
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Match with id {match_id} not found")
+        
+    # delete assignment
+    result = await mongodb["assignments"].delete_one({"_id": id})
+    if result.deleted_count == 1:
+        # Update match and remove referee
+        await mongodb['matches'].update_one(
+            {'_id': match_id},
+            {'$set': {
+                f'referee{assignment["position"]}': None
+            }})
+        await send_message_to_referee(
+            match=match,
+            receiver_id=ref_id,
+            content=
+            f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Assignment with id {id} not found")
