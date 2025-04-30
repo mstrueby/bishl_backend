@@ -147,12 +147,12 @@ with open(filename, encoding='utf-8') as f:
           #print("body", body)
           
           # Run the async function in a separate event loop
-          loop = asyncio.new_event_loop()
-          asyncio.set_event_loop(loop)
-          loop.run_until_complete(send_email(subject, recipients, body))
-          loop.close()
-          
-          print(f"Welcome email sent to {email}")
+          if args.prod:
+              loop = asyncio.new_event_loop()
+              asyncio.set_event_loop(loop)
+              loop.run_until_complete(send_email(subject, recipients, body))
+              loop.close()
+              print(f"Welcome email sent to {email}")
           if not args.importAll:
             print("--importAll flag not set, exiting.")
             exit()
