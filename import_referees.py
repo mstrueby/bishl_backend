@@ -73,9 +73,14 @@ with open(filename, encoding='utf-8') as f:
                          skipinitialspace=True)
   for row in reader:
     #print("row", row)
+    email = row.get('Email')
+    # Skip row if no email is found
+    if not email:
+      print("No email found for referee", row)
+      continue
+      
     first_name = row['Vorname']
     last_name = row['Nachname']
-    email = row['Email']
     club = None
     if isinstance(row.get('club'), str):
       club = json.loads(row['club'])
