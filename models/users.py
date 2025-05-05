@@ -52,15 +52,18 @@ class RefereeLevel(str, Enum):
   P2 = "P2"  # Perspektiv-Schiedsrichter mittel
   P1 = "P1"  # Perspektiv-Schiedsrichter unerfahren
 
+
+class Club(BaseModel):
+  clubId: str = Field(...)
+  clubName: str = Field(...)
+
+
 class Referee(BaseModel):
   level: RefereeLevel = Field(default=RefereeLevel.NA)
   passNo: Optional[str] = None
   ishdLevel: Optional[int] = None
   active: bool = True
-
-class Club(BaseModel):
-  clubId: str = Field(...)
-  clubName: str = Field(...)
+  club: Optional[Club] = None
 
 
 class UserBase(MongoBaseModel):
