@@ -64,6 +64,7 @@ class Referee(BaseModel):
   ishdLevel: Optional[int] = None
   active: bool = True
   club: Optional[Club] = None
+  points: Optional[int] = 0
 
 
 class UserBase(MongoBaseModel):
