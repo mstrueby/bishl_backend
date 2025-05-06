@@ -20,6 +20,9 @@ parser.add_argument('--first_name',
 parser.add_argument('--last_name',
                    required=True,
                    help='New last name')
+parser.add_argument('--new_player_id',
+                   required=False,
+                   help='New player ID to update')
 args = parser.parse_args()
 
 # Get environment variables and setup MongoDB connection
@@ -36,6 +39,19 @@ db = client[DB_NAME]
 
 # Update function
 async def update_player_info():
+    update_fields = {
+        "home.roster.$[elem].player.firstName": args.first_name,
+        "home.roster.$[elem].player.lastName": args.last_name,
+        "away.roster.$[elem].player.firstName": args.first_name,
+        "away.roster.$[elem].player.lastName": args.last_name
+    }
+    
+    if args.new_player_id:
+        update_fields.update({
+            "home.roster.$[elem].player.playerId": args.new_player_id,
+            "away.roster.$[elem].player.playerId": args.new_player_id
+        })
+
     # Update player info in rosters
     roster_result = await db['matches'].update_many(
         {
@@ -45,17 +61,31 @@ async def update_player_info():
             ]
         },
         {
-            "$set": {
-                "home.roster.$[elem].player.firstName": args.first_name,
-                "home.roster.$[elem].player.lastName": args.last_name,
-                "away.roster.$[elem].player.firstName": args.first_name,
-                "away.roster.$[elem].player.lastName": args.last_name
-            }
+            "$set": update_fields
         },
         array_filters=[{"elem.player.playerId": args.player_id}]
     )
     
     # Update player info in scores
+    scores_update = {
+        "home.scores.$[score].goalPlayer.firstName": args.first_name,
+        "home.scores.$[score].goalPlayer.lastName": args.last_name,
+        "home.scores.$[score].assistPlayer.firstName": args.first_name,
+        "home.scores.$[score].assistPlayer.lastName": args.last_name,
+        "away.scores.$[score].goalPlayer.firstName": args.first_name,
+        "away.scores.$[score].goalPlayer.lastName": args.last_name,
+        "away.scores.$[score].assistPlayer.firstName": args.first_name,
+        "away.scores.$[score].assistPlayer.lastName": args.last_name
+    }
+    
+    if args.new_player_id:
+        scores_update.update({
+            "home.scores.$[score].goalPlayer.playerId": args.new_player_id,
+            "home.scores.$[score].assistPlayer.playerId": args.new_player_id,
+            "away.scores.$[score].goalPlayer.playerId": args.new_player_id,
+            "away.scores.$[score].assistPlayer.playerId": args.new_player_id
+        })
+
     scores_result = await db['matches'].update_many(
         {
             "$or": [
@@ -66,16 +96,7 @@ async def update_player_info():
             ]
         },
         {
-            "$set": {
-                "home.scores.$[score].goalPlayer.firstName": args.first_name,
-                "home.scores.$[score].goalPlayer.lastName": args.last_name,
-                "home.scores.$[score].assistPlayer.firstName": args.first_name,
-                "home.scores.$[score].assistPlayer.lastName": args.last_name,
-                "away.scores.$[score].goalPlayer.firstName": args.first_name,
-                "away.scores.$[score].goalPlayer.lastName": args.last_name,
-                "away.scores.$[score].assistPlayer.firstName": args.first_name,
-                "away.scores.$[score].assistPlayer.lastName": args.last_name
-            }
+            "$set": scores_update
         },
         array_filters=[
             {
@@ -88,6 +109,19 @@ async def update_player_info():
     )
 
     # Update player info in penalties
+    penalties_update = {
+        "home.penalties.$[penalty].penaltyPlayer.firstName": args.first_name,
+        "home.penalties.$[penalty].penaltyPlayer.lastName": args.last_name,
+        "away.penalties.$[penalty].penaltyPlayer.firstName": args.first_name,
+        "away.penalties.$[penalty].penaltyPlayer.lastName": args.last_name
+    }
+    
+    if args.new_player_id:
+        penalties_update.update({
+            "home.penalties.$[penalty].penaltyPlayer.playerId": args.new_player_id,
+            "away.penalties.$[penalty].penaltyPlayer.playerId": args.new_player_id
+        })
+
     penalties_result = await db['matches'].update_many(
         {
             "$or": [
@@ -96,12 +130,7 @@ async def update_player_info():
             ]
         },
         {
-            "$set": {
-                "home.penalties.$[penalty].penaltyPlayer.firstName": args.first_name,
-                "home.penalties.$[penalty].penaltyPlayer.lastName": args.last_name,
-                "away.penalties.$[penalty].penaltyPlayer.firstName": args.first_name,
-                "away.penalties.$[penalty].penaltyPlayer.lastName": args.last_name
-            }
+            "$set": penalties_update
         },
         array_filters=[{"penalty.penaltyPlayer.playerId": args.player_id}]
     )
