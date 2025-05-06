@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 import os
 import certifi
@@ -34,7 +33,7 @@ db = client[DB_NAME]
 
 async def merge_players():
     # Get target player info
-    to_player = await db['players'].find_one({"_id": args.to_player_id})
+    to_player = db['players'].find_one({"_id": args.to_player_id})
     if not to_player:
         print(f"Target player {args.to_player_id} not found")
         return
@@ -43,13 +42,13 @@ async def merge_players():
     last_name = to_player['lastName']
     
     # Get source player info
-    from_player = await db['players'].find_one({"_id": args.from_player_id})
+    from_player = db['players'].find_one({"_id": args.from_player_id})
     if not from_player:
         print(f"Source player {args.from_player_id} not found")
         return
 
     # Update rosters
-    roster_result = await db['matches'].update_many(
+    roster_result = db['matches'].update_many(
         {
             "$or": [
                 {"home.roster.player.playerId": args.from_player_id},
@@ -70,7 +69,7 @@ async def merge_players():
     )
 
     # Update scores
-    scores_result = await db['matches'].update_many(
+    scores_result = db['matches'].update_many(
         {
             "$or": [
                 {"home.scores.goalPlayer.playerId": args.from_player_id},
@@ -129,19 +128,19 @@ async def merge_players():
             merged_stats.append(from_stat)
 
     # Update target player with merged stats
-    player_result = await db['players'].update_one(
+    player_result = db['players'].update_one(
         {"_id": args.to_player_id},
         {"$set": {"stats": merged_stats}}
     )
 
     # Delete source player
-    delete_result = await db['players'].delete_one({"_id": args.from_player_id})
+    # delete_result = db['players'].delete_one({"_id": args.from_player_id})
 
     print(f"\nMerge Summary:")
     print(f"Modified {roster_result.modified_count} roster entries")
     print(f"Modified {scores_result.modified_count} score entries")
     print(f"Updated player stats")
-    print(f"Deleted source player: {delete_result.deleted_count == 1}")
+    #print(f"Deleted source player: {delete_result.deleted_count == 1}")
 
 if __name__ == "__main__":
     import asyncio
