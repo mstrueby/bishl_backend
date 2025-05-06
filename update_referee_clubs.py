@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 import os
 import certifi
@@ -42,7 +41,7 @@ for user in users:
             {'_id': user['_id']},
             {'$set': {
                 'referee.club': user_club,
-                'referee.level': user_referee.get('level', 'NA'),
+                'referee.level': user_referee.get('level', 'n/a'),
                 'referee.passNo': user_referee.get('passNo', None),
                 'referee.ishdLevel': user_referee.get('ishdLevel', None),
                 'referee.active': user_referee.get('active', True)
