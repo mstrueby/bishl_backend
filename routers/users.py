@@ -260,8 +260,36 @@ async def get_all_referees(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Not authorized")
 
+    current_season = os.environ['CURRENT_SEASON']
     referees_cursor = mongodb["users"].find({"roles": "REFEREE"})
     referees = await referees_cursor.to_list(length=None)
+
+    # Get all matches for current season
+    matches = await mongodb["matches"].find({
+        "season.alias": current_season,
+        "$or": [
+            {"referee1": {"$exists": True}},
+            {"referee2": {"$exists": True}}
+        ]
+    }).to_list(length=None)
+
+    # Calculate points for each referee
+    points_map = {}
+    for match in matches:
+        if match.get("referee1") and match["referee1"].get("userId") and match["referee1"].get("points"):
+            ref_id = match["referee1"]["userId"]
+            points_map[ref_id] = points_map.get(ref_id, 0) + match["referee1"]["points"]
+        if match.get("referee2") and match["referee2"].get("userId") and match["referee2"].get("points"):
+            ref_id = match["referee2"]["userId"]
+            points_map[ref_id] = points_map.get(ref_id, 0) + match["referee2"]["points"]
+
+    # Update referee points
+    for referee in referees:
+        if referee["_id"] in points_map:
+            if not referee.get("referee"):
+                referee["referee"] = {"points": points_map[referee["_id"]]}
+            else:
+                referee["referee"]["points"] = points_map[referee["_id"]]
 
     response = [CurrentUser(**referee) for referee in referees]
     return JSONResponse(status_code=status.HTTP_200_OK,
