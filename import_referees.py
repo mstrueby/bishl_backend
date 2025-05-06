@@ -73,14 +73,14 @@ with open(filename, encoding='utf-8') as f:
                          skipinitialspace=True)
   for row in reader:
     #print("row", row)
+    first_name = row['Vorname']
+    last_name = row['Nachname']
     email = row.get('Email')
     # Skip row if no email is found
     if not email:
-      print("No email found for referee", row)
+      print("No email found for referee", first_name, last_name)
       continue
       
-    first_name = row['Vorname']
-    last_name = row['Nachname']
     club = None
     if isinstance(row.get('club'), str):
       club = json.loads(row['club'])
@@ -88,6 +88,10 @@ with open(filename, encoding='utf-8') as f:
     if not club:
       print("No club found for referee", row)
       continue
+    level = row.get('level', 'n/a')
+    passNo = row.get('passNo', None)
+    ishdLevel = row.get('ishdLevel', None)
+    active = True
 
     # check if email is already registered
     existing_user = db_collection.find_one({'email': email})
@@ -108,13 +112,20 @@ with open(filename, encoding='utf-8') as f:
       random_password = ''.join(random.choices(string.ascii_letters + string.digits, k=password_length))
       
       # Create user via API endpoint instead of direct DB insertion
+      referee_obj = {
+        'club': club,
+        'level': level,
+        'passNo': passNo,
+        'ishdLevel': ishdLevel,
+        'active': active
+      }
       new_user = {
         'email': email,
         'password': random_password,
         'firstName': first_name,
         'lastName': last_name,
         'roles': ['REFEREE'],
-        'club': club
+        'referee': referee_obj 
       }
       
       # Use the API endpoint to register the user
@@ -158,6 +169,8 @@ with open(filename, encoding='utf-8') as f:
               loop.run_until_complete(send_email(subject, recipients, body))
               loop.close()
               print(f"Welcome email sent to {email}")
+          else:
+              print(f"Skipping sending welcome email to {email} in dev mode.")
           if not args.importAll:
             print("--importAll flag not set, exiting.")
             exit()
