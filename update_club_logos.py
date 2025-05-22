@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 import os
 import certifi
@@ -55,7 +54,7 @@ for user in users:
     user_referee = user.get('referee', {})
     if user_referee and user_referee.get('club', {}).get('clubId') in clubs_lookup:
         referee_club_id = user_referee['club']['clubId']
-        if referee_club_id in clubs_lookup and user_referee.get('club', {}).get('logoUrl') != clubs_lookup[referee_club_id]:
+        #if referee_club_id in clubs_lookup and user_referee.get('club', {}).get('logoUrl') != clubs_lookup[referee_club_id]:
             updates_needed['referee.club.logoUrl'] = clubs_lookup[referee_club_id]
     
     # Apply updates if needed
