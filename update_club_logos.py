@@ -42,21 +42,20 @@ updated_users = 0
 for user in users:
     total_users += 1
     updates_needed = {}
-    
+
     # Check and update club logo
     user_club = user.get('club', {})
     if user_club and 'clubId' in user_club:
         club_id = user_club.get('clubId')
         if club_id in clubs_lookup and user_club.get('logoUrl') != clubs_lookup[club_id]:
             updates_needed['club.logoUrl'] = clubs_lookup[club_id]
-    
+
     # Check and update referee club logo
     user_referee = user.get('referee', {})
     if user_referee and user_referee.get('club', {}).get('clubId') in clubs_lookup:
         referee_club_id = user_referee['club']['clubId']
-        #if referee_club_id in clubs_lookup and user_referee.get('club', {}).get('logoUrl') != clubs_lookup[referee_club_id]:
-            updates_needed['referee.club.logoUrl'] = clubs_lookup[referee_club_id]
-    
+        updates_needed['referee.club.logoUrl'] = clubs_lookup[referee_club_id]
+
     # Apply updates if needed
     if updates_needed:
         try:
@@ -64,7 +63,7 @@ for user in users:
                 {'_id': user['_id']},
                 {'$set': updates_needed}
             )
-            
+
             if result.modified_count > 0:
                 updated_users += 1
                 print(f"✅ Updated logos for {user.get('firstName', '')} {user.get('lastName', '')}")
