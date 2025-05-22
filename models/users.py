@@ -56,6 +56,7 @@ class RefereeLevel(str, Enum):
 class Club(BaseModel):
   clubId: str = Field(...)
   clubName: str = Field(...)
+  logoUrl: Optional[str] = None
 
 
 class Referee(BaseModel):
