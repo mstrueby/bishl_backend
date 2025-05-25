@@ -42,6 +42,7 @@ class Referee(BaseModel):
   lastName: str = Field(...)
   clubId: Optional[str] = None
   clubName: Optional[str] = None
+  logoUrl: Optional[str] = None
   points: int = 0
   level: Optional[RefereeLevel] = RefereeLevel.NA
 

@@ -44,7 +44,8 @@ async def set_referee_in_match(db, match_id, referee, position):
                 'firstName': referee['firstName'],
                 'lastName': referee['lastName'],
                 'clubId': referee['clubId'],
-                'clubName': referee['clubName']
+                'clubName': referee['clubName'],
+                'logoUrl': referee['logoUrl'],
             }
         }
     })
@@ -162,18 +163,21 @@ async def get_assignments_by_match(
         assignment_obj = {}
         ref_id = referee["_id"]
         ref_status = assignment_dict.get(ref_id, {"status": "AVAILABLE"})
-        if referee.get("club", None):
-            club_id = referee["club"]["clubId"]
-            club_name = referee["club"]["clubName"]
+        if referee.get("referee", {}).get("club", None):
+            club_id = referee["referee"]["club"]["clubId"]
+            club_name = referee["referee"]["club"]["clubName"]
+            club_logo = referee["referee"]["club"]["logoUrl"]
         else:
             club_id = None
             club_name = None
+            club_logo = None
         ref_obj = {
             "userId": ref_id,
             "firstName": referee["firstName"],
             "lastName": referee["lastName"],
             "clubId": club_id,
             "clubName": club_name,
+            "logoUrl": club_logo,
             "level": referee.get("referee", {}).get("level", "n/a"),
         }
         assignment_obj["_id"] = ref_status.get("_id", None)
@@ -247,6 +251,7 @@ async def create_assignment(
 
     match_id = assignment_data.matchId
     user_id = token_payload.sub
+    ref_id = assignment_data.userId
     ref_admin = assignment_data.refAdmin
 
     # check if match exists
@@ -254,12 +259,11 @@ async def create_assignment(
     if not match:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Match with id {match_id} not found")
-
+      
     if ref_admin:
         # REF_ADMIN mode ------------------------------------------------------------
         print("REF_ADMN mode")
         # check if assignment_data.userId exists
-        ref_id = assignment_data.userId
         if not ref_id:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -278,7 +282,7 @@ async def create_assignment(
                 detail=
                 f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}"
             )
-        # check if referee user_id exists
+        # check if referee exists
         ref_user = await mongodb["users"].find_one({"_id": ref_id})
         if not ref_user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -299,12 +303,10 @@ async def create_assignment(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Position must be set for this assignment")
 
-        if 'club' in ref_user and ref_user['club'] is not None:
-            club_id = ref_user['club']['clubId']
-            club_name = ref_user['club']['clubName']
-        else:
-            club_id = None
-            club_name = None
+        club_info = ref_user.get('referee', {}).get('club', {})
+        club_id = club_info.get('clubId')
+        club_name = club_info.get('clubName')
+        club_logo = club_info.get('logoUrl')
 
         referee = {}
         referee["userId"] = assignment_data.userId
@@ -312,6 +314,9 @@ async def create_assignment(
         referee["lastName"] = ref_user["lastName"]
         referee["clubId"] = club_id
         referee["clubName"] = club_name
+        referee["logoUrl"] = club_logo
+        referee["points"] = ref_user.get('referee', {}).get('points', 0)
+        referee["level"] = ref_user.get('referee', {}).get('level', 'n/a')
 
         new_assignment = await insert_assignment(mongodb, match_id, referee,
                                                  assignment_data.status,
@@ -338,19 +343,30 @@ async def create_assignment(
     else:
         # REFEREE mode -------------------------------------------------------------
         print("REFEREE mode")
+        ref_id = user_id
+        """
         if 'REFEREE' not in token_payload.roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You are not a referee")
+        """
+
+        print("ref_id", ref_id)
+        # get referee
+        ref_user = await mongodb["users"].find_one({"_id": ref_id})
+        if not ref_user or 'REFEREE' not in ref_user.get('roles', []):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Referee with id {ref_id} not found or not a referee")
+        print("ref_user", ref_user)
 
         # check if assignment already exists for match_id and referee.userId = ref_id
         if await mongodb["assignments"].find_one({
                 "matchId": match_id,
-                "referee.userId": user_id
+                "referee.userId": ref_id
         }):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=
-                f"Assignment already exists for match Id {match_id} and referee user Id {user_id}"
+                f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}"
             )
         # check proper status
         if assignment_data.status not in [
@@ -360,12 +376,16 @@ async def create_assignment(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Invalid assignment status")
 
+        print("ref_id", ref_id)
         referee = {}
-        referee["userId"] = user_id
-        referee["firstName"] = token_payload.firstName
-        referee["lastName"] = token_payload.lastName
-        referee["clubId"] = token_payload.clubId
-        referee["clubName"] = token_payload.clubName
+        referee["userId"] = ref_id
+        referee["firstName"] = ref_user["firstName"]
+        referee["lastName"] = ref_user["lastName"]
+        referee["clubId"] = ref_user.get('referee', {}).get('club', {}).get('clubId')
+        referee["clubName"] = ref_user.get('referee', {}).get('club', {}).get('clubName')
+        referee["logoUrl"] = ref_user.get('referee', {}).get('club', {}).get('logoUrl')
+        referee["points"] = ref_user.get('referee', {}).get('points', 0)
+        referee["level"] = ref_user.get('referee', {}).get('level', 'n/a')
 
         new_assignment = await insert_assignment(mongodb, match_id, referee,
                                                  assignment_data.status)
