@@ -571,6 +571,181 @@ async def update_assignment(
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail="Can not update assignment")
 
+# GET matches starting in 14 days with no referees ======
+@router.get("/unassigned-in-14-days",
+            response_description="Get matches starting in 14 days with no referees and notify club admins")
+async def get_unassigned_matches_in_14_days(
+    request: Request,
+    send_emails: bool = Query(False, description="Whether to send notification emails"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+):
+    mongodb = request.app.state.mongodb
+    if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized")
+
+    # Calculate date exactly 14 days from now
+    from datetime import datetime, timedelta
+    target_date = datetime.now() + timedelta(days=14)
+    start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    # Find matches starting exactly in 14 days with no referees assigned
+    matches_cursor = mongodb["matches"].find({
+        "startDate": {
+            "$gte": start_of_day,
+            "$lte": end_of_day
+        },
+        "$and": [
+            {"$or": [
+                {"referee1": {"$exists": False}},
+                {"referee1": None}
+            ]},
+            {"$or": [
+                {"referee2": {"$exists": False}},
+                {"referee2": None}
+            ]}
+        ]
+    })
+    
+    matches = await matches_cursor.to_list(length=None)
+    
+    if not matches:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "message": "No unassigned matches found for 14 days from now",
+                "matches": [],
+                "emails_sent": 0
+            }
+        )
+
+    emails_sent = 0
+    
+    if send_emails:
+        # Group matches by home club to avoid duplicate emails
+        matches_by_club = {}
+        for match in matches:
+            home_club_id = match.get('home', {}).get('clubId')
+            if home_club_id:
+                if home_club_id not in matches_by_club:
+                    matches_by_club[home_club_id] = []
+                matches_by_club[home_club_id].append(match)
+
+        # Send emails to club admins
+        for club_id, club_matches in matches_by_club.items():
+            try:
+                # Find users with CLUB_ADMIN role for this club
+                club_admins = await mongodb["users"].find({
+                    "roles": "CLUB_ADMIN",
+                    "club.clubId": club_id
+                }).to_list(length=None)
+
+                if not club_admins:
+                    print(f"No club admins found for club {club_id}")
+                    continue
+
+                # Get club info for the email
+                first_match = club_matches[0]
+                club_name = first_match.get('home', {}).get('clubName', 'Unknown Club')
+
+                # Prepare email content
+                email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
+                
+                match_details = ""
+                for match in club_matches:
+                    tournament_name = match.get('tournament', {}).get('name', 'Unknown Tournament')
+                    home_team = match.get('home', {}).get('fullName', 'Unknown Team')
+                    away_team = match.get('away', {}).get('fullName', 'Unknown Team')
+                    start_date = match.get('startDate')
+                    venue_name = match.get('venue', {}).get('name', 'Unknown Venue')
+                    
+                    if start_date:
+                        weekdays_german = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
+                        weekday = weekdays_german[start_date.weekday()]
+                        formatted_date = start_date.strftime('%d.%m.%Y')
+                        formatted_time = start_date.strftime('%H:%M')
+                        
+                        match_details += f"""
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{tournament_name}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{home_team} - {away_team}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{weekday}, {formatted_date}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{formatted_time}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{venue_name}</td>
+                        </tr>
+                        """
+
+                email_content = f"""
+                <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
+                <p>Hallo,</p>
+                <p>für folgende Spiele von <strong>{club_name}</strong> in 14 Tagen sind noch keine Schiedsrichter eingeteilt:</p>
+                
+                <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+                    <thead>
+                        <tr style="background-color: #f5f5f5;">
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Turnier</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Spiel</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Datum</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Zeit</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Ort</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {match_details}
+                    </tbody>
+                </table>
+                
+                <p>Bitte kontaktiert die Schiedsrichter-Koordination, um rechtzeitig Schiedsrichter für diese Spiele zu organisieren.</p>
+                <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
+                <p><br>Viele Grüße<br>Das BISHL-System</p>
+                """
+
+                # Send email to all club admins
+                admin_emails = [admin.get('email') for admin in club_admins if admin.get('email')]
+                
+                if admin_emails and os.environ.get('ENV') == 'production':
+                    await send_email(
+                        subject=email_subject,
+                        recipients=admin_emails,
+                        body=email_content
+                    )
+                    emails_sent += len(admin_emails)
+                    print(f"Email sent to {len(admin_emails)} club admins for {club_name}")
+                elif admin_emails:
+                    print(f"Email not sent because ENV = {os.environ.get('ENV')} (would send to {len(admin_emails)} admins for {club_name})")
+                else:
+                    print(f"No email addresses found for club admins of {club_name}")
+
+            except Exception as e:
+                print(f"Failed to send email for club {club_id}: {str(e)}")
+
+    # Return the matches and email status
+    match_list = []
+    for match in matches:
+        match_info = {
+            "_id": match["_id"],
+            "tournament": match.get("tournament", {}),
+            "home": match.get("home", {}),
+            "away": match.get("away", {}),
+            "startDate": match.get("startDate"),
+            "venue": match.get("venue", {}),
+            "referee1": match.get("referee1"),
+            "referee2": match.get("referee2")
+        }
+        match_list.append(match_info)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": f"Found {len(matches)} unassigned matches in 14 days",
+            "matches": jsonable_encoder(match_list),
+            "emails_sent": emails_sent,
+            "target_date": target_date.strftime('%Y-%m-%d')
+        }
+    )
+
+
 # delete assignment
 @router.delete("/{id}",
                response_description="Delete an assignment")
