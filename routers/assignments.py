@@ -616,7 +616,8 @@ async def get_unassigned_matches_in_14_days(
             content={
                 "message": "No unassigned matches found for 14 days from now",
                 "matches": [],
-                "emails_sent": 0
+                "emails_sent": 0,
+                "target_date": target_date.strftime('%Y-%m-%d')
             }
         )
 
@@ -679,12 +680,12 @@ async def get_unassigned_matches_in_14_days(
                 email_content = f"""
                 <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
                 <p>Hallo,</p>
-                <p>für folgende Spiele von <strong>{club_name}</strong> in 14 Tagen sind noch keine Schiedsrichter eingeteilt:</p>
+                <p>für folgende Spiele von <strong>{club_name}</strong> sind noch keine Schiedsrichter eingeteilt:</p>
                 
                 <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
                     <thead>
                         <tr style="background-color: #f5f5f5;">
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Turnier</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Wettbewerb</th>
                             <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Spiel</th>
                             <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Datum</th>
                             <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Zeit</th>
@@ -696,9 +697,8 @@ async def get_unassigned_matches_in_14_days(
                     </tbody>
                 </table>
                 
-                <p>Bitte kontaktiert die Schiedsrichter-Koordination, um rechtzeitig Schiedsrichter für diese Spiele zu organisieren.</p>
+                <p>Bis zum xx.yy. können nur Schiedsrichter der beteiligten Vereine anfragen. Der Heimverein ist nun in der Verantwortung zwei Schiedsrichter zu stellen. Ab dem xx.yy. können wieder alle Schiedsrichter anfragen. Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Gebühren.</p>
                 <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
-                <p><br>Viele Grüße<br>Das BISHL-System</p>
                 """
 
                 # Send email to all club admins
