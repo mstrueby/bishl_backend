@@ -5,10 +5,11 @@ from fastapi.responses import JSONResponse, Response
 from typing import Optional
 from authentication import AuthHandler, TokenPayload
 import os
-from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status
+from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory
 from utils import get_sys_ref_tool_token
 import httpx
 from enum import Enum
+from datetime import datetime
 from mail_service import send_email
 
 
@@ -24,11 +25,35 @@ class AllStatuses(Enum):
     ASSIGNED = "ASSIGNED"
     ACCEPTED = "ACCEPTED"
 
-async def insert_assignment(db, match_id, referee, status, position=None):
+async def add_status_history_entry(db, assignment_id, new_status, updated_by=None, updated_by_name=None):
+    """Add a new entry to the status history of an assignment"""
+    status_entry = StatusHistory(
+        status=new_status,
+        updateDate=datetime.now().replace(microsecond=0),
+        updatedBy=updated_by,
+        updatedByName=updated_by_name
+    )
+    
+    await db["assignments"].update_one(
+        {"_id": assignment_id},
+        {"$push": {"statusHistory": jsonable_encoder(status_entry)}}
+    )
+
+
+async def insert_assignment(db, match_id, referee, status, position=None, updated_by=None, updated_by_name=None):
+    # Create initial status history entry
+    initial_status_history = [StatusHistory(
+        status=status,
+        updateDate=datetime.now().replace(microsecond=0),
+        updatedBy=updated_by,
+        updatedByName=updated_by_name
+    )]
+    
     assignment = AssignmentDB(matchId=match_id,
                               referee=referee,
                               status=status,
-                              position=position)
+                              position=position,
+                              statusHistory=initial_status_history)
     #print(assignment)
     insert_response = await db["assignments"].insert_one(
         jsonable_encoder(assignment))
@@ -320,7 +345,9 @@ async def create_assignment(
 
         new_assignment = await insert_assignment(mongodb, match_id, referee,
                                                  assignment_data.status,
-                                                 assignment_data.position)
+                                                 assignment_data.position,
+                                                 token_payload.sub,
+                                                 f"{token_payload.firstName} {token_payload.lastName}")
         await set_referee_in_match(mongodb, match_id, referee,
                                    assignment_data.position)
 
@@ -388,7 +415,10 @@ async def create_assignment(
         referee["level"] = ref_user.get('referee', {}).get('level', 'n/a')
 
         new_assignment = await insert_assignment(mongodb, match_id, referee,
-                                                 assignment_data.status)
+                                                 assignment_data.status,
+                                                 None,
+                                                 ref_id,
+                                                 f"{ref_user['firstName']} {ref_user['lastName']}")
 
         if new_assignment:
             return JSONResponse(status_code=status.HTTP_201_CREATED,
@@ -485,6 +515,11 @@ async def update_assignment(
                             "position": ""
                         }
                     })
+                # Add status history entry
+                await add_status_history_entry(
+                    mongodb, assignment_id, update_data['status'],
+                    token_payload.sub, f"{token_payload.firstName} {token_payload.lastName}"
+                )
                 # Update match and remove referee
                 await mongodb['matches'].update_one(
                     {'_id': match_id},
@@ -500,6 +535,11 @@ async def update_assignment(
             else:
                 result = await mongodb["assignments"].update_one(
                     {"_id": assignment_id}, {"$set": update_data})
+                # Add status history entry
+                await add_status_history_entry(
+                    mongodb, assignment_id, update_data['status'],
+                    token_payload.sub, f"{token_payload.firstName} {token_payload.lastName}"
+                )
                 if update_data['status'] in [Status.assigned, Status.accepted]:
 
                     await set_referee_in_match(mongodb, match_id,
@@ -553,6 +593,11 @@ async def update_assignment(
             #print("do update")
             result = await mongodb["assignments"].update_one(
                 {"_id": assignment_id}, {"$set": update_data})
+            # Add status history entry
+            await add_status_history_entry(
+                mongodb, assignment_id, update_data['status'],
+                user_id, f"{assignment['referee']['firstName']} {assignment['referee']['lastName']}"
+            )
 
             if result.modified_count == 1:
                 updated_assignment = await mongodb["assignments"].find_one(
