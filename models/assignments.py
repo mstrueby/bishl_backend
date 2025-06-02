@@ -1,7 +1,8 @@
 from bson import ObjectId
 from pydantic import BaseModel, Field, validator
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
+from datetime import datetime
 from utils import prevent_empty_str
 from models.users import RefereeLevel
 
@@ -36,12 +37,20 @@ class Status(str, Enum):
   accepted = "ACCEPTED"
 
 
+class StatusHistory(BaseModel):
+  status: Status = Field(...)
+  updateDate: datetime = Field(...)
+  updatedBy: Optional[str] = None
+  updatedByName: Optional[str] = None
+
+
 class Referee(BaseModel):
   userId: str = Field(...)
   firstName: str = Field(...)
   lastName: str = Field(...)
   clubId: Optional[str] = None
   clubName: Optional[str] = None
+  logoUrl: Optional[str] = None
   points: int = 0
   level: Optional[RefereeLevel] = RefereeLevel.NA
 
@@ -65,6 +74,7 @@ class AssignmentDB(MongoBaseModel):
                                   description='Possible values are 1 and 2',
                                   ge=1,
                                   le=2)
+  statusHistory: Optional[List[StatusHistory]] = Field(default_factory=list)
 
 
 class AssignmentUpdate(MongoBaseModel):
