@@ -742,7 +742,7 @@ async def get_unassigned_matches_in_14_days(
                     </tbody>
                 </table>
                 
-                <p>Bis zum xx.yy. können nur Schiedsrichter der beteiligten Vereine anfragen. Der Heimverein ist nun in der Verantwortung zwei Schiedsrichter zu stellen. Ab dem xx.yy. können wieder alle Schiedsrichter anfragen. Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Gebühren.</p>
+                <p>Bis zum {target_date.replace(day=target_date.day - 7).strftime('%d.%m.')} können nur Schiedsrichter der beteiligten Vereine anfragen. Der Heimverein ist nun in der Verantwortung zwei Schiedsrichter zu stellen. Ab dem {target_date.replace(day=target_date.day - 6).strftime('%d.%m.')} können wieder alle Schiedsrichter anfragen. Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Gebühren.</p>
                 <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
                 """
 
