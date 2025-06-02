@@ -757,8 +757,27 @@ async def get_unassigned_matches_in_14_days(
                     )
                     emails_sent += len(admin_emails)
                     print(f"Email sent to {len(admin_emails)} club admins for {club_name}")
-                elif admin_emails:
-                    print(f"Email not sent because ENV = {os.environ.get('ENV')} (would send to {len(admin_emails)} admins for {club_name})")
+                elif admin_emails and os.environ.get('ENV') != 'production':
+                    # In development, send to admin user instead
+                    admin_user_email = os.environ.get('ADMIN_USER')
+                    if admin_user_email:
+                        # Modify email content to indicate it's a test email
+                        test_email_content = f"""
+                        <h2>BISHL - Schiedsrichter-Einteilung erforderlich (TEST EMAIL)</h2>
+                        <p><strong>Diese E-Mail würde in Produktion an Club-Admins von {club_name} gesendet werden.</strong></p>
+                        <p>Original-Empfänger: {', '.join(admin_emails)}</p>
+                        <hr>
+                        {email_content}
+                        """
+                        await send_email(
+                            subject=f"[TEST] {email_subject}",
+                            recipients=[admin_user_email],
+                            body=test_email_content
+                        )
+                        emails_sent += 1
+                        print(f"Test email sent to admin user {admin_user_email} for {club_name} (would go to {len(admin_emails)} admins in production)")
+                    else:
+                        print(f"ADMIN_USER not set in environment, email not sent for {club_name}")
                 else:
                     print(f"No email addresses found for club admins of {club_name}")
 
