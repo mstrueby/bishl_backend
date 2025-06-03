@@ -122,9 +122,8 @@ async def send_message_to_referee(match, receiver_id, content):
                         # Format the email content as HTML
                         email_subject = "BISHL - Schiedsrichter-Information"
                         email_content = f"""
-                        <h2>BISHL - Schiedsrichter-Information</h2>
                         <p>{content.replace('\n', '<br>')}</p>
-                        <p>Hinweis: Du kannst weitere Details zu diesem Spiel auf der BISHL-Website einsehen.</p>
+                        <p>Du kannst auf der BISHL-Website deine Einteilung bestätigen, um zu signalisieren, dass du die Einteilung registriert hast.</p>
                         """
                         
                         if os.environ.get('ENV') == 'production':

@@ -146,7 +146,6 @@ with open(filename, encoding='utf-8') as f:
           #email='marian.strueby@web.de'
           recipients = [email]
           body = f"""
-            <h2>Willkommen auf der BISHL-Website!</h2>
             <p>Hallo {first_name},</p>
             <p>dein Schiedsrichter-Account wurde erfolgreich angelegt.</p>
             <p>Hier sind deine Login-Details:</p>
