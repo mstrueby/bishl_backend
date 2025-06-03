@@ -749,14 +749,19 @@ async def get_unassigned_matches_in_14_days(
                 # Send email to all club admins
                 admin_emails = [admin.get('email') for admin in club_admins if admin.get('email')]
                 
+                # Always add LIGENLEITUNG_EMAIL to CC
+                ligenleitung_email = os.environ.get('LIGENLEITUNG_EMAIL')
+                cc_emails = [ligenleitung_email] if ligenleitung_email else []
+                
                 if admin_emails and os.environ.get('ENV') == 'production':
                     await send_email(
                         subject=email_subject,
                         recipients=admin_emails,
+                        cc=cc_emails,
                         body=email_content
                     )
                     emails_sent += len(admin_emails)
-                    print(f"Email sent to {len(admin_emails)} club admins for {club_name}")
+                    print(f"Email sent to {len(admin_emails)} club admins for {club_name} with CC to {cc_emails}")
                 elif admin_emails and os.environ.get('ENV') != 'production':
                     # In development, send to admin user instead
                     admin_user_email = os.environ.get('ADMIN_USER')
@@ -766,16 +771,18 @@ async def get_unassigned_matches_in_14_days(
                         <h2>BISHL - Schiedsrichter-Einteilung erforderlich (TEST EMAIL)</h2>
                         <p><strong>Diese E-Mail würde in Produktion an Club-Admins von {club_name} gesendet werden.</strong></p>
                         <p>Original-Empfänger: {', '.join(admin_emails)}</p>
+                        <p>CC: {', '.join(cc_emails) if cc_emails else 'None'}</p>
                         <hr>
                         {email_content}
                         """
                         await send_email(
                             subject=f"[TEST] {email_subject}",
                             recipients=[admin_user_email],
+                            cc=cc_emails,
                             body=test_email_content
                         )
                         emails_sent += 1
-                        print(f"Test email sent to admin user {admin_user_email} for {club_name} (would go to {len(admin_emails)} admins in production)")
+                        print(f"Test email sent to admin user {admin_user_email} for {club_name} (would go to {len(admin_emails)} admins in production) with CC to {cc_emails}")
                     else:
                         print(f"ADMIN_USER not set in environment, email not sent for {club_name}")
                 else:
