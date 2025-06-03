@@ -76,7 +76,7 @@ async def set_referee_in_match(db, match_id, referee, position):
     })
 
 
-async def send_message_to_referee(match, receiver_id, content):
+async def send_message_to_referee(match, receiver_id, content, footer = None):
     token = await get_sys_ref_tool_token(
         email=os.environ['SYS_REF_TOOL_EMAIL'],
         password=os.environ['SYS_REF_TOOL_PASSWORD']
@@ -123,7 +123,7 @@ async def send_message_to_referee(match, receiver_id, content):
                         email_subject = "BISHL - Schiedsrichter-Information"
                         email_content = f"""
                         <p>{content.replace('\n', '<br>')}</p>
-                        <p>Du kannst auf der BISHL-Website deine Einteilung bestätigen, um zu signalisieren, dass du die Einteilung registriert hast.</p>
+                        {f'<p>{footer}</p>' if footer else ''}
                         """
                         
                         if os.environ.get('ENV') == 'production':
@@ -354,7 +354,8 @@ async def create_assignment(
             match=match,
             receiver_id=referee["userId"],
             content=
-            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:"
+            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+            footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast."
         )
 
         if new_assignment:
@@ -549,7 +550,8 @@ async def update_assignment(
                         match=match,
                         receiver_id=ref_id,
                         content=
-                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:"
+                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+                        footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast."
                     )
             #print("update_data before update", update_data)
             if result.modified_count == 1:
