@@ -622,12 +622,12 @@ async def update_assignment(
 async def get_unassigned_matches_in_14_days(
     request: Request,
     send_emails: bool = Query(False, description="Whether to send notification emails"),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    #token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
-    if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized")
+    #if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
+    #    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+    #                        detail="Not authorized")
 
     # Calculate date exactly 14 days from now
     from datetime import datetime, timedelta
