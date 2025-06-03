@@ -95,9 +95,7 @@ with open(filename, encoding='utf-8') as f:
       club_doc = db_collection_clubs.find_one({'_id': club['clubId']})
       if club_doc and club_doc.get('logoUrl'):
         club['logoUrl'] = club_doc['logoUrl']
-        print(f"Added logoUrl for club {club.get('clubName', '')}: {club['logoUrl']}")
-      else:
-        print(f"No logoUrl found for club {club.get('clubName', '')}")
+    print("club", club)
     level = row.get('level', 'n/a')
     passNo = row.get('passNo', None)
     ishdLevel = row.get('ishdLevel', None)
