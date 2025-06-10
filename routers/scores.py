@@ -270,7 +270,8 @@ async def patch_one_score(
           status_code=400,
           detail=f'Goal player {score.goalPlayer.playerId} not in roster')
 
-  if score.assistPlayer and score.assistPlayer.playerId:
+  # Check assist player only if it's not None and has a playerId
+  if score.assistPlayer is not None and score.assistPlayer.playerId:
     if not any(player['player']['playerId'] == score.assistPlayer.playerId
                for player in match.get(team_flag, {}).get('roster', [])):
       raise HTTPException(
@@ -297,9 +298,9 @@ async def patch_one_score(
         score_data['matchTime'])
   #score_data.pop('matchTime')
   score_data = jsonable_encoder(score_data)
-  goal_player_id = score_data.get('goalPlayer', {}).get('playerId')
-  assist_player_id = score_data.get('assistPlayer', {}).get('playerId')
-  player_ids = [goal_player_id, assist_player_id]
+  goal_player_id = score_data.get('goalPlayer', {}).get('playerId') if score_data.get('goalPlayer') else None
+  assist_player_id = score_data.get('assistPlayer', {}).get('playerId') if score_data.get('assistPlayer') else None
+  player_ids = [player_id for player_id in [goal_player_id, assist_player_id] if player_id]
   print("score_data: ", score_data)
 
   update_data = {"$set": {}}
