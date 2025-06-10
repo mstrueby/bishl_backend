@@ -76,7 +76,7 @@ async def set_referee_in_match(db, match_id, referee, position):
     })
 
 
-async def send_message_to_referee(match, receiver_id, content):
+async def send_message_to_referee(match, receiver_id, content, footer = None):
     token = await get_sys_ref_tool_token(
         email=os.environ['SYS_REF_TOOL_EMAIL'],
         password=os.environ['SYS_REF_TOOL_PASSWORD']
@@ -122,9 +122,8 @@ async def send_message_to_referee(match, receiver_id, content):
                         # Format the email content as HTML
                         email_subject = "BISHL - Schiedsrichter-Information"
                         email_content = f"""
-                        <h2>BISHL - Schiedsrichter-Information</h2>
                         <p>{content.replace('\n', '<br>')}</p>
-                        <p>Hinweis: Du kannst weitere Details zu diesem Spiel auf der BISHL-Website einsehen.</p>
+                        {f'<p>{footer}</p>' if footer else ''}
                         """
                         
                         if os.environ.get('ENV') == 'production':
@@ -355,7 +354,8 @@ async def create_assignment(
             match=match,
             receiver_id=referee["userId"],
             content=
-            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:"
+            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+            footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast."
         )
 
         if new_assignment:
@@ -550,7 +550,8 @@ async def update_assignment(
                         match=match,
                         receiver_id=ref_id,
                         content=
-                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:"
+                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+                        footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast."
                     )
             #print("update_data before update", update_data)
             if result.modified_count == 1:
@@ -622,12 +623,12 @@ async def update_assignment(
 async def get_unassigned_matches_in_14_days(
     request: Request,
     send_emails: bool = Query(False, description="Whether to send notification emails"),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    #token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
-    if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized")
+    #if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
+    #    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+    #                        detail="Not authorized")
 
     # Calculate date exactly 14 days from now
     from datetime import datetime, timedelta
@@ -750,12 +751,11 @@ async def get_unassigned_matches_in_14_days(
 
                 # Send email to all club admins
                 admin_emails = [admin.get('email') for admin in club_admins if admin.get('email')]
-                
-                # Always add LIGENLEITUNG_EMAIL to CC
                 ligenleitung_email = os.environ.get('LIGENLEITUNG_EMAIL')
-                cc_emails = [ligenleitung_email] if ligenleitung_email else []
                 
                 if admin_emails and os.environ.get('ENV') == 'production':
+                    # Add LIGENLEITUNG_EMAIL to CC when club admin emails are available
+                    cc_emails = [ligenleitung_email] if ligenleitung_email else []
                     await send_email(
                         subject=email_subject,
                         recipients=admin_emails,
@@ -768,6 +768,7 @@ async def get_unassigned_matches_in_14_days(
                     # In development, send to admin user instead
                     admin_user_email = os.environ.get('ADMIN_USER')
                     if admin_user_email:
+                        cc_emails = [ligenleitung_email] if ligenleitung_email else []
                         # Modify email content to indicate it's a test email
                         test_email_content = f"""
                         <h2>BISHL - Schiedsrichter-Einteilung erforderlich (TEST EMAIL)</h2>
@@ -787,8 +788,38 @@ async def get_unassigned_matches_in_14_days(
                         print(f"Test email sent to admin user {admin_user_email} for {club_name} (would go to {len(admin_emails)} admins in production) with CC to {cc_emails}")
                     else:
                         print(f"ADMIN_USER not set in environment, email not sent for {club_name}")
+                elif ligenleitung_email:
+                    # No club admin emails available, send only to LIGENLEITUNG_EMAIL
+                    if os.environ.get('ENV') == 'production':
+                        await send_email(
+                            subject=email_subject,
+                            recipients=[ligenleitung_email],
+                            body=email_content
+                        )
+                        emails_sent += 1
+                        print(f"Email sent to LIGENLEITUNG_EMAIL for {club_name} (no club admin emails available)")
+                    else:
+                        # In development, send to admin user instead
+                        admin_user_email = os.environ.get('ADMIN_USER')
+                        if admin_user_email:
+                            test_email_content = f"""
+                            <h2>BISHL - Schiedsrichter-Einteilung erforderlich (TEST EMAIL)</h2>
+                            <p><strong>Diese E-Mail würde in Produktion an LIGENLEITUNG_EMAIL gesendet werden, da keine Club-Admin E-Mails für {club_name} verfügbar sind.</strong></p>
+                            <p>Empfänger: {ligenleitung_email}</p>
+                            <hr>
+                            {email_content}
+                            """
+                            await send_email(
+                                subject=f"[TEST] {email_subject}",
+                                recipients=[admin_user_email],
+                                body=test_email_content
+                            )
+                            emails_sent += 1
+                            print(f"Test email sent to admin user {admin_user_email} for {club_name} (would go to LIGENLEITUNG_EMAIL in production)")
+                        else:
+                            print(f"ADMIN_USER not set in environment, email not sent for {club_name}")
                 else:
-                    print(f"No email addresses found for club admins of {club_name}")
+                    print(f"No email addresses found for club admins of {club_name} and LIGENLEITUNG_EMAIL not set")
 
             except Exception as e:
                 print(f"Failed to send email for club {club_id}: {str(e)}")

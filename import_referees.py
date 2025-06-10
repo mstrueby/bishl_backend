@@ -38,6 +38,7 @@ else:
 client = MongoClient(DB_URL, tlsCAFile=certifi.where())
 db = client[DB_NAME]
 db_collection = db['users']
+db_collection_clubs = db['clubs']
 
 print("BASE_URL: ", BASE_URL)
 print("DB_NAME", DB_NAME)
@@ -88,6 +89,13 @@ with open(filename, encoding='utf-8') as f:
     if not club:
       print("No club found for referee", row)
       continue
+    
+    # Look up club logoUrl from clubs collection
+    if club.get('clubId'):
+      club_doc = db_collection_clubs.find_one({'_id': club['clubId']})
+      if club_doc and club_doc.get('logoUrl'):
+        club['logoUrl'] = club_doc['logoUrl']
+    print("club", club)
     level = row.get('level', 'n/a')
     passNo = row.get('passNo', None)
     ishdLevel = row.get('ishdLevel', None)
@@ -146,7 +154,6 @@ with open(filename, encoding='utf-8') as f:
           #email='marian.strueby@web.de'
           recipients = [email]
           body = f"""
-            <h2>Willkommen auf der BISHL-Website!</h2>
             <p>Hallo {first_name},</p>
             <p>dein Schiedsrichter-Account wurde erfolgreich angelegt.</p>
             <p>Hier sind deine Login-Details:</p>
