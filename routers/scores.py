@@ -280,9 +280,9 @@ async def patch_one_score(
   # Fetch the current score
   current_score = None
   for score_entry in match.get(team_flag, {}).get("scores", []):
-    print("score_entry: ", score_entry)
     if score_entry["_id"] == score_id:
       current_score = score_entry
+      print("found score: ", current_score)
       break
 
   if current_score is None:
@@ -300,12 +300,13 @@ async def patch_one_score(
   goal_player_id = score_data.get('goalPlayer', {}).get('playerId')
   assist_player_id = score_data.get('assistPlayer', {}).get('playerId')
   player_ids = [goal_player_id, assist_player_id]
+  print("score_data: ", score_data)
 
   update_data = {"$set": {}}
   for key, value in score_data.items():
-    if current_score.get(key) != value:
-      update_data["$set"][f"{team_flag}.scores.$.{key}"] = value
-
+    update_data["$set"][f"{team_flag}.scores.$.{key}"] = value
+    
+  print("update_data: ", update_data)
   if update_data.get("$set"):
     try:
       result = await mongodb["matches"].update_one(
