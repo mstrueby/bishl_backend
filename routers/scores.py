@@ -292,7 +292,8 @@ async def patch_one_score(
         detail=f"Score with id {score_id} not found in match {match_id}")
 
   # Update data
-  score_data = score.dict(exclude_unset=True)
+  score_data = score.dict()
+  score_data.pop('id', None)
   if 'matchTime' in score_data:
     score_data['matchSeconds'] = parse_time_to_seconds(
         score_data['matchTime'])
@@ -315,10 +316,6 @@ async def patch_one_score(
               "_id": match_id,
               f"{team_flag}.scores._id": score_id
           }, update_data)
-      if result.modified_count == 0:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Score with ID {score_id} not found in match {match_id}")
       await calc_roster_stats(mongodb, match_id, team_flag)
       await calc_player_card_stats(
           mongodb,
@@ -328,6 +325,10 @@ async def patch_one_score(
           r_alias=match.get("round").get("alias"),
           md_alias=match.get("matchday").get("alias"))
 
+    except HTTPException as e:
+      if e.status_code == status.HTTP_304_NOT_MODIFIED:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+      raise
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:
