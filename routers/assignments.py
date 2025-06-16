@@ -632,7 +632,7 @@ async def get_unassigned_matches_in_14_days(
 
     # Calculate date exactly 14 days from now
     from datetime import datetime, timedelta
-    target_date = datetime.now() + timedelta(days=19)
+    target_date = datetime.now() + timedelta(days=14 if os.environ.get('ENV') == 'production' else 14)
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
