@@ -708,7 +708,6 @@ async def get_unassigned_matches_in_14_days(
                     matches_by_club[club_id] = []
                 matches_by_club[club_id].append(match)
 
-        print("Matches by club:", matches_by_club)
         # Send emails to club admins
         for club_id, club_matches in matches_by_club.items():
             try:
@@ -789,7 +788,7 @@ async def get_unassigned_matches_in_14_days(
                     email_content = f"""
                     <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
                     <p>Hallo,</p>
-                    <p>als Veranstalter des Spieltags sind für folgende Spiele noch keine Schiedsrichter eingeteilt:</p>
+                    <p>für den Spieltag des Vereins <strong>{club_name}</strong> sind für folgende Spiele noch keine Schiedsrichter eingeteilt:</p>
 
                     <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
                         <thead>
