@@ -33,7 +33,7 @@ async def add_status_history_entry(db, assignment_id, new_status, updated_by=Non
         updatedBy=updated_by,
         updatedByName=updated_by_name
     )
-    
+
     await db["assignments"].update_one(
         {"_id": assignment_id},
         {"$push": {"statusHistory": jsonable_encoder(status_entry)}}
@@ -48,7 +48,7 @@ async def insert_assignment(db, match_id, referee, status, position=None, update
         updatedBy=updated_by,
         updatedByName=updated_by_name
     )]
-    
+
     assignment = AssignmentDB(matchId=match_id,
                               referee=referee,
                               status=status,
@@ -108,7 +108,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
                     error_msg += f" (Status code: {response.status_code}, Content: {response.content}, Error: {str(e)})"
                 raise HTTPException(status_code=response.status_code,
                                     detail=error_msg)
-            
+
             # After successfully sending the message, also send an email
             try:                
                 # Get referee's email by making a request to users endpoint
@@ -117,7 +117,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
                 if user_response.status_code == 200:
                     user_data = user_response.json()
                     referee_email = user_data.get("email")
-                    
+
                     if referee_email:
                         # Format the email content as HTML
                         email_subject = "BISHL - Schiedsrichter-Information"
@@ -125,7 +125,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
                         <p>{content.replace('\n', '<br>')}</p>
                         {f'<p>{footer}</p>' if footer else ''}
                         """
-                        
+
                         if os.environ.get('ENV') == 'production':
                             await send_email(
                                 subject=email_subject,
@@ -142,7 +142,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
             except Exception as e:
                 # Just log email sending failure but don't fail the request
                 print(f"Failed to send email to referee {receiver_id}: {str(e)}")
-                
+
         except httpx.RequestError as e:
             raise HTTPException(status_code=500,
                                 detail=f"Request failed: {str(e)}")
@@ -219,7 +219,7 @@ async def get_assignments_by_match(
             assignment for assignment in assignment_list
             if assignment["status"] in [status.value for status in assignmentStatus]
         ]
-    
+
     assignment_list.sort(
         key=lambda x: (x['referee']['firstName'], x['referee']['lastName']))
 
@@ -283,7 +283,7 @@ async def create_assignment(
     if not match:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Match with id {match_id} not found")
-      
+
     if ref_admin:
         # REF_ADMIN mode ------------------------------------------------------------
         print("REF_ADMN mode")
@@ -654,9 +654,9 @@ async def get_unassigned_matches_in_14_days(
             {"tournament.alias": {"$nin": ["bambini", "mini"]}}
         ]
     })
-    
+
     matches = await matches_cursor.to_list(length=None)
-    
+
     if not matches:
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -669,17 +669,46 @@ async def get_unassigned_matches_in_14_days(
         )
 
     emails_sent = 0
-    
+
     if send_emails:
-        # Group matches by home club to avoid duplicate emails
+        # Group matches by club - either matchday owner or home club
         matches_by_club = {}
         for match in matches:
-            home_club_id = match.get('home', {}).get('clubId')
-            if home_club_id:
-                if home_club_id not in matches_by_club:
-                    matches_by_club[home_club_id] = []
-                matches_by_club[home_club_id].append(match)
+            # Get matchday owner by calling the API endpoint
+            matchday_owner = None
+            try:
+                tournament_alias = match.get('tournament', {}).get('alias')
+                season_alias = match.get('season', {}).get('alias')
+                round_alias = match.get('round', {}).get('alias')
+                matchday_alias = match.get('matchday', {}).get('alias')
 
+                if all([tournament_alias, season_alias, round_alias, matchday_alias]):
+                    headers = {
+                        'Content-Type': 'application/json'
+                    }
+
+                    matchday_url = f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_alias}"
+                    async with httpx.AsyncClient() as client:
+                        matchday_response = await client.get(matchday_url, headers=headers)
+                        if matchday_response.status_code == 200:
+                            matchday_data = matchday_response.json()
+                            matchday_owner = matchday_data.get('owner')
+            except Exception as e:
+                print(f"Failed to fetch matchday owner for match {match.get('_id')}: {str(e)}")
+
+            if matchday_owner and matchday_owner.get('clubId'):
+                # Group by matchday owner club
+                club_id = matchday_owner.get('clubId')
+            else:
+                # Group by home club if no matchday owner
+                club_id = match.get('home', {}).get('clubId')
+
+            if club_id:
+                if club_id not in matches_by_club:
+                    matches_by_club[club_id] = []
+                matches_by_club[club_id].append(match)
+
+        print("Matches by club:", matches_by_club)
         # Send emails to club admins
         for club_id, club_matches in matches_by_club.items():
             try:
@@ -695,11 +724,39 @@ async def get_unassigned_matches_in_14_days(
 
                 # Get club info for the email
                 first_match = club_matches[0]
-                club_name = first_match.get('home', {}).get('clubName', 'Unknown Club')
+
+                # Fetch matchday owner info for email subject
+                matchday_owner = None
+                try:
+                    tournament_alias = first_match.get('tournament', {}).get('alias')
+                    season_alias = first_match.get('season', {}).get('alias')
+                    round_alias = first_match.get('round', {}).get('alias')
+                    matchday_alias = first_match.get('matchday', {}).get('alias')
+
+                    if all([tournament_alias, season_alias, round_alias, matchday_alias]):
+                        headers = {
+                            'Content-Type': 'application/json'
+                        }
+
+                        matchday_url = f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_alias}"
+                        async with httpx.AsyncClient() as client:
+                            matchday_response = await client.get(matchday_url, headers=headers)
+                            if matchday_response.status_code == 200:
+                                matchday_data = matchday_response.json()
+                                matchday_owner = matchday_data.get('owner')
+                except Exception as e:
+                    print(f"Failed to fetch matchday owner for email: {str(e)}")
+
+                if matchday_owner and matchday_owner.get('clubId'):
+                    # Use matchday owner club info
+                    club_name = matchday_owner.get('clubName', 'Unknown Club')
+                else:
+                    # Use home club info
+                    club_name = first_match.get('home', {}).get('clubName', 'Unknown Club')
 
                 # Prepare email content
                 email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
-                
+
                 match_details = ""
                 for match in club_matches:
                     tournament_name = match.get('tournament', {}).get('name', 'Unknown Tournament')
@@ -707,13 +764,13 @@ async def get_unassigned_matches_in_14_days(
                     away_team = match.get('away', {}).get('fullName', 'Unknown Team')
                     start_date = match.get('startDate')
                     venue_name = match.get('venue', {}).get('name', 'Unknown Venue')
-                    
+
                     if start_date:
                         weekdays_german = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
                         weekday = weekdays_german[start_date.weekday()]
                         formatted_date = start_date.strftime('%d.%m.%Y')
                         formatted_time = start_date.strftime('%H:%M')
-                        
+
                         match_details += f"""
                         <tr>
                             <td style="padding: 8px; border: 1px solid #ddd;">{tournament_name}</td>
@@ -728,7 +785,7 @@ async def get_unassigned_matches_in_14_days(
                 <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
                 <p>Hallo,</p>
                 <p>für folgende Spiele von <strong>{club_name}</strong> sind noch keine Schiedsrichter eingeteilt:</p>
-                
+
                 <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
                     <thead>
                         <tr style="background-color: #f5f5f5;">
@@ -743,7 +800,7 @@ async def get_unassigned_matches_in_14_days(
                         {match_details}
                     </tbody>
                 </table>
-                
+
                 <p>Bis zum {target_date.replace(day=target_date.day - 7).strftime('%d.%m.')} können nur Schiedsrichter der beteiligten Vereine anfragen. Der Verein <strong>{club_name}</strong>) ist nun in der Verantwortung zwei Schiedsrichter zu stellen. Ab dem {target_date.replace(day=target_date.day - 6).strftime('%d.%m.')} können wieder alle Schiedsrichter anfragen.</p>
                 <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
                 <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
@@ -753,7 +810,7 @@ async def get_unassigned_matches_in_14_days(
                 # Send email to all club admins
                 admin_emails = [admin.get('email') for admin in club_admins if admin.get('email')]
                 ligenleitung_email = os.environ.get('LIGENLEITUNG_EMAIL')
-                
+
                 if admin_emails and os.environ.get('ENV') == 'production':
                     # Add LIGENLEITUNG_EMAIL to CC when club admin emails are available
                     cc_emails = [ligenleitung_email] if ligenleitung_email else []
@@ -876,7 +933,7 @@ async def delete_assignment(
     if not match:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Match with id {match_id} not found")
-        
+
     # delete assignment
     result = await mongodb["assignments"].delete_one({"_id": id})
     if result.deleted_count == 1:
@@ -893,7 +950,7 @@ async def delete_assignment(
             f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-        
+
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Assignment with id {id} not found")
