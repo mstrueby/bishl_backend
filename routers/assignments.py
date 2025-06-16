@@ -683,12 +683,7 @@ async def get_unassigned_matches_in_14_days(
                 matchday_alias = match.get('matchday', {}).get('alias')
 
                 if all([tournament_alias, season_alias, round_alias, matchday_alias]):
-                    token = await get_sys_ref_tool_token(
-                        email=os.environ['SYS_REF_TOOL_EMAIL'],
-                        password=os.environ['SYS_REF_TOOL_PASSWORD']
-                    )
                     headers = {
-                        'Authorization': f'Bearer {token}',
                         'Content-Type': 'application/json'
                     }
 
@@ -713,6 +708,7 @@ async def get_unassigned_matches_in_14_days(
                     matches_by_club[club_id] = []
                 matches_by_club[club_id].append(match)
 
+        print("Matches by club:", matches_by_club)
         # Send emails to club admins
         for club_id, club_matches in matches_by_club.items():
             try:
@@ -738,12 +734,7 @@ async def get_unassigned_matches_in_14_days(
                     matchday_alias = first_match.get('matchday', {}).get('alias')
 
                     if all([tournament_alias, season_alias, round_alias, matchday_alias]):
-                        token = await get_sys_ref_tool_token(
-                            email=os.environ['SYS_REF_TOOL_EMAIL'],
-                            password=os.environ['SYS_REF_TOOL_PASSWORD']
-                        )
                         headers = {
-                            'Authorization': f'Bearer {token}',
                             'Content-Type': 'application/json'
                         }
 
