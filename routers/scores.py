@@ -270,7 +270,8 @@ async def patch_one_score(
           status_code=400,
           detail=f'Goal player {score.goalPlayer.playerId} not in roster')
 
-  if score.assistPlayer and score.assistPlayer.playerId:
+  # Check assist player only if it's not None and has a playerId
+  if score.assistPlayer is not None and score.assistPlayer.playerId:
     if not any(player['player']['playerId'] == score.assistPlayer.playerId
                for player in match.get(team_flag, {}).get('roster', [])):
       raise HTTPException(
@@ -291,15 +292,16 @@ async def patch_one_score(
         detail=f"Score with id {score_id} not found in match {match_id}")
 
   # Update data
-  score_data = score.dict(exclude_unset=True)
+  score_data = score.dict()
+  score_data.pop('id', None)
   if 'matchTime' in score_data:
     score_data['matchSeconds'] = parse_time_to_seconds(
         score_data['matchTime'])
   #score_data.pop('matchTime')
   score_data = jsonable_encoder(score_data)
-  goal_player_id = score_data.get('goalPlayer', {}).get('playerId')
-  assist_player_id = score_data.get('assistPlayer', {}).get('playerId')
-  player_ids = [goal_player_id, assist_player_id]
+  goal_player_id = score_data.get('goalPlayer', {}).get('playerId') if score_data.get('goalPlayer') else None
+  assist_player_id = score_data.get('assistPlayer', {}).get('playerId') if score_data.get('assistPlayer') else None
+  player_ids = [player_id for player_id in [goal_player_id, assist_player_id] if player_id]
   print("score_data: ", score_data)
 
   update_data = {"$set": {}}
@@ -314,10 +316,6 @@ async def patch_one_score(
               "_id": match_id,
               f"{team_flag}.scores._id": score_id
           }, update_data)
-      if result.modified_count == 0:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Score with ID {score_id} not found in match {match_id}")
       await calc_roster_stats(mongodb, match_id, team_flag)
       await calc_player_card_stats(
           mongodb,
@@ -327,6 +325,10 @@ async def patch_one_score(
           r_alias=match.get("round").get("alias"),
           md_alias=match.get("matchday").get("alias"))
 
+    except HTTPException as e:
+      if e.status_code == status.HTTP_304_NOT_MODIFIED:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+      raise
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:

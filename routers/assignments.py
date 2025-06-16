@@ -632,7 +632,7 @@ async def get_unassigned_matches_in_14_days(
 
     # Calculate date exactly 14 days from now
     from datetime import datetime, timedelta
-    target_date = datetime.now() + timedelta(days=14)
+    target_date = datetime.now() + timedelta(days=19)
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
@@ -650,7 +650,8 @@ async def get_unassigned_matches_in_14_days(
             {"$or": [
                 {"referee2": {"$exists": False}},
                 {"referee2": None}
-            ]}
+            ]},
+            {"tournament.alias": {"$nin": ["bambini", "mini"]}}
         ]
     })
     
@@ -764,11 +765,11 @@ async def get_unassigned_matches_in_14_days(
                     )
                     emails_sent += len(admin_emails)
                     print(f"Email sent to {len(admin_emails)} club admins for {club_name} with CC to {cc_emails}")
-                elif admin_emails and os.environ.get('ENV') != 'production':
+                elif admin_emails and os.environ.get('ENV') == 'development':
                     # In development, send to admin user instead
                     admin_user_email = os.environ.get('ADMIN_USER')
                     if admin_user_email:
-                        cc_emails = [ligenleitung_email] if ligenleitung_email else []
+                        cc_emails = []
                         # Modify email content to indicate it's a test email
                         test_email_content = f"""
                         <h2>BISHL - Schiedsrichter-Einteilung erforderlich (TEST EMAIL)</h2>
