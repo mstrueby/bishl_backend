@@ -367,11 +367,14 @@ async def update_match(request: Request,
   if not any(role in token_payload.roles for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
-  # Helper function to add _id to new nested documents
+  # Helper function to add _id to new nested documents and clean up ObjectId id fields
   def add_id_to_scores(scores):
     for score in scores:
       if '_id' not in score:
         score['_id'] = str(ObjectId())
+      # Remove ObjectId id field if it exists
+      if 'id' in score and isinstance(score['id'], ObjectId):
+        score.pop('id')
 
   # Firstly, check if match exists and get this match
   existing_match = await mongodb["matches"].find_one({"_id": match_id})
