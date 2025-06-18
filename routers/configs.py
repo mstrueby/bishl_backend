@@ -82,7 +82,6 @@ configs: List[Config] = [  # Use List[Config] for type hinting
            ConfigValue(key="W", value="Wechselfehler", sortOrder=19),
            ConfigValue(key="X", value="Spielverzögerung", sortOrder=20),
            ConfigValue(key="Y", value="Vergehen von Torhütern", sortOrder=21),
-           ConfigValue(key="X", value="Kopf- und Nackencheck", sortOrder=22),
            ConfigValue(key="ZA", value="Bankstrafe, Fehlverhalten", sortOrder=23),
            ConfigValue(key="ZB", value="Vergehen auf der Strafbank", sortOrder=24),
            ConfigValue(key="ZC", value="Vergehen im Zusammenhang mit Ausrüstung", sortOrder=25)
