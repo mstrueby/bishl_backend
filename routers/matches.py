@@ -368,13 +368,13 @@ async def update_match(request: Request,
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   # Helper function to add _id to new nested documents and clean up ObjectId id fields
-  def add_id_to_scores(scores):
-    for score in scores:
-      if '_id' not in score:
-        score['_id'] = str(ObjectId())
+  def add_id_to_scores_and_penalties(items):
+    for item in items:
+      if '_id' not in item:
+        item['_id'] = str(ObjectId())
       # Remove ObjectId id field if it exists
-      if 'id' in score and isinstance(score['id'], ObjectId):
-        score.pop('id')
+      if 'id' in item and isinstance(item['id'], ObjectId):
+        item.pop('id')
 
   # Firstly, check if match exists and get this match
   existing_match = await mongodb["matches"].find_one({"_id": match_id})
@@ -457,9 +457,13 @@ async def update_match(request: Request,
   match_data = convert_times_to_seconds(match_data)
 
   if match_data.get("home") and match_data["home"].get("scores"):
-    add_id_to_scores(match_data["home"]["scores"])
+    add_id_to_scores_and_penalties(match_data["home"]["scores"])
   if match_data.get("away") and match_data["away"].get("scores"):
-    add_id_to_scores(match_data["away"]["scores"])
+    add_id_to_scores_and_penalties(match_data["away"]["scores"])
+  if match_data.get("home") and match_data["home"].get("penalties"):
+    add_id_to_scores_and_penalties(match_data["home"]["penalties"])
+  if match_data.get("away") and match_data["away"].get("penalties"):
+    add_id_to_scores_and_penalties(match_data["away"]["penalties"])
 
   def check_nested_fields(data, existing, path=""):
     for key, value in data.items():
