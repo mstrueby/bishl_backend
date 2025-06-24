@@ -61,7 +61,8 @@ def convert_seconds_to_times(data):
       if penalty.get('matchSecondsEnd') is not None:
         penalty["matchTimeEnd"] = parse_time_from_seconds(
             penalty["matchSecondsEnd"])
-  print("data", data)
+  if DEBUG_LEVEL > 100:
+    print("data", data)
   return data
 
 
@@ -171,7 +172,7 @@ async def list_matches(request: Request,
     except Exception as e:
       raise HTTPException(status_code=400,
                           detail=f"Invalid date format: {str(e)}")
-  if DEBUG_LEVEL > 10:
+  if DEBUG_LEVEL > 20:
     print("query: ", query)
   matches = await mongodb["matches"].find(query).sort("startDate",
                                                       1).to_list(None)
@@ -210,16 +211,19 @@ async def create_match(
         and match.home is not None and match.away is not None
         and hasattr(match.tournament, 'alias')
         and hasattr(match.season, 'alias')):
-      print("get standingsSettings")
+      if DEBUG_LEVEL > 10:
+        print("get standingsSettings")
       standings_settings = await fetch_standings_settings(
           match.tournament.alias, match.season.alias)
-      print(standings_settings)
+      if DEBUG_LEVEL > 10:
+        print(standings_settings)
       home_score = 0 if match.home is None or not match.home.stats or match.home.stats.goalsFor is None else match.home.stats.goalsFor
       away_score = 0 if match.away is None or not match.away.stats or match.away.stats.goalsFor is None else match.away.stats.goalsFor
-      print("calc_match_stats")
+      if DEBUG_LEVEL > 10:
+        print("calc_match_stats")
       stats = calc_match_stats(match.matchStatus.key, match.finishType.key,
                                standings_settings, home_score, away_score)
-      if DEBUG_LEVEL > 10:
+      if DEBUG_LEVEL > 20:
         print("stats: ", stats)
 
       # Now safely assign the stats
@@ -237,7 +241,8 @@ async def create_match(
                                             s_alias=s_alias,
                                             r_alias=r_alias,
                                             md_alias=md_alias)
-        print("ref_points: ", ref_points)
+        if DEBUG_LEVEL > 20:
+          print("ref_points: ", ref_points)
         if match.matchStatus.key in ['FINISHED', 'FORFEITED']:
           if match.referee1 is not None:
             match.referee1.points = ref_points
@@ -252,7 +257,8 @@ async def create_match(
           )
         raise e
 
-    print("xxx match", match)
+    if DEBUG_LEVEL > 20:
+      print("xxx match", match)
     match_data = my_jsonable_encoder(match)
     match_data = convert_times_to_seconds(match_data)
 
@@ -262,7 +268,8 @@ async def create_match(
       print(start_date_str)
       try:
         start_date_parts = datetime.fromisoformat(str(start_date_str))
-        print(start_date_parts)
+        if DEBUG_LEVEL > 100:
+          print(start_date_parts)
         match_data['startDate'] = datetime(
           start_date_parts.year,
           start_date_parts.month,
@@ -275,14 +282,12 @@ async def create_match(
         )
       except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-      print(match_data['startDate'])
-
+      
     if DEBUG_LEVEL > 0:
       print("xxx match_data: ", match_data)
 
     # add match to collection matches
     result = await mongodb["matches"].insert_one(match_data)
-    print("result: ", result)
 
     # Update rounds and matchdays dates, and calc standings
     if t_alias and s_alias and r_alias and md_alias:
@@ -317,7 +322,8 @@ async def create_match(
           else:
             print(f"Warning: Round {r_alias} not found or has no ID")
 
-      print("calc standings ...")
+      if DEBUG_LEVEL > 0:
+        print("calc standings ...")
       await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
       await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
                                         md_alias)
@@ -343,7 +349,8 @@ async def create_match(
         print("calc_player_card_stats ...")
       await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
                                    r_alias, md_alias)
-      print("calc_player_card_stats DONE ...")
+      if DEBUG_LEVEL > 0:
+        print("calc_player_card_stats DONE ...")
 
     # return complete match document
     new_match = await get_match_object(mongodb, result.inserted_id)
@@ -533,7 +540,8 @@ async def update_match(request: Request,
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:
-    print("No changes to update")
+    if DEBUG_LEVEL > 0:
+      print("No changes to update")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   updated_match = await get_match_object(mongodb, match_id)
