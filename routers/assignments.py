@@ -632,7 +632,7 @@ async def get_unassigned_matches_in_14_days(
 
     # Calculate date exactly 14 days from now
     from datetime import datetime, timedelta
-    target_date = datetime.now() + timedelta(days=19)
+    target_date = datetime.now() + timedelta(days=14 if os.environ.get('ENV') == 'production' else 14)
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
@@ -708,7 +708,6 @@ async def get_unassigned_matches_in_14_days(
                     matches_by_club[club_id] = []
                 matches_by_club[club_id].append(match)
 
-        print("Matches by club:", matches_by_club)
         # Send emails to club admins
         for club_id, club_matches in matches_by_club.items():
             try:
@@ -754,6 +753,9 @@ async def get_unassigned_matches_in_14_days(
                     # Use home club info
                     club_name = first_match.get('home', {}).get('clubName', 'Unknown Club')
 
+                # Determine if this is a matchday owner or home club
+                is_matchday_owner = matchday_owner and matchday_owner.get('clubId') == club_id
+                
                 # Prepare email content
                 email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
 
@@ -781,31 +783,61 @@ async def get_unassigned_matches_in_14_days(
                         </tr>
                         """
 
-                email_content = f"""
-                <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
-                <p>Hallo,</p>
-                <p>für folgende Spiele von <strong>{club_name}</strong> sind noch keine Schiedsrichter eingeteilt:</p>
+                if is_matchday_owner:
+                    # Email content for matchday owner
+                    email_content = f"""
+                    <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
+                    <p>Hallo,</p>
+                    <p>für den Spieltag des Vereins <strong>{club_name}</strong> sind für folgende Spiele noch keine Schiedsrichter eingeteilt:</p>
 
-                <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
-                    <thead>
-                        <tr style="background-color: #f5f5f5;">
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Wettbewerb</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Spiel</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Datum</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Zeit</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Ort</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {match_details}
-                    </tbody>
-                </table>
+                    <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+                        <thead>
+                            <tr style="background-color: #f5f5f5;">
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Wettbewerb</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Spiel</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Datum</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Zeit</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Ort</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {match_details}
+                        </tbody>
+                    </table>
 
-                <p>Bis zum {(target_date - timedelta(days=7)).strftime('%d.%m.')} können nur Schiedsrichter der beteiligten Vereine anfragen. Der Verein <strong>{club_name}</strong> ist nun in der Verantwortung die Schiedsrichter zu stellen. Ab dem {(target_date - timedelta(days=6)).strftime('%d.%m.')} können wieder alle Schiedsrichter anfragen.</p>
-                <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
-                <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
-                <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
-                """
+                    <p>Als Veranstalter des Spieltags ist <strong>{club_name}</strong> dafür verantwortlich, dass für alle Spiele des Spieltags Schiedsrichter gestellt werden.</p>
+                    <p>Bis zum {(target_date - timedelta(days=7)).strftime('%d.%m.')} können nur Schiedsrichter der beteiligten Vereine anfragen. Ab dem {(target_date - timedelta(days=6)).strftime('%d.%m.')} können wieder alle Schiedsrichter anfragen.</p>
+                    <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
+                    <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
+                    <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
+                    """
+                else:
+                    # Email content for home club
+                    email_content = f"""
+                    <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
+                    <p>Hallo,</p>
+                    <p>für folgende Heimspiele von <strong>{club_name}</strong> sind noch keine Schiedsrichter eingeteilt:</p>
+
+                    <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+                        <thead>
+                            <tr style="background-color: #f5f5f5;">
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Wettbewerb</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Spiel</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Datum</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Zeit</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Ort</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {match_details}
+                        </tbody>
+                    </table>
+
+                    <p>Bis zum {(target_date - timedelta(days=7)).strftime('%d.%m.')} können nur Schiedsrichter der beteiligten Vereine anfragen. Als Heimverein ist <strong>{club_name}</strong> nun in der Verantwortung, zwei Schiedsrichter für diese Spiele zu stellen. Ab dem {(target_date - timedelta(days=6)).strftime('%d.%m.')} können wieder alle Schiedsrichter anfragen.</p>
+                    <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
+                    <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
+                    <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
+                    """
 
                 # Send email to all club admins
                 admin_emails = [admin.get('email') for admin in club_admins if admin.get('email')]
