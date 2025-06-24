@@ -113,7 +113,7 @@ def validate_match_time(v, field_name: str):
 async def fetch_standings_settings(tournament_alias: str, season_alias: str) -> dict:
   if not tournament_alias or not season_alias:
     raise HTTPException(status_code=400, detail="Tournament and season aliases are required")
-    
+
   async with aiohttp.ClientSession() as session:
     try:
       async with session.get(
@@ -635,7 +635,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
                                  s_alias: str, r_alias: str,
                                  md_alias: str) -> None:
 
-  async def update_player_card_stats(flag, matches, player_card_stats):
+  def update_player_card_stats(flag, matches, player_card_stats):
     if flag not in ['ROUND', 'MATCHDAY']:
       raise ValueError(
           "Invalid flag, only 'ROUND' or 'MATCHDAY' are accepted.")
@@ -668,6 +668,10 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
         stats['assists'] += roster_player.get('assists', 0)
         stats['points'] += roster_player.get('points', 0)
         stats['penaltyMinutes'] += roster_player.get('penaltyMinutes', 0)
+
+        # Check if player is called from another team using the existing 'called' attribute
+        if roster_player.get('called', False):
+          stats['calledMatches'] += 1
 
     for match in matches:
       match_info = {
@@ -760,37 +764,4 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
         f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}")
     if response.status_code != 200:
       raise HTTPException(status_code=response.status_code,
-                          detail="Could not fetch the round information")
-    round_info = response.json()
-
-  if round_info.get('createStats', False):
-    matches = await mongodb["matches"].find({
-        "tournament.alias": t_alias,
-        "season.alias": s_alias,
-        "round.alias": r_alias
-    }).to_list(length=None)
-    player_card_stats = {}
-    await update_player_card_stats("ROUND", matches, player_card_stats)
-    if DEBUG_LEVEL > 0:
-      print("### round - player_card_stats", player_card_stats)
-  else:
-    if DEBUG_LEVEL > 0:
-      print("### no round stats")
-    # remove statistics - not implemented
-
-  for matchday in round_info.get('matchdays', []):
-    if matchday.get('createStats', False):
-      matches = await mongodb["matches"].find({
-          "tournament.alias": t_alias,
-          "season.alias": s_alias,
-          "round.alias": r_alias,
-          "matchday.alias": md_alias
-      }).to_list(length=None)
-      player_card_stats = {}
-      await update_player_card_stats("MATCHDAY", matches, player_card_stats)
-      if DEBUG_LEVEL > 0:
-        print("### matchday - player_card_stats", player_card_stats)
-    else:
-      if DEBUG_LEVEL > 0:
-        print("### no matchday stats")
-      # remove statistics - not implemented
+                          detail="Could
