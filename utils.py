@@ -658,6 +658,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
             'assists': 0,
             'points': 0,
             'penaltyMinutes': 0,
+            'calledMatches': 0,
         }
       if match_info['match_status']['key'] in [
           'FINISHED', 'INPROGRESS', 'FORFEITED'
@@ -764,4 +765,4 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
         f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}")
     if response.status_code != 200:
       raise HTTPException(status_code=response.status_code,
-                          detail="Could
+                          detail="Could not fetch the round information")
