@@ -635,7 +635,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
                                  s_alias: str, r_alias: str,
                                  md_alias: str) -> None:
 
-  def update_player_card_stats(flag, matches, player_card_stats):
+  async def update_player_card_stats(flag, matches, player_card_stats):
     if flag not in ['ROUND', 'MATCHDAY']:
       raise ValueError(
           "Invalid flag, only 'ROUND' or 'MATCHDAY' are accepted.")
@@ -683,9 +683,15 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
           match.get('matchday', {}) if flag == 'MATCHDAY' else None,
           'match_status': match.get('matchStatus', {})
       }
-
+      if DEBUG_LEVEL > 10:
+        print("### match_info", match.get('startDate', {}))
+        
       home_roster = match.get('home', {}).get('roster', [])
       away_roster = match.get('away', {}).get('roster', [])
+      
+      if DEBUG_LEVEL > 10:
+        print("### home_roster", home_roster)
+      
       home_team = {
           'name': match.get('home', {}).get('name'),
           'fullName': match.get('home', {}).get('fullName'),
@@ -700,13 +706,20 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
       }
       if home_roster:
         for roster_player in home_roster:
+          if DEBUG_LEVEL > 10:
+            print("### home_roster_player", roster_player)
+            print("### player_ids", player_ids)
           player_id = roster_player['player']['playerId']
           if player_id in player_ids:
+            if DEBUG_LEVEL > 10:
+              print("### home_roster_player", roster_player)
             update_stats(player_id, home_team, roster_player, match_info)
       if away_roster:
         for roster_player in away_roster:
           player_id = roster_player['player']['playerId']
           if player_id in player_ids:
+            if DEBUG_LEVEL > 10:
+              print("### away_roster_player", roster_player)
             update_stats(player_id, away_team, roster_player, match_info)
 
     if DEBUG_LEVEL > 10:
@@ -766,3 +779,36 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     if response.status_code != 200:
       raise HTTPException(status_code=response.status_code,
                           detail="Could not fetch the round information")
+    round_info = response.json()
+
+  if round_info.get('createStats', False):
+    matches = await mongodb["matches"].find({
+        "tournament.alias": t_alias,
+        "season.alias": s_alias,
+        "round.alias": r_alias
+    }).to_list(length=None)
+    player_card_stats = {}
+    await update_player_card_stats("ROUND", matches, player_card_stats)
+    if DEBUG_LEVEL > 0:
+      print("### round - player_card_stats", player_card_stats)
+  else:
+    if DEBUG_LEVEL > 0:
+      print("### no round stats")
+    # remove statistics - not implemented
+
+  for matchday in round_info.get('matchdays', []):
+    if matchday.get('createStats', False):
+      matches = await mongodb["matches"].find({
+          "tournament.alias": t_alias,
+          "season.alias": s_alias,
+          "round.alias": r_alias,
+          "matchday.alias": md_alias
+      }).to_list(length=None)
+      player_card_stats = {}
+      await update_player_card_stats("MATCHDAY", matches, player_card_stats)
+      if DEBUG_LEVEL > 0:
+        print("### matchday - player_card_stats", player_card_stats)
+    else:
+      if DEBUG_LEVEL > 0:
+        print("### no matchday stats")
+      # remove statistics - not implemented
