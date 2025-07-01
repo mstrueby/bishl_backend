@@ -765,8 +765,6 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
 
   # Check calledMatches for affected players and update assignedTeams if needed
   if matches:
-    import httpx
-    import os
     BASE_URL = os.environ['BE_API_URL']
 
     for player_id in player_ids:
