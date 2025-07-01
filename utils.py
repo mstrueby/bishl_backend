@@ -113,7 +113,7 @@ def validate_match_time(v, field_name: str):
 async def fetch_standings_settings(tournament_alias: str, season_alias: str) -> dict:
   if not tournament_alias or not season_alias:
     raise HTTPException(status_code=400, detail="Tournament and season aliases are required")
-    
+
   async with aiohttp.ClientSession() as session:
     try:
       async with session.get(
@@ -658,6 +658,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
             'assists': 0,
             'points': 0,
             'penaltyMinutes': 0,
+            'calledMatches': 0,
         }
       if match_info['match_status']['key'] in [
           'FINISHED', 'INPROGRESS', 'FORFEITED'
@@ -669,6 +670,10 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
         stats['points'] += roster_player.get('points', 0)
         stats['penaltyMinutes'] += roster_player.get('penaltyMinutes', 0)
 
+        # Check if player is called from another team using the existing 'called' attribute
+        if roster_player.get('called', False):
+          stats['calledMatches'] += 1
+
     for match in matches:
       match_info = {
           'tournament': match.get('tournament', {}),
@@ -678,9 +683,15 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
           match.get('matchday', {}) if flag == 'MATCHDAY' else None,
           'match_status': match.get('matchStatus', {})
       }
-
+      if DEBUG_LEVEL > 10:
+        print("### match_info", match.get('startDate', {}))
+        
       home_roster = match.get('home', {}).get('roster', [])
       away_roster = match.get('away', {}).get('roster', [])
+      
+      if DEBUG_LEVEL > 10:
+        print("### home_roster", home_roster)
+      
       home_team = {
           'name': match.get('home', {}).get('name'),
           'fullName': match.get('home', {}).get('fullName'),
@@ -695,13 +706,20 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
       }
       if home_roster:
         for roster_player in home_roster:
+          if DEBUG_LEVEL > 10:
+            print("### home_roster_player", roster_player)
+            print("### player_ids", player_ids)
           player_id = roster_player['player']['playerId']
           if player_id in player_ids:
+            if DEBUG_LEVEL > 10:
+              print("### home_roster_player", roster_player)
             update_stats(player_id, home_team, roster_player, match_info)
       if away_roster:
         for roster_player in away_roster:
           player_id = roster_player['player']['playerId']
           if player_id in player_ids:
+            if DEBUG_LEVEL > 10:
+              print("### away_roster_player", roster_player)
             update_stats(player_id, away_team, roster_player, match_info)
 
     if DEBUG_LEVEL > 10:
