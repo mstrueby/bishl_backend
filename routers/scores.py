@@ -262,6 +262,12 @@ async def patch_one_score(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
+  # Check if match status allows modifications
+  match_status = match.get('matchStatus', {}).get('key')
+  if match_status != 'INPROGRESS':
+    raise HTTPException(status_code=400, 
+                        detail="Scores can only be modified when match status is INPROGRESS")
+
   #check if score player is in roster
   if score.goalPlayer and score.goalPlayer.playerId:
     if not any(player['player']['playerId'] == score.goalPlayer.playerId
@@ -307,7 +313,7 @@ async def patch_one_score(
   update_data = {"$set": {}}
   for key, value in score_data.items():
     update_data["$set"][f"{team_flag}.scores.$.{key}"] = value
-    
+
   print("update_data: ", update_data)
   if update_data.get("$set"):
     try:
@@ -362,6 +368,12 @@ async def delete_one_score(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
+  # Check if match status allows modifications
+  match_status = match.get('matchStatus', {}).get('key')
+  if match_status != 'INPROGRESS':
+    raise HTTPException(status_code=400, 
+                        detail="Scores can only be modified when match status is INPROGRESS")
+
   # set new score
   if team_flag == 'home':
     match['home']['stats']['goalsFor'] -= 1
@@ -390,11 +402,11 @@ async def delete_one_score(
   r_alias = match.get('round', {}).get('alias')
   md_alias = match.get('matchday', {}).get('alias')
   goal_player_id = current_score.get('goalPlayer', {}).get('playerId')
-  
+
   # Safely handle assistPlayer which might be None
   assist_player = current_score.get('assistPlayer')
   assist_player_id = assist_player.get('playerId') if assist_player else None
-  
+
   player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
 
   if finish_type and home_stats and t_alias:
