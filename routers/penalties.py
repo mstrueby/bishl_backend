@@ -120,6 +120,12 @@ async def create_penalty(
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
 
+  # Check if match status allows modifications
+  match_status = match.get('matchStatus', {}).get('key')
+  if match_status != 'INPROGRESS':
+    raise HTTPException(status_code=400, 
+                        detail="Penalties can only be added when match status is INPROGRESS")
+
   # check if player exists in roster
   if not any(player['player']['playerId'] == penalty.penaltyPlayer.playerId
              for player in match.get(team_flag, {}).get('roster', [])):
@@ -212,6 +218,13 @@ async def patch_one_penalty(
   if match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
+
+  # Check if match status allows modifications
+  match_status = match.get('matchStatus', {}).get('key')
+  if match_status != 'INPROGRESS':
+    raise HTTPException(status_code=400, 
+                        detail="Penalties can only be modified when match status is INPROGRESS")
+
   # check if player exists in roster
   if penalty.penaltyPlayer and penalty.penaltyPlayer.playerId:
     if not any(player['player']['playerId'] == penalty.penaltyPlayer.playerId
@@ -303,6 +316,12 @@ async def delete_one_penalty(
   if match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
+
+  # Check if match status allows modifications
+  match_status = match.get('matchStatus', {}).get('key')
+  if match_status != 'INPROGRESS':
+    raise HTTPException(status_code=400, 
+                        detail="Penalties can only be deleted when match status is INPROGRESS")
 
   # Fetch the current penalty
   current_penalty = None
