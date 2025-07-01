@@ -6,7 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler, TokenPayload
-from utils import parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday, calc_roster_stats, calc_player_card_stats
+from utils import DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday, calc_roster_stats, calc_player_card_stats
 import os
 
 router = APIRouter()
@@ -108,6 +108,7 @@ async def create_score(
   mongodb = request.app.state.mongodb
   #if "ADMIN" not in token_payload.roles:
   #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
+
   #check
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -116,7 +117,15 @@ async def create_score(
   if match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
-  print("match precheck: ", match)
+  if DEBUG_LEVEL > 10:
+    print("match precheck: ", match)
+
+  # Check if match status allows modifications
+  match_status = match.get('matchStatus', {}).get('key')
+  if match_status != 'INPROGRESS':
+    raise HTTPException(
+        status_code=400,
+        detail="Scores can only be added when match status is INPROGRESS")
 
   #check if score player is in roster
   if score.goalPlayer and score.goalPlayer.playerId:
@@ -172,11 +181,11 @@ async def create_score(
     score_data.update(score.dict())
     score_data.pop('id')
 
-    score_data['matchSeconds'] = parse_time_to_seconds(
-        score_data['matchTime'])
+    score_data['matchSeconds'] = parse_time_to_seconds(score_data['matchTime'])
     score_data = jsonable_encoder(score_data)
     #score_data.pop('matchTime')
-    print("XXX score_data: ", score_data)
+    if DEBUG_LEVEL > 0:
+      print("XXX score_data: ", score_data)
 
     update_result = await mongodb['matches'].update_one(
         {"_id": match_id},
@@ -265,8 +274,9 @@ async def patch_one_score(
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
   if match_status != 'INPROGRESS':
-    raise HTTPException(status_code=400, 
-                        detail="Scores can only be modified when match status is INPROGRESS")
+    raise HTTPException(
+        status_code=400,
+        detail="Scores can only be modified when match status is INPROGRESS")
 
   #check if score player is in roster
   if score.goalPlayer and score.goalPlayer.playerId:
@@ -301,13 +311,19 @@ async def patch_one_score(
   score_data = score.dict()
   score_data.pop('id', None)
   if 'matchTime' in score_data:
-    score_data['matchSeconds'] = parse_time_to_seconds(
-        score_data['matchTime'])
+    score_data['matchSeconds'] = parse_time_to_seconds(score_data['matchTime'])
   #score_data.pop('matchTime')
   score_data = jsonable_encoder(score_data)
-  goal_player_id = score_data.get('goalPlayer', {}).get('playerId') if score_data.get('goalPlayer') else None
-  assist_player_id = score_data.get('assistPlayer', {}).get('playerId') if score_data.get('assistPlayer') else None
-  player_ids = [player_id for player_id in [goal_player_id, assist_player_id] if player_id]
+  goal_player_id = score_data.get(
+      'goalPlayer',
+      {}).get('playerId') if score_data.get('goalPlayer') else None
+  assist_player_id = score_data.get(
+      'assistPlayer',
+      {}).get('playerId') if score_data.get('assistPlayer') else None
+  player_ids = [
+      player_id for player_id in [goal_player_id, assist_player_id]
+      if player_id
+  ]
   print("score_data: ", score_data)
 
   update_data = {"$set": {}}
@@ -371,8 +387,9 @@ async def delete_one_score(
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
   if match_status != 'INPROGRESS':
-    raise HTTPException(status_code=400, 
-                        detail="Scores can only be modified when match status is INPROGRESS")
+    raise HTTPException(
+        status_code=400,
+        detail="Scores can only be deleted when match status is INPROGRESS")
 
   # set new score
   if team_flag == 'home':
