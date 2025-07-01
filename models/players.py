@@ -41,6 +41,7 @@ class PositionEnum(str, Enum):
 class SourceEnum(str, Enum):
   ISHD = 'ISHD'
   BISHL = 'BISHL'
+  CALLED = 'CALLED'
 
 
 class SexEnum(str, Enum):
