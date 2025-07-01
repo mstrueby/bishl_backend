@@ -60,7 +60,7 @@ async def update_roster(
   if not any(role in token_payload.roles
              for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  #print("new roster: ", roster)
+  print("new roster: ", roster)
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
@@ -80,6 +80,9 @@ async def update_roster(
   added_player_ids = list(new_player_ids - existing_player_ids)
   removed_player_ids = list(existing_player_ids - new_player_ids)
   all_effected_player_ids = added_player_ids + removed_player_ids
+  all_players = added_player_ids + list(new_player_ids)
+  # temporary process always all players
+  all_effected_player_ids = all_players
 
   for score in scores:
     if score['goalPlayer']['playerId'] not in new_player_ids or \
@@ -107,7 +110,7 @@ async def update_roster(
     # print("calc_roster_stats...") - muss nicht
     # await calc_roster_stats(mongodb, match_id, team_flag)
     # print("calc_player_card_stats...")
-    # do this only if match_status is INPROESS or FINISHED
+    # do this only if match_status is INPROGRESS or FINISHED
     if match.get("matchStatus").get("key") in ["INPROGRESS", "FINISHED"]:
       await calc_player_card_stats(
           mongodb,
