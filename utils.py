@@ -685,13 +685,13 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
       }
       if DEBUG_LEVEL > 10:
         print("### match_info", match.get('startDate', {}))
-        
+
       home_roster = match.get('home', {}).get('roster', [])
       away_roster = match.get('away', {}).get('roster', [])
-      
+
       if DEBUG_LEVEL > 10:
         print("### home_roster", home_roster)
-      
+
       home_team = {
           'name': match.get('home', {}).get('name'),
           'fullName': match.get('home', {}).get('fullName'),
@@ -749,26 +749,140 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
               updated_stats.append(merged_stat)
             else:
               updated_stats.append(elem)
-
-          if all(
-              (elem['tournament']['alias'] != t_alias or elem['season']
-               ['alias'] != s_alias or elem['round']['alias'] != r_alias
-               or elem['team']['fullName'] != stats['team']['fullName'] or (
-                   elem['matchday']['alias'] != md_alias if flag ==
-                   'MATCHDAY' else False)) for elem in player['stats']):
+          if len(updated_stats) == len(player['stats']):
             updated_stats.append(stats)
         else:
           updated_stats = [stats]
+
         result = await mongodb['players'].update_one(
             {"_id": player_id}, {"$set": {
                 "stats": updated_stats
             }})
         if not result.acknowledged:
-          raise HTTPException(
-              status_code=500,
-              detail=
-              f"Could not update player stats in mongoDB for player {player_id}"
+          print(
+              f"Warning: Failed to update stats for player {player_id}. Reason: Result not acknowledged."
           )
+
+  # Check calledMatches for affected players and update assignedTeams if needed
+  if matches:
+    BASE_URL = os.environ['BE_API_URL']
+
+    for player_id in player_ids:
+      try:
+        # Get player object from API
+        async with httpx.AsyncClient() as client:
+          player_response = await client.get(f"{BASE_URL}/players/{player_id}")
+          if player_response.status_code == 200:
+            player_data = player_response.json()
+
+            # Look through all matches to find teams this player was called for
+            teams_to_check = set()
+            for match in matches:
+              for team_flag in ['home', 'away']:
+                roster = match.get(team_flag, {}).get('roster', [])
+                for roster_player in roster:
+                  if (roster_player.get('player', {}).get('playerId') == player_id and
+                      roster_player.get('called', False)):
+                    current_team = match.get(team_flag, {}).get('team', {})
+                    current_club = match.get(team_flag, {}).get('club', {})
+                    if current_team and current_club:
+                      teams_to_check.add((
+                        current_team.get('teamId'),
+                        current_team.get('name'),
+                        current_team.get('alias'),
+                        current_team.get('ageGroup', ''),
+                        current_team.get('ishdId'),
+                        current_club.get('clubId'),
+                        current_club.get('name'),
+                        current_club.get('alias'),
+                        current_club.get('ishdId')
+                      ))
+
+            # Check if player has 5+ called matches for any of these teams
+            for team_info in teams_to_check:
+              team_id, team_name, team_alias, team_age_group, team_ishd_id, club_id, club_name, club_alias, club_ishd_id = team_info
+
+              # Check if player has stats for current tournament/season/team with 5+ called matches
+              player_stats = player_data.get('stats', [])
+              for stat in player_stats:
+                if (stat.get('tournament', {}).get('alias') == t_alias and
+                    stat.get('season', {}).get('alias') == s_alias and
+                    stat.get('team', {}).get('name') == team_name and
+                    stat.get('calledMatches', 0) >= 5):
+
+                  # Check if team is already in assignedTeams
+                  assigned_teams = player_data.get('assignedTeams', [])
+                  team_exists = False
+
+                  for club in assigned_teams:
+                    for team in club.get('teams', []):
+                      if team.get('teamId') == team_id:
+                        team_exists = True
+                        break
+                    if team_exists:
+                      break
+
+                  # If team doesn't exist, add it with CALLED source
+                  if not team_exists:
+                    # Find or create club entry
+                    club_found = False
+
+                    for club in assigned_teams:
+                      if club.get('clubId') == club_id:
+                        # Add team to existing club
+                        new_team = {
+                          "teamId": team_id,
+                          "teamName": team_name,
+                          "teamAlias": team_alias,
+                          "teamAgeGroup": team_age_group,
+                          "teamIshdId": team_ishd_id,
+                          "passNo": "",
+                          "source": "CALLED",
+                          "modifyDate": None,
+                          "active": True,
+                          "jerseyNo": None
+                        }
+                        club["teams"].append(new_team)
+                        club_found = True
+                        break
+
+                    if not club_found and club_id:
+                      # Create new club entry
+                      new_club = {
+                        "clubId": club_id,
+                        "clubName": club_name,
+                        "clubAlias": club_alias,
+                        "clubIshdId": club_ishd_id,
+                        "teams": [{
+                          "teamId": team_id,
+                          "teamName": team_name,
+                          "teamAlias": team_alias,
+                          "teamAgeGroup": team_age_group,
+                          "teamIshdId": team_ishd_id,
+                          "passNo": "",
+                          "source": "CALLED",
+                          "modifyDate": None,
+                          "active": True,
+                          "jerseyNo": None
+                        }]
+                      }
+                      assigned_teams.append(new_club)
+
+                    # Update player with new assignedTeams
+                    async with httpx.AsyncClient() as update_client:
+                      update_response = await update_client.patch(
+                        f"{BASE_URL}/players/{player_id}",
+                        json={"assignedTeams": assigned_teams}
+                      )
+                      if update_response.status_code == 200:
+                        if DEBUG_LEVEL > 0:
+                          print(f"Added CALLED team assignment for player {player_id}")
+                  break
+      except Exception as e:
+        if DEBUG_LEVEL > 0:
+          print(f"Error processing called matches for player {player_id}: {str(e)}")
+        # Continue with other players if one fails
+        continue
 
   # Main logic
   if not t_alias or not s_alias or not r_alias or not md_alias:
