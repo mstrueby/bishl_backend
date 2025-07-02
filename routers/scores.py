@@ -217,7 +217,7 @@ async def create_score(
     await calc_roster_stats(mongodb, match_id, team_flag)
     player_ids = [player_id for player_id in player_ids if player_id]
     await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
-                                 r_alias, md_alias)
+                                 r_alias, md_alias, token_payload=None)
 
     # Use the reusable function to return the new score
     new_score = await get_score_object(mongodb, match_id, team_flag,
@@ -345,7 +345,7 @@ async def patch_one_score(
           t_alias=match.get("tournament").get("alias"),
           s_alias=match.get("season").get("alias"),
           r_alias=match.get("round").get("alias"),
-          md_alias=match.get("matchday").get("alias"))
+          md_alias=match.get("matchday").get("alias"), token_payload=None)
 
     except HTTPException as e:
       if e.status_code == status.HTTP_304_NOT_MODIFIED:
@@ -464,7 +464,7 @@ async def delete_one_score(
                                       md_alias)
     await calc_roster_stats(mongodb, match_id, team_flag)
     await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
-                                 r_alias, md_alias)
+                                 r_alias, md_alias, token_payload=None)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:
