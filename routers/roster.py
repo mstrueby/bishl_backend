@@ -118,7 +118,8 @@ async def update_roster(
           t_alias=match.get("tournament").get("alias"),
           s_alias=match.get("season").get("alias"),
           r_alias=match.get("round").get("alias"),
-          md_alias=match.get("matchday").get("alias"))
+          md_alias=match.get("matchday").get("alias"),
+          token_payload=token_payload)
     
     #async with httpx.AsyncClient() as client:
     #  return await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")

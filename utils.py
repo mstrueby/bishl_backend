@@ -633,7 +633,7 @@ async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
 # ----------------------------------------------------------
 async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
                                  s_alias: str, r_alias: str,
-                                 md_alias: str) -> None:
+                                 md_alias: str, token_payload=None) -> None:
   """
   Calculate and update player statistics for a given tournament/season/round/matchday.
   Also handles called matches logic for assignedTeams updates.
@@ -767,13 +767,28 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
                                             t_alias: str, s_alias: str) -> None:
     """Check calledMatches for affected players and update assignedTeams if needed."""
     base_url = os.environ.get('BE_API_URL', '')
-    if not base_url:
+    if not base_url or not token_payload:
       return
+
+    # Prepare authentication headers
+    from authentication import AuthHandler
+    auth_handler = AuthHandler()
+    auth_token = auth_handler.encode_token({
+        "_id": token_payload.sub,
+        "roles": token_payload.roles,
+        "firstName": token_payload.firstName,
+        "lastName": token_payload.lastName,
+        "club": {
+            "clubId": token_payload.clubId,
+            "clubName": token_payload.clubName
+        } if token_payload.clubId else None
+    })
+    headers = {"Authorization": f"Bearer {auth_token}"}
 
     for player_id in player_ids:
       try:
         async with httpx.AsyncClient() as client:
-          player_response = await client.get(f"{base_url}/players/{player_id}")
+          player_response = await client.get(f"{base_url}/players/{player_id}", headers=headers)
           if player_response.status_code != 200:
             continue
 
@@ -781,7 +796,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
           teams_to_check = _find_called_teams(player_id, matches)
           
           await _update_assigned_teams_for_called_matches(
-              client, player_id, player_data, teams_to_check, t_alias, s_alias, base_url)
+              client, player_id, player_data, teams_to_check, t_alias, s_alias, base_url, headers)
 
       except Exception as e:
         if DEBUG_LEVEL > 0:
@@ -817,7 +832,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
 
   async def _update_assigned_teams_for_called_matches(client, player_id: str, player_data: dict,
                                                      teams_to_check: set, t_alias: str, 
-                                                     s_alias: str, base_url: str) -> None:
+                                                     s_alias: str, base_url: str, headers: dict) -> None:
     """Update assignedTeams for players with 5+ called matches."""
     for team_info in teams_to_check:
       (team_id, team_name, team_alias, team_age_group, team_ishd_id,
@@ -830,7 +845,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
             not _team_already_assigned(player_data, team_id)):
           
           await _add_called_team_assignment(
-              client, player_id, player_data, team_info, base_url)
+              client, player_id, player_data, team_info, base_url, headers)
           break
 
   def _has_enough_called_matches(stat: dict, t_alias: str, s_alias: str, team_name: str) -> bool:
@@ -850,7 +865,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     return False
 
   async def _add_called_team_assignment(client, player_id: str, player_data: dict,
-                                       team_info: tuple, base_url: str) -> None:
+                                       team_info: tuple, base_url: str, headers: dict) -> None:
     """Add a new team assignment with CALLED source."""
     (team_id, team_name, team_alias, team_age_group, team_ishd_id,
      club_id, club_name, club_alias, club_ishd_id) = team_info
@@ -871,7 +886,8 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     # Update player in database
     update_response = await client.patch(
         f"{base_url}/players/{player_id}",
-        json={"assignedTeams": assigned_teams}
+        json={"assignedTeams": assigned_teams},
+        headers=headers
     )
     if update_response.status_code == 200 and DEBUG_LEVEL > 0:
       print(f"Added CALLED team assignment for player {player_id}")
