@@ -129,10 +129,19 @@ async def list_matches(request: Request,
     query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
   if club:
     if team:
-      query["$or"] = [
-          {"$and": [{"home.clubAlias": club}, {"home.teamAlias": team}]},
-          {"$and": [{"away.clubAlias": club}, {"away.teamAlias": team}]}
-      ]
+      query["$or"] = [{
+          "$and": [{
+              "home.clubAlias": club
+          }, {
+              "home.teamAlias": team
+          }]
+      }, {
+          "$and": [{
+              "away.clubAlias": club
+          }, {
+              "away.teamAlias": team
+          }]
+      }]
     else:
       query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
   if assigned is not None:
@@ -270,19 +279,17 @@ async def create_match(
         start_date_parts = datetime.fromisoformat(str(start_date_str))
         if DEBUG_LEVEL > 100:
           print(start_date_parts)
-        match_data['startDate'] = datetime(
-          start_date_parts.year,
-          start_date_parts.month,
-          start_date_parts.day,
-          start_date_parts.hour,
-          start_date_parts.minute,
-          start_date_parts.second,
-          start_date_parts.microsecond,
-          tzinfo=start_date_parts.tzinfo
-        )
+        match_data['startDate'] = datetime(start_date_parts.year,
+                                           start_date_parts.month,
+                                           start_date_parts.day,
+                                           start_date_parts.hour,
+                                           start_date_parts.minute,
+                                           start_date_parts.second,
+                                           start_date_parts.microsecond,
+                                           tzinfo=start_date_parts.tzinfo)
       except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-      
+
     if DEBUG_LEVEL > 0:
       print("xxx match_data: ", match_data)
 
@@ -348,7 +355,7 @@ async def create_match(
       if DEBUG_LEVEL > 0:
         print("calc_player_card_stats ...")
       await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
-                                   r_alias, md_alias)
+                                   r_alias, md_alias, token_payload)
       if DEBUG_LEVEL > 0:
         print("calc_player_card_stats DONE ...")
 
@@ -371,7 +378,8 @@ async def update_match(request: Request,
                        token_payload: TokenPayload = Depends(
                            auth.auth_wrapper)):
   mongodb = request.app.state.mongodb
-  if not any(role in token_payload.roles for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
+  if not any(role in token_payload.roles
+             for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   # Helper function to add _id to new nested documents and clean up ObjectId id fields
@@ -402,9 +410,15 @@ async def update_match(request: Request,
   finish_type = getattr(match.finishType, 'key',
                         existing_match.get('finishType', {}).get('key', None))
 
-  home_stats_data = match.home.stats if (match.home and match.home.stats and match.home.stats != {}) else existing_match.get('home', {}).get('stats', {})
-  away_stats_data = match.away.stats if (match.away and match.away.stats and match.away.stats != {}) else existing_match.get('away', {}).get('stats', {})
-                            
+  home_stats_data = match.home.stats if (
+      match.home and match.home.stats
+      and match.home.stats != {}) else existing_match.get('home', {}).get(
+          'stats', {})
+  away_stats_data = match.away.stats if (
+      match.away and match.away.stats
+      and match.away.stats != {}) else existing_match.get('away', {}).get(
+          'stats', {})
+
   home_stats = home_stats_data if isinstance(
       home_stats_data, MatchStats) else MatchStats(**(home_stats_data or {}))
   away_stats = away_stats_data if isinstance(
@@ -419,9 +433,13 @@ async def update_match(request: Request,
   print("type of home_stats: ", type(home_stats))
   """
 
-  home_goals = home_stats.goalsFor if (home_stats and home_stats.goalsFor is not None) else existing_match['home']['stats']['goalsFor']
-  away_goals = away_stats.goalsFor if (away_stats and away_stats.goalsFor is not None) else existing_match['away']['stats']['goalsFor']
-  
+  home_goals = home_stats.goalsFor if (
+      home_stats and home_stats.goalsFor
+      is not None) else existing_match['home']['stats']['goalsFor']
+  away_goals = away_stats.goalsFor if (
+      away_stats and away_stats.goalsFor
+      is not None) else existing_match['away']['stats']['goalsFor']
+
   if finish_type and home_stats and t_alias:
     stats = calc_match_stats(match_status, finish_type, await
                              fetch_standings_settings(t_alias, s_alias),
@@ -558,7 +576,7 @@ async def update_match(request: Request,
   ] if updated_match.away is not None else []
   player_ids = home_players + away_players
   await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias, r_alias,
-                               md_alias)
+                               md_alias, token_payload)
 
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(updated_match))
@@ -628,7 +646,7 @@ async def delete_match(
                                               'stats': updated_stats
                                           }})
     await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
-                                 r_alias, md_alias)
+                                 r_alias, md_alias, token_payload)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
