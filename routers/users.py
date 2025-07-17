@@ -309,6 +309,31 @@ async def get_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="User not found")
+    
+    # Calculate referee points if user is a referee
+    if "REFEREE" in user.get("roles", []):
+        current_season = os.environ['CURRENT_SEASON']
+        matches = await mongodb["matches"].find({
+            "season.alias": current_season,
+            "$or": [
+                {"referee1.userId": user_id, "referee1.points": {"$exists": True}},
+                {"referee2.userId": user_id, "referee2.points": {"$exists": True}}
+            ]
+        }).to_list(length=None)
+        
+        total_points = 0
+        for match in matches:
+            if match.get("referee1") and match["referee1"].get("userId") == user_id and match["referee1"].get("points"):
+                total_points += match["referee1"]["points"]
+            if match.get("referee2") and match["referee2"].get("userId") == user_id and match["referee2"].get("points"):
+                total_points += match["referee2"]["points"]
+        
+        # Update user's referee points
+        if not user.get("referee"):
+            user["referee"] = {"points": total_points}
+        else:
+            user["referee"]["points"] = total_points
+    
     response = CurrentUser(**user)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(response))
