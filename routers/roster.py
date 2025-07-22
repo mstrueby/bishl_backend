@@ -12,7 +12,7 @@ from utils import calc_player_card_stats
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ['BE_API_URL']
-
+DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
 
 # get roster of a team
 @router.get("/",
@@ -80,9 +80,14 @@ async def update_roster(
   added_player_ids = list(new_player_ids - existing_player_ids)
   removed_player_ids = list(existing_player_ids - new_player_ids)
   all_effected_player_ids = added_player_ids + removed_player_ids
-  all_players = added_player_ids + list(new_player_ids)
-  # temporary process always all players
+  all_players = removed_player_ids + list(new_player_ids)
+  # temporary process always all players:
   all_effected_player_ids = all_players
+  if DEBUG_LEVEL > 10:
+    print("xxx new player_ids: ", new_player_ids)
+    print("xxx added_player_ids: ", added_player_ids)
+    print("xxx removed_player_ids: ", removed_player_ids)
+    print("all_effected_player_ids: ", all_effected_player_ids)
 
   for score in scores:
     if score['goalPlayer']['playerId'] not in new_player_ids or \
@@ -109,7 +114,7 @@ async def update_roster(
         }})
     # print("calc_roster_stats...") - muss nicht
     # await calc_roster_stats(mongodb, match_id, team_flag)
-    # print("calc_player_card_stats...")
+    print("xxx calc_player_card_stats...")
     # do this only if match_status is INPROGRESS or FINISHED
     if match.get("matchStatus").get("key") in ["INPROGRESS", "FINISHED"]:
       await calc_player_card_stats(
@@ -118,7 +123,8 @@ async def update_roster(
           t_alias=match.get("tournament").get("alias"),
           s_alias=match.get("season").get("alias"),
           r_alias=match.get("round").get("alias"),
-          md_alias=match.get("matchday").get("alias"))
+          md_alias=match.get("matchday").get("alias"),
+          token_payload=token_payload)
     
     #async with httpx.AsyncClient() as client:
     #  return await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
