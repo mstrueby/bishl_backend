@@ -64,6 +64,9 @@ class EventPlayer(BaseModel):
   firstName: str = Field(...)
   lastName: str = Field(...)
   jerseyNumber: int = 0
+  displayFirstName: Optional[str] = None
+  displayLastName: Optional[str] = None
+  imageUrl: Optional[HttpUrl] = None
 
 
 class RosterPlayer(BaseModel):
