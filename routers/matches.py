@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam
 from authentication import AuthHandler, TokenPayload
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token, populate_event_player_fields
 import os
 import isodate
 from datetime import datetime
@@ -64,18 +64,6 @@ def convert_seconds_to_times(data):
   if DEBUG_LEVEL > 100:
     print("data", data)
   return data
-
-
-async def populate_event_player_fields(mongodb, event_player_dict):
-  """Populate display fields for EventPlayer from player data"""
-  if event_player_dict and event_player_dict.get("playerId"):
-    player_doc = await mongodb["players"].find_one({"_id": event_player_dict["playerId"]})
-    if player_doc:
-      event_player_dict["displayFirstName"] = player_doc.get("displayFirstName")
-      event_player_dict["displayLastName"] = player_doc.get("displayLastName")
-      event_player_dict["imageUrl"] = player_doc.get("imageUrl")
-      event_player_dict["imageVisible"] = player_doc.get("imageVisible")
-  return event_player_dict
 
 
 async def get_match_object(mongodb, match_id: str) -> MatchDB:

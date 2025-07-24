@@ -15,6 +15,18 @@ BASE_URL = os.environ['BE_API_URL']
 DEBUG_LEVEL = int(os.environ['DEBUG_LEVEL'])
 
 
+async def populate_event_player_fields(mongodb, event_player_dict):
+  """Populate display fields for EventPlayer from player data"""
+  if event_player_dict and event_player_dict.get("playerId"):
+    player_doc = await mongodb["players"].find_one({"_id": event_player_dict["playerId"]})
+    if player_doc:
+      event_player_dict["displayFirstName"] = player_doc.get("displayFirstName")
+      event_player_dict["displayLastName"] = player_doc.get("displayLastName")
+      event_player_dict["imageUrl"] = player_doc.get("imageUrl")
+      event_player_dict["imageVisible"] = player_doc.get("imageVisible")
+  return event_player_dict
+
+
 def to_camel(string: str) -> str:
   components = string.split('_')
   return components[0] + ''.join(x.title() for x in components[1:])
