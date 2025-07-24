@@ -67,6 +67,7 @@ class EventPlayer(BaseModel):
   displayFirstName: Optional[str] = None
   displayLastName: Optional[str] = None
   imageUrl: Optional[HttpUrl] = None
+  imageVisible: Optional[bool] = None
 
 
 class RosterPlayer(BaseModel):
