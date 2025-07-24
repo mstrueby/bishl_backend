@@ -38,6 +38,18 @@ async def get_roster(
   if not isinstance(roster, list):
     raise HTTPException(status_code=500,
                         detail="Unexpected data structure in roster")
+  
+  # Populate display fields from player data
+  for roster_entry in roster:
+    if roster_entry.get("player"):
+      player_id = roster_entry["player"].get("playerId")
+      if player_id:
+        player_doc = await mongodb["players"].find_one({"_id": player_id})
+        if player_doc:
+          roster_entry["player"]["displayFirstName"] = player_doc.get("displayFirstName")
+          roster_entry["player"]["displayLastName"] = player_doc.get("displayLastName") 
+          roster_entry["player"]["imageUrl"] = player_doc.get("imageUrl")
+  
   roster_players = [RosterPlayer(**player) for player in roster]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(roster_players))
@@ -105,9 +117,20 @@ async def update_roster(
           "Roster can not be updated. All players in penalties must be in roster"
       )
 
+  # Populate display fields from player data before saving
+  roster_data = jsonable_encoder(roster)
+  for roster_entry in roster_data:
+    if roster_entry.get("player"):
+      player_id = roster_entry["player"].get("playerId")
+      if player_id:
+        player_doc = await mongodb["players"].find_one({"_id": player_id})
+        if player_doc:
+          roster_entry["player"]["displayFirstName"] = player_doc.get("displayFirstName")
+          roster_entry["player"]["displayLastName"] = player_doc.get("displayLastName")
+          roster_entry["player"]["imageUrl"] = player_doc.get("imageUrl")
+
   # do update
   try:
-    roster_data = jsonable_encoder(roster)
     await mongodb["matches"].update_one(
         {"_id": match_id}, {"$set": {
             f"{team_flag}.roster": roster_data

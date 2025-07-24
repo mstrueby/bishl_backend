@@ -66,11 +66,46 @@ def convert_seconds_to_times(data):
   return data
 
 
+async def populate_event_player_fields(mongodb, event_player_dict):
+  """Populate display fields for EventPlayer from player data"""
+  if event_player_dict and event_player_dict.get("playerId"):
+    player_doc = await mongodb["players"].find_one({"_id": event_player_dict["playerId"]})
+    if player_doc:
+      event_player_dict["displayFirstName"] = player_doc.get("displayFirstName")
+      event_player_dict["displayLastName"] = player_doc.get("displayLastName")
+      event_player_dict["imageUrl"] = player_doc.get("imageUrl")
+  return event_player_dict
+
+
 async def get_match_object(mongodb, match_id: str) -> MatchDB:
   match = await mongodb["matches"].find_one({"_id": match_id})
   if not match:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
+
+  # Populate EventPlayer display fields for scores and penalties
+  for team_key in ["home", "away"]:
+    team = match.get(team_key, {})
+    
+    # Populate roster player fields
+    roster = team.get("roster", [])
+    for roster_entry in roster:
+      if roster_entry.get("player"):
+        await populate_event_player_fields(mongodb, roster_entry["player"])
+    
+    # Populate score player fields
+    scores = team.get("scores", [])
+    for score in scores:
+      if score.get("goalPlayer"):
+        await populate_event_player_fields(mongodb, score["goalPlayer"])
+      if score.get("assistPlayer"):
+        await populate_event_player_fields(mongodb, score["assistPlayer"])
+    
+    # Populate penalty player fields
+    penalties = team.get("penalties", [])
+    for penalty in penalties:
+      if penalty.get("penaltyPlayer"):
+        await populate_event_player_fields(mongodb, penalty["penaltyPlayer"])
 
   # parse scores.matchSeconds to a string format
   match = convert_seconds_to_times(match)

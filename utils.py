@@ -638,7 +638,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
   Calculate and update player statistics for a given tournament/season/round/matchday.
   Also handles called matches logic for assignedTeams updates.
   """
-  
+
   def _create_team_dict(match_team_data: dict) -> dict:
     """Create a standardized team dictionary from match data."""
     return {
@@ -653,7 +653,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     """Initialize player stats structure if it doesn't exist."""
     if player_id not in player_card_stats:
       player_card_stats[player_id] = {}
-    
+
     if team_key not in player_card_stats[player_id]:
       player_card_stats[player_id][team_key] = {
           'tournament': match_info['tournament'],
@@ -674,7 +674,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     """Update individual player statistics from roster data."""
     team_key = team['fullName']
     _initialize_player_stats(player_id, team_key, team, match_info, player_card_stats)
-    
+
     # Only count stats for finished/active matches
     if match_info['match_status']['key'] in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
       stats = player_card_stats[player_id][team_key]
@@ -699,13 +699,13 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
           'matchday': match.get('matchday', {}) if flag == 'MATCHDAY' else None,
           'match_status': match.get('matchStatus', {})
       }
-      
+
       roster = match.get(team_flag, {}).get('roster', [])
       team = _create_team_dict(match.get(team_flag, {}))
-      
+
       if DEBUG_LEVEL > 10:
         print(f"### {team_flag}_roster", roster)
-      
+
       for roster_player in roster:
         player_id = roster_player.get('player', {}).get('playerId')
         if player_id and player_id in player_ids:
@@ -794,7 +794,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
 
           player_data = player_response.json()
           teams_to_check = _find_called_teams(player_id, matches)
-          
+
           await _update_assigned_teams_for_called_matches(
               client, player_id, player_data, teams_to_check, t_alias, s_alias, base_url, headers)
 
@@ -806,7 +806,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
   def _find_called_teams(player_id: str, matches: List[dict]) -> set:
     """Find all teams this player was called for across matches."""
     teams_to_check = set()
-    
+
     for match in matches:
       for team_flag in ['home', 'away']:
         roster = match.get(team_flag, {}).get('roster', [])
@@ -827,7 +827,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
                 current_club.get('alias'),
                 current_club.get('ishdId')
               ))
-    
+
     return teams_to_check
 
   async def _update_assigned_teams_for_called_matches(client, player_id: str, player_data: dict,
@@ -843,7 +843,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
       for stat in player_stats:
         if (_has_enough_called_matches(stat, t_alias, s_alias, team_name) and
             not _team_already_assigned(player_data, team_id)):
-          
+
           await _add_called_team_assignment(
               client, player_id, player_data, team_info, base_url, headers)
           break
@@ -871,7 +871,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
      club_id, club_name, club_alias, club_ishd_id) = team_info
 
     assigned_teams = player_data.get('assignedTeams', [])
-    
+
     # Try to add to existing club or create new club
     club_found = False
     for club in assigned_teams:
@@ -924,7 +924,7 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     """Main function to update player card statistics."""
     if flag not in ['ROUND', 'MATCHDAY']:
       raise ValueError("Invalid flag, only 'ROUND' or 'MATCHDAY' are accepted.")
-    
+
     if DEBUG_LEVEL > 10:
       print("count matches", len(matches))
 
@@ -960,10 +960,10 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
         "season.alias": s_alias,
         "round.alias": r_alias
     }).to_list(length=None)
-    
+
     player_card_stats = {}
     await _update_player_card_stats("ROUND", matches, player_card_stats)
-    
+
     if DEBUG_LEVEL > 0:
       print("### round - player_card_stats", player_card_stats)
   elif DEBUG_LEVEL > 0:
@@ -978,13 +978,13 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
           "round.alias": r_alias,
           "matchday.alias": md_alias
       }).to_list(length=None)
-      
+
       player_card_stats = {}
       await _update_player_card_stats("MATCHDAY", matchday_matches, player_card_stats)
-      
+
       if DEBUG_LEVEL > 0:
         print("### matchday - player_card_stats", player_card_stats)
-      
+
       # Update matches for called teams processing
       if not matches:
         matches = matchday_matches
