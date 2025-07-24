@@ -3,9 +3,9 @@ from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
-from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam
+from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
 from authentication import AuthHandler, TokenPayload
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token
+from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token, populate_event_player_fields
 import os
 import isodate
 from datetime import datetime
@@ -64,18 +64,6 @@ def convert_seconds_to_times(data):
   if DEBUG_LEVEL > 100:
     print("data", data)
   return data
-
-
-async def populate_event_player_fields(mongodb, event_player_dict):
-  """Populate display fields for EventPlayer from player data"""
-  if event_player_dict and event_player_dict.get("playerId"):
-    player_doc = await mongodb["players"].find_one({"_id": event_player_dict["playerId"]})
-    if player_doc:
-      event_player_dict["displayFirstName"] = player_doc.get("displayFirstName")
-      event_player_dict["displayLastName"] = player_doc.get("displayLastName")
-      event_player_dict["imageUrl"] = player_doc.get("imageUrl")
-      event_player_dict["imageVisible"] = player_doc.get("imageVisible")
-  return event_player_dict
 
 
 async def get_match_object(mongodb, match_id: str) -> MatchDB:
@@ -140,7 +128,7 @@ async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
 
 # get matches
 @router.get("/",
-            response_model=List[MatchDB],
+            response_model=List[MatchListBase],
             response_description="List all matches")
 async def list_matches(request: Request,
                        tournament: Optional[str] = None,
@@ -219,9 +207,24 @@ async def list_matches(request: Request,
                           detail=f"Invalid date format: {str(e)}")
   if DEBUG_LEVEL > 20:
     print("query: ", query)
-  matches = await mongodb["matches"].find(query).sort("startDate",
-                                                      1).to_list(None)
-  results = [MatchDB(**match) for match in matches]
+  # Project only necessary fields, excluding roster, scores, and penalties
+  projection = {
+    "home.roster": 0,
+    "home.scores": 0, 
+    "home.penalties": 0,
+    "away.roster": 0,
+    "away.scores": 0,
+    "away.penalties": 0
+  }
+  
+  matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+  
+  # Convert to MatchListBase objects and parse time fields
+  results = []
+  for match in matches:
+    match = convert_seconds_to_times(match)
+    results.append(MatchListBase(**match))
+  
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
 
