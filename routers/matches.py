@@ -209,7 +209,13 @@ async def list_matches(request: Request,
     print("query: ", query)
   matches = await mongodb["matches"].find(query).sort("startDate",
                                                       1).to_list(None)
-  results = [MatchDB(**match) for match in matches]
+  
+  # Populate EventPlayer display fields for each match
+  results = []
+  for match in matches:
+    match_obj = await get_match_object(mongodb, match["_id"])
+    results.append(match_obj)
+  
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
 
