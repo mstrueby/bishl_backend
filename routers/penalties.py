@@ -1,4 +1,3 @@
-# filename: routers/penalties.py
 from typing import List
 from bson import ObjectId
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
@@ -6,7 +5,20 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import parse_time_to_seconds, parse_time_from_seconds, calc_roster_stats, calc_player_card_stats
+from utils import DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday, calc_roster_stats, calc_player_card_stats
+import os
+
+
+async def populate_event_player_fields(mongodb, event_player_dict):
+  """Populate display fields for EventPlayer from player data"""
+  if event_player_dict and event_player_dict.get("playerId"):
+    player_doc = await mongodb["players"].find_one({"_id": event_player_dict["playerId"]})
+    if player_doc:
+      event_player_dict["displayFirstName"] = player_doc.get("displayFirstName")
+      event_player_dict["displayLastName"] = player_doc.get("displayLastName")
+      event_player_dict["imageUrl"] = player_doc.get("imageUrl")
+      event_player_dict["imageVisible"] = player_doc.get("imageVisible")
+  return event_player_dict
 
 router = APIRouter()
 auth = AuthHandler()
@@ -91,6 +103,8 @@ async def get_penalty_sheet(
         'matchSecondsEnd'] is not None:
       penalty['matchTimeEnd'] = parse_time_from_seconds(
         penalty['matchSecondsEnd'])
+    if penalty.get('penaltyPlayer'):
+        penalty['penaltyPlayer'] = await populate_event_player_fields(mongodb, penalty['penaltyPlayer'])
 
   penalty_entries = [PenaltiesDB(**penalty) for penalty in penalties]
 
@@ -162,6 +176,8 @@ async def create_penalty(
     if update_result.modified_count == 0:
       raise HTTPException(status_code=500,
                 detail="Failed to update match")
+    # get the latest player data
+    penalty_data['penaltyPlayer'] = await populate_event_player_fields(mongodb, penalty_data['penaltyPlayer'])
 
     await calc_roster_stats(mongodb, match_id, team_flag)
     await calc_player_card_stats(
@@ -197,6 +213,9 @@ async def get_one_penalty(
   # Use the reusable function to return the penalty
   penalty = await get_penalty_object(mongodb, match_id, team_flag,
                      penalty_id)
+  if penalty.penaltyPlayer:
+    penalty.penaltyPlayer = await populate_event_player_fields(mongodb, penalty.penaltyPlayer)
+
   return JSONResponse(status_code=status.HTTP_200_OK,
             content=jsonable_encoder(penalty))
 
@@ -297,6 +316,7 @@ async def patch_one_penalty(
 
   updated_penalty = await get_penalty_object(mongodb, match_id, team_flag,
                          penalty_id)
+
   await calc_player_card_stats(
     mongodb,
     player_ids=[updated_penalty.penaltyPlayer.playerId],

@@ -49,6 +49,7 @@ async def get_roster(
           roster_entry["player"]["displayFirstName"] = player_doc.get("displayFirstName")
           roster_entry["player"]["displayLastName"] = player_doc.get("displayLastName") 
           roster_entry["player"]["imageUrl"] = player_doc.get("imageUrl")
+          roster_entry["player"]["imageVisible"] = player_doc.get("imageVisible")
   
   roster_players = [RosterPlayer(**player) for player in roster]
   return JSONResponse(status_code=status.HTTP_200_OK,
@@ -128,6 +129,7 @@ async def update_roster(
           roster_entry["player"]["displayFirstName"] = player_doc.get("displayFirstName")
           roster_entry["player"]["displayLastName"] = player_doc.get("displayLastName")
           roster_entry["player"]["imageUrl"] = player_doc.get("imageUrl")
+          roster_entry["player"]["imageVisible"] = player_doc.get("imageVisible")
 
   # do update
   try:

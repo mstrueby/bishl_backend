@@ -9,6 +9,18 @@ from authentication import AuthHandler, TokenPayload
 from utils import DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday, calc_roster_stats, calc_player_card_stats
 import os
 
+
+async def populate_event_player_fields(mongodb, event_player_dict):
+  """Populate display fields for EventPlayer from player data"""
+  if event_player_dict and event_player_dict.get("playerId"):
+    player_doc = await mongodb["players"].find_one({"_id": event_player_dict["playerId"]})
+    if player_doc:
+      event_player_dict["displayFirstName"] = player_doc.get("displayFirstName")
+      event_player_dict["displayLastName"] = player_doc.get("displayLastName")
+      event_player_dict["imageUrl"] = player_doc.get("imageUrl")
+      event_player_dict["imageVisible"] = player_doc.get("imageVisible")
+  return event_player_dict
+
 router = APIRouter()
 auth = AuthHandler()
 
@@ -56,6 +68,13 @@ async def get_score_object(mongodb, match_id: str, team_flag: str,
   if 'matchSeconds' in return_data:
     return_data['matchTime'] = parse_time_from_seconds(
         return_data['matchSeconds'])
+  
+  # Populate EventPlayer fields
+  if return_data.get("goalPlayer"):
+    await populate_event_player_fields(mongodb, return_data["goalPlayer"])
+  if return_data.get("assistPlayer"):
+    await populate_event_player_fields(mongodb, return_data["assistPlayer"])
+  
   return ScoresDB(**return_data)
 
 
@@ -81,11 +100,17 @@ async def get_score_sheet(
   # Get score sheet from match document
   scores = match.get(team_flag, {}).get("scores") or []
 
-  # Parse matchSeconds to a string format
+  # Parse matchSeconds to a string format and populate EventPlayer fields
   print("scores", scores)
   for score in scores:
     if 'matchSeconds' in score:
       score['matchTime'] = parse_time_from_seconds(score['matchSeconds'])
+    
+    # Populate EventPlayer fields
+    if score.get("goalPlayer"):
+      await populate_event_player_fields(mongodb, score["goalPlayer"])
+    if score.get("assistPlayer"):
+      await populate_event_player_fields(mongodb, score["assistPlayer"])
 
   score_entries = [ScoresDB(**score) for score in scores]
 
