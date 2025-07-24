@@ -59,6 +59,11 @@ async def get_penalty_object(mongodb, match_id: str, team_flag: str,
       'matchSecondsEnd'] is not None:
     return_data['matchTimeEnd'] = parse_time_from_seconds(
       return_data['matchSecondsEnd'])
+  
+  # Populate EventPlayer fields
+  if return_data.get("penaltyPlayer"):
+    await populate_event_player_fields(mongodb, return_data["penaltyPlayer"])
+  
   return PenaltiesDB(**return_data)
 
 
@@ -202,8 +207,6 @@ async def get_one_penalty(
   # Use the reusable function to return the penalty
   penalty = await get_penalty_object(mongodb, match_id, team_flag,
                      penalty_id)
-  if penalty.penaltyPlayer:
-    penalty.penaltyPlayer = await populate_event_player_fields(mongodb, penalty.penaltyPlayer)
 
   return JSONResponse(status_code=status.HTTP_200_OK,
             content=jsonable_encoder(penalty))
