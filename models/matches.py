@@ -279,6 +279,50 @@ class MatchDB(MatchBase):
   pass
 
 
+class MatchTeamListItem(BaseModel):
+  clubId: Optional[str] = None
+  clubName: Optional[str] = None
+  clubAlias: Optional[str] = None
+  teamId: Optional[str] = None
+  teamAlias: str = Field(...)
+  name: str = Field(...)
+  fullName: str = Field(...)
+  shortName: str = Field(...)
+  tinyName: str = Field(...)
+  logo: Optional[HttpUrl] = None
+  rosterPublished: Optional[bool] = False
+  stats: Optional[MatchStats] = Field(default_factory=dict)
+
+  @validator('teamAlias',
+             'name',
+             'fullName',
+             'shortName',
+             'tinyName',
+             pre=True,
+             always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
+
+
+class MatchListItem(MongoBaseModel):
+  matchId: int = 0
+  tournament: Optional[MatchTournament] = None
+  season: Optional[MatchSeason] = None
+  round: Optional[MatchRound] = None
+  matchday: Optional[MatchMatchday] = None
+  home: Optional[MatchTeamListItem] = None
+  away: Optional[MatchTeamListItem] = None
+  referee1: Optional[Referee] = None
+  referee2: Optional[Referee] = None
+  matchStatus: KeyValue = Field(
+      default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
+  finishType: KeyValue = Field(
+      default_factory=lambda: KeyValue(key='REGULAR', value='Regulär'))
+  venue: Optional[MatchVenue] = None
+  startDate: Optional[datetime] = None
+  published: bool = False
+
+
 class MatchUpdate(MongoBaseModel):
   matchId: Optional[int] = None
   tournament: Optional[MatchTournament] = None
