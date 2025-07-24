@@ -74,6 +74,7 @@ async def populate_event_player_fields(mongodb, event_player_dict):
       event_player_dict["displayFirstName"] = player_doc.get("displayFirstName")
       event_player_dict["displayLastName"] = player_doc.get("displayLastName")
       event_player_dict["imageUrl"] = player_doc.get("imageUrl")
+      event_player_dict["imageVisible"] = player_doc.get("imageVisible")
   return event_player_dict
 
 
@@ -663,7 +664,8 @@ async def delete_match(
                                       md_alias)
     # for each player in player_ids loop through stats list and compare tournament, season and round. if found then remove item from list
     for player_id in player_ids:
-      if DEBUG_LEVEL > 10: print("player_id: ", player_id)
+      if DEBUG_LEVEL > 10:
+        print("player_id: ", player_id)
       player = await mongodb['players'].find({
           '_id': player_id
       }).to_list(length=1)
