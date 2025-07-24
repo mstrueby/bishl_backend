@@ -7,7 +7,7 @@ from models.matches import RosterPlayer
 from authentication import AuthHandler, TokenPayload
 import httpx
 import os
-from utils import calc_player_card_stats
+from utils import calc_player_card_stats, populate_event_player_fields
 
 router = APIRouter()
 auth = AuthHandler()
@@ -42,14 +42,7 @@ async def get_roster(
   # Populate display fields from player data
   for roster_entry in roster:
     if roster_entry.get("player"):
-      player_id = roster_entry["player"].get("playerId")
-      if player_id:
-        player_doc = await mongodb["players"].find_one({"_id": player_id})
-        if player_doc:
-          roster_entry["player"]["displayFirstName"] = player_doc.get("displayFirstName")
-          roster_entry["player"]["displayLastName"] = player_doc.get("displayLastName") 
-          roster_entry["player"]["imageUrl"] = player_doc.get("imageUrl")
-          roster_entry["player"]["imageVisible"] = player_doc.get("imageVisible")
+      await populate_event_player_fields(mongodb, roster_entry["player"])
   
   roster_players = [RosterPlayer(**player) for player in roster]
   return JSONResponse(status_code=status.HTTP_200_OK,
@@ -122,14 +115,7 @@ async def update_roster(
   roster_data = jsonable_encoder(roster)
   for roster_entry in roster_data:
     if roster_entry.get("player"):
-      player_id = roster_entry["player"].get("playerId")
-      if player_id:
-        player_doc = await mongodb["players"].find_one({"_id": player_id})
-        if player_doc:
-          roster_entry["player"]["displayFirstName"] = player_doc.get("displayFirstName")
-          roster_entry["player"]["displayLastName"] = player_doc.get("displayLastName")
-          roster_entry["player"]["imageUrl"] = player_doc.get("imageUrl")
-          roster_entry["player"]["imageVisible"] = player_doc.get("imageVisible")
+      await populate_event_player_fields(mongodb, roster_entry["player"])
 
   # do update
   try:
