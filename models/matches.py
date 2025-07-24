@@ -279,7 +279,7 @@ class MatchDB(MatchBase):
   pass
 
 
-class MatchTeamListItem(BaseModel):
+class MatchListTeam(BaseModel):
   clubId: Optional[str] = None
   clubName: Optional[str] = None
   clubAlias: Optional[str] = None
@@ -304,14 +304,14 @@ class MatchTeamListItem(BaseModel):
     return prevent_empty_str(v, field.name)
 
 
-class MatchListItem(MongoBaseModel):
+class MatchListBase(MongoBaseModel):
   matchId: int = 0
   tournament: Optional[MatchTournament] = None
   season: Optional[MatchSeason] = None
   round: Optional[MatchRound] = None
   matchday: Optional[MatchMatchday] = None
-  home: Optional[MatchTeamListItem] = None
-  away: Optional[MatchTeamListItem] = None
+  home: Optional[MatchListTeam] = None
+  away: Optional[MatchListTeam] = None
   referee1: Optional[Referee] = None
   referee2: Optional[Referee] = None
   matchStatus: KeyValue = Field(
