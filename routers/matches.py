@@ -207,14 +207,23 @@ async def list_matches(request: Request,
                           detail=f"Invalid date format: {str(e)}")
   if DEBUG_LEVEL > 20:
     print("query: ", query)
-  matches = await mongodb["matches"].find(query).sort("startDate",
-                                                      1).to_list(None)
+  # Project only necessary fields, excluding roster, scores, and penalties
+  projection = {
+    "home.roster": 0,
+    "home.scores": 0, 
+    "home.penalties": 0,
+    "away.roster": 0,
+    "away.scores": 0,
+    "away.penalties": 0
+  }
   
-  # Populate EventPlayer display fields for each match
+  matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+  
+  # Convert to MatchDB objects and parse time fields
   results = []
   for match in matches:
-    match_obj = await get_match_object(mongodb, match["_id"])
-    results.append(match_obj)
+    match = convert_seconds_to_times(match)
+    results.append(MatchDB(**match))
   
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
