@@ -664,7 +664,8 @@ async def delete_match(
                                       md_alias)
     # for each player in player_ids loop through stats list and compare tournament, season and round. if found then remove item from list
     for player_id in player_ids:
-      if DEBUG_LEVEL > 10: print("player_id: ", player_id)
+      if DEBUG_LEVEL > 10:
+        print("player_id: ", player_id)
       player = await mongodb['players'].find({
           '_id': player_id
       }).to_list(length=1)
