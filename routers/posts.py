@@ -133,9 +133,6 @@ async def create_post(
   post_data['publishDateFrom'] = publishDateFrom
   post_data['publishDateTo'] = publishDateTo
 
-  # Handle image upload
-  if image:
-    post_data['imageUrl'] = await handle_image_upload(image, post_data["alias"])
 
   # set author
   if post_data['author'] is None:
@@ -151,6 +148,12 @@ async def create_post(
     upd_alias = post_data['alias'] + '-' + str(alias_suffix)
     alias_suffix += 1
   post_data['alias'] = upd_alias
+
+  # Handle image upload
+  if image:
+    post_data['imageUrl'] = await handle_image_upload(image, post_data["alias"])
+
+  #revision
   revision = Revision(updateData=post_data,
                       updateUser=post_data['createUser'],
                       updateDate=post_data['createDate'])
