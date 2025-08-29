@@ -17,11 +17,8 @@ DEBUG_LEVEL = int(os.environ['DEBUG_LEVEL'])
 
 async def populate_event_player_fields(mongodb, event_player_dict):
   """Populate display fields for EventPlayer from player data"""
-  print("event_player_dict: ", event_player_dict)
   if event_player_dict and event_player_dict.get("playerId"):
-    print("playerId: ",event_player_dict["playerId"])
     player_doc = await mongodb["players"].find_one({"_id": event_player_dict["playerId"]})
-    print("player_doc: ", player_doc)
     if player_doc:
       event_player_dict["displayFirstName"] = player_doc.get("displayFirstName")
       event_player_dict["displayLastName"] = player_doc.get("displayLastName")
