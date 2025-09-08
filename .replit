@@ -116,3 +116,6 @@ author = 19449957
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
+
+[agent]
+expertMode = true
