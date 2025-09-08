@@ -6,15 +6,17 @@ from typing import List, Dict, Any
 import argparse
 from datetime import datetime
 
-# Database configuration
-PROD_CONNECTION_STRING = os.environ.get('MONGODB_CONNECTION_STRING_PROD', '')
-DEV_CONNECTION_STRING = os.environ.get('MONGODB_CONNECTION_STRING', '')
-
 class AssignmentConflictChecker:
     def __init__(self, is_prod: bool = False):
-        connection_string = PROD_CONNECTION_STRING if is_prod else DEV_CONNECTION_STRING
-        self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
-        self.db = self.client['bishl']
+        if is_prod:
+            DB_URL = os.environ['DB_URL_PROD']
+            DB_NAME = 'bishl'
+        else:
+            DB_URL = os.environ['DB_URL']
+            DB_NAME = 'bishl_dev'
+        
+        self.client = motor.motor_asyncio.AsyncIOMotorClient(DB_URL)
+        self.db = self.client[DB_NAME]
         self.is_prod = is_prod
         
     async def close(self):
