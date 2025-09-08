@@ -200,7 +200,7 @@ async def list_matches(request: Request,
       if date_to:
         parsed_date_to = isodate.parse_date(date_to)
         date_query["$lte"] = datetime.combine(parsed_date_to,
-                                              datetime.min.time())
+                                              datetime.max.time())
       query["startDate"] = date_query
     except Exception as e:
       raise HTTPException(status_code=400,
