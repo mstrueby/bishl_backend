@@ -116,6 +116,7 @@ class AssignmentConflictChecker:
             'wrong_referee_in_match': 0,
             'issues_by_position': {'1': 0, '2': 0},
             'issues_by_tournament': {},
+            'issues_by_referee': {},
             'recent_issues': [],
             'oldest_issue_date': None
         }
@@ -156,6 +157,21 @@ class AssignmentConflictChecker:
                     analysis['issues_by_tournament'][tournament] = 0
                 analysis['issues_by_tournament'][tournament] += 1
                 
+                # Track by referee
+                referee_name = f"{assignment.get('referee', {}).get('firstName', '')} {assignment.get('referee', {}).get('lastName', '')}".strip()
+                if not referee_name:
+                    referee_name = f"Unknown ({referee_user_id})"
+                if referee_name not in analysis['issues_by_referee']:
+                    analysis['issues_by_referee'][referee_name] = {
+                        'missing_from_match': 0,
+                        'wrong_referee_in_match': 0,
+                        'total_issues': 0,
+                        'userId': referee_user_id,
+                        'club': assignment.get('referee', {}).get('clubName', 'Unknown')
+                    }
+                analysis['issues_by_referee'][referee_name]['missing_from_match'] += 1
+                analysis['issues_by_referee'][referee_name]['total_issues'] += 1
+                
                 # Track recent issues (get assignment creation date from statusHistory)
                 status_history = assignment.get('statusHistory', [])
                 assigned_entry = None
@@ -186,6 +202,21 @@ class AssignmentConflictChecker:
                 # Issue: Different referee is set in match
                 analysis['wrong_referee_in_match'] += 1
                 analysis['issues_by_position'][str(position)] += 1
+                
+                # Track by referee
+                referee_name = f"{assignment.get('referee', {}).get('firstName', '')} {assignment.get('referee', {}).get('lastName', '')}".strip()
+                if not referee_name:
+                    referee_name = f"Unknown ({referee_user_id})"
+                if referee_name not in analysis['issues_by_referee']:
+                    analysis['issues_by_referee'][referee_name] = {
+                        'missing_from_match': 0,
+                        'wrong_referee_in_match': 0,
+                        'total_issues': 0,
+                        'userId': referee_user_id,
+                        'club': assignment.get('referee', {}).get('clubName', 'Unknown')
+                    }
+                analysis['issues_by_referee'][referee_name]['wrong_referee_in_match'] += 1
+                analysis['issues_by_referee'][referee_name]['total_issues'] += 1
             else:
                 # Properly set
                 analysis['properly_set_in_match'] += 1
@@ -222,6 +253,19 @@ class AssignmentConflictChecker:
                 print(f"\nIssues by tournament:")
                 for tournament, count in sorted(analysis['issues_by_tournament'].items(), key=lambda x: x[1], reverse=True):
                     print(f"  {tournament}: {count} issues")
+            
+            if analysis['issues_by_referee']:
+                print(f"\nIssues by referee (Top 10):")
+                sorted_referees = sorted(analysis['issues_by_referee'].items(), key=lambda x: x[1]['total_issues'], reverse=True)
+                for referee_name, referee_data in sorted_referees[:10]:
+                    print(f"  {referee_name} ({referee_data['club']}): {referee_data['total_issues']} issues")
+                    if referee_data['missing_from_match'] > 0:
+                        print(f"    - Missing from match: {referee_data['missing_from_match']}")
+                    if referee_data['wrong_referee_in_match'] > 0:
+                        print(f"    - Wrong referee in match: {referee_data['wrong_referee_in_match']}")
+                
+                if len(sorted_referees) > 10:
+                    print(f"  ... and {len(sorted_referees) - 10} more referees with issues")
             
             if analysis['oldest_issue_date']:
                 print(f"\nOldest unresolved issue: {analysis['oldest_issue_date'].strftime('%Y-%m-%d %H:%M:%S')}")
@@ -348,6 +392,20 @@ async def main():
             print("2. Review the assignment creation/update process in routers/assignments.py")
             print("3. Consider adding transaction rollback if match update fails")
             print("4. Add logging to track when assignments succeed but match updates fail")
+            
+            # Show if issues are concentrated on specific referees
+            if analysis['issues_by_referee']:
+                total_referees_with_issues = len(analysis['issues_by_referee'])
+                referees_with_multiple_issues = sum(1 for ref_data in analysis['issues_by_referee'].values() if ref_data['total_issues'] > 1)
+                
+                print(f"\n📊 Referee Impact Analysis:")
+                print(f"   - Total referees affected: {total_referees_with_issues}")
+                print(f"   - Referees with multiple issues: {referees_with_multiple_issues}")
+                
+                if referees_with_multiple_issues > 0:
+                    print(f"   - This suggests the issue may be systemic rather than referee-specific")
+                else:
+                    print(f"   - Issues appear to be distributed across different referees")
         
     except Exception as e:
         print(f"❌ Error occurred: {str(e)}")
