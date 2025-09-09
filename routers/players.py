@@ -19,6 +19,7 @@ import base64
 import cloudinary
 import cloudinary.uploader
 
+
 router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
@@ -353,7 +354,11 @@ async def process_ishd_data(
     headers = {
         "Authorization":
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
-        "User-Agent": "BISHL-API/1.0"
+        "User-Agent": "Mozilla/5.0 (compatible; BISHL-API/1.0; +https://bishl.de)",
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
     }
     print("headers", headers)
     """
@@ -468,13 +473,20 @@ async def process_ishd_data(
                             print(log_line)
                             log_lines.append(log_line)
                         else:
+                            # Catch other potential errors and raise HTTPException
+                            try:
+                                error_detail = await response.json()
+                            except json.JSONDecodeError:
+                                error_detail = await response.text()
                             raise HTTPException(
                                 status_code=response.status,
-                                detail=f"Error fetching data from {api_url}")
+                                detail=
+                                f"Error fetching data from {api_url}. Status: {response.status}. Detail: {error_detail}"
+                            )
                 if data:
                     # loop through players array
                     for player in data['players']:
-                        # check ifplayer['date_of_birth'] is valid date
+                        # check if player['date_of_birth'] is valid date
                         try:
                             birthdate = datetime.strptime(
                                 player['date_of_birth'], '%Y-%m-%d')
@@ -489,9 +501,9 @@ async def process_ishd_data(
                         # Check if player exists and has managedByISHD=false
                         existing_player_check = None
                         for existing_player in existing_players:
-                            if (existing_player['firstName'] == player['first_name'] and 
-                                existing_player['lastName'] == player['last_name'] and 
-                                datetime.strftime(existing_player['birthdate'], '%Y-%m-%d') == player['date_of_birth']):
+                            if (existing_player['firstName'] == player['first_name'] and
+                                    existing_player['lastName'] == player['last_name'] and
+                                    datetime.strftime(existing_player['birthdate'], '%Y-%m-%d') == player['date_of_birth']):
                                 existing_player_check = existing_player
                                 break
 
@@ -530,16 +542,17 @@ async def process_ishd_data(
                         # check if player already exists in existing_players array
                         player_exists = False
                         existing_player = None
-                        for existing_player in existing_players:
-                            if (existing_player['firstName']
+                        for existing_player_loop in existing_players:
+                            if (existing_player_loop['firstName']
                                     == player['first_name']
-                                    and existing_player['lastName']
+                                    and existing_player_loop['lastName']
                                     == player['last_name']
                                     and datetime.strftime(
-                                        existing_player['birthdate'],
+                                        existing_player_loop['birthdate'],
                                         '%Y-%m-%d')
                                     == player['date_of_birth']):
                                 player_exists = True
+                                existing_player = existing_player_loop
                                 break
 
                         if player_exists and existing_player is not None:
@@ -928,7 +941,11 @@ async def verify_ishd_data(
     headers = {
         "Authorization":
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
-        "User-Agent": "BISHL-API/1.0"
+        "User-Agent": "Mozilla/5.0 (compatible; BISHL-API/1.0; +https://bishl.de)",
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
     }
 
     # Get all players from database
@@ -968,7 +985,15 @@ async def verify_ishd_data(
             else:
                 async with session.get(api_url, headers=headers) as response:
                     if response.status != 200:
-                        continue
+                        try:
+                            error_detail = await response.json()
+                        except json.JSONDecodeError:
+                            error_detail = await response.text()
+                        raise HTTPException(
+                            status_code=response.status,
+                            detail=
+                            f"Error fetching data from {api_url}. Status: {response.status}. Detail: {error_detail}"
+                        )
                     data = await response.json()
 
             for player in data['players']:
