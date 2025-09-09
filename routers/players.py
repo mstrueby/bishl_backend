@@ -354,11 +354,7 @@ async def process_ishd_data(
     headers = {
         "Authorization":
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
-        "User-Agent": "Mozilla/5.0 (compatible; BISHL-API/1.0; +https://bishl.de)",
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive"
+        "User-Agent": "BISHL-API/1.0"
     }
     print("headers", headers)
     """
@@ -941,11 +937,7 @@ async def verify_ishd_data(
     headers = {
         "Authorization":
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
-        "User-Agent": "Mozilla/5.0 (compatible; BISHL-API/1.0; +https://bishl.de)",
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive"
+        "User-Agent": "BISHL-API/1.0"
     }
 
     # Get all players from database
