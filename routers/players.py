@@ -288,9 +288,6 @@ async def process_ishd_data(
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
     ISHD_API_USER = os.environ.get("ISHD_API_USER")
     ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
-    print("ISHD_API_URL", ISHD_API_URL)
-    print("ISHD_API_USER", ISHD_API_USER)
-    print("ISHD_API_PASS", ISHD_API_PASS)
 
     class IshdTeams:
 
@@ -362,7 +359,6 @@ async def process_ishd_data(
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1"
     }
-    print("headers", headers)
     """
   response:
 
