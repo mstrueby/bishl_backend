@@ -287,6 +287,9 @@ async def process_ishd_data(
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
     ISHD_API_USER = os.environ.get("ISHD_API_USER")
     ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
+    print("ISHD_API_URL", ISHD_API_URL)
+    print("ISHD_API_USER", ISHD_API_USER)
+    print("ISHD_API_PASS", ISHD_API_PASS)
 
     class IshdTeams:
 
@@ -352,6 +355,7 @@ async def process_ishd_data(
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
         "User-Agent": "BISHL-API/1.0"
     }
+    print("headers", headers)
     """
   response:
 
@@ -394,7 +398,7 @@ async def process_ishd_data(
   """
 
     timeout = aiohttp.ClientTimeout(total=30)
-    connector = aiohttp.TCPConnector(ssl=False)  # Try with SSL disabled first
+    connector = aiohttp.TCPConnector(ssl=True)  # Try with SSL disabled first
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         # loop through team API URLs
         # for api_url in api_urls:
