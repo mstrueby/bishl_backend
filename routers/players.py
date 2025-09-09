@@ -287,6 +287,9 @@ async def process_ishd_data(
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
     ISHD_API_USER = os.environ.get("ISHD_API_USER")
     ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
+    print("ISHD_API_URL", ISHD_API_URL)
+    print("ISHD_API_USER", ISHD_API_USER)
+    print("ISHD_API_PASS", ISHD_API_PASS)
 
     class IshdTeams:
 
@@ -350,8 +353,9 @@ async def process_ishd_data(
     headers = {
         "Authorization":
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
-        "Connection": "close"
+        "User-Agent": "BISHL-API/1.0"
     }
+    print("headers", headers)
     """
   response:
 
@@ -393,7 +397,9 @@ async def process_ishd_data(
         log_lines.append(log_line)
   """
 
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=30)
+    connector = aiohttp.TCPConnector(ssl=True)  # Try with SSL disabled first
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         # loop through team API URLs
         # for api_url in api_urls:
 
@@ -479,7 +485,7 @@ async def process_ishd_data(
                             print(log_line)
                             log_lines.append(log_line)
                             continue
-                            
+
                         # Check if player exists and has managedByISHD=false
                         existing_player_check = None
                         for existing_player in existing_players:
@@ -724,7 +730,7 @@ async def process_ishd_data(
                                 print(log_line)
                                 log_lines.append(log_line)
                                 continue
-                                
+
                             if team_source_is_ishd and not any(
                                     p['first_name'] == player['firstName']
                                     and p['last_name'] == player['lastName']
@@ -922,7 +928,7 @@ async def verify_ishd_data(
     headers = {
         "Authorization":
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
-        "Connection": "close"
+        "User-Agent": "BISHL-API/1.0"
     }
 
     # Get all players from database
