@@ -404,8 +404,15 @@ async def process_ishd_data(
         log_lines.append(log_line)
   """
 
-    timeout = aiohttp.ClientTimeout(total=30)
-    connector = aiohttp.TCPConnector(ssl=True)  # Try with SSL disabled first
+    timeout = aiohttp.ClientTimeout(total=60)
+    
+    # Create SSL context with certificate verification
+    import ssl
+    ssl_context = ssl.create_default_context()
+    # ssl_context.check_hostname = False  # Uncomment if hostname verification fails
+    # ssl_context.verify_mode = ssl.CERT_NONE  # Uncomment to disable SSL verification entirely
+    
+    connector = aiohttp.TCPConnector(ssl=ssl_context, limit=10, limit_per_host=5)
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         # loop through team API URLs
         # for api_url in api_urls:
@@ -479,11 +486,18 @@ async def process_ishd_data(
                             try:
                                 error_detail = await response.json()
                             except json.JSONDecodeError:
-                                error_detail = await response.text()
+                                try:
+                                    error_detail = await response.text()
+                                except:
+                                    error_detail = "Unable to parse error response"
+                            
+                            # Check for SSL-related errors
+                            if response.status in [525, 526, 530]:
+                                error_detail = f"SSL/TLS error - Status {response.status}. The server may have SSL certificate issues."
+                            
                             raise HTTPException(
                                 status_code=response.status,
-                                detail=
-                                f"Error fetching data from {api_url}. Status: {response.status}. Detail: {error_detail}"
+                                detail=f"Error fetching data from {api_url}. Status: {response.status}. Detail: {error_detail}"
                             )
                 if data:
                     # loop through players array
@@ -970,7 +984,13 @@ async def verify_ishd_data(
                     team['teamName']
                 })
 
-    async with aiohttp.ClientSession() as session:
+    # Create SSL context with certificate verification
+    import ssl
+    ssl_context = ssl.create_default_context()
+    timeout = aiohttp.ClientTimeout(total=60)
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+    
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         ishd_players = {}
 
         for team_info in ishd_teams:
