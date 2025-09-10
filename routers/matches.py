@@ -126,6 +126,106 @@ async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
     )
 
 
+# get today's matches
+@router.get("/today",
+            response_model=List[MatchListBase],
+            response_description="Get today's matches")
+async def get_todays_matches(request: Request,
+                            tournament: Optional[str] = None,
+                            season: Optional[str] = None,
+                            round: Optional[str] = None,
+                            matchday: Optional[str] = None,
+                            referee: Optional[str] = None,
+                            club: Optional[str] = None,
+                            team: Optional[str] = None,
+                            assigned: Optional[bool] = None) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  
+  # Get today's date range
+  today = datetime.now().date()
+  start_of_day = datetime.combine(today, datetime.min.time())
+  end_of_day = datetime.combine(today, datetime.max.time())
+  
+  query = {
+    "season.alias": season if season else os.environ['CURRENT_SEASON'],
+    "startDate": {
+      "$gte": start_of_day,
+      "$lte": end_of_day
+    }
+  }
+  
+  if tournament:
+    query["tournament.alias"] = tournament
+  if round:
+    query["round.alias"] = round
+  if matchday:
+    query["matchday.alias"] = matchday
+  if referee:
+    query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+  if club:
+    if team:
+      query["$or"] = [{
+          "$and": [{
+              "home.clubAlias": club
+          }, {
+              "home.teamAlias": team
+          }]
+      }, {
+          "$and": [{
+              "away.clubAlias": club
+          }, {
+              "away.teamAlias": team
+          }]
+      }]
+    else:
+      query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+  if assigned is not None:
+    if not assigned:  # assigned == False
+      query["$and"] = [{
+          "referee1.userId": {
+              "$exists": False
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": False
+          }
+      }]
+    elif assigned:  # assigned == True
+      query["$or"] = [{
+          "referee1.userId": {
+              "$exists": True
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": True
+          }
+      }]
+
+  if DEBUG_LEVEL > 20:
+    print("today's matches query: ", query)
+  
+  # Project only necessary fields, excluding roster, scores, and penalties
+  projection = {
+    "home.roster": 0,
+    "home.scores": 0, 
+    "home.penalties": 0,
+    "away.roster": 0,
+    "away.scores": 0,
+    "away.penalties": 0
+  }
+  
+  matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+  
+  # Convert to MatchListBase objects and parse time fields
+  results = []
+  for match in matches:
+    match = convert_seconds_to_times(match)
+    results.append(MatchListBase(**match))
+  
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(results))
+
+
 # get matches
 @router.get("/",
             response_model=List[MatchListBase],
