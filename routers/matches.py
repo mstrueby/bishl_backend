@@ -241,102 +241,111 @@ async def get_upcoming_matches(request: Request,
                               assigned: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
   
-  # Start from tomorrow
-  today = datetime.now().date()
-  current_date = today + timedelta(days=1)
+  # Get current time and start searching from tomorrow
+  today = datetime.now()
+  tomorrow_start = datetime.combine(today.date() + timedelta(days=1), datetime.min.time())
   
-  # Look for the next day with matches (up to 30 days ahead)
-  for days_ahead in range(30):
-    check_date = current_date + timedelta(days=days_ahead)
-    start_of_day = datetime.combine(check_date, datetime.min.time())
-    end_of_day = datetime.combine(check_date, datetime.max.time())
-    
-    query = {
-      "season.alias": season if season else os.environ['CURRENT_SEASON'],
-      "startDate": {
-        "$gte": start_of_day,
-        "$lte": end_of_day
-      }
-    }
-    
-    if tournament:
-      query["tournament.alias"] = tournament
-    if round:
-      query["round.alias"] = round
-    if matchday:
-      query["matchday.alias"] = matchday
-    if referee:
-      query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
-    if club:
-      if team:
-        query["$or"] = [{
-            "$and": [{
-                "home.clubAlias": club
-            }, {
-                "home.teamAlias": team
-            }]
-        }, {
-            "$and": [{
-                "away.clubAlias": club
-            }, {
-                "away.teamAlias": team
-            }]
-        }]
-      else:
-        query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
-    if assigned is not None:
-      if not assigned:  # assigned == False
-        query["$and"] = [{
-            "referee1.userId": {
-                "$exists": False
-            }
-        }, {
-            "referee2.userId": {
-                "$exists": False
-            }
-        }]
-      elif assigned:  # assigned == True
-        query["$or"] = [{
-            "referee1.userId": {
-                "$exists": True
-            }
-        }, {
-            "referee2.userId": {
-                "$exists": True
-            }
-        }]
+  # Build base query to find minimum start date
+  base_query = {
+    "season.alias": season if season else os.environ['CURRENT_SEASON'],
+    "startDate": {"$gte": tomorrow_start}
+  }
+  
+  if tournament:
+    base_query["tournament.alias"] = tournament
+  if round:
+    base_query["round.alias"] = round
+  if matchday:
+    base_query["matchday.alias"] = matchday
+  if referee:
+    base_query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+  if club:
+    if team:
+      base_query["$or"] = [{
+          "$and": [{
+              "home.clubAlias": club
+          }, {
+              "home.teamAlias": team
+          }]
+      }, {
+          "$and": [{
+              "away.clubAlias": club
+          }, {
+              "away.teamAlias": team
+          }]
+      }]
+    else:
+      base_query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+  if assigned is not None:
+    if not assigned:  # assigned == False
+      base_query["$and"] = [{
+          "referee1.userId": {
+              "$exists": False
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": False
+          }
+      }]
+    elif assigned:  # assigned == True
+      base_query["$or"] = [{
+          "referee1.userId": {
+              "$exists": True
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": True
+          }
+      }]
 
-    if DEBUG_LEVEL > 20:
-      print(f"upcoming matches query for {check_date}: ", query)
-    
-    # Check if there are matches on this date
-    match_count = await mongodb["matches"].count_documents(query)
-    
-    if match_count > 0:
-      # Found matches on this date, get them
-      projection = {
-        "home.roster": 0,
-        "home.scores": 0, 
-        "home.penalties": 0,
-        "away.roster": 0,
-        "away.scores": 0,
-        "away.penalties": 0
-      }
-      
-      matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
-      
-      # Convert to MatchListBase objects and parse time fields
-      results = []
-      for match in matches:
-        match = convert_seconds_to_times(match)
-        results.append(MatchListBase(**match))
-      
-      return JSONResponse(status_code=status.HTTP_200_OK,
-                          content=jsonable_encoder(results))
+  if DEBUG_LEVEL > 20:
+    print("upcoming matches base query: ", base_query)
   
-  # No matches found in the next 30 days
+  # Find the minimum start date for upcoming matches
+  min_date_result = await mongodb["matches"].find(base_query).sort("startDate", 1).limit(1).to_list(1)
+  
+  if not min_date_result:
+    # No upcoming matches found
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder([]))
+  
+  min_start_date = min_date_result[0]["startDate"]
+  match_date = min_start_date.date()
+  
+  # Create date range for the found date
+  start_of_day = datetime.combine(match_date, datetime.min.time())
+  end_of_day = datetime.combine(match_date, datetime.max.time())
+  
+  # Build final query for matches on the found date
+  final_query = base_query.copy()
+  final_query["startDate"] = {
+    "$gte": start_of_day,
+    "$lte": end_of_day
+  }
+  
+  if DEBUG_LEVEL > 20:
+    print(f"upcoming matches final query for {match_date}: ", final_query)
+  
+  # Project only necessary fields, excluding roster, scores, and penalties
+  projection = {
+    "home.roster": 0,
+    "home.scores": 0, 
+    "home.penalties": 0,
+    "away.roster": 0,
+    "away.scores": 0,
+    "away.penalties": 0
+  }
+  
+  matches = await mongodb["matches"].find(final_query, projection).sort("startDate", 1).to_list(None)
+  
+  # Convert to MatchListBase objects and parse time fields
+  results = []
+  for match in matches:
+    match = convert_seconds_to_times(match)
+    results.append(MatchListBase(**match))
+  
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder([]))
+                      content=jsonable_encoder(results))
 
 
 # get matches
