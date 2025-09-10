@@ -8,7 +8,7 @@ from authentication import AuthHandler, TokenPayload
 from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token, populate_event_player_fields
 import os
 import isodate
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson import ObjectId
 import httpx
 
@@ -224,6 +224,119 @@ async def get_todays_matches(request: Request,
   
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
+
+
+# get upcoming matches (next day with matches)
+@router.get("/upcoming",
+            response_model=List[MatchListBase],
+            response_description="Get upcoming matches for next day where matches exist")
+async def get_upcoming_matches(request: Request,
+                              tournament: Optional[str] = None,
+                              season: Optional[str] = None,
+                              round: Optional[str] = None,
+                              matchday: Optional[str] = None,
+                              referee: Optional[str] = None,
+                              club: Optional[str] = None,
+                              team: Optional[str] = None,
+                              assigned: Optional[bool] = None) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  
+  # Start from tomorrow
+  today = datetime.now().date()
+  current_date = today + timedelta(days=1)
+  
+  # Look for the next day with matches (up to 30 days ahead)
+  for days_ahead in range(30):
+    check_date = current_date + timedelta(days=days_ahead)
+    start_of_day = datetime.combine(check_date, datetime.min.time())
+    end_of_day = datetime.combine(check_date, datetime.max.time())
+    
+    query = {
+      "season.alias": season if season else os.environ['CURRENT_SEASON'],
+      "startDate": {
+        "$gte": start_of_day,
+        "$lte": end_of_day
+      }
+    }
+    
+    if tournament:
+      query["tournament.alias"] = tournament
+    if round:
+      query["round.alias"] = round
+    if matchday:
+      query["matchday.alias"] = matchday
+    if referee:
+      query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+    if club:
+      if team:
+        query["$or"] = [{
+            "$and": [{
+                "home.clubAlias": club
+            }, {
+                "home.teamAlias": team
+            }]
+        }, {
+            "$and": [{
+                "away.clubAlias": club
+            }, {
+                "away.teamAlias": team
+            }]
+        }]
+      else:
+        query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+    if assigned is not None:
+      if not assigned:  # assigned == False
+        query["$and"] = [{
+            "referee1.userId": {
+                "$exists": False
+            }
+        }, {
+            "referee2.userId": {
+                "$exists": False
+            }
+        }]
+      elif assigned:  # assigned == True
+        query["$or"] = [{
+            "referee1.userId": {
+                "$exists": True
+            }
+        }, {
+            "referee2.userId": {
+                "$exists": True
+            }
+        }]
+
+    if DEBUG_LEVEL > 20:
+      print(f"upcoming matches query for {check_date}: ", query)
+    
+    # Check if there are matches on this date
+    match_count = await mongodb["matches"].count_documents(query)
+    
+    if match_count > 0:
+      # Found matches on this date, get them
+      projection = {
+        "home.roster": 0,
+        "home.scores": 0, 
+        "home.penalties": 0,
+        "away.roster": 0,
+        "away.scores": 0,
+        "away.penalties": 0
+      }
+      
+      matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+      
+      # Convert to MatchListBase objects and parse time fields
+      results = []
+      for match in matches:
+        match = convert_seconds_to_times(match)
+        results.append(MatchListBase(**match))
+      
+      return JSONResponse(status_code=status.HTTP_200_OK,
+                          content=jsonable_encoder(results))
+  
+  # No matches found in the next 30 days
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder([]))
 
 
 # get matches
