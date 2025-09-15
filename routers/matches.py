@@ -348,6 +348,137 @@ async def get_upcoming_matches(request: Request,
                       content=jsonable_encoder(results))
 
 
+# get this week's matches (tomorrow until Sunday)
+@router.get("/this-week",
+            response_description="Get matches for rest of current week (tomorrow until Sunday)")
+async def get_this_week_matches(request: Request,
+                               tournament: Optional[str] = None,
+                               season: Optional[str] = None,
+                               round: Optional[str] = None,
+                               matchday: Optional[str] = None,
+                               referee: Optional[str] = None,
+                               club: Optional[str] = None,
+                               team: Optional[str] = None,
+                               assigned: Optional[bool] = None) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  
+  # Get current date and calculate tomorrow and end of week (Sunday)
+  today = datetime.now().date()
+  tomorrow = today + timedelta(days=1)
+  
+  # Calculate days until Sunday (0=Monday, 6=Sunday)
+  days_until_sunday = 6 - today.weekday()
+  if days_until_sunday <= 0:  # If today is Sunday, get next Sunday
+    days_until_sunday = 7
+  
+  end_of_week = today + timedelta(days=days_until_sunday)
+  
+  # Build base query
+  base_query = {
+    "season.alias": season if season else os.environ['CURRENT_SEASON']
+  }
+  
+  if tournament:
+    base_query["tournament.alias"] = tournament
+  if round:
+    base_query["round.alias"] = round
+  if matchday:
+    base_query["matchday.alias"] = matchday
+  if referee:
+    base_query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+  if club:
+    if team:
+      base_query["$or"] = [{
+          "$and": [{
+              "home.clubAlias": club
+          }, {
+              "home.teamAlias": team
+          }]
+      }, {
+          "$and": [{
+              "away.clubAlias": club
+          }, {
+              "away.teamAlias": team
+          }]
+      }]
+    else:
+      base_query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+  if assigned is not None:
+    if not assigned:  # assigned == False
+      base_query["$and"] = [{
+          "referee1.userId": {
+              "$exists": False
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": False
+          }
+      }]
+    elif assigned:  # assigned == True
+      base_query["$or"] = [{
+          "referee1.userId": {
+              "$exists": True
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": True
+          }
+      }]
+
+  if DEBUG_LEVEL > 20:
+    print("this week matches base query: ", base_query)
+  
+  # Initialize result structure
+  week_matches = []
+  
+  # Loop through each day from tomorrow until Sunday
+  current_date = tomorrow
+  while current_date <= end_of_week:
+    start_of_day = datetime.combine(current_date, datetime.min.time())
+    end_of_day = datetime.combine(current_date, datetime.max.time())
+    
+    # Build query for this specific day
+    day_query = base_query.copy()
+    day_query["startDate"] = {
+      "$gte": start_of_day,
+      "$lte": end_of_day
+    }
+    
+    if DEBUG_LEVEL > 20:
+      print(f"this week matches query for {current_date}: ", day_query)
+    
+    # Project only necessary fields, excluding roster, scores, and penalties
+    projection = {
+      "home.roster": 0,
+      "home.scores": 0, 
+      "home.penalties": 0,
+      "away.roster": 0,
+      "away.scores": 0,
+      "away.penalties": 0
+    }
+    
+    matches = await mongodb["matches"].find(day_query, projection).sort("startDate", 1).to_list(None)
+    
+    # Convert to MatchListBase objects and parse time fields
+    day_matches = []
+    for match in matches:
+      match = convert_seconds_to_times(match)
+      day_matches.append(MatchListBase(**match))
+    
+    # Add day data to result
+    week_matches.append({
+      "date": current_date.isoformat(),
+      "dayName": current_date.strftime("%A"),
+      "matches": day_matches
+    })
+    
+    # Move to next day
+    current_date += timedelta(days=1)
+  
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(week_matches))
+
+
 # get matches
 @router.get("/",
             response_model=List[MatchListBase],
