@@ -19,6 +19,7 @@ import base64
 import cloudinary
 import cloudinary.uploader
 
+
 router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
@@ -287,9 +288,6 @@ async def process_ishd_data(
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
     ISHD_API_USER = os.environ.get("ISHD_API_USER")
     ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
-    print("ISHD_API_URL", ISHD_API_URL)
-    print("ISHD_API_USER", ISHD_API_USER)
-    print("ISHD_API_PASS", ISHD_API_PASS)
 
     class IshdTeams:
 
@@ -353,9 +351,14 @@ async def process_ishd_data(
     headers = {
         "Authorization":
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
-        "User-Agent": "BISHL-API/1.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
     }
-    print("headers", headers)
     """
   response:
 
@@ -397,8 +400,15 @@ async def process_ishd_data(
         log_lines.append(log_line)
   """
 
-    timeout = aiohttp.ClientTimeout(total=30)
-    connector = aiohttp.TCPConnector(ssl=True)  # Try with SSL disabled first
+    timeout = aiohttp.ClientTimeout(total=60)
+    
+    # Create SSL context with certificate verification
+    import ssl
+    ssl_context = ssl.create_default_context()
+    # ssl_context.check_hostname = False  # Uncomment if hostname verification fails
+    # ssl_context.verify_mode = ssl.CERT_NONE  # Uncomment to disable SSL verification entirely
+    
+    connector = aiohttp.TCPConnector(ssl=ssl_context, limit=10, limit_per_host=5)
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         # loop through team API URLs
         # for api_url in api_urls:
@@ -468,13 +478,27 @@ async def process_ishd_data(
                             print(log_line)
                             log_lines.append(log_line)
                         else:
+                            # Catch other potential errors and raise HTTPException
+                            try:
+                                error_detail = await response.json()
+                            except json.JSONDecodeError:
+                                try:
+                                    error_detail = await response.text()
+                                except:
+                                    error_detail = "Unable to parse error response"
+                            
+                            # Check for SSL-related errors
+                            if response.status in [525, 526, 530]:
+                                error_detail = f"SSL/TLS error - Status {response.status}. The server may have SSL certificate issues."
+                            
                             raise HTTPException(
                                 status_code=response.status,
-                                detail=f"Error fetching data from {api_url}")
+                                detail=f"Error fetching data from {api_url}. Status: {response.status}. Detail: {error_detail}"
+                            )
                 if data:
                     # loop through players array
                     for player in data['players']:
-                        # check ifplayer['date_of_birth'] is valid date
+                        # check if player['date_of_birth'] is valid date
                         try:
                             birthdate = datetime.strptime(
                                 player['date_of_birth'], '%Y-%m-%d')
@@ -489,9 +513,9 @@ async def process_ishd_data(
                         # Check if player exists and has managedByISHD=false
                         existing_player_check = None
                         for existing_player in existing_players:
-                            if (existing_player['firstName'] == player['first_name'] and 
-                                existing_player['lastName'] == player['last_name'] and 
-                                datetime.strftime(existing_player['birthdate'], '%Y-%m-%d') == player['date_of_birth']):
+                            if (existing_player['firstName'] == player['first_name'] and
+                                    existing_player['lastName'] == player['last_name'] and
+                                    datetime.strftime(existing_player['birthdate'], '%Y-%m-%d') == player['date_of_birth']):
                                 existing_player_check = existing_player
                                 break
 
@@ -530,16 +554,17 @@ async def process_ishd_data(
                         # check if player already exists in existing_players array
                         player_exists = False
                         existing_player = None
-                        for existing_player in existing_players:
-                            if (existing_player['firstName']
+                        for existing_player_loop in existing_players:
+                            if (existing_player_loop['firstName']
                                     == player['first_name']
-                                    and existing_player['lastName']
+                                    and existing_player_loop['lastName']
                                     == player['last_name']
                                     and datetime.strftime(
-                                        existing_player['birthdate'],
+                                        existing_player_loop['birthdate'],
                                         '%Y-%m-%d')
                                     == player['date_of_birth']):
                                 player_exists = True
+                                existing_player = existing_player_loop
                                 break
 
                         if player_exists and existing_player is not None:
@@ -928,7 +953,13 @@ async def verify_ishd_data(
     headers = {
         "Authorization":
         f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
-        "User-Agent": "BISHL-API/1.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
     }
 
     # Get all players from database
@@ -949,7 +980,13 @@ async def verify_ishd_data(
                     team['teamName']
                 })
 
-    async with aiohttp.ClientSession() as session:
+    # Create SSL context with certificate verification
+    import ssl
+    ssl_context = ssl.create_default_context()
+    timeout = aiohttp.ClientTimeout(total=60)
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+    
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         ishd_players = {}
 
         for team_info in ishd_teams:
@@ -968,7 +1005,15 @@ async def verify_ishd_data(
             else:
                 async with session.get(api_url, headers=headers) as response:
                     if response.status != 200:
-                        continue
+                        try:
+                            error_detail = await response.json()
+                        except json.JSONDecodeError:
+                            error_detail = await response.text()
+                        raise HTTPException(
+                            status_code=response.status,
+                            detail=
+                            f"Error fetching data from {api_url}. Status: {response.status}. Detail: {error_detail}"
+                        )
                     data = await response.json()
 
             for player in data['players']:

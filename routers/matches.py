@@ -8,7 +8,7 @@ from authentication import AuthHandler, TokenPayload
 from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token, populate_event_player_fields
 import os
 import isodate
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson import ObjectId
 import httpx
 
@@ -124,6 +124,359 @@ async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
     print(
         f"Warning: Failed to update matchday dates: {matchday_response.status_code}"
     )
+
+
+# get today's matches
+@router.get("/today",
+            response_model=List[MatchListBase],
+            response_description="Get today's matches")
+async def get_todays_matches(request: Request,
+                            tournament: Optional[str] = None,
+                            season: Optional[str] = None,
+                            round: Optional[str] = None,
+                            matchday: Optional[str] = None,
+                            referee: Optional[str] = None,
+                            club: Optional[str] = None,
+                            team: Optional[str] = None,
+                            assigned: Optional[bool] = None) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  
+  # Get today's date range
+  today = datetime.now().date()
+  start_of_day = datetime.combine(today, datetime.min.time())
+  end_of_day = datetime.combine(today, datetime.max.time())
+  
+  query = {
+    "season.alias": season if season else os.environ['CURRENT_SEASON'],
+    "startDate": {
+      "$gte": start_of_day,
+      "$lte": end_of_day
+    }
+  }
+  
+  if tournament:
+    query["tournament.alias"] = tournament
+  if round:
+    query["round.alias"] = round
+  if matchday:
+    query["matchday.alias"] = matchday
+  if referee:
+    query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+  if club:
+    if team:
+      query["$or"] = [{
+          "$and": [{
+              "home.clubAlias": club
+          }, {
+              "home.teamAlias": team
+          }]
+      }, {
+          "$and": [{
+              "away.clubAlias": club
+          }, {
+              "away.teamAlias": team
+          }]
+      }]
+    else:
+      query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+  if assigned is not None:
+    if not assigned:  # assigned == False
+      query["$and"] = [{
+          "referee1.userId": {
+              "$exists": False
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": False
+          }
+      }]
+    elif assigned:  # assigned == True
+      query["$or"] = [{
+          "referee1.userId": {
+              "$exists": True
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": True
+          }
+      }]
+
+  if DEBUG_LEVEL > 20:
+    print("today's matches query: ", query)
+  
+  # Project only necessary fields, excluding roster, scores, and penalties
+  projection = {
+    "home.roster": 0,
+    "home.scores": 0, 
+    "home.penalties": 0,
+    "away.roster": 0,
+    "away.scores": 0,
+    "away.penalties": 0
+  }
+  
+  matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+  
+  # Convert to MatchListBase objects and parse time fields
+  results = []
+  for match in matches:
+    match = convert_seconds_to_times(match)
+    results.append(MatchListBase(**match))
+  
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(results))
+
+
+# get upcoming matches (next day with matches)
+@router.get("/upcoming",
+            response_model=List[MatchListBase],
+            response_description="Get upcoming matches for next day where matches exist")
+async def get_upcoming_matches(request: Request,
+                              tournament: Optional[str] = None,
+                              season: Optional[str] = None,
+                              round: Optional[str] = None,
+                              matchday: Optional[str] = None,
+                              referee: Optional[str] = None,
+                              club: Optional[str] = None,
+                              team: Optional[str] = None,
+                              assigned: Optional[bool] = None) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  
+  # Get current time and start searching from tomorrow
+  today = datetime.now()
+  tomorrow_start = datetime.combine(today.date() + timedelta(days=1), datetime.min.time())
+  
+  # Build base query to find minimum start date
+  base_query = {
+    "season.alias": season if season else os.environ['CURRENT_SEASON'],
+    "startDate": {"$gte": tomorrow_start}
+  }
+  
+  if tournament:
+    base_query["tournament.alias"] = tournament
+  if round:
+    base_query["round.alias"] = round
+  if matchday:
+    base_query["matchday.alias"] = matchday
+  if referee:
+    base_query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+  if club:
+    if team:
+      base_query["$or"] = [{
+          "$and": [{
+              "home.clubAlias": club
+          }, {
+              "home.teamAlias": team
+          }]
+      }, {
+          "$and": [{
+              "away.clubAlias": club
+          }, {
+              "away.teamAlias": team
+          }]
+      }]
+    else:
+      base_query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+  if assigned is not None:
+    if not assigned:  # assigned == False
+      base_query["$and"] = [{
+          "referee1.userId": {
+              "$exists": False
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": False
+          }
+      }]
+    elif assigned:  # assigned == True
+      base_query["$or"] = [{
+          "referee1.userId": {
+              "$exists": True
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": True
+          }
+      }]
+
+  if DEBUG_LEVEL > 20:
+    print("upcoming matches base query: ", base_query)
+  
+  # Find the minimum start date for upcoming matches
+  min_date_result = await mongodb["matches"].find(base_query).sort("startDate", 1).limit(1).to_list(1)
+  
+  if not min_date_result:
+    # No upcoming matches found
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder([]))
+  
+  min_start_date = min_date_result[0]["startDate"]
+  match_date = min_start_date.date()
+  
+  # Create date range for the found date
+  start_of_day = datetime.combine(match_date, datetime.min.time())
+  end_of_day = datetime.combine(match_date, datetime.max.time())
+  
+  # Build final query for matches on the found date
+  final_query = base_query.copy()
+  final_query["startDate"] = {
+    "$gte": start_of_day,
+    "$lte": end_of_day
+  }
+  
+  if DEBUG_LEVEL > 20:
+    print(f"upcoming matches final query for {match_date}: ", final_query)
+  
+  # Project only necessary fields, excluding roster, scores, and penalties
+  projection = {
+    "home.roster": 0,
+    "home.scores": 0, 
+    "home.penalties": 0,
+    "away.roster": 0,
+    "away.scores": 0,
+    "away.penalties": 0
+  }
+  
+  matches = await mongodb["matches"].find(final_query, projection).sort("startDate", 1).to_list(None)
+  
+  # Convert to MatchListBase objects and parse time fields
+  results = []
+  for match in matches:
+    match = convert_seconds_to_times(match)
+    results.append(MatchListBase(**match))
+  
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(results))
+
+
+# get this week's matches (tomorrow until Sunday)
+@router.get("/rest-of-week",
+            response_description="Get matches for rest of current week (tomorrow until Sunday)")
+async def get_rest_of_week_matches(request: Request,
+                               tournament: Optional[str] = None,
+                               season: Optional[str] = None,
+                               round: Optional[str] = None,
+                               matchday: Optional[str] = None,
+                               referee: Optional[str] = None,
+                               club: Optional[str] = None,
+                               team: Optional[str] = None,
+                               assigned: Optional[bool] = None) -> JSONResponse:
+  mongodb = request.app.state.mongodb
+  
+  # Get current date and calculate tomorrow and end of week (Sunday)
+  today = datetime.now().date()
+  tomorrow = today + timedelta(days=1)
+  
+  # Calculate days until Sunday (0=Monday, 6=Sunday)
+  days_until_sunday = 6 - today.weekday()
+  if days_until_sunday <= 0:  # If today is Sunday, get next Sunday
+    days_until_sunday = 7
+  
+  end_of_week = today + timedelta(days=days_until_sunday)
+  
+  # Build base query
+  base_query = {
+    "season.alias": season if season else os.environ['CURRENT_SEASON']
+  }
+  
+  if tournament:
+    base_query["tournament.alias"] = tournament
+  if round:
+    base_query["round.alias"] = round
+  if matchday:
+    base_query["matchday.alias"] = matchday
+  if referee:
+    base_query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+  if club:
+    if team:
+      base_query["$or"] = [{
+          "$and": [{
+              "home.clubAlias": club
+          }, {
+              "home.teamAlias": team
+          }]
+      }, {
+          "$and": [{
+              "away.clubAlias": club
+          }, {
+              "away.teamAlias": team
+          }]
+      }]
+    else:
+      base_query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+  if assigned is not None:
+    if not assigned:  # assigned == False
+      base_query["$and"] = [{
+          "referee1.userId": {
+              "$exists": False
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": False
+          }
+      }]
+    elif assigned:  # assigned == True
+      base_query["$or"] = [{
+          "referee1.userId": {
+              "$exists": True
+          }
+      }, {
+          "referee2.userId": {
+              "$exists": True
+          }
+      }]
+
+  if DEBUG_LEVEL > 20:
+    print("this week matches base query: ", base_query)
+  
+  # Initialize result structure
+  week_matches = []
+  
+  # Loop through each day from tomorrow until Sunday
+  current_date = tomorrow
+  while current_date <= end_of_week:
+    start_of_day = datetime.combine(current_date, datetime.min.time())
+    end_of_day = datetime.combine(current_date, datetime.max.time())
+    
+    # Build query for this specific day
+    day_query = base_query.copy()
+    day_query["startDate"] = {
+      "$gte": start_of_day,
+      "$lte": end_of_day
+    }
+    
+    if DEBUG_LEVEL > 20:
+      print(f"this week matches query for {current_date}: ", day_query)
+    
+    # Project only necessary fields, excluding roster, scores, and penalties
+    projection = {
+      "home.roster": 0,
+      "home.scores": 0, 
+      "home.penalties": 0,
+      "away.roster": 0,
+      "away.scores": 0,
+      "away.penalties": 0
+    }
+    
+    matches = await mongodb["matches"].find(day_query, projection).sort("startDate", 1).to_list(None)
+    
+    # Convert to MatchListBase objects and parse time fields
+    day_matches = []
+    for match in matches:
+      match = convert_seconds_to_times(match)
+      day_matches.append(MatchListBase(**match))
+    
+    # Add day data to result
+    week_matches.append({
+      "date": current_date.isoformat(),
+      "dayName": current_date.strftime("%A"),
+      "matches": day_matches
+    })
+    
+    # Move to next day
+    current_date += timedelta(days=1)
+  
+  return JSONResponse(status_code=status.HTTP_200_OK,
+                      content=jsonable_encoder(week_matches))
 
 
 # get matches
