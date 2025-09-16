@@ -80,6 +80,9 @@ async def get_team(
                                              club_alias})) is not None:
     for team in club.get("teams", []):
       if team.get("alias") == team_alias:
+        # Use club logoUrl if team logoUrl is empty
+        if not team.get("logoUrl") and club.get("logoUrl"):
+          team["logoUrl"] = club["logoUrl"]
         team_response = TeamDB(**team)
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(team_response))
