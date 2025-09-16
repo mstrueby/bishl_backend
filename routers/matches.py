@@ -349,9 +349,9 @@ async def get_upcoming_matches(request: Request,
 
 
 # get this week's matches (tomorrow until Sunday)
-@router.get("/this-week",
+@router.get("/rest-of-week",
             response_description="Get matches for rest of current week (tomorrow until Sunday)")
-async def get_this_week_matches(request: Request,
+async def get_rest_of_week_matches(request: Request,
                                tournament: Optional[str] = None,
                                season: Optional[str] = None,
                                round: Optional[str] = None,
