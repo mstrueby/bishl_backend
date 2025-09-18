@@ -857,27 +857,16 @@ async def update_match(request: Request,
   match_data.pop("id", None)
   
   # Handle null coach objects to prevent MongoDB field creation errors
-  if match_data.get("home") and match_data["home"].get("coach") is not None:
-    existing_home_coach = existing_match.get('home', {}).get('coach')
-    if existing_home_coach is None:
-      # If existing coach is null, we need to set the entire coach object
-      pass  # Keep the coach object as is
-  elif match_data.get("home") and "coach" in match_data["home"]:
-    # Remove coach from update if it would create field in null object
-    existing_home_coach = existing_match.get('home', {}).get('coach')
-    if existing_home_coach is None:
-      match_data["home"].pop("coach", None)
-      
-  if match_data.get("away") and match_data["away"].get("coach") is not None:
-    existing_away_coach = existing_match.get('away', {}).get('coach')
-    if existing_away_coach is None:
-      # If existing coach is null, we need to set the entire coach object
-      pass  # Keep the coach object as is
-  elif match_data.get("away") and "coach" in match_data["away"]:
-    # Remove coach from update if it would create field in null object
-    existing_away_coach = existing_match.get('away', {}).get('coach')
-    if existing_away_coach is None:
-      match_data["away"].pop("coach", None)
+  def handle_null_coach(team_key, match_data, existing_match):
+    if match_data.get(team_key) and "coach" in match_data[team_key]:
+      existing_coach = existing_match.get(team_key, {}).get('coach')
+      if existing_coach is None:
+        # If existing coach is null, remove coach from update to prevent field creation errors
+        match_data[team_key].pop("coach", None)
+        print(f"Removed coach update for {team_key} team because existing coach is null")
+  
+  handle_null_coach("home", match_data, existing_match)
+  handle_null_coach("away", match_data, existing_match)
 
   # set ref points
   if match_status in ['FINISHED', 'FORFEITED']:
@@ -908,10 +897,22 @@ async def update_match(request: Request,
   def check_nested_fields(data, existing, path=""):
     for key, value in data.items():
       full_key = f"{path}.{key}" if path else key
+      
+      # Skip coach fields if existing coach is null to prevent MongoDB errors
+      if "coach" in full_key and existing is not None:
+        coach_path_parts = full_key.split(".")
+        if len(coach_path_parts) >= 2:
+          team_key = coach_path_parts[0]  # home or away
+          if coach_path_parts[1] == "coach" and len(coach_path_parts) > 2:
+            # This is a nested coach field like home.coach.firstName
+            existing_coach = existing_match.get(team_key, {}).get('coach')
+            if existing_coach is None:
+              print(f"Skipping coach field update {full_key} because existing coach is null")
+              continue
+      
       if existing is None or key not in existing:
         match_to_update[full_key] = value
       elif isinstance(value, dict):
-        #print("val: ", value)
         check_nested_fields(value, existing.get(key, {}), full_key)
       else:
         if value != existing.get(key):
