@@ -855,31 +855,6 @@ async def update_match(request: Request,
 
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
-  
-  # Handle null coach objects to prevent MongoDB field creation errors
-  def handle_null_coach(team_key, match_data, existing_match):
-    if match_data.get(team_key) and "coach" in match_data[team_key]:
-      existing_coach = existing_match.get(team_key, {}).get('coach')
-      coach_data = match_data[team_key]["coach"]
-      
-      if existing_coach is None:
-        # If existing coach is null, only allow complete coach object, not partial updates
-        if coach_data and isinstance(coach_data, dict):
-          # Check if it's a complete coach object (has required fields)
-          if coach_data.get("firstName") and coach_data.get("lastName"):
-            print(f"Setting new coach for {team_key} team")
-            # Keep the coach object as is - it's a complete coach
-          else:
-            # It's a partial update, remove it to prevent field creation errors
-            match_data[team_key].pop("coach", None)
-            print(f"Removed partial coach update for {team_key} team because existing coach is null")
-        else:
-          # Empty or null coach data, remove it
-          match_data[team_key].pop("coach", None)
-          print(f"Removed empty coach update for {team_key} team")
-  
-  handle_null_coach("home", match_data, existing_match)
-  handle_null_coach("away", match_data, existing_match)
 
   # set ref points
   if match_status in ['FINISHED', 'FORFEITED']:
@@ -910,25 +885,6 @@ async def update_match(request: Request,
   def check_nested_fields(data, existing, path=""):
     for key, value in data.items():
       full_key = f"{path}.{key}" if path else key
-      
-      # Special handling for coach fields
-      if "coach" in full_key and existing is not None:
-        coach_path_parts = full_key.split(".")
-        if len(coach_path_parts) >= 2:
-          team_key = coach_path_parts[0]  # home or away
-          if coach_path_parts[1] == "coach":
-            existing_coach = existing_match.get(team_key, {}).get('coach')
-            
-            if len(coach_path_parts) > 2:
-              # This is a nested coach field like home.coach.firstName
-              if existing_coach is None:
-                print(f"Skipping nested coach field update {full_key} because existing coach is null")
-                continue
-            else:
-              # This is the coach object itself (home.coach or away.coach)
-              if existing_coach is None and isinstance(value, dict):
-                # Allow setting complete coach object when existing is null
-                print(f"Allowing coach object update {full_key} even though existing coach is null")
       
       if existing is None or key not in existing:
         match_to_update[full_key] = value
