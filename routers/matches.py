@@ -855,6 +855,29 @@ async def update_match(request: Request,
 
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
+  
+  # Handle null coach objects to prevent MongoDB field creation errors
+  if match_data.get("home") and match_data["home"].get("coach") is not None:
+    existing_home_coach = existing_match.get('home', {}).get('coach')
+    if existing_home_coach is None:
+      # If existing coach is null, we need to set the entire coach object
+      pass  # Keep the coach object as is
+  elif match_data.get("home") and "coach" in match_data["home"]:
+    # Remove coach from update if it would create field in null object
+    existing_home_coach = existing_match.get('home', {}).get('coach')
+    if existing_home_coach is None:
+      match_data["home"].pop("coach", None)
+      
+  if match_data.get("away") and match_data["away"].get("coach") is not None:
+    existing_away_coach = existing_match.get('away', {}).get('coach')
+    if existing_away_coach is None:
+      # If existing coach is null, we need to set the entire coach object
+      pass  # Keep the coach object as is
+  elif match_data.get("away") and "coach" in match_data["away"]:
+    # Remove coach from update if it would create field in null object
+    existing_away_coach = existing_match.get('away', {}).get('coach')
+    if existing_away_coach is None:
+      match_data["away"].pop("coach", None)
 
   # set ref points
   if match_status in ['FINISHED', 'FORFEITED']:
