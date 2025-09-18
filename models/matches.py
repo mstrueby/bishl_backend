@@ -187,6 +187,18 @@ class MatchStatsUpdate(BaseModel):
   soLoss: Optional[int] = 0
 
 
+class Coach(BaseModel):
+  firstName: str = Field(...)
+  lastName: str = Field(...)
+  licence: Optional[str] = None
+
+
+class Staff(BaseModel):
+  firstName: str = Field(...)
+  lastName: str = Field(...)
+  role: Optional[str] = None
+
+
 class MatchTeam(BaseModel):
   clubId: Optional[str] = None
   clubName: Optional[str] = None
@@ -200,6 +212,8 @@ class MatchTeam(BaseModel):
   logo: Optional[HttpUrl] = None
   roster: Optional[List[RosterPlayer]] = Field(default_factory=list)
   rosterPublished: Optional[bool] = False
+  coach: Optional[Coach] = None
+  staff: Optional[List[Staff]] = Field(default_factory=list)
   scores: Optional[List[ScoresBase]] = Field(default_factory=list)
   penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
   stats: Optional[MatchStats] = Field(default_factory=dict)
@@ -228,6 +242,8 @@ class MatchTeamUpdate(BaseModel):
   logo: Optional[HttpUrl] = None
   roster: Optional[List[RosterPlayer]] = Field(default_factory=list)
   rosterPublished: Optional[bool] = None
+  coach: Optional[Coach] = None
+  staff: Optional[List[Staff]] = Field(default_factory=list)
   scores: Optional[List[ScoresBase]] = Field(default_factory=list)
   penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
   stats: Optional[MatchStats] = Field(default_factory=dict)
