@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+from pymongo import MongoClient
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 import certifi
@@ -12,11 +13,22 @@ args = parser.parse_args()
 
 # Get environment variables and setup database connection
 if args.prod:
+    BASE_URL = os.environ['BE_API_URL_PROD']
     DB_URL = os.environ['DB_URL_PROD']
     DB_NAME = 'bishl'
 else:
+    BASE_URL = os.environ['BE_API_URL']
     DB_URL = os.environ['DB_URL']
     DB_NAME = 'bishl_dev'
+
+
+# Connect to the MongoDB collection
+#client = MongoClient(DB_URL, tlsCAFile=certifi.where())
+#db = client[DB_NAME]
+#db_collection = db['matches']
+
+print("BASE_URL: ", BASE_URL)
+print("DB_NAME", DB_NAME)
 
 async def update_match_sheet_complete():
     """
@@ -29,6 +41,7 @@ async def update_match_sheet_complete():
     
     try:
         # Get all matches
+        print("Fetching all matches...")
         matches = await db["matches"].find({}).to_list(None)
         
         updated_count = 0
