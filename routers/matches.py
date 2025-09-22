@@ -103,7 +103,7 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
 
 async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
                                     round_id, md_id):
-  if DEBUG_LEVEL >0:
+  if DEBUG_LEVEL > 0:
     print(f"Updating round {r_alias} and matchday {md_id} for {t_alias} / {s_alias}")
   
   # Update round dates first
