@@ -117,12 +117,47 @@ async def update_roster(
     if roster_entry.get("player"):
       await populate_event_player_fields(mongodb, roster_entry["player"])
 
+  # Create a mapping of playerId to new jersey number for updates
+  jersey_updates = {
+    roster_entry["player"]["playerId"]: roster_entry["player"]["jerseyNumber"]
+    for roster_entry in roster_data
+    if roster_entry.get("player", {}).get("playerId") and roster_entry.get("player", {}).get("jerseyNumber") is not None
+  }
+
   # do update
   try:
+    # Update roster
     await mongodb["matches"].update_one(
         {"_id": match_id}, {"$set": {
             f"{team_flag}.roster": roster_data
         }})
+    
+    # Update jersey numbers in scores and penalties
+    if jersey_updates:
+      # Update scores - goal players
+      for player_id, jersey_number in jersey_updates.items():
+        await mongodb["matches"].update_one(
+            {"_id": match_id},
+            {"$set": {f"{team_flag}.scores.$[score].goalPlayer.jerseyNumber": jersey_number}},
+            array_filters=[{"score.goalPlayer.playerId": player_id}]
+        )
+        
+        # Update scores - assist players
+        await mongodb["matches"].update_one(
+            {"_id": match_id},
+            {"$set": {f"{team_flag}.scores.$[score].assistPlayer.jerseyNumber": jersey_number}},
+            array_filters=[{"score.assistPlayer.playerId": player_id}]
+        )
+        
+        # Update penalties
+        await mongodb["matches"].update_one(
+            {"_id": match_id},
+            {"$set": {f"{team_flag}.penalties.$[penalty].penaltyPlayer.jerseyNumber": jersey_number}},
+            array_filters=[{"penalty.penaltyPlayer.playerId": player_id}]
+        )
+      
+      if DEBUG_LEVEL > 0:
+        print(f"Updated jersey numbers for {len(jersey_updates)} players in scores/penalties")
     
     # PHASE 1 OPTIMIZATION: Skip heavy player calculations completely
     # Roster stats within the match document are maintained via incremental updates in scores/penalties
