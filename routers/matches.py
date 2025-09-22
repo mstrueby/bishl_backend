@@ -75,13 +75,13 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
   # Populate EventPlayer display fields for scores and penalties
   for team_key in ["home", "away"]:
     team = match.get(team_key, {})
-    
+
     # Populate roster player fields
     roster = team.get("roster", [])
     for roster_entry in roster:
       if roster_entry.get("player"):
         await populate_event_player_fields(mongodb, roster_entry["player"])
-    
+
     # Populate score player fields
     scores = team.get("scores", [])
     for score in scores:
@@ -89,7 +89,7 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
         await populate_event_player_fields(mongodb, score["goalPlayer"])
       if score.get("assistPlayer"):
         await populate_event_player_fields(mongodb, score["assistPlayer"])
-    
+
     # Populate penalty player fields
     penalties = team.get("penalties", [])
     for penalty in penalties:
@@ -140,12 +140,12 @@ async def get_todays_matches(request: Request,
                             team: Optional[str] = None,
                             assigned: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  
+
   # Get today's date range
   today = datetime.now().date()
   start_of_day = datetime.combine(today, datetime.min.time())
   end_of_day = datetime.combine(today, datetime.max.time())
-  
+
   query = {
     "season.alias": season if season else os.environ['CURRENT_SEASON'],
     "startDate": {
@@ -153,7 +153,7 @@ async def get_todays_matches(request: Request,
       "$lte": end_of_day
     }
   }
-  
+
   if tournament:
     query["tournament.alias"] = tournament
   if round:
@@ -203,25 +203,25 @@ async def get_todays_matches(request: Request,
 
   if DEBUG_LEVEL > 20:
     print("today's matches query: ", query)
-  
+
   # Project only necessary fields, excluding roster, scores, and penalties
   projection = {
     "home.roster": 0,
-    "home.scores": 0, 
+    "home.scores": 0,
     "home.penalties": 0,
     "away.roster": 0,
     "away.scores": 0,
     "away.penalties": 0
   }
-  
+
   matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
-  
+
   # Convert to MatchListBase objects and parse time fields
   results = []
   for match in matches:
     match = convert_seconds_to_times(match)
     results.append(MatchListBase(**match))
-  
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
 
@@ -240,17 +240,17 @@ async def get_upcoming_matches(request: Request,
                               team: Optional[str] = None,
                               assigned: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  
+
   # Get current time and start searching from tomorrow
   today = datetime.now()
   tomorrow_start = datetime.combine(today.date() + timedelta(days=1), datetime.min.time())
-  
+
   # Build base query to find minimum start date
   base_query = {
     "season.alias": season if season else os.environ['CURRENT_SEASON'],
     "startDate": {"$gte": tomorrow_start}
   }
-  
+
   if tournament:
     base_query["tournament.alias"] = tournament
   if round:
@@ -300,50 +300,50 @@ async def get_upcoming_matches(request: Request,
 
   if DEBUG_LEVEL > 20:
     print("upcoming matches base query: ", base_query)
-  
+
   # Find the minimum start date for upcoming matches
   min_date_result = await mongodb["matches"].find(base_query).sort("startDate", 1).limit(1).to_list(1)
-  
+
   if not min_date_result:
     # No upcoming matches found
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder([]))
-  
+
   min_start_date = min_date_result[0]["startDate"]
   match_date = min_start_date.date()
-  
+
   # Create date range for the found date
   start_of_day = datetime.combine(match_date, datetime.min.time())
   end_of_day = datetime.combine(match_date, datetime.max.time())
-  
+
   # Build final query for matches on the found date
   final_query = base_query.copy()
   final_query["startDate"] = {
     "$gte": start_of_day,
     "$lte": end_of_day
   }
-  
+
   if DEBUG_LEVEL > 20:
     print(f"upcoming matches final query for {match_date}: ", final_query)
-  
+
   # Project only necessary fields, excluding roster, scores, and penalties
   projection = {
     "home.roster": 0,
-    "home.scores": 0, 
+    "home.scores": 0,
     "home.penalties": 0,
     "away.roster": 0,
     "away.scores": 0,
     "away.penalties": 0
   }
-  
+
   matches = await mongodb["matches"].find(final_query, projection).sort("startDate", 1).to_list(None)
-  
+
   # Convert to MatchListBase objects and parse time fields
   results = []
   for match in matches:
     match = convert_seconds_to_times(match)
     results.append(MatchListBase(**match))
-  
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
 
@@ -361,23 +361,23 @@ async def get_rest_of_week_matches(request: Request,
                                team: Optional[str] = None,
                                assigned: Optional[bool] = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  
+
   # Get current date and calculate tomorrow and end of week (Sunday)
   today = datetime.now().date()
   tomorrow = today + timedelta(days=1)
-  
+
   # Calculate days until Sunday (0=Monday, 6=Sunday)
   days_until_sunday = 6 - today.weekday()
   if days_until_sunday <= 0:  # If today is Sunday, get next Sunday
     days_until_sunday = 7
-  
+
   end_of_week = today + timedelta(days=days_until_sunday)
-  
+
   # Build base query
   base_query = {
     "season.alias": season if season else os.environ['CURRENT_SEASON']
   }
-  
+
   if tournament:
     base_query["tournament.alias"] = tournament
   if round:
@@ -427,54 +427,54 @@ async def get_rest_of_week_matches(request: Request,
 
   if DEBUG_LEVEL > 20:
     print("this week matches base query: ", base_query)
-  
+
   # Initialize result structure
   week_matches = []
-  
+
   # Loop through each day from tomorrow until Sunday
   current_date = tomorrow
   while current_date <= end_of_week:
     start_of_day = datetime.combine(current_date, datetime.min.time())
     end_of_day = datetime.combine(current_date, datetime.max.time())
-    
+
     # Build query for this specific day
     day_query = base_query.copy()
     day_query["startDate"] = {
       "$gte": start_of_day,
       "$lte": end_of_day
     }
-    
+
     if DEBUG_LEVEL > 20:
       print(f"this week matches query for {current_date}: ", day_query)
-    
+
     # Project only necessary fields, excluding roster, scores, and penalties
     projection = {
       "home.roster": 0,
-      "home.scores": 0, 
+      "home.scores": 0,
       "home.penalties": 0,
       "away.roster": 0,
       "away.scores": 0,
       "away.penalties": 0
     }
-    
+
     matches = await mongodb["matches"].find(day_query, projection).sort("startDate", 1).to_list(None)
-    
+
     # Convert to MatchListBase objects and parse time fields
     day_matches = []
     for match in matches:
       match = convert_seconds_to_times(match)
       day_matches.append(MatchListBase(**match))
-    
+
     # Add day data to result
     week_matches.append({
       "date": current_date.isoformat(),
       "dayName": current_date.strftime("%A"),
       "matches": day_matches
     })
-    
+
     # Move to next day
     current_date += timedelta(days=1)
-  
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(week_matches))
 
@@ -563,21 +563,21 @@ async def list_matches(request: Request,
   # Project only necessary fields, excluding roster, scores, and penalties
   projection = {
     "home.roster": 0,
-    "home.scores": 0, 
+    "home.scores": 0,
     "home.penalties": 0,
     "away.roster": 0,
     "away.scores": 0,
     "away.penalties": 0
   }
-  
+
   matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
-  
+
   # Convert to MatchListBase objects and parse time fields
   results = []
   for match in matches:
     match = convert_seconds_to_times(match)
     results.append(MatchListBase(**match))
-  
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(results))
 
@@ -721,13 +721,6 @@ async def create_match(
           else:
             print(f"Warning: Round {r_alias} not found or has no ID")
 
-      if DEBUG_LEVEL > 0:
-        print("calc standings ...")
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
-                                        md_alias)
-
-    #TODO: Insert calc_roster_stats
     if DEBUG_LEVEL > 0:
       print("calc_roster_stats (home) ...")
     await calc_roster_stats(mongodb, result.inserted_id, 'home')
@@ -885,7 +878,7 @@ async def update_match(request: Request,
   def check_nested_fields(data, existing, path=""):
     for key, value in data.items():
       full_key = f"{path}.{key}" if path else key
-      
+
       if existing is None or key not in existing:
         match_to_update[full_key] = value
       elif isinstance(value, dict):
@@ -955,20 +948,32 @@ async def update_match(request: Request,
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   updated_match = await get_match_object(mongodb, match_id)
-  # calc standings and set it in round
+  # PHASE 1 OPTIMIZATION: Reduce heavy calculations for INPROGRESS matches
+  current_match_status = updated_match.matchStatus.key if updated_match.matchStatus else None
+
+  # Always update standings (relatively fast)
   await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-  await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
-                                    md_alias)
-  # get all player_ids from home and away roster of match
-  home_players = [
-      player.player.playerId for player in (updated_match.home.roster or [])
-  ] if updated_match.home is not None else []
-  away_players = [
-      player.player.playerId for player in (updated_match.away.roster or [])
-  ] if updated_match.away is not None else []
-  player_ids = home_players + away_players
-  await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias, r_alias,
-                               md_alias, token_payload)
+  await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+
+  # Only do heavy player calculations when match status changes to FINISHED
+  if current_match_status == 'FINISHED':
+    # get all player_ids from home and away roster of match
+    home_players = [
+        player.player.playerId for player in (updated_match.home.roster or [])
+    ] if updated_match.home is not None else []
+    away_players = [
+        player.player.playerId for player in (updated_match.away.roster or [])
+    ] if updated_match.away is not None else []
+    player_ids = home_players + away_players
+
+    if player_ids:
+      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias, r_alias,
+                                 md_alias, token_payload)
+
+    if DEBUG_LEVEL > 0:
+      print(f"Full player stats calculation completed for FINISHED match {match_id}")
+  elif DEBUG_LEVEL > 0:
+    print(f"Skipped heavy player calculations for {current_match_status} match {match_id}")
 
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(updated_match))
