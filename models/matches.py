@@ -188,8 +188,8 @@ class MatchStatsUpdate(BaseModel):
 
 
 class Coach(BaseModel):
-  firstName: str = Field(...)
-  lastName: str = Field(...)
+  firstName: Optional[str] = None
+  lastName: Optional[str] = None
   licence: Optional[str] = None
 
 
@@ -212,7 +212,7 @@ class MatchTeam(BaseModel):
   logo: Optional[HttpUrl] = None
   roster: Optional[List[RosterPlayer]] = Field(default_factory=list)
   rosterPublished: Optional[bool] = False
-  coach: Optional[Coach] = None
+  coach: Coach = Field(default_factory=Coach)
   staff: Optional[List[Staff]] = Field(default_factory=list)
   scores: Optional[List[ScoresBase]] = Field(default_factory=list)
   penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
@@ -242,7 +242,7 @@ class MatchTeamUpdate(BaseModel):
   logo: Optional[HttpUrl] = None
   roster: Optional[List[RosterPlayer]] = Field(default_factory=list)
   rosterPublished: Optional[bool] = None
-  coach: Optional[Coach] = None
+  coach: Optional[Coach] = Field(default_factory=Coach)
   staff: Optional[List[Staff]] = Field(default_factory=list)
   scores: Optional[List[ScoresBase]] = Field(default_factory=list)
   penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
@@ -285,6 +285,7 @@ class MatchBase(MongoBaseModel):
   venue: Optional[MatchVenue] = None
   startDate: Optional[datetime] = None
   published: bool = False
+  matchSheetComplete: bool = False
 
   ##@validator('matchStatus', pre=True, always=True)
   #def validate_type(cls, v, field):
@@ -337,6 +338,7 @@ class MatchListBase(MongoBaseModel):
   venue: Optional[MatchVenue] = None
   startDate: Optional[datetime] = None
   published: bool = False
+  matchSheetComplete: bool = False
 
 
 class MatchUpdate(MongoBaseModel):
@@ -354,6 +356,7 @@ class MatchUpdate(MongoBaseModel):
   venue: Optional[MatchVenue] = None
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
+  matchSheetComplete: Optional[bool] = False
 
   #@validator('matchStatus', pre=True, always=True)
   #def validate_type(cls, v, field):

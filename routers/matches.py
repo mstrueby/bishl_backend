@@ -885,10 +885,10 @@ async def update_match(request: Request,
   def check_nested_fields(data, existing, path=""):
     for key, value in data.items():
       full_key = f"{path}.{key}" if path else key
+      
       if existing is None or key not in existing:
         match_to_update[full_key] = value
       elif isinstance(value, dict):
-        #print("val: ", value)
         check_nested_fields(value, existing.get(key, {}), full_key)
       else:
         if value != existing.get(key):
