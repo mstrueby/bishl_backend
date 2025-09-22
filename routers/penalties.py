@@ -179,15 +179,6 @@ async def create_penalty(
       raise HTTPException(status_code=500, detail="Failed to update match with penalty")
 
     # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS penalties
-    if match_status == 'FINISHED':
-      # Only do full player calculations when match is finished
-      await calc_player_card_stats(mongodb, [penalty_player_id],
-                                 t_alias=t_alias,
-                                 s_alias=s_alias,
-                                 r_alias=r_alias,
-                                 md_alias=md_alias,
-                                 token_payload=token_payload)
-
     if DEBUG_LEVEL > 0:
       print(f"Penalty added with incremental updates - Player: {penalty_player_id}, Minutes: {penalty.penaltyMinutes}")
 
@@ -393,17 +384,6 @@ async def delete_one_penalty(
           detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
 
     # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS penalties
-    if match_status == 'FINISHED':
-      # Only do full player calculations when match is finished
-      await calc_player_card_stats(
-          mongodb,
-          player_ids=[penalty_player_id],
-          t_alias=t_alias,
-          s_alias=s_alias,
-          r_alias=r_alias,
-          md_alias=md_alias,
-          token_payload=token_payload)
-
     if DEBUG_LEVEL > 0:
       print(f"Penalty deleted with incremental updates - Player: {penalty_player_id}, Minutes: {penalty_minutes}")
 
