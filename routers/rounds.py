@@ -182,7 +182,8 @@ async def update_round(
   if "ADMIN" not in token_payload.roles:
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
   round_dict = round.dict(exclude_unset=True)
-  print("round: ", round_dict)
+  if DEBUG_LEVEL > 20:
+    print("round: ", round_dict)
   # Check if the tournament exists
   tournament = await mongodb['tournaments'].find_one(
       {"alias": tournament_alias})
@@ -198,12 +199,14 @@ async def update_round(
         status_code=404,
         detail=
         f"Season {season_alias} not found in tournament {tournament_alias}")
-  print("season_index: ", season_index)
+  if DEBUG_LEVEL > 20:
+    print("season_index: ", season_index)
   # Find the index of the round in the season
   round_index = next(
       (i for i, r in enumerate(tournament["seasons"][season_index].get(
           "rounds", [])) if r.get("_id") == round_id), None)
-  print("round_index: ", round_index)
+  if DEBUG_LEVEL > 20:
+    print("round_index: ", round_index)
   if round_index is None:
     raise HTTPException(
         status_code=404,
@@ -232,11 +235,13 @@ async def update_round(
       update_data["$set"][
           f"seasons.{season_index}.rounds.{round_index}.{field}"] = round_dict[
               field]
-  print("update data", update_data)
+  if DEBUG_LEVEL > 10:
+    print("update data", update_data)
 
   # Update the round in the season
   if update_data.get("$set"):
-    print("to update: ", update_data)
+    if DEBUG_LEVEL > 10:
+      print("to update: ", update_data)
     try:
 
       # Update the round in the tournament's season
@@ -256,7 +261,8 @@ async def update_round(
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:
-    print("no update needed")
+    if DEBUG_LEVEL > 10:
+      print("no update needed")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   # Fetch the currrent round data

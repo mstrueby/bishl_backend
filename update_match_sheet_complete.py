@@ -9,6 +9,7 @@ import argparse
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Update matchSheetComplete based on scores vs goals comparison.')
 parser.add_argument('--prod', action='store_true', help='Update production database.')
+parser.add_argument('--season', type=str, help='Filter matches by season alias (e.g., 2024-25)')
 args = parser.parse_args()
 
 # Get environment variables and setup database connection
@@ -40,9 +41,16 @@ async def update_match_sheet_complete():
     db = client[DB_NAME]
     
     try:
-        # Get all matches
-        print("Fetching all matches...")
-        matches = await db["matches"].find({}).to_list(None)
+        # Build query filter
+        query_filter = {"matchStatus.key": "FINISHED"}
+        if args.season:
+            query_filter["season.alias"] = args.season
+            print(f"Fetching FINISHED matches for season: {args.season}...")
+        else:
+            print("Fetching all FINISHED matches...")
+        
+        # Get matches based on filter
+        matches = await db["matches"].find(query_filter).to_list(None)
         
         updated_count = 0
         total_count = len(matches)
