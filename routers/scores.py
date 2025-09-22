@@ -171,26 +171,6 @@ async def create_score(
     score_data = jsonable_encoder(score_data)
 
     # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
-    # Build incremental update operations
-    update_operations = {
-        "$push": {f"{team_flag}.scores": score_data},
-        "$inc": {
-            f"{team_flag}.stats.goalsFor": 1,
-            f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": 1
-        }
-    }
-
-    # Update roster stats incrementally for goal scorer
-    roster_updates = {}
-    if goal_player_id:
-      roster_updates[f"{team_flag}.roster.$[goalPlayer].goals"] = {"$inc": 1}
-      roster_updates[f"{team_flag}.roster.$[goalPlayer].points"] = {"$inc": 1}
-
-    # Update roster stats incrementally for assist player
-    if assist_player_id:
-      roster_updates[f"{team_flag}.roster.$[assistPlayer].assists"] = {"$inc": 1}
-      roster_updates[f"{team_flag}.roster.$[assistPlayer].points"] = {"$inc": 1}
-
     # Build array filters for roster updates
     array_filters = []
     if goal_player_id:
@@ -198,17 +178,7 @@ async def create_score(
     if assist_player_id:
       array_filters.append({"assistPlayer.player.playerId": assist_player_id})
 
-    # Apply incremental roster updates if we have players to update
-    if roster_updates and array_filters:
-      roster_inc_operations = {"$inc": {}}
-      for field_path, operation in roster_updates.items():
-        if "$inc" in operation:
-          roster_inc_operations["$inc"][field_path] = operation["$inc"]
-      
-      if roster_inc_operations["$inc"]:
-        update_operations["$inc"].update(roster_inc_operations["$inc"])
-
-    # Recalculate match stats only if finish_type requires it
+    # Recalculate match stats if needed
     if finish_type and t_alias:
       current_home_goals = match.get('home', {}).get('stats', {}).get('goalsFor', 0)
       current_away_goals = match.get('away', {}).get('stats', {}).get('goalsFor', 0)
@@ -227,10 +197,33 @@ async def create_score(
           away_score=current_away_goals,
           standings_setting=standings_settings)
 
-      update_operations["$set"] = {
-          "home.stats": stats['home'],
-          "away.stats": stats['away']
+      # Use full stats replacement when we have calculated stats
+      update_operations = {
+          "$push": {f"{team_flag}.scores": score_data},
+          "$set": {
+              "home.stats": stats['home'],
+              "away.stats": stats['away']
+          },
+          "$inc": {}
       }
+    else:
+      # Use incremental updates when no full stats calculation is needed
+      update_operations = {
+          "$push": {f"{team_flag}.scores": score_data},
+          "$inc": {
+              f"{team_flag}.stats.goalsFor": 1,
+              f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": 1
+          }
+      }
+
+    # Add roster incremental updates
+    if goal_player_id:
+      update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].goals"] = 1
+      update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].points"] = 1
+
+    if assist_player_id:
+      update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].assists"] = 1
+      update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].points"] = 1
 
     # Execute the optimized update
     update_result = await mongodb['matches'].update_one(
@@ -460,34 +453,16 @@ async def delete_one_score(
 
   try:
     # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
-    update_operations = {
-        "$pull": {f"{team_flag}.scores": {"_id": score_id}},
-        "$inc": {
-            f"{team_flag}.stats.goalsFor": -1,
-            f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": -1
-        }
-    }
-
-    # Update roster stats incrementally for goal scorer
-    roster_decrements = {}
+    # Build array filters for roster updates
     array_filters = []
     
     if goal_player_id:
-      roster_decrements[f"{team_flag}.roster.$[goalPlayer].goals"] = -1
-      roster_decrements[f"{team_flag}.roster.$[goalPlayer].points"] = -1
       array_filters.append({"goalPlayer.player.playerId": goal_player_id})
 
-    # Update roster stats incrementally for assist player
     if assist_player_id:
-      roster_decrements[f"{team_flag}.roster.$[assistPlayer].assists"] = -1
-      roster_decrements[f"{team_flag}.roster.$[assistPlayer].points"] = -1
       array_filters.append({"assistPlayer.player.playerId": assist_player_id})
 
-    # Add roster decrements to the operation
-    if roster_decrements:
-      update_operations["$inc"].update(roster_decrements)
-
-    # Recalculate match stats only if finish_type requires it
+    # Recalculate match stats if needed
     if finish_type and t_alias:
       current_home_goals = match.get('home', {}).get('stats', {}).get('goalsFor', 0)
       current_away_goals = match.get('away', {}).get('stats', {}).get('goalsFor', 0)
@@ -506,12 +481,33 @@ async def delete_one_score(
           away_score=current_away_goals,
           standings_setting=standings_settings)
 
-      if "$set" not in update_operations:
-        update_operations["$set"] = {}
-      update_operations["$set"].update({
-          "home.stats": stats['home'],
-          "away.stats": stats['away']
-      })
+      # Use full stats replacement when we have calculated stats
+      update_operations = {
+          "$pull": {f"{team_flag}.scores": {"_id": score_id}},
+          "$set": {
+              "home.stats": stats['home'],
+              "away.stats": stats['away']
+          },
+          "$inc": {}
+      }
+    else:
+      # Use incremental updates when no full stats calculation is needed
+      update_operations = {
+          "$pull": {f"{team_flag}.scores": {"_id": score_id}},
+          "$inc": {
+              f"{team_flag}.stats.goalsFor": -1,
+              f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": -1
+          }
+      }
+
+    # Add roster decremental updates
+    if goal_player_id:
+      update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].goals"] = -1
+      update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].points"] = -1
+
+    if assist_player_id:
+      update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].assists"] = -1
+      update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].points"] = -1
 
     # Execute the optimized update
     result = await mongodb["matches"].update_one(
