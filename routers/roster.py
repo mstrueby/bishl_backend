@@ -123,22 +123,12 @@ async def update_roster(
         {"_id": match_id}, {"$set": {
             f"{team_flag}.roster": roster_data
         }})
-    # print("calc_roster_stats...") - muss nicht
-    # await calc_roster_stats(mongodb, match_id, team_flag)
-    print("xxx calc_player_card_stats...")
-    # do this only if match_status is INPROGRESS or FINISHED
-    if match.get("matchStatus").get("key") in ["INPROGRESS", "FINISHED"]:
-      await calc_player_card_stats(
-          mongodb,
-          player_ids=all_effected_player_ids,
-          t_alias=match.get("tournament").get("alias"),
-          s_alias=match.get("season").get("alias"),
-          r_alias=match.get("round").get("alias"),
-          md_alias=match.get("matchday").get("alias"),
-          token_payload=token_payload)
     
-    #async with httpx.AsyncClient() as client:
-    #  return await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+    # PHASE 1 OPTIMIZATION: Skip heavy player calculations completely
+    # Roster stats within the match document are maintained via incremental updates in scores/penalties
+    if DEBUG_LEVEL > 0:
+      print(f"Roster updated - skipped heavy player calculations for match {match_id}")
+    
     return await get_roster(request, match_id, team_flag)
 
   except Exception as e:
