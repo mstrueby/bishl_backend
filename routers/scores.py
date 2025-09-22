@@ -178,43 +178,14 @@ async def create_score(
     if assist_player_id:
       array_filters.append({"assistPlayer.player.playerId": assist_player_id})
 
-    # Recalculate match stats if needed
-    if finish_type and t_alias:
-      current_home_goals = match.get('home', {}).get('stats', {}).get('goalsFor', 0)
-      current_away_goals = match.get('away', {}).get('stats', {}).get('goalsFor', 0)
-      
-      # Increment appropriate team's goals for match stats calculation
-      if team_flag == 'home':
-        current_home_goals += 1
-      else:
-        current_away_goals += 1
-
-      standings_settings = await fetch_standings_settings(t_alias, s_alias)
-      stats = calc_match_stats(
-          match_status=match_status,
-          finish_type=finish_type,
-          home_score=current_home_goals,
-          away_score=current_away_goals,
-          standings_setting=standings_settings)
-
-      # Use full stats replacement when we have calculated stats
-      update_operations = {
-          "$push": {f"{team_flag}.scores": score_data},
-          "$set": {
-              "home.stats": stats['home'],
-              "away.stats": stats['away']
-          },
-          "$inc": {}
-      }
-    else:
-      # Use incremental updates when no full stats calculation is needed
-      update_operations = {
-          "$push": {f"{team_flag}.scores": score_data},
-          "$inc": {
-              f"{team_flag}.stats.goalsFor": 1,
-              f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": 1
-          }
-      }
+    # Use incremental updates for INPROGRESS matches
+    update_operations = {
+        "$push": {f"{team_flag}.scores": score_data},
+        "$inc": {
+            f"{team_flag}.stats.goalsFor": 1,
+            f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": 1
+        }
+    }
 
     # Add roster incremental updates
     if goal_player_id:
@@ -237,21 +208,9 @@ async def create_score(
           status_code=500,
           detail="Failed to update match with score")
 
-    # PHASE 1 OPTIMIZATION: Only update standings, skip heavy player calculations for INPROGRESS
-    if match_status == 'FINISHED':
-      # Only do full calculations when match is finished
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
-      
-      # Full player stats calculation only on match finish
-      player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
-      if player_ids:
-        await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias, 
-                                   r_alias, md_alias, token_payload=token_payload)
-    else:
-      # For INPROGRESS matches, only update standings (much faster)
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+    # PHASE 1 OPTIMIZATION: For INPROGRESS matches, only update standings (much faster)
+    await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
+    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
 
     if DEBUG_LEVEL > 0:
       print(f"Score added with incremental updates - Goal: {goal_player_id}, Assist: {assist_player_id}")
