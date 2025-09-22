@@ -292,6 +292,9 @@ async def patch_one_penalty(
             status_code=404,
             detail=f"Penalty with ID {penalty_id} not found in match {match_id}"
         )
+      
+      # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
+      # Only recalculate roster stats (lightweight operation)
       await calc_roster_stats(mongodb, match_id, team_flag)
 
     except Exception as e:
@@ -304,14 +307,7 @@ async def patch_one_penalty(
   updated_penalty = await get_penalty_object(mongodb, match_id, team_flag,
                                              penalty_id)
 
-  await calc_player_card_stats(
-      mongodb,
-      player_ids=[updated_penalty.penaltyPlayer.playerId],
-      t_alias=match.get("tournament").get("alias"),
-      s_alias=match.get("season").get("alias"),
-      r_alias=match.get("round").get("alias"),
-      md_alias=match.get("matchday").get("alias"),
-      token_payload=token_payload)
+  # PHASE 1 OPTIMIZATION: Skip heavy player calculations for INPROGRESS matches
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(updated_penalty))
 

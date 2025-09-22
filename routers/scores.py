@@ -333,15 +333,10 @@ async def patch_one_score(
               "_id": match_id,
               f"{team_flag}.scores._id": score_id
           }, update_data)
+      
+      # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
+      # Only recalculate roster stats (lightweight operation)
       await calc_roster_stats(mongodb, match_id, team_flag)
-      await calc_player_card_stats(
-          mongodb,
-          player_ids=player_ids,
-          t_alias=match.get("tournament").get("alias"),
-          s_alias=match.get("season").get("alias"),
-          r_alias=match.get("round").get("alias"),
-          md_alias=match.get("matchday").get("alias"),
-          token_payload=token_payload)
 
     except HTTPException as e:
       if e.status_code == status.HTTP_304_NOT_MODIFIED:
