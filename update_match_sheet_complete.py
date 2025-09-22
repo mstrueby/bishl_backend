@@ -1,22 +1,47 @@
 #!/usr/bin/env python
 import os
+from pymongo import MongoClient
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 import certifi
+import argparse
 
-DB_URL = os.environ["DB_URL"]
-DB_NAME = os.environ["DB_NAME"]
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Update matchSheetComplete based on scores vs goals comparison.')
+parser.add_argument('--prod', action='store_true', help='Update production database.')
+args = parser.parse_args()
+
+# Get environment variables and setup database connection
+if args.prod:
+    BASE_URL = os.environ['BE_API_URL_PROD']
+    DB_URL = os.environ['DB_URL_PROD']
+    DB_NAME = 'bishl'
+else:
+    BASE_URL = os.environ['BE_API_URL']
+    DB_URL = os.environ['DB_URL']
+    DB_NAME = 'bishl_dev'
+
+
+# Connect to the MongoDB collection
+#client = MongoClient(DB_URL, tlsCAFile=certifi.where())
+#db = client[DB_NAME]
+#db_collection = db['matches']
+
+print("BASE_URL: ", BASE_URL)
+print("DB_NAME", DB_NAME)
 
 async def update_match_sheet_complete():
     """
     Loop through all matches and compare length of scores with stats.goalsFor 
     for home and away teams. If they match, set matchSheetComplete = True.
     """
+    print(f"Connecting to database: {DB_NAME}")
     client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
     db = client[DB_NAME]
     
     try:
         # Get all matches
+        print("Fetching all matches...")
         matches = await db["matches"].find({}).to_list(None)
         
         updated_count = 0
