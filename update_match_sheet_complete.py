@@ -42,12 +42,12 @@ async def update_match_sheet_complete():
     
     try:
         # Build query filter
-        query_filter = {}
+        query_filter = {"matchStatus.key": "FINISHED"}
         if args.season:
             query_filter["season.alias"] = args.season
-            print(f"Fetching matches for season: {args.season}...")
+            print(f"Fetching FINISHED matches for season: {args.season}...")
         else:
-            print("Fetching all matches...")
+            print("Fetching all FINISHED matches...")
         
         # Get matches based on filter
         matches = await db["matches"].find(query_filter).to_list(None)
