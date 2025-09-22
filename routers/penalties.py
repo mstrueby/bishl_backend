@@ -115,8 +115,7 @@ async def create_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  #if "ADMIN" not in token_payload.roles:
-  #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
+  
   #check
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -141,6 +140,13 @@ async def create_penalty(
         detail=f"Player with id {penalty.penaltyPlayer.playerId} not in roster"
     )
 
+  # Get match info for optimizations
+  t_alias = match.get('tournament', {}).get('alias')
+  s_alias = match.get('season', {}).get('alias')
+  r_alias = match.get('round', {}).get('alias')
+  md_alias = match.get('matchday', {}).get('alias')
+  penalty_player_id = penalty.penaltyPlayer.playerId
+
   try:
     penalty_data = {}
     new_penalty_id = str(ObjectId())
@@ -152,31 +158,41 @@ async def create_penalty(
     if penalty_data["matchTimeEnd"] is not None:
       penalty_data["matchSecondsEnd"] = parse_time_to_seconds(
           penalty_data['matchTimeEnd'])
-    #penalty_data.pop('matchTimeStart')
-    #penalty_data.pop('matchTimeEnd')
     penalty_data = jsonable_encoder(penalty_data)
 
-    update_result = await mongodb["matches"].update_one(
-        {"_id": match_id}, {"$push": {
-            f"{team_flag}.penalties": penalty_data
-        }})
-    if update_result.modified_count == 0:
-      raise HTTPException(status_code=500, detail="Failed to update match")
-    # get the latest player data
-    penalty_data['penaltyPlayer'] = await populate_event_player_fields(
-        mongodb, penalty_data['penaltyPlayer'])
+    # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
+    update_operations = {
+        "$push": {f"{team_flag}.penalties": penalty_data},
+        "$inc": {f"{team_flag}.roster.$[penaltyPlayer].penaltyMinutes": penalty.penaltyMinutes}
+    }
 
-    await calc_roster_stats(mongodb, match_id, team_flag)
-    await calc_player_card_stats(mongodb, [penalty.penaltyPlayer.playerId],
-                                 t_alias=match.get("tournament").get("alias"),
-                                 s_alias=match.get("season").get("alias"),
-                                 r_alias=match.get("round").get("alias"),
-                                 md_alias=match.get("matchday").get("alias"),
+    array_filters = [{"penaltyPlayer.player.playerId": penalty_player_id}]
+
+    # Execute the optimized update
+    update_result = await mongodb["matches"].update_one(
+        {"_id": match_id}, 
+        update_operations,
+        array_filters=array_filters
+    )
+
+    if update_result.modified_count == 0:
+      raise HTTPException(status_code=500, detail="Failed to update match with penalty")
+
+    # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS penalties
+    if match_status == 'FINISHED':
+      # Only do full player calculations when match is finished
+      await calc_player_card_stats(mongodb, [penalty_player_id],
+                                 t_alias=t_alias,
+                                 s_alias=s_alias,
+                                 r_alias=r_alias,
+                                 md_alias=md_alias,
                                  token_payload=token_payload)
 
+    if DEBUG_LEVEL > 0:
+      print(f"Penalty added with incremental updates - Player: {penalty_player_id}, Minutes: {penalty.penaltyMinutes}")
+
     # Use the reusable function to return the new penalty
-    new_penalty = await get_penalty_object(mongodb, match_id, team_flag,
-                                           new_penalty_id)
+    new_penalty = await get_penalty_object(mongodb, match_id, team_flag, new_penalty_id)
     return JSONResponse(status_code=status.HTTP_201_CREATED,
                         content=jsonable_encoder(new_penalty))
 
@@ -319,8 +335,7 @@ async def delete_one_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  #if "ADMIN" not in token_payload.roles:
-  #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
+  
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
@@ -336,7 +351,7 @@ async def delete_one_penalty(
         status_code=400,
         detail="Penalties can only be deleted when match status is INPROGRESS")
 
-  # Fetch the current penalty
+  # Fetch the current penalty before deletion
   current_penalty = None
   for penalty_entry in match.get(team_flag, {}).get("penalties", []):
     if penalty_entry["_id"] == penalty_id:
@@ -348,32 +363,51 @@ async def delete_one_penalty(
         status_code=404,
         detail=f"Penalty with id {penalty_id} not found in match {match_id}")
 
-  # Delete the penalty
+  # Get match info for optimizations
+  t_alias = match.get('tournament', {}).get('alias')
+  s_alias = match.get('season', {}).get('alias')
+  r_alias = match.get('round', {}).get('alias')
+  md_alias = match.get('matchday', {}).get('alias')
+  penalty_player_id = current_penalty.get('penaltyPlayer', {}).get('playerId')
+  penalty_minutes = current_penalty.get('penaltyMinutes', 0)
+
   try:
+    # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
+    update_operations = {
+        "$pull": {f"{team_flag}.penalties": {"_id": penalty_id}},
+        "$inc": {f"{team_flag}.roster.$[penaltyPlayer].penaltyMinutes": -penalty_minutes}
+    }
+
+    array_filters = [{"penaltyPlayer.player.playerId": penalty_player_id}]
+
+    # Execute the optimized update
     result = await mongodb["matches"].update_one(
-        {
-            "_id": match_id,
-            f"{team_flag}.penalties._id": penalty_id
-        }, {"$pull": {
-            f"{team_flag}.penalties": {
-                "_id": penalty_id
-            }
-        }})
+        {"_id": match_id, f"{team_flag}.penalties._id": penalty_id},
+        update_operations,
+        array_filters=array_filters
+    )
+
     if result.modified_count == 0:
       raise HTTPException(
           status_code=404,
           detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
-    else:
-      await calc_roster_stats(mongodb, match_id, team_flag)
+
+    # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS penalties
+    if match_status == 'FINISHED':
+      # Only do full player calculations when match is finished
       await calc_player_card_stats(
           mongodb,
-          player_ids=[current_penalty['penaltyPlayer'].get('playerId')],
-          t_alias=match.get("tournament").get("alias"),
-          s_alias=match.get("season").get("alias"),
-          r_alias=match.get("round").get("alias"),
-          md_alias=match.get("matchday").get("alias"),
+          player_ids=[penalty_player_id],
+          t_alias=t_alias,
+          s_alias=s_alias,
+          r_alias=r_alias,
+          md_alias=md_alias,
           token_payload=token_payload)
-      return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    if DEBUG_LEVEL > 0:
+      print(f"Penalty deleted with incremental updates - Player: {penalty_player_id}, Minutes: {penalty_minutes}")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
