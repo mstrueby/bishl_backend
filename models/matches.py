@@ -285,6 +285,7 @@ class MatchBase(MongoBaseModel):
   venue: Optional[MatchVenue] = None
   startDate: Optional[datetime] = None
   published: bool = False
+  matchSheetComplete: bool = False
 
   ##@validator('matchStatus', pre=True, always=True)
   #def validate_type(cls, v, field):
@@ -337,6 +338,7 @@ class MatchListBase(MongoBaseModel):
   venue: Optional[MatchVenue] = None
   startDate: Optional[datetime] = None
   published: bool = False
+  matchSheetComplete: bool = False
 
 
 class MatchUpdate(MongoBaseModel):
@@ -354,6 +356,7 @@ class MatchUpdate(MongoBaseModel):
   venue: Optional[MatchVenue] = None
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
+  matchSheetComplete: Optional[bool] = False
 
   #@validator('matchStatus', pre=True, always=True)
   #def validate_type(cls, v, field):
