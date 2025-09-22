@@ -933,6 +933,7 @@ async def update_match(request: Request,
             else:
               print(f"Warning: Round {r_alias} not found or has no ID")
 
+      # Keep roster stats calculation for match document consistency (relatively fast)
       if DEBUG_LEVEL > 0:
         print("calc_roster_stats (home) ...")
       await calc_roster_stats(mongodb, match_id, 'home')
@@ -948,32 +949,15 @@ async def update_match(request: Request,
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   updated_match = await get_match_object(mongodb, match_id)
-  # PHASE 1 OPTIMIZATION: Reduce heavy calculations for INPROGRESS matches
-  current_match_status = updated_match.matchStatus.key if updated_match.matchStatus else None
-
-  # Always update standings (relatively fast)
+  
+  # PHASE 1 OPTIMIZATION: Only update standings, skip all heavy player calculations
+  # Standings updates are relatively fast and needed for live standings
   await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
   await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
 
-  # Only do heavy player calculations when match status changes to FINISHED
-  if current_match_status == 'FINISHED':
-    # get all player_ids from home and away roster of match
-    home_players = [
-        player.player.playerId for player in (updated_match.home.roster or [])
-    ] if updated_match.home is not None else []
-    away_players = [
-        player.player.playerId for player in (updated_match.away.roster or [])
-    ] if updated_match.away is not None else []
-    player_ids = home_players + away_players
-
-    if player_ids:
-      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias, r_alias,
-                                 md_alias, token_payload)
-
-    if DEBUG_LEVEL > 0:
-      print(f"Full player stats calculation completed for FINISHED match {match_id}")
-  elif DEBUG_LEVEL > 0:
-    print(f"Skipped heavy player calculations for {current_match_status} match {match_id}")
+  if DEBUG_LEVEL > 0:
+    current_match_status = updated_match.matchStatus.key if updated_match.matchStatus else None
+    print(f"Match updated - skipped heavy player calculations for {current_match_status} match {match_id}")
 
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(updated_match))
