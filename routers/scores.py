@@ -90,7 +90,6 @@ async def get_score_sheet(
   scores = match.get(team_flag, {}).get("scores") or []
 
   # Parse matchSeconds to a string format and populate EventPlayer fields
-  print("scores", scores)
   for score in scores:
     if 'matchSeconds' in score:
       score['matchTime'] = parse_time_from_seconds(score['matchSeconds'])

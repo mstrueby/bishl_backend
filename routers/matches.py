@@ -103,6 +103,9 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
 
 async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
                                     round_id, md_id):
+  if DEBUG_LEVEL >0:
+    print(f"Updating round {r_alias} and matchday {md_id} for {t_alias} / {s_alias}")
+  
   # Update round dates first
   round_response = await client.patch(
       f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
@@ -111,7 +114,7 @@ async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
       timeout=30.0)
   if round_response.status_code not in [200, 304]:
     print(
-        f"Warning: Failed to update round dates: {round_response.status_code}")
+        f"WARNING: Failed to update round dates: {round_response.status_code}")
     return
 
   # After successful round update, update matchday
@@ -122,7 +125,7 @@ async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
       timeout=30.0)
   if matchday_response.status_code not in [200, 304]:
     print(
-        f"Warning: Failed to update matchday dates: {matchday_response.status_code}"
+        f"WARNING: Failed to update matchday dates: {matchday_response.status_code}"
     )
 
 
@@ -840,7 +843,7 @@ async def update_match(request: Request,
     else:
       raise ValueError("Calculating match statistics returned None")
 
-  if DEBUG_LEVEL > 0:
+  if DEBUG_LEVEL > 10:
     print("### match/after stats: ", match)
 
   match.referee1 = existing_match['referee1']
@@ -889,7 +892,7 @@ async def update_match(request: Request,
 
   match_to_update = {}
   check_nested_fields(match_data, existing_match)
-  if DEBUG_LEVEL > 0:
+  if DEBUG_LEVEL > 10:
     print("match_to_update: ", match_to_update)
 
   if match_to_update:
@@ -929,23 +932,19 @@ async def update_match(request: Request,
                                                   s_alias, r_alias, round_id,
                                                   md_id)
               else:
-                print(f"Warning: Matchday {md_alias} not found or has no ID")
+                print(f"WARNING: Matchday {md_alias} not found or has no ID")
             else:
-              print(f"Warning: Round {r_alias} not found or has no ID")
+              print(f"WARNING: Round {r_alias} not found or has no ID")
 
       # Keep roster stats calculation for match document consistency (relatively fast)
-      if DEBUG_LEVEL > 0:
-        print("calc_roster_stats (home) ...")
       await calc_roster_stats(mongodb, match_id, 'home')
-      if DEBUG_LEVEL > 0:
-        print("calc_roster_stats (away) ...")
       await calc_roster_stats(mongodb, match_id, 'away')
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
   else:
     if DEBUG_LEVEL > 0:
-      print("No changes to update")
+      print("PATCH/match: No changes to update")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   updated_match = await get_match_object(mongodb, match_id)
