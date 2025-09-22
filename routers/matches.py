@@ -779,11 +779,13 @@ async def update_match(request: Request,
       if 'id' in item and isinstance(item['id'], ObjectId):
         item.pop('id')
 
-  # Firstly, check if match exists and get this match
+  # Get existing match
   existing_match = await mongodb["matches"].find_one({"_id": match_id})
   if existing_match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
+
+  # Extract tournament info for potential use
   t_alias = getattr(match.tournament, 'alias',
                     existing_match.get('tournament', {}).get('alias', None))
   s_alias = getattr(match.season, 'alias',
@@ -792,44 +794,46 @@ async def update_match(request: Request,
                     existing_match.get('round', {}).get('alias', None))
   md_alias = getattr(match.matchday, 'alias',
                      existing_match.get('matchday', {}).get('alias', None))
-  match_status = getattr(
-      match.matchStatus, 'key',
-      existing_match.get('matchStatus', {}).get('key', None))
-  finish_type = getattr(match.finishType, 'key',
-                        existing_match.get('finishType', {}).get('key', None))
 
-  home_stats_data = match.home.stats if (
-      match.home and match.home.stats
-      and match.home.stats != {}) else existing_match.get('home', {}).get(
-          'stats', {})
-  away_stats_data = match.away.stats if (
-      match.away and match.away.stats
-      and match.away.stats != {}) else existing_match.get('away', {}).get(
-          'stats', {})
+  # Get current and new match status/finish type
+  current_match_status = existing_match.get('matchStatus', {}).get('key', None)
+  new_match_status = getattr(match.matchStatus, 'key', current_match_status)
+  current_finish_type = existing_match.get('finishType', {}).get('key', None)
+  new_finish_type = getattr(match.finishType, 'key', current_finish_type)
 
-  home_stats = home_stats_data if isinstance(
-      home_stats_data, MatchStats) else MatchStats(**(home_stats_data or {}))
-  away_stats = away_stats_data if isinstance(
-      away_stats_data, MatchStats) else MatchStats(**(away_stats_data or {}))
-  """
-  print("exisiting_match: ", existing_match)
-  print("t_alias: ", t_alias)
-  print("match_status: ", match_status)
-  print("finish_type: ", finish_type)
-  print("home_stats: ", home_stats)
-  print("away_stats: ", away_stats)
-  print("type of home_stats: ", type(home_stats))
-  """
+  # Check if this is a stats-affecting change
+  stats_affecting_fields = ['matchStatus', 'finishType', 'home.stats', 'away.stats']
+  stats_change_detected = any(
+    hasattr(match, field.split('.')[0]) and 
+    (getattr(match, field.split('.')[0]) is not None if '.' not in field 
+     else getattr(getattr(match, field.split('.')[0], None) or type('obj', (), {})(), field.split('.')[1], None) is not None)
+    for field in stats_affecting_fields
+  )
 
-  home_goals = home_stats.goalsFor if (
-      home_stats and home_stats.goalsFor
-      is not None) else existing_match['home']['stats']['goalsFor']
-  away_goals = away_stats.goalsFor if (
-      away_stats and away_stats.goalsFor
-      is not None) else existing_match['away']['stats']['goalsFor']
+  # Only calculate match stats if stats-affecting fields changed
+  if stats_change_detected and new_finish_type and t_alias:
+    home_stats_data = match.home.stats if (
+        match.home and match.home.stats
+        and match.home.stats != {}) else existing_match.get('home', {}).get(
+            'stats', {})
+    away_stats_data = match.away.stats if (
+        match.away and match.away.stats
+        and match.away.stats != {}) else existing_match.get('away', {}).get(
+            'stats', {})
 
-  if finish_type and home_stats and t_alias:
-    stats = calc_match_stats(match_status, finish_type, await
+    home_stats = home_stats_data if isinstance(
+        home_stats_data, MatchStats) else MatchStats(**(home_stats_data or {}))
+    away_stats = away_stats_data if isinstance(
+        away_stats_data, MatchStats) else MatchStats(**(away_stats_data or {}))
+
+    home_goals = home_stats.goalsFor if (
+        home_stats and home_stats.goalsFor
+        is not None) else existing_match['home']['stats']['goalsFor']
+    away_goals = away_stats.goalsFor if (
+        away_stats and away_stats.goalsFor
+        is not None) else existing_match['away']['stats']['goalsFor']
+
+    stats = calc_match_stats(new_match_status, new_finish_type, await
                              fetch_standings_settings(t_alias, s_alias),
                              home_goals, away_goals)
     if getattr(match, 'home', None) is None:
@@ -843,27 +847,22 @@ async def update_match(request: Request,
     else:
       raise ValueError("Calculating match statistics returned None")
 
-  if DEBUG_LEVEL > 10:
-    print("### match/after stats: ", match)
-
+  # Always preserve existing referee data
   match.referee1 = existing_match['referee1']
   match.referee2 = existing_match['referee2']
 
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
 
-  # set ref points
-  if match_status in ['FINISHED', 'FORFEITED']:
-    ref_points = await fetch_ref_points(t_alias, s_alias, r_alias, md_alias)
-    """
-    print("ref_points: ", ref_points)
-    print("ref1:", existing_match['referee1'])
-    print("ref2:", existing_match['referee2'])
-    """
-    if existing_match['referee1'] is not None:
-      match_data['referee1']['points'] = ref_points
-    if existing_match['referee2'] is not None:
-      match_data['referee2']['points'] = ref_points
+  # Only update referee points if match status changed to FINISHED/FORFEITED
+  if (new_match_status in ['FINISHED', 'FORFEITED'] and 
+      current_match_status != new_match_status):
+    if t_alias and s_alias and r_alias and md_alias:
+      ref_points = await fetch_ref_points(t_alias, s_alias, r_alias, md_alias)
+      if existing_match['referee1'] is not None:
+        match_data['referee1']['points'] = ref_points
+      if existing_match['referee2'] is not None:
+        match_data['referee2']['points'] = ref_points
 
   if DEBUG_LEVEL > 10:
     print("match_data: ", match_data)
@@ -895,68 +894,77 @@ async def update_match(request: Request,
   if DEBUG_LEVEL > 10:
     print("match_to_update: ", match_to_update)
 
-  if match_to_update:
-    try:
-      set_data = {"$set": flatten_dict(match_to_update)}
-      update_result = await mongodb["matches"].update_one({"_id": match_id},
-                                                          set_data)
-
-      if update_result.modified_count == 0:
-        raise HTTPException(status_code=404,
-                            detail=f"Match with id {match_id} not found")
-
-      if t_alias and s_alias and r_alias and md_alias:
-        token = await get_sys_ref_tool_token(
-            email=os.environ['SYS_ADMIN_EMAIL'],
-            password=os.environ['SYS_ADMIN_PASSWORD'])
-        headers = {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json'
-        }
-        tournament = await mongodb['tournaments'].find_one({"alias": t_alias})
-        if tournament:
-          season = next((s for s in tournament.get("seasons", [])
-                         if s.get("alias") == s_alias), None)
-          if season:
-            round_data = next((r for r in season.get("rounds", [])
-                               if r.get("alias") == r_alias), None)
-            if round_data and "_id" in round_data:
-              round_id = round_data["_id"]
-              matchday_data = next((md
-                                    for md in round_data.get("matchdays", [])
-                                    if md.get("alias") == md_alias), None)
-              if matchday_data and "_id" in matchday_data:
-                md_id = matchday_data["_id"]
-                async with httpx.AsyncClient() as client:
-                  await update_round_and_matchday(client, headers, t_alias,
-                                                  s_alias, r_alias, round_id,
-                                                  md_id)
-              else:
-                print(f"WARNING: Matchday {md_alias} not found or has no ID")
-            else:
-              print(f"WARNING: Round {r_alias} not found or has no ID")
-
-      # Keep roster stats calculation for match document consistency (relatively fast)
-      await calc_roster_stats(mongodb, match_id, 'home')
-      await calc_roster_stats(mongodb, match_id, 'away')
-
-    except Exception as e:
-      raise HTTPException(status_code=500, detail=str(e))
-  else:
+  if not match_to_update:
     if DEBUG_LEVEL > 0:
       print("PATCH/match: No changes to update")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
+  # Check if this is a date-affecting change that requires round/matchday updates
+  date_affecting_fields = ['startDate', 'matchStatus', 'finishType']
+  date_change_detected = any(field in match_to_update for field in date_affecting_fields)
+
+  try:
+    set_data = {"$set": flatten_dict(match_to_update)}
+    update_result = await mongodb["matches"].update_one({"_id": match_id}, set_data)
+
+    if update_result.modified_count == 0:
+      raise HTTPException(status_code=404,
+                          detail=f"Match with id {match_id} not found")
+
+    # Only update round/matchday dates if date-affecting fields changed
+    if date_change_detected and t_alias and s_alias and r_alias and md_alias:
+      token = await get_sys_ref_tool_token(
+          email=os.environ['SYS_ADMIN_EMAIL'],
+          password=os.environ['SYS_ADMIN_PASSWORD'])
+      headers = {
+          'Authorization': f'Bearer {token}',
+          'Content-Type': 'application/json'
+      }
+      tournament = await mongodb['tournaments'].find_one({"alias": t_alias})
+      if tournament:
+        season = next((s for s in tournament.get("seasons", [])
+                       if s.get("alias") == s_alias), None)
+        if season:
+          round_data = next((r for r in season.get("rounds", [])
+                             if r.get("alias") == r_alias), None)
+          if round_data and "_id" in round_data:
+            round_id = round_data["_id"]
+            matchday_data = next((md
+                                  for md in round_data.get("matchdays", [])
+                                  if md.get("alias") == md_alias), None)
+            if matchday_data and "_id" in matchday_data:
+              md_id = matchday_data["_id"]
+              async with httpx.AsyncClient() as client:
+                await update_round_and_matchday(client, headers, t_alias,
+                                                s_alias, r_alias, round_id,
+                                                md_id)
+            else:
+              print(f"WARNING: Matchday {md_alias} not found or has no ID")
+          else:
+            print(f"WARNING: Round {r_alias} not found or has no ID")
+
+    # Check if roster-affecting fields changed before updating roster stats
+    roster_affecting_fields = ['home.roster', 'away.roster', 'home.scores', 'away.scores', 'home.penalties', 'away.penalties']
+    roster_change_detected = any(field in match_to_update for field in roster_affecting_fields)
+    
+    if roster_change_detected:
+      # Keep roster stats calculation for match document consistency (relatively fast)
+      await calc_roster_stats(mongodb, match_id, 'home')
+      await calc_roster_stats(mongodb, match_id, 'away')
+
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
   updated_match = await get_match_object(mongodb, match_id)
   
-  # PHASE 1 OPTIMIZATION: Only update standings, skip all heavy player calculations
-  # Standings updates are relatively fast and needed for live standings
-  await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-  await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+  # PHASE 1 OPTIMIZATION: Only update standings if stats changed, skip all heavy player calculations
+  if stats_change_detected and t_alias and s_alias and r_alias and md_alias:
+    await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
+    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
 
   if DEBUG_LEVEL > 0:
-    current_match_status = updated_match.matchStatus.key if updated_match.matchStatus else None
-    print(f"Match updated - skipped heavy player calculations for {current_match_status} match {match_id}")
+    change_type = "stats-affecting" if stats_change_detected else "minor"
+    print(f"Match updated - {change_type} change detected for match {match_id}")
 
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(updated_match))
