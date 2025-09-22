@@ -66,7 +66,8 @@ async def update_roster(
   if not any(role in token_payload.roles
              for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  print("new roster: ", roster)
+  if DEBUG_LEVEL > 10:
+    print("new roster: ", roster)
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")

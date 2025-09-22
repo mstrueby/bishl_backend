@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse, Response
 from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from authentication import AuthHandler, TokenPayload
 from fastapi.encoders import jsonable_encoder
-from utils import parse_datetime, my_jsonable_encoder
+from utils import DEBUG_LEVEL, parse_datetime, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
@@ -212,9 +212,11 @@ async def update_matchday(
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
-    print("update matchday: ", matchday)
+    if DEBUG_LEVEL > 20:
+        print("update matchday: ", matchday)
     matchday_dict = matchday.dict(exclude_unset=True)
-    print("excluded unset: ", matchday_dict)
+    if DEBUG_LEVEL > 100:
+        print("excluded unset: ", matchday_dict)
     # check if tournament exists
     tournament = await mongodb['tournaments'].find_one(
         {"alias": tournament_alias})
@@ -230,12 +232,14 @@ async def update_matchday(
             detail=
             f"Season {season_alias} not found in tournament {tournament_alias}"
         )
-    print("season_index: ", season_index)
+    if DEBUG_LEVEL > 20:
+        print("season_index: ", season_index)
     # check if round exists
     round_index = next(
         (i for i, r in enumerate(tournament["seasons"][season_index]["rounds"])
          if r.get("alias") == round_alias), None)
-    print("round_index: ", round_index)
+    if DEBUG_LEVEL > 20:
+        print("round_index: ", round_index)
     if round_index is None:
         raise HTTPException(
             status_code=404,
@@ -246,7 +250,8 @@ async def update_matchday(
     round = tournament["seasons"][season_index]["rounds"][round_index]
     matchday_index = next((i for i, md in enumerate(round["matchdays"])
                            if md["_id"] == matchday_id), None)
-    print("matchday_index: ", matchday_index)
+    if DEBUG_LEVEL > 20:
+        print("matchday_index: ", matchday_index)
     if matchday_index is None:
         raise HTTPException(
             status_code=404,
@@ -255,7 +260,7 @@ async def update_matchday(
         )
 
     # get matches for this matchday to determine start/end dates
-    print(tournament_alias, season_alias, round_alias, tournament["seasons"][season_index]["rounds"][round_index]["matchdays"][matchday_index]['alias'])
+   # print(tournament_alias, season_alias, round_alias, tournament["seasons"][season_index]["rounds"][round_index]["matchdays"][matchday_index]['alias'])
     matches = await mongodb['matches'].find({
         "tournament.alias": tournament_alias,
         "season.alias": season_alias,
@@ -276,10 +281,13 @@ async def update_matchday(
             update_data["$set"][
                 f"seasons.{season_index}.rounds.{round_index}.matchdays.{matchday_index}.{field}"] = matchday_dict[
                     field]
-    print("update_data: ", update_data)
+    if DEBUG_LEVEL > 10:
+        print("update_data: ", update_data)
 
     # update matchday
     if update_data.get("$set"):
+        if DEBUG_LEVEL > 10:
+            print("to update", update_data)
         try:
             result = await mongodb['tournaments'].update_one(
                 {
@@ -297,7 +305,8 @@ async def update_matchday(
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
     else:
-        print("no update needed")
+        if DEBUG_LEVEL > 10:
+            print("no update needed")
         return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
     # Fetch the updated matchday
