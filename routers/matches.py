@@ -801,6 +801,8 @@ async def update_match(request: Request,
   current_finish_type = existing_match.get('finishType', {}).get('key', None)
   new_finish_type = getattr(match.finishType, 'key', current_finish_type)
 
+  if DEBUG_LEVEL > 10:
+    print("passed match: ", match)
   # Check if this is a stats-affecting change
   stats_affecting_fields = ['matchStatus', 'finishType', 'home.stats', 'away.stats']
   stats_change_detected = any(
@@ -809,6 +811,8 @@ async def update_match(request: Request,
      else getattr(getattr(match, field.split('.')[0], None) or type('obj', (), {})(), field.split('.')[1], None) is not None)
     for field in stats_affecting_fields
   )
+  if DEBUG_LEVEL > 10:
+    print("stats_change_detected: ", stats_change_detected)
 
   # Only calculate match stats if stats-affecting fields changed
   if stats_change_detected and new_finish_type and t_alias:
