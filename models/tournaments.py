@@ -93,9 +93,9 @@ class MatchdayType(Enum):
   REGULAR = {"key": "REGULAR", "value": "Regulär"}
 
 class MatchdayOwner(BaseModel):
-  clubId: str = Field(...)
-  clubName: str = Field(...)
-  clubAlias: str = Field(...)
+  clubId: Optional[str] = None
+  clubName: Optional[str] = None
+  clubAlias: Optional[str] = None
 
 class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
