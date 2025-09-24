@@ -803,12 +803,13 @@ async def update_match(request: Request,
 
   if DEBUG_LEVEL > 10:
     print("passed match: ", match)
-  # Check if this is a stats-affecting change
+  # Check if this is a stats-affecting change - only check fields that were explicitly provided
+  match_data_provided = match.dict(exclude_unset=True)
   stats_affecting_fields = ['matchStatus', 'finishType', 'home.stats', 'away.stats']
   stats_change_detected = any(
-    hasattr(match, field.split('.')[0]) and 
-    (getattr(match, field.split('.')[0]) is not None if '.' not in field 
-     else getattr(getattr(match, field.split('.')[0], None) or type('obj', (), {})(), field.split('.')[1], None) is not None)
+    field in match_data_provided or 
+    (field.count('.') == 1 and field.split('.')[0] in match_data_provided and 
+     field.split('.')[1] in match_data_provided.get(field.split('.')[0], {}))
     for field in stats_affecting_fields
   )
   if DEBUG_LEVEL > 10:
