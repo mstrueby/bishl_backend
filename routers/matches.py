@@ -948,12 +948,12 @@ async def update_match(request: Request,
           else:
             print(f"WARNING: Round {r_alias} not found or has no ID")
 
-    # Check if roster-affecting fields changed before updating roster stats
-    roster_affecting_fields = ['home.roster', 'away.roster', 'home.scores', 'away.scores', 'home.penalties', 'away.penalties']
-    roster_change_detected = any(field in match_to_update for field in roster_affecting_fields)
+    # Only recalculate roster stats if scores or penalties changed (not for roster-only changes)
+    stats_recalc_fields = ['home.scores', 'away.scores', 'home.penalties', 'away.penalties']
+    stats_recalc_needed = any(field in match_to_update for field in stats_recalc_fields)
     
-    if roster_change_detected:
-      # Keep roster stats calculation for match document consistency (relatively fast)
+    if stats_recalc_needed:
+      # Recalculate roster stats since goals/assists/penalties changed
       await calc_roster_stats(mongodb, match_id, 'home')
       await calc_roster_stats(mongodb, match_id, 'away')
 
