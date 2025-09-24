@@ -343,7 +343,6 @@ def init_team_standings(team_data: dict) -> dict:
 
 def calc_standings(matches):
   standings = {}
-
   for match in matches:
     home_team = {
         'fullName': match['home']['fullName'],
@@ -669,6 +668,8 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
   Calculate and update player statistics for a given tournament/season/round/matchday.
   Also handles called matches logic for assignedTeams updates.
   """
+  if DEBUG_LEVEL > 0:
+    print(f'calculating player card stats for {t_alias}, {s_alias}, {r_alias}, {md_alias} with {len(player_ids)} players...')
 
   def _create_team_dict(match_team_data: dict) -> dict:
     """Create a standardized team dictionary from match data."""
