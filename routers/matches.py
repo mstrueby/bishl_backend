@@ -105,7 +105,7 @@ async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
                                     round_id, md_id):
   if DEBUG_LEVEL > 0:
     print(f"Updating round {r_alias} and matchday {md_id} for {t_alias} / {s_alias}")
-  
+
   # Update round dates first
   round_response = await client.patch(
       f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
@@ -623,8 +623,6 @@ async def create_match(
         print(standings_settings)
       home_score = 0 if match.home is None or not match.home.stats or match.home.stats.goalsFor is None else match.home.stats.goalsFor
       away_score = 0 if match.away is None or not match.away.stats or match.away.stats.goalsFor is None else match.away.stats.goalsFor
-      if DEBUG_LEVEL > 10:
-        print("calc_match_stats")
       stats = calc_match_stats(match.matchStatus.key, match.finishType.key,
                                standings_settings, home_score, away_score)
       if DEBUG_LEVEL > 20:
@@ -705,8 +703,7 @@ async def create_match(
         season = next((s for s in tournament.get("seasons", [])
                        if s.get("alias") == s_alias), None)
         if season:
-          round_data = next(
-              (r
+          round_data = next((r
                for r in season.get("rounds", []) if r.get("alias") == r_alias),
               None)
           if round_data and "_id" in round_data:
@@ -807,8 +804,8 @@ async def update_match(request: Request,
   match_data_provided = match.dict(exclude_unset=True)
   stats_affecting_fields = ['matchStatus', 'finishType', 'home.stats', 'away.stats']
   stats_change_detected = any(
-    field in match_data_provided or 
-    (field.count('.') == 1 and field.split('.')[0] in match_data_provided and 
+    field in match_data_provided or
+    (field.count('.') == 1 and field.split('.')[0] in match_data_provided and
      field.split('.')[1] in match_data_provided.get(field.split('.')[0], {}))
     for field in stats_affecting_fields
   )
@@ -860,7 +857,7 @@ async def update_match(request: Request,
   match_data.pop("id", None)
 
   # Only update referee points if match status changed to FINISHED/FORFEITED
-  if (new_match_status in ['FINISHED', 'FORFEITED'] and 
+  if (new_match_status in ['FINISHED', 'FORFEITED'] and
       current_match_status != new_match_status):
     if t_alias and s_alias and r_alias and md_alias:
       ref_points = await fetch_ref_points(t_alias, s_alias, r_alias, md_alias)
@@ -905,7 +902,7 @@ async def update_match(request: Request,
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   # Check if this is a date-affecting change that requires round/matchday updates
-  date_affecting_fields = ['startDate', 'matchStatus', 'finishType']
+  date_affecting_fields = ['startDate']
   date_change_detected = any(field in match_to_update for field in date_affecting_fields)
 
   try:
@@ -948,12 +945,12 @@ async def update_match(request: Request,
           else:
             print(f"WARNING: Round {r_alias} not found or has no ID")
 
-    # Check if roster-affecting fields changed before updating roster stats
-    roster_affecting_fields = ['home.roster', 'away.roster', 'home.scores', 'away.scores', 'home.penalties', 'away.penalties']
-    roster_change_detected = any(field in match_to_update for field in roster_affecting_fields)
-    
-    if roster_change_detected:
-      # Keep roster stats calculation for match document consistency (relatively fast)
+    # Only recalculate roster stats if scores or penalties changed (not for roster-only changes)
+    stats_recalc_fields = ['home.scores', 'away.scores', 'home.penalties', 'away.penalties']
+    stats_recalc_needed = any(field in match_to_update for field in stats_recalc_fields)
+
+    if stats_recalc_needed:
+      # Recalculate roster stats since goals/assists/penalties changed
       await calc_roster_stats(mongodb, match_id, 'home')
       await calc_roster_stats(mongodb, match_id, 'away')
 
@@ -961,7 +958,7 @@ async def update_match(request: Request,
     raise HTTPException(status_code=500, detail=str(e))
 
   updated_match = await get_match_object(mongodb, match_id)
-  
+
   # PHASE 1 OPTIMIZATION: Only update standings if stats changed, skip all heavy player calculations
   if stats_change_detected and t_alias and s_alias and r_alias and md_alias:
     await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
