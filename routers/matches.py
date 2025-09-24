@@ -623,8 +623,6 @@ async def create_match(
         print(standings_settings)
       home_score = 0 if match.home is None or not match.home.stats or match.home.stats.goalsFor is None else match.home.stats.goalsFor
       away_score = 0 if match.away is None or not match.away.stats or match.away.stats.goalsFor is None else match.away.stats.goalsFor
-      if DEBUG_LEVEL > 10:
-        print("calc_match_stats")
       stats = calc_match_stats(match.matchStatus.key, match.finishType.key,
                                standings_settings, home_score, away_score)
       if DEBUG_LEVEL > 20:
