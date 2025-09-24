@@ -157,6 +157,8 @@ def calc_match_stats(match_status,
                      home_score: int = 0,
                      away_score: int = 0):
   stats = {'home': {}, 'away': {}}
+  if DEBUG_LEVEL > 0:
+    print("calculating match stats...")
 
   def reset_points():
     stats['home']['gamePlayed'] = 0
@@ -184,7 +186,8 @@ def calc_match_stats(match_status,
     stats['away']['soLoss'] = 0
 
   if match_status in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
-    print("set match stats")
+    if DEBUG_LEVEL > 10:
+      print("set match stats")
     # matchStats goals are always for the home team!
     if finish_type == 'REGULAR':
       reset_points()
@@ -243,13 +246,16 @@ def calc_match_stats(match_status,
     else:
       print("Unknown finish_type:", finish_type)
   else:
-    print("no match stats for matchStatus", match_status)
+    if DEBUG_LEVEL > 0:
+      print("no match stats for matchStatus", match_status)
     reset_points()
   return stats
 
 
 async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str,
                            md_alias: str) -> int:
+  if DEBUG_LEVEL > 0:
+    print("fetching referee points...")
   async with aiohttp.ClientSession() as session:
     async with session.get(
         f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
@@ -337,7 +343,6 @@ def init_team_standings(team_data: dict) -> dict:
 
 def calc_standings(matches):
   standings = {}
-
   for match in matches:
     home_team = {
         'fullName': match['home']['fullName'],
@@ -403,6 +408,9 @@ def calc_standings(matches):
 
 async def calc_standings_per_round(mongodb, t_alias: str, s_alias: str,
                                    r_alias: str) -> None:
+  if DEBUG_LEVEL > 0:
+    print(f'calculating standings for {t_alias}, {s_alias}, {r_alias}...')
+  
   r_filter = {
       'alias': t_alias,
       'seasons.alias': s_alias,
@@ -462,6 +470,9 @@ async def calc_standings_per_round(mongodb, t_alias: str, s_alias: str,
 
 async def calc_standings_per_matchday(mongodb, t_alias: str, s_alias: str,
                                       r_alias: str, md_alias: str) -> None:
+  if DEBUG_LEVEL > 0:
+    print(f'calculating standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}...')
+    
   md_filter = {
       'alias': t_alias,
       'seasons.alias': s_alias,
@@ -494,13 +505,16 @@ async def calc_standings_per_matchday(mongodb, t_alias: str, s_alias: str,
     }).sort("startDate").to_list(1000)
 
     if not matches:
-      print(f"No matches for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
+      if DEBUG_LEVEL > 10:
+        print(f"No matches for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
       standings = {}
     else:
-      print("calc standings")
+      if DEBUG_LEVEL > 10:
+        print("calc standings")
       standings = calc_standings(matches)
   else:
-    print(f"No standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
+    if DEBUG_LEVEL > 10:
+      print(f"No standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
     standings = {}
 
   response = await mongodb["tournaments"].update_one(md_filter, {
@@ -524,8 +538,9 @@ async def calc_standings_per_matchday(mongodb, t_alias: str, s_alias: str,
     raise HTTPException(status_code=500,
                         detail="Failed to update tournament standings.")
   else:
-    print("update md.standings: ", standings)
-
+    if DEBUG_LEVEL > 10:
+      print("update md.standings: ", standings)
+  
 
 async def get_sys_ref_tool_token(email: str, password: str):
   login_url = f"{os.environ['BE_API_URL']}/users/login"
@@ -550,6 +565,9 @@ async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
   - match_id: The ID of the match
   - team_flag: The team flag ('home'/'away')
   """
+  if DEBUG_LEVEL > 0:
+    print(f'calculating roster stats ({team_flag})...')
+  
   async with httpx.AsyncClient() as client:
 
     response = await client.get(
@@ -650,6 +668,8 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
   Calculate and update player statistics for a given tournament/season/round/matchday.
   Also handles called matches logic for assignedTeams updates.
   """
+  if DEBUG_LEVEL > 0:
+    print(f'calculating player card stats for {t_alias}, {s_alias}, {r_alias}, {md_alias} with {len(player_ids)} players...')
 
   def _create_team_dict(match_team_data: dict) -> dict:
     """Create a standardized team dictionary from match data."""
@@ -902,7 +922,8 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
         headers=headers
     )
     if update_response.status_code == 200 and DEBUG_LEVEL > 0:
-      print(f"Added CALLED team assignment for player {player_id}")
+      if DEBUG_LEVEL > 10:
+        print(f"Added CALLED team assignment for player {player_id}")
 
   def _create_team_assignment(team_info: tuple) -> dict:
     """Create a team assignment dictionary."""
@@ -976,9 +997,9 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     player_card_stats = {}
     await _update_player_card_stats("ROUND", matches, player_card_stats)
 
-    if DEBUG_LEVEL > 0:
+    if DEBUG_LEVEL > 10:
       print("### round - player_card_stats", player_card_stats)
-  elif DEBUG_LEVEL > 0:
+  elif DEBUG_LEVEL > 10:
     print("### no round stats")
 
   # Process matchday statistics
@@ -994,13 +1015,13 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
       player_card_stats = {}
       await _update_player_card_stats("MATCHDAY", matchday_matches, player_card_stats)
 
-      if DEBUG_LEVEL > 0:
+      if DEBUG_LEVEL > 10:
         print("### matchday - player_card_stats", player_card_stats)
 
       # Update matches for called teams processing
       if not matches:
         matches = matchday_matches
-    elif DEBUG_LEVEL > 0:
+    elif DEBUG_LEVEL > 10:
       print("### no matchday stats")
 
   # Process called teams assignments

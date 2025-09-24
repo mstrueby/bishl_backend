@@ -66,7 +66,8 @@ async def update_roster(
   if not any(role in token_payload.roles
              for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  print("new roster: ", roster)
+  if DEBUG_LEVEL > 10:
+    print("new roster: ", roster)
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
@@ -117,28 +118,53 @@ async def update_roster(
     if roster_entry.get("player"):
       await populate_event_player_fields(mongodb, roster_entry["player"])
 
+  # Create a mapping of playerId to new jersey number for updates
+  jersey_updates = {
+    roster_entry["player"]["playerId"]: roster_entry["player"]["jerseyNumber"]
+    for roster_entry in roster_data
+    if roster_entry.get("player", {}).get("playerId") and roster_entry.get("player", {}).get("jerseyNumber") is not None
+  }
+
   # do update
   try:
+    # Update roster
     await mongodb["matches"].update_one(
         {"_id": match_id}, {"$set": {
             f"{team_flag}.roster": roster_data
         }})
-    # print("calc_roster_stats...") - muss nicht
-    # await calc_roster_stats(mongodb, match_id, team_flag)
-    print("xxx calc_player_card_stats...")
-    # do this only if match_status is INPROGRESS or FINISHED
-    if match.get("matchStatus").get("key") in ["INPROGRESS", "FINISHED"]:
-      await calc_player_card_stats(
-          mongodb,
-          player_ids=all_effected_player_ids,
-          t_alias=match.get("tournament").get("alias"),
-          s_alias=match.get("season").get("alias"),
-          r_alias=match.get("round").get("alias"),
-          md_alias=match.get("matchday").get("alias"),
-          token_payload=token_payload)
     
-    #async with httpx.AsyncClient() as client:
-    #  return await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+    # Update jersey numbers in scores and penalties
+    if jersey_updates:
+      # Update scores - goal players
+      for player_id, jersey_number in jersey_updates.items():
+        await mongodb["matches"].update_one(
+            {"_id": match_id},
+            {"$set": {f"{team_flag}.scores.$[score].goalPlayer.jerseyNumber": jersey_number}},
+            array_filters=[{"score.goalPlayer.playerId": player_id}]
+        )
+        
+        # Update scores - assist players
+        await mongodb["matches"].update_one(
+            {"_id": match_id},
+            {"$set": {f"{team_flag}.scores.$[score].assistPlayer.jerseyNumber": jersey_number}},
+            array_filters=[{"score.assistPlayer.playerId": player_id}]
+        )
+        
+        # Update penalties
+        await mongodb["matches"].update_one(
+            {"_id": match_id},
+            {"$set": {f"{team_flag}.penalties.$[penalty].penaltyPlayer.jerseyNumber": jersey_number}},
+            array_filters=[{"penalty.penaltyPlayer.playerId": player_id}]
+        )
+      
+      if DEBUG_LEVEL > 0:
+        print(f"Updated jersey numbers for {len(jersey_updates)} players in scores/penalties")
+    
+    # PHASE 1 OPTIMIZATION: Skip heavy player calculations completely
+    # Roster stats within the match document are maintained via incremental updates in scores/penalties
+    if DEBUG_LEVEL > 0:
+      print(f"Roster updated - skipped heavy player calculations for match {match_id}")
+    
     return await get_roster(request, match_id, team_flag)
 
   except Exception as e:

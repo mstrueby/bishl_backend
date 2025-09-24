@@ -90,7 +90,6 @@ async def get_score_sheet(
   scores = match.get(team_flag, {}).get("scores") or []
 
   # Parse matchSeconds to a string format and populate EventPlayer fields
-  print("scores", scores)
   for score in scores:
     if 'matchSeconds' in score:
       score['matchTime'] = parse_time_from_seconds(score['matchSeconds'])
@@ -120,8 +119,6 @@ async def create_score(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  #if "ADMIN" not in token_payload.roles:
-  #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   #check
   team_flag = team_flag.lower()
@@ -131,8 +128,6 @@ async def create_score(
   if match is None:
     raise HTTPException(status_code=404,
                         detail=f"Match with id {match_id} not found")
-  if DEBUG_LEVEL > 10:
-    print("match precheck: ", match)
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
@@ -156,37 +151,14 @@ async def create_score(
           status_code=400,
           detail=f'Assist player {score.assistPlayer.playerId} not in roster')
 
-  # set new score
-  if team_flag == 'home':
-    match['home']['stats']['goalsFor'] += 1
-    match['away']['stats']['goalsAgainst'] += 1
-  else:
-    match['away']['stats']['goalsFor'] += 1
-    match['home']['stats']['goalsAgainst'] += 1
-
-  #check
-  match_status = match.get('matchStatus').get('key')
-  finish_type = match.get('finishType').get('key')
-  home_stats = match.get('home', {}).get('stats', {})
+  # Get match info for optimizations
   t_alias = match.get('tournament', {}).get('alias')
   s_alias = match.get('season', {}).get('alias')
   r_alias = match.get('round', {}).get('alias')
   md_alias = match.get('matchday', {}).get('alias')
+  finish_type = match.get('finishType', {}).get('key')
   goal_player_id = score.goalPlayer.playerId if score.goalPlayer else None
   assist_player_id = score.assistPlayer.playerId if score.assistPlayer else None
-  player_ids = [goal_player_id, assist_player_id]
-
-  if finish_type and home_stats and t_alias:
-    stats = calc_match_stats(match_status=jsonable_encoder(match_status),
-                             finish_type=jsonable_encoder(finish_type),
-                             home_score=home_stats.get('goalsFor', 0),
-                             away_score=home_stats.get('goalsAgainst', 0),
-                             standings_setting=await
-                             fetch_standings_settings(t_alias, s_alias))
-
-    match['home']['stats'] = stats['home']
-    match['away']['stats'] = stats['away']
-    print("score/match: ", match)
 
   try:
     score_data = {}
@@ -194,53 +166,56 @@ async def create_score(
     score_data['_id'] = new_score_id
     score_data.update(score.dict())
     score_data.pop('id')
-
     score_data['matchSeconds'] = parse_time_to_seconds(score_data['matchTime'])
     score_data = jsonable_encoder(score_data)
-    #score_data.pop('matchTime')
-    if DEBUG_LEVEL > 0:
-      print("XXX score_data: ", score_data)
 
+    # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
+    # Build array filters for roster updates
+    array_filters = []
+    if goal_player_id:
+      array_filters.append({"goalPlayer.player.playerId": goal_player_id})
+    if assist_player_id:
+      array_filters.append({"assistPlayer.player.playerId": assist_player_id})
+
+    # Use incremental updates for INPROGRESS matches
+    update_operations = {
+        "$push": {f"{team_flag}.scores": score_data},
+        "$inc": {
+            f"{team_flag}.stats.goalsFor": 1,
+            f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": 1
+        }
+    }
+
+    # Add roster incremental updates
+    if goal_player_id:
+      update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].goals"] = 1
+      update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].points"] = 1
+
+    if assist_player_id:
+      update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].assists"] = 1
+      update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].points"] = 1
+
+    # Execute the optimized update
     update_result = await mongodb['matches'].update_one(
-        {"_id": match_id},
-        {
-            "$push": {
-                f"{team_flag}.scores": score_data
-            },
-            #"$inc": {
-            #  f"{team_flag}.stats.goalsFor": 1,
-            #  f"{'home' if team_flag == 'away' else 'away'}.stats.goalsAgainst": 1
-            #},
-            "$set": {
-                "home.stats": match['home']['stats'],
-                "away.stats": match['away']['stats']
-            }
-        })
-    print("XXX update_result: ", update_result)
+        {"_id": match_id}, 
+        update_operations,
+        array_filters=array_filters if array_filters else None
+    )
+
     if update_result.modified_count == 0:
       raise HTTPException(
           status_code=500,
-          detail="Failed to update match (scores and goalsFor/goalsAgainst)")
+          detail="Failed to update match with score")
 
-    # calc standings
+    # PHASE 1 OPTIMIZATION: For INPROGRESS matches, only update standings (much faster)
     await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
-                                      md_alias)
+    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
 
-    # Use the reusable function to fetch and update roster
-    await calc_roster_stats(mongodb, match_id, team_flag)
-    player_ids = [player_id for player_id in player_ids if player_id]
-    await calc_player_card_stats(mongodb,
-                                 player_ids,
-                                 t_alias,
-                                 s_alias,
-                                 r_alias,
-                                 md_alias,
-                                 token_payload=token_payload)
+    if DEBUG_LEVEL > 0:
+      print(f"Score added with incremental updates - Goal: {goal_player_id}, Assist: {assist_player_id}")
 
     # Use the reusable function to return the new score
-    new_score = await get_score_object(mongodb, match_id, team_flag,
-                                       new_score_id)
+    new_score = await get_score_object(mongodb, match_id, team_flag, new_score_id)
     return JSONResponse(status_code=status.HTTP_201_CREATED,
                         content=jsonable_encoder(new_score))
 
@@ -357,15 +332,10 @@ async def patch_one_score(
               "_id": match_id,
               f"{team_flag}.scores._id": score_id
           }, update_data)
+      
+      # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
+      # Only recalculate roster stats (lightweight operation)
       await calc_roster_stats(mongodb, match_id, team_flag)
-      await calc_player_card_stats(
-          mongodb,
-          player_ids=player_ids,
-          t_alias=match.get("tournament").get("alias"),
-          s_alias=match.get("season").get("alias"),
-          r_alias=match.get("round").get("alias"),
-          md_alias=match.get("matchday").get("alias"),
-          token_payload=token_payload)
 
     except HTTPException as e:
       if e.status_code == status.HTTP_304_NOT_MODIFIED:
@@ -394,8 +364,7 @@ async def delete_one_score(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  #if "ADMIN" not in token_payload.roles:
-  #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
+  
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
@@ -411,14 +380,7 @@ async def delete_one_score(
         status_code=400,
         detail="Scores can only be deleted when match status is INPROGRESS")
 
-  # set new score
-  if team_flag == 'home':
-    match['home']['stats']['goalsFor'] -= 1
-    match['away']['stats']['goalsAgainst'] -= 1
-  else:
-    match['away']['stats']['goalsFor'] -= 1
-    match['home']['stats']['goalsAgainst'] -= 1
-  # Fetch the current score
+  # Fetch the current score before deletion
   current_score = None
   for score_entry in match.get(team_flag, {}).get("scores", []):
     if score_entry["_id"] == score_id:
@@ -430,10 +392,8 @@ async def delete_one_score(
         status_code=404,
         detail=f"Score with id {score_id} not found in match {match_id}")
 
-  # check
-  match_status = match.get('matchStatus').get('key')
-  finish_type = match.get('finishType').get('key')
-  home_stats = match.get('home', {}).get('stats', {})
+  # Get match info for optimizations
+  finish_type = match.get('finishType', {}).get('key')
   t_alias = match.get('tournament', {}).get('alias')
   s_alias = match.get('season', {}).get('alias')
   r_alias = match.get('round', {}).get('alias')
@@ -444,47 +404,95 @@ async def delete_one_score(
   assist_player = current_score.get('assistPlayer')
   assist_player_id = assist_player.get('playerId') if assist_player else None
 
-  player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
-
-  if finish_type and home_stats and t_alias:
-    stats = calc_match_stats(match_status=jsonable_encoder(match_status),
-                             finish_type=jsonable_encoder(finish_type),
-                             home_score=home_stats.get('goalsFor', 0),
-                             away_score=home_stats.get('goalsAgainst', 0),
-                             standings_setting=await
-                             fetch_standings_settings(t_alias, s_alias))
-    match['home']['stats'] = stats['home']
-    match['away']['stats'] = stats['away']
-    print("del score/match: ", match)
-
-  # Delete the score
   try:
+    # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
+    # Build array filters for roster updates
+    array_filters = []
+    
+    if goal_player_id:
+      array_filters.append({"goalPlayer.player.playerId": goal_player_id})
+
+    if assist_player_id:
+      array_filters.append({"assistPlayer.player.playerId": assist_player_id})
+
+    # Recalculate match stats if needed
+    if finish_type and t_alias:
+      current_home_goals = match.get('home', {}).get('stats', {}).get('goalsFor', 0)
+      current_away_goals = match.get('away', {}).get('stats', {}).get('goalsFor', 0)
+      
+      # Decrement appropriate team's goals for match stats calculation
+      if team_flag == 'home':
+        current_home_goals -= 1
+      else:
+        current_away_goals -= 1
+
+      standings_settings = await fetch_standings_settings(t_alias, s_alias)
+      stats = calc_match_stats(
+          match_status=match_status,
+          finish_type=finish_type,
+          home_score=current_home_goals,
+          away_score=current_away_goals,
+          standings_setting=standings_settings)
+
+      # Use full stats replacement when we have calculated stats
+      update_operations = {
+          "$pull": {f"{team_flag}.scores": {"_id": score_id}},
+          "$set": {
+              "home.stats": stats['home'],
+              "away.stats": stats['away']
+          },
+          "$inc": {}
+      }
+    else:
+      # Use incremental updates when no full stats calculation is needed
+      update_operations = {
+          "$pull": {f"{team_flag}.scores": {"_id": score_id}},
+          "$inc": {
+              f"{team_flag}.stats.goalsFor": -1,
+              f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": -1
+          }
+      }
+
+    # Add roster decremental updates
+    if goal_player_id:
+      update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].goals"] = -1
+      update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].points"] = -1
+
+    if assist_player_id:
+      update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].assists"] = -1
+      update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].points"] = -1
+
+    # Execute the optimized update
     result = await mongodb["matches"].update_one(
-        {
-            "_id": match_id,
-            f"{team_flag}.scores._id": score_id
-        }, {
-            "$pull": {
-                f"{team_flag}.scores": {
-                    "_id": score_id
-                }
-            },
-            "$set": {
-                "home.stats": match.get("home", {}).get("stats", {}),
-                "away.stats": match.get("away", {}).get("stats", {})
-            }
-        })
+        {"_id": match_id, f"{team_flag}.scores._id": score_id},
+        update_operations,
+        array_filters=array_filters if array_filters else None
+    )
+
     if result.modified_count == 0:
       raise HTTPException(
           status_code=404,
           detail=f"Score with ID {score_id} not found in match {match_id}")
 
-    await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
-                                      md_alias)
-    await calc_roster_stats(mongodb, match_id, team_flag)
-    await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
-                                 r_alias, md_alias, token_payload)
+    # PHASE 1 OPTIMIZATION: Only update standings, skip heavy player calculations for INPROGRESS
+    if match_status == 'FINISHED':
+      # Only do full calculations when match is finished
+      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
+      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+      
+      # Full player stats calculation only on match finish
+      player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
+      if player_ids:
+        await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
+                                   r_alias, md_alias, token_payload)
+    else:
+      # For INPROGRESS matches, only update standings (much faster)
+      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
+      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+
+    if DEBUG_LEVEL > 0:
+      print(f"Score deleted with incremental updates - Goal: {goal_player_id}, Assist: {assist_player_id}")
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:
