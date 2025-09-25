@@ -953,9 +953,9 @@ async def update_match(request: Request,
     await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
     await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
 
-  # PHASE 1 OPTIMIZATION: Only calculate player card stats when match becomes FINISHED
+  # PHASE 1 OPTIMIZATION: Calculate player card stats if the new or current match status is FINISHED
   # This avoids expensive calculations during live game updates
-  if (new_match_status == 'FINISHED' and current_match_status != 'FINISHED' and 
+  if ('FINISHED' in {new_match_status, current_match_status} and
       t_alias and s_alias and r_alias and md_alias):
     home_players = [
         player.get('player', {}).get('playerId') for player in existing_match.get('home', {}).get('roster', [])
