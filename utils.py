@@ -922,7 +922,8 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
         headers=headers
     )
     if update_response.status_code == 200 and DEBUG_LEVEL > 0:
-      print(f"Added CALLED team assignment for player {player_id}")
+      if DEBUG_LEVEL > 10:
+        print(f"Added CALLED team assignment for player {player_id}")
 
   def _create_team_assignment(team_info: tuple) -> dict:
     """Create a team assignment dictionary."""
@@ -996,9 +997,9 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
     player_card_stats = {}
     await _update_player_card_stats("ROUND", matches, player_card_stats)
 
-    if DEBUG_LEVEL > 0:
+    if DEBUG_LEVEL > 10:
       print("### round - player_card_stats", player_card_stats)
-  elif DEBUG_LEVEL > 0:
+  elif DEBUG_LEVEL > 10:
     print("### no round stats")
 
   # Process matchday statistics
@@ -1014,13 +1015,13 @@ async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
       player_card_stats = {}
       await _update_player_card_stats("MATCHDAY", matchday_matches, player_card_stats)
 
-      if DEBUG_LEVEL > 0:
+      if DEBUG_LEVEL > 10:
         print("### matchday - player_card_stats", player_card_stats)
 
       # Update matches for called teams processing
       if not matches:
         matches = matchday_matches
-    elif DEBUG_LEVEL > 0:
+    elif DEBUG_LEVEL > 10:
       print("### no matchday stats")
 
   # Process called teams assignments

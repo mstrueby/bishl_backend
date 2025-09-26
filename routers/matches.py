@@ -728,21 +728,10 @@ async def create_match(
       print("calc_roster_stats (away) ...")
     await calc_roster_stats(mongodb, result.inserted_id, 'away')
 
-    # get all player_ids from home and away roster of match
-    if t_alias and s_alias and r_alias and md_alias:
-      home_players = [
-          player.player.playerId for player in match.home.roster
-      ] if match.home is not None and match.home.roster is not None else []
-      away_players = [
-          player.player.playerId for player in match.away.roster
-      ] if match.away is not None and match.away.roster is not None else []
-      player_ids = home_players + away_players
-      if DEBUG_LEVEL > 0:
-        print("calc_player_card_stats ...")
-      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
-                                   r_alias, md_alias, token_payload)
-      if DEBUG_LEVEL > 0:
-        print("calc_player_card_stats DONE ...")
+    # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
+    # Player stats will be calculated when match status changes to FINISHED
+    if DEBUG_LEVEL > 0:
+      print("Match created - player card stats will be calculated when match finishes")
 
     # return complete match document
     new_match = await get_match_object(mongodb, result.inserted_id)
@@ -964,9 +953,28 @@ async def update_match(request: Request,
     await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
     await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
 
+  # PHASE 1 OPTIMIZATION: Only calculate player card stats when both conditions are met:
+  # 1. Stats-affecting changes detected AND 2. Match is/becomes FINISHED
+  if (stats_change_detected and 'FINISHED' in {new_match_status, current_match_status} and
+      t_alias and s_alias and r_alias and md_alias):
+    home_players = [
+        player.get('player', {}).get('playerId') for player in existing_match.get('home', {}).get('roster', [])
+        if player.get('player', {}).get('playerId')
+    ]
+    away_players = [
+        player.get('player', {}).get('playerId') for player in existing_match.get('away', {}).get('roster', [])
+        if player.get('player', {}).get('playerId')
+    ]
+    player_ids = home_players + away_players
+    if player_ids and DEBUG_LEVEL > 0:
+      print(f"Stats change detected on finished match - calculating player card stats for {len(player_ids)} players...")
+    if player_ids:
+      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias, r_alias, md_alias, token_payload)
+
   if DEBUG_LEVEL > 0:
     change_type = "stats-affecting" if stats_change_detected else "minor"
-    print(f"Match updated - {change_type} change detected for match {match_id}")
+    player_calc_note = " + player stats calculated" if (stats_change_detected and 'FINISHED' in {new_match_status, current_match_status}) else ""
+    print(f"Match updated - {change_type} change detected for match {match_id}{player_calc_note}")
 
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(updated_match))
