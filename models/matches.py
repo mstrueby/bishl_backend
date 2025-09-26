@@ -265,6 +265,17 @@ class MatchVenue(BaseModel):
   alias: str = Field(...)
 
 
+class RefereePaymentDetails(BaseModel):
+  travelExpenses: Optional[float] = 0.0
+  expenseAllowance: Optional[float] = 0.0
+  gameFees: Optional[float] = 0.0
+
+
+class RefereePayment(BaseModel):
+  referee1: Optional[RefereePaymentDetails] = Field(default_factory=RefereePaymentDetails)
+  referee2: Optional[RefereePaymentDetails] = Field(default_factory=RefereePaymentDetails)
+
+
 class SupplementarySheet(BaseModel):
   refereeAttendance: Optional[str] = None # yes, only 1, no referee, substitute referee
   referee1PassAvailable: Optional[bool] = False
@@ -287,6 +298,7 @@ class SupplementarySheet(BaseModel):
   awayPlayerPasses: Optional[bool] = False
   awayUniformPlayerClothing: Optional[bool] = False
   awaySecondJerseySet: Optional[bool] = False
+  refereePayment: Optional[RefereePayment] = Field(default_factory=RefereePayment)
 
 # --- main document
 
