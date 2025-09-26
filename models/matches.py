@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import datetime
-from pydantic import Field, BaseModel, HttpUrl, validator
+from pydantic import BaseSettings, Field, BaseModel, HttpUrl, validator
 from typing import Optional, List, Dict
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 from models.assignments import Referee
@@ -264,6 +264,29 @@ class MatchVenue(BaseModel):
   name: str = Field(...)
   alias: str = Field(...)
 
+
+class SupplementarySheet(BaseModel):
+  refereeAttendance: Optional[str] = None # yes, only 1, no referee, substitute referee
+  referee1PassAvailable: Optional[bool] = False
+  referee2PassAvailable: Optional[bool] = False
+  referee1DelayMin: Optional[int] = 0
+  referee2DelayMin: Optional[int] = 0
+  # Nutzungserlaubnis
+  ruleBook: Optional[bool] = False
+  goalDisplay: Optional[bool] = False
+  soundSource: Optional[bool] = False
+  matchClock: Optional[bool] = False
+  matchBalls: Optional[bool] = False
+  firstAidKit: Optional[bool] = False
+  fieldLines: Optional[bool] = False
+  nets: Optional[bool] = False
+  homeRoster: Optional[bool] = False
+  homePlayerPasses: Optional[bool] = False
+  homeUniformPlayerClothing: Optional[bool] = False
+  awayRoster: Optional[bool] = False
+  awayPlayerPasses: Optional[bool] = False
+  awayUniformPlayerClothing: Optional[bool] = False
+  awaySecondJerseySet: Optional[bool] = False
 
 # --- main document
 
