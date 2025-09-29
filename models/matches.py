@@ -299,6 +299,8 @@ class SupplementarySheet(BaseModel):
   awayUniformPlayerClothing: Optional[bool] = False
   awaySecondJerseySet: Optional[bool] = False
   refereePayment: Optional[RefereePayment] = Field(default_factory=RefereePayment)
+  specialEvents: Optional[bool] = False
+  refereeComments: Optional[str] = None
 
 # --- main document
 
@@ -321,6 +323,7 @@ class MatchBase(MongoBaseModel):
   startDate: Optional[datetime] = None
   published: bool = False
   matchSheetComplete: bool = False
+  supplementarySheet: Optional[SupplementarySheet] = Field(default_factory=SupplementarySheet)
 
   ##@validator('matchStatus', pre=True, always=True)
   #def validate_type(cls, v, field):
@@ -392,6 +395,7 @@ class MatchUpdate(MongoBaseModel):
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
   matchSheetComplete: Optional[bool] = False
+  supplementarySheet: Optional[SupplementarySheet] = Field(default_factory=SupplementarySheet)
 
   #@validator('matchStatus', pre=True, always=True)
   #def validate_type(cls, v, field):
