@@ -278,8 +278,12 @@ class RefereePayment(BaseModel):
 
 class SupplementarySheet(BaseModel):
   refereeAttendance: Optional[str] = None # yes, only 1, no referee, substitute referee
+  referee1Present: Optional[bool] = False
+  referee2Present: Optional[bool] = False
   referee1PassAvailable: Optional[bool] = False
   referee2PassAvailable: Optional[bool] = False
+  referee1PassNo: Optional[str] = None
+  referee2PassNo: Optional[str] = None
   referee1DelayMin: Optional[int] = 0
   referee2DelayMin: Optional[int] = 0
   # Nutzungserlaubnis
