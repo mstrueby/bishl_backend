@@ -286,7 +286,7 @@ class SupplementarySheet(BaseModel):
   referee2PassNo: Optional[str] = None
   referee1DelayMin: Optional[int] = 0
   referee2DelayMin: Optional[int] = 0
-  # Nutzungserlaubnis
+  usageApproval: Optional[bool] = False
   ruleBook: Optional[bool] = False
   goalDisplay: Optional[bool] = False
   soundSource: Optional[bool] = False
