@@ -1,6 +1,7 @@
 from bson import ObjectId
 from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional
+from datetime import datetime
 
 
 class PyObjectId(ObjectId):
@@ -44,6 +45,8 @@ class VenueBase(MongoBaseModel):
   imageUrl: Optional[HttpUrl] = None
   description: Optional[str] = None
   active: bool = False
+  usageApprovalId: Optional[str] = None
+  usageApprovalValidTo: Optional[datetime] = None
   legacyId: Optional[int] = None
 
   """
@@ -88,6 +91,8 @@ class VenueUpdate(MongoBaseModel):
   imageUrl: Optional[HttpUrl] = None
   description: Optional[str] = None
   active: Optional[bool] = False
+  usageApprovalId: Optional[str] = None
+  usageApprovalValidTo: Optional[datetime] = None
 
   """
   @validator('image', 'description', pre=True, always=True)
