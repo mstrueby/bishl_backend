@@ -313,7 +313,7 @@ class SupplementarySheet(BaseModel):
 class MatchBase(MongoBaseModel):
   matchId: int = 0
   tournament: Optional[MatchTournament] = None
-  season: Optional[MatchSeason] = None
+  season: MatchSeason = Field(...)
   round: Optional[MatchRound] = None
   matchday: Optional[MatchMatchday] = None
   home: Optional[MatchTeam] = None
