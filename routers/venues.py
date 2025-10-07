@@ -9,6 +9,7 @@ from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
 import cloudinary
 import cloudinary.uploader
+from datetime import datetime
 
 router = APIRouter()
 auth = AuthHandler()
@@ -99,6 +100,8 @@ async def create_venue(
     image: UploadFile = Form(None),
     description: Optional[str] = Form(None),
     active: bool = Form(False),
+    usageApprovalId: Optional[str] = Form(None),
+    usageApprovalValidTo: Optional[datetime] = Form(None),
     legacyId: Optional[int] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
@@ -116,6 +119,8 @@ async def create_venue(
                     longitude=longitude,
                     description=description,
                     active=active,
+                    usageApprovalId=usageApprovalId,
+                    usageApprovalValidTo=usageApprovalValidTo,
                     legacyId=legacyId)
   venue_data = jsonable_encoder(venue)
 
@@ -162,6 +167,8 @@ async def update_venue(
     imageUrl: Optional[HttpUrl] = Form(None),
     description: Optional[str] = Form(None),
     active: Optional[bool] = Form(None),
+    usageApprovalId: Optional[str] = Form(None),
+    usageApprovalValidTo: Optional[datetime] = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb
@@ -174,17 +181,20 @@ async def update_venue(
                         detail=f"Venue with id {id} not found")
 
   try:
-    venue_data = VenueUpdate(name=name,
-                             alias=alias,
-                             shortName=shortName,
-                             street=street,
-                             zipCode=zipCode,
-                             city=city,
-                             country=country,
-                             latitude=latitude,
-                             longitude=longitude,
-                             description=description,
-                             active=active).dict(exclude_none=True)
+    venue_data = VenueUpdate(
+        name=name,
+        alias=alias,
+        shortName=shortName,
+        street=street,
+        zipCode=zipCode,
+        city=city,
+        country=country,
+        latitude=latitude,
+        longitude=longitude,
+        description=description,
+        active=active,
+        usageApprovalId=usageApprovalId,
+        usageApprovalValidTo=usageApprovalValidTo).dict(exclude_none=True)
   except ValueError as e:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Failed to parse input data") from e

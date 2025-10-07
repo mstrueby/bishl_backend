@@ -265,13 +265,28 @@ class MatchVenue(BaseModel):
   alias: str = Field(...)
 
 
+class RefereePaymentDetails(BaseModel):
+  travelExpenses: Optional[float] = 0.0
+  expenseAllowance: Optional[float] = 0.0
+  gameFees: Optional[float] = 0.0
+
+
+class RefereePayment(BaseModel):
+  referee1: Optional[RefereePaymentDetails] = Field(default_factory=RefereePaymentDetails)
+  referee2: Optional[RefereePaymentDetails] = Field(default_factory=RefereePaymentDetails)
+
+
 class SupplementarySheet(BaseModel):
   refereeAttendance: Optional[str] = None # yes, only 1, no referee, substitute referee
+  referee1Present: Optional[bool] = False
+  referee2Present: Optional[bool] = False
   referee1PassAvailable: Optional[bool] = False
   referee2PassAvailable: Optional[bool] = False
+  referee1PassNo: Optional[str] = None
+  referee2PassNo: Optional[str] = None
   referee1DelayMin: Optional[int] = 0
   referee2DelayMin: Optional[int] = 0
-  # Nutzungserlaubnis
+  usageApproval: Optional[bool] = False
   ruleBook: Optional[bool] = False
   goalDisplay: Optional[bool] = False
   soundSource: Optional[bool] = False
@@ -287,6 +302,10 @@ class SupplementarySheet(BaseModel):
   awayPlayerPasses: Optional[bool] = False
   awayUniformPlayerClothing: Optional[bool] = False
   awaySecondJerseySet: Optional[bool] = False
+  refereePayment: Optional[RefereePayment] = Field(default_factory=RefereePayment)
+  specialEvents: Optional[bool] = False
+  refereeComments: Optional[str] = None
+  isSaved: Optional[bool] = False
 
 # --- main document
 
@@ -309,6 +328,7 @@ class MatchBase(MongoBaseModel):
   startDate: Optional[datetime] = None
   published: bool = False
   matchSheetComplete: bool = False
+  supplementarySheet: Optional[SupplementarySheet] = Field(default_factory=SupplementarySheet)
 
   ##@validator('matchStatus', pre=True, always=True)
   #def validate_type(cls, v, field):
@@ -380,6 +400,7 @@ class MatchUpdate(MongoBaseModel):
   startDate: Optional[datetime] = None
   published: Optional[bool] = False
   matchSheetComplete: Optional[bool] = False
+  supplementarySheet: Optional[SupplementarySheet] = Field(default_factory=SupplementarySheet)
 
   #@validator('matchStatus', pre=True, always=True)
   #def validate_type(cls, v, field):
