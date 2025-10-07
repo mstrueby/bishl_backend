@@ -305,6 +305,7 @@ class SupplementarySheet(BaseModel):
   refereePayment: Optional[RefereePayment] = Field(default_factory=RefereePayment)
   specialEvents: Optional[bool] = False
   refereeComments: Optional[str] = None
+  isSaved: Optional[bool] = False
 
 # --- main document
 
