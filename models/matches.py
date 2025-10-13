@@ -292,6 +292,9 @@ class SupplementarySheet(BaseModel):
   referee2PassNo: Optional[str] = None
   referee1DelayMin: Optional[int] = 0
   referee2DelayMin: Optional[int] = 0
+  timekeeper1: Optional[Official] = None
+  timekeeper2: Optional[Official] = None
+  technicalDirector: Optional[Official] = None
   usageApproval: Optional[bool] = False
   ruleBook: Optional[bool] = False
   goalDisplay: Optional[bool] = False
@@ -327,9 +330,6 @@ class MatchBase(MongoBaseModel):
   away: Optional[MatchTeam] = None
   referee1: Optional[Referee] = None
   referee2: Optional[Referee] = None
-  timekeeper1: Optional[Official] = None
-  timekeeper2: Optional[Official] = None
-  technicalDirector: Optional[Official] = None
   matchStatus: KeyValue = Field(
       default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
   finishType: KeyValue = Field(
@@ -404,9 +404,6 @@ class MatchUpdate(MongoBaseModel):
   away: Optional[MatchTeamUpdate] = None
   referee1: Optional[Referee] = None
   referee2: Optional[Referee] = None
-  timekeeper1: Optional[Official] = None
-  timekeeper2: Optional[Official] = None
-  technicalDirector: Optional[Official] = None
   matchStatus: Optional[KeyValue] = Field(default_factory=dict)
   finishType: Optional[KeyValue] = Field(default_factory=dict)
   venue: Optional[MatchVenue] = None
