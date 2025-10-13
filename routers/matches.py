@@ -838,9 +838,12 @@ async def update_match(request: Request,
     else:
       raise ValueError("Calculating match statistics returned None")
 
-  # Always preserve existing referee data
+  # Always preserve existing referee and official data
   match.referee1 = existing_match['referee1']
   match.referee2 = existing_match['referee2']
+  match.timekeeper1 = existing_match.get('timekeeper1')
+  match.timekeeper2 = existing_match.get('timekeeper2')
+  match.technicalDirector = existing_match.get('technicalDirector')
 
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
