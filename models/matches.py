@@ -276,6 +276,12 @@ class RefereePayment(BaseModel):
   referee2: Optional[RefereePaymentDetails] = Field(default_factory=RefereePaymentDetails)
 
 
+class Official(BaseModel):
+  firstName: Optional[str] = None
+  lastName: Optional[str] = None
+  licence: Optional[str] = None
+
+
 class SupplementarySheet(BaseModel):
   refereeAttendance: Optional[str] = None # yes, only 1, no referee, substitute referee
   referee1Present: Optional[bool] = False
@@ -305,6 +311,7 @@ class SupplementarySheet(BaseModel):
   refereePayment: Optional[RefereePayment] = Field(default_factory=RefereePayment)
   specialEvents: Optional[bool] = False
   refereeComments: Optional[str] = None
+  crowd: Optional[int] = 0
   isSaved: Optional[bool] = False
 
 # --- main document
@@ -320,6 +327,9 @@ class MatchBase(MongoBaseModel):
   away: Optional[MatchTeam] = None
   referee1: Optional[Referee] = None
   referee2: Optional[Referee] = None
+  timekeeper1: Optional[Official] = None
+  timekeeper2: Optional[Official] = None
+  technicalDirector: Optional[Official] = None
   matchStatus: KeyValue = Field(
       default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
   finishType: KeyValue = Field(
@@ -394,6 +404,9 @@ class MatchUpdate(MongoBaseModel):
   away: Optional[MatchTeamUpdate] = None
   referee1: Optional[Referee] = None
   referee2: Optional[Referee] = None
+  timekeeper1: Optional[Official] = None
+  timekeeper2: Optional[Official] = None
+  technicalDirector: Optional[Official] = None
   matchStatus: Optional[KeyValue] = Field(default_factory=dict)
   finishType: Optional[KeyValue] = Field(default_factory=dict)
   venue: Optional[MatchVenue] = None
