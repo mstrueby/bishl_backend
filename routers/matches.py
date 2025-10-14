@@ -838,10 +838,6 @@ async def update_match(request: Request,
     else:
       raise ValueError("Calculating match statistics returned None")
 
-  # Always preserve existing referee data
-  match.referee1 = existing_match['referee1']
-  match.referee2 = existing_match['referee2']
-
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
 
