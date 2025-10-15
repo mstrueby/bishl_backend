@@ -1,7 +1,50 @@
-__pycache__
-.env
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
-.vscode/settings.json
-*.csv
 venv/
+env/
+ENV/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Replit
+.replit
+.breakpoints
+.upm/
+replit.nix
+
+# Data files (sensitive)
+*.csv
+data/*.csv
 ishd_*
+
+# Logs
+*.log
+logs/
+
+# Database dumps & backups
+*.dump
+*.sql.gz
+backups/
+
+# Temporary files
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Poetry
+poetry.lock
