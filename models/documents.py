@@ -30,7 +30,8 @@ class PyObjectId(ObjectId):
 class MongoBaseModel(BaseModel):
   model_config = ConfigDict(
     populate_by_name=True,
-    arbitrary_types_allowed=True
+    arbitrary_types_allowed=True,
+    json_encoders={ObjectId: str}
   )
   
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
