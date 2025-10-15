@@ -1,7 +1,7 @@
 
 # BISHL Backend Refactoring Roadmap
 
-*Generated: 2024 Post-Season Analysis*
+*Generated: 2025 Post-Season Analysis*
 
 ---
 
