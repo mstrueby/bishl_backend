@@ -94,13 +94,12 @@ All model files have been successfully migrated to Pydantic v2.
 4. ✅ Fixed PyObjectId validator pattern in venues, clubs, tournaments, matches
 5. ✅ Updated remaining @validator in matches.py to @field_validator
 6. ✅ Added json_encoders to all MongoBaseModel configurations
-7. **Test application startup:**
-   - Restart server to verify no errors
-8. **Search and update routers for:**
-   - `.dict()` → `.model_dump()`
-   - `.parse_obj()` → `.model_validate()`
-   - `schema_extra` → `json_schema_extra` (if any)
-9. **Test critical endpoints:**
+7. ✅ Updated all routers `.dict()` to `.model_dump()`
+8. ✅ Updated import scripts (import_team_assignments.py, import_hobby_players.py)
+9. **Test application startup:**
+   - Server is running successfully
+   - No Pydantic-related errors in console
+10. **Test critical endpoints:**
    - User authentication
    - Match creation/updates
    - Player stats
