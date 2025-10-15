@@ -276,6 +276,12 @@ class RefereePayment(BaseModel):
   referee2: Optional[RefereePaymentDetails] = Field(default_factory=RefereePaymentDetails)
 
 
+class Official(BaseModel):
+  firstName: Optional[str] = None
+  lastName: Optional[str] = None
+  licence: Optional[str] = None
+
+
 class SupplementarySheet(BaseModel):
   refereeAttendance: Optional[str] = None # yes, only 1, no referee, substitute referee
   referee1Present: Optional[bool] = False
@@ -286,6 +292,9 @@ class SupplementarySheet(BaseModel):
   referee2PassNo: Optional[str] = None
   referee1DelayMin: Optional[int] = 0
   referee2DelayMin: Optional[int] = 0
+  timekeeper1: Optional[Official] = None
+  timekeeper2: Optional[Official] = None
+  technicalDirector: Optional[Official] = None
   usageApproval: Optional[bool] = False
   ruleBook: Optional[bool] = False
   goalDisplay: Optional[bool] = False
@@ -305,6 +314,7 @@ class SupplementarySheet(BaseModel):
   refereePayment: Optional[RefereePayment] = Field(default_factory=RefereePayment)
   specialEvents: Optional[bool] = False
   refereeComments: Optional[str] = None
+  crowd: Optional[int] = 0
   isSaved: Optional[bool] = False
 
 # --- main document
@@ -313,7 +323,7 @@ class SupplementarySheet(BaseModel):
 class MatchBase(MongoBaseModel):
   matchId: int = 0
   tournament: Optional[MatchTournament] = None
-  season: Optional[MatchSeason] = None
+  season: MatchSeason = Field(...)
   round: Optional[MatchRound] = None
   matchday: Optional[MatchMatchday] = None
   home: Optional[MatchTeam] = None

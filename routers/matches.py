@@ -838,10 +838,6 @@ async def update_match(request: Request,
     else:
       raise ValueError("Calculating match statistics returned None")
 
-  # Always preserve existing referee data
-  match.referee1 = existing_match['referee1']
-  match.referee2 = existing_match['referee2']
-
   match_data = match.dict(exclude_unset=True)
   match_data.pop("id", None)
 
@@ -997,10 +993,16 @@ async def delete_match(
                         detail=f"Match with ID {match_id} not found.")
 
   try:
-    t_alias = match.get('tournament', {}).get('alias', None)
-    s_alias = match.get('season', {}).get('alias', None)
-    r_alias = match.get('round', {}).get('alias', None)
-    md_alias = match.get('matchday', {}).get('alias', None)
+    tournament = match.get('tournament') or {}
+    season = match.get('season') or {}
+    round_data = match.get('round') or {}
+    matchday = match.get('matchday') or {}
+    
+    t_alias = tournament.get('alias', None)
+    s_alias = season.get('alias', None)
+    r_alias = round_data.get('alias', None)
+    md_alias = matchday.get('alias', None)
+    
     home_players = [
         player['player']['playerId']
         for player in match.get('home', {}).get('roster') or []
@@ -1021,31 +1023,36 @@ async def delete_match(
       raise HTTPException(status_code=404,
                           detail=f"Match with id {match_id} not found")
 
-    await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
-                                      md_alias)
+    # Only update standings if we have all required aliases
+    if t_alias and s_alias and r_alias:
+      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
+    
+    if t_alias and s_alias and r_alias and md_alias:
+      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
+                                        md_alias)
     # for each player in player_ids loop through stats list and compare tournament, season and round. if found then remove item from list
-    for player_id in player_ids:
-      if DEBUG_LEVEL > 10:
-        print("player_id: ", player_id)
-      player = await mongodb['players'].find({
-          '_id': player_id
-      }).to_list(length=1)
-      if DEBUG_LEVEL > 10:
-        print("player: ", player)
-      updated_stats = [
-          entry for entry in player[0]['stats']
-          if entry['tournament'].get('alias') != t_alias and entry['season'].
-          get('alias') != s_alias and entry['round'].get('alias') != r_alias
-      ]
-      if DEBUG_LEVEL > 10:
-        print("### DEL / updated_stats: ", updated_stats)
-      await mongodb['players'].update_one({'_id': player_id},
-                                          {'$set': {
-                                              'stats': updated_stats
-                                          }})
-    await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
-                                 r_alias, md_alias, token_payload)
+    if player_ids and t_alias and s_alias and r_alias:
+      for player_id in player_ids:
+        if DEBUG_LEVEL > 10:
+          print("player_id: ", player_id)
+        player = await mongodb['players'].find({
+            '_id': player_id
+        }).to_list(length=1)
+        if DEBUG_LEVEL > 10:
+          print("player: ", player)
+        updated_stats = [
+            entry for entry in player[0]['stats']
+            if entry['tournament'].get('alias') != t_alias and entry['season'].
+            get('alias') != s_alias and entry['round'].get('alias') != r_alias
+        ]
+        if DEBUG_LEVEL > 10:
+          print("### DEL / updated_stats: ", updated_stats)
+        await mongodb['players'].update_one({'_id': player_id},
+                                            {'$set': {
+                                                'stats': updated_stats
+                                            }})
+      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
+                                   r_alias, md_alias, token_payload)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
