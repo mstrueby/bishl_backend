@@ -76,21 +76,25 @@ All model files have been successfully migrated to Pydantic v2.
 - [x] Add mode='before' to validators
 - [x] Make validators classmethods
 - [x] Replace Config class with model_config dict
-- [x] Update .dict() calls to .model_dump() (in PlayerDB)
-- [ ] Update .parse_obj() to .model_validate() in routers/utils
-- [ ] Update .dict() to .model_dump() in routers/utils
+- [x] Update .dict() calls to .model_dump() (in PlayerDB and utils.py)
+- [ ] Update .parse_obj() to .model_validate() in routers (if any)
+- [ ] Update .dict() to .model_dump() in routers (if any)
+- [ ] Install pydantic-core dependency
 - [ ] Test all endpoints after migration
 
 ## Next Steps
 1. ✅ All model files migrated
-2. **Search and update routers/utils.py for:**
+2. ✅ Updated utils.py `.dict()` to `.model_dump()`
+3. **Install pydantic-core:**
+   - The error shows `ModuleNotFoundError: No module named 'pydantic_core'`
+   - This is required for Pydantic v2
+4. **Search and update routers for:**
    - `.dict()` → `.model_dump()`
    - `.parse_obj()` → `.model_validate()`
    - `schema_extra` → `json_schema_extra` (if any)
-3. **Test critical endpoints:**
+5. **Test critical endpoints:**
    - User authentication
    - Match creation/updates
    - Player stats
    - Tournament/season management
-4. **Run the application and check for errors**
-5. **Update pyproject.toml to specify Pydantic v2** (if not already done)
+6. **Run the application and check for errors**
