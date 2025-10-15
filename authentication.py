@@ -4,19 +4,41 @@ from typing import Optional
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHash
 from datetime import datetime, timedelta
 
 
 class AuthHandler:
   security = HTTPBearer()
-  pwd_content = CryptContext(schemes=["bcrypt"], deprecated="auto")
+  # Keep bcrypt for legacy password verification
+  pwd_content_legacy = CryptContext(schemes=["bcrypt"], deprecated="auto")
+  # New argon2 hasher
+  argon2_hasher = PasswordHasher()
   secret = os.environ.get("SECRET_KEY")
 
   def get_password_hash(self, password):
-    return self.pwd_content.hash(password)
+    """Hash password using argon2 (new standard)"""
+    return self.argon2_hasher.hash(password)
 
   def verify_password(self, plain_password, hashed_password):
-    return self.pwd_content.verify(plain_password, hashed_password)
+    """Verify password - supports both argon2 and legacy bcrypt"""
+    # Try argon2 first (new format starts with $argon2)
+    if hashed_password.startswith('$argon2'):
+      try:
+        return self.argon2_hasher.verify(hashed_password, plain_password)
+      except (VerifyMismatchError, InvalidHash):
+        return False
+    
+    # Fallback to bcrypt (legacy passwords)
+    try:
+      return self.pwd_content_legacy.verify(plain_password, hashed_password)
+    except:
+      return False
+  
+  def needs_rehash(self, hashed_password):
+    """Check if password needs to be upgraded from bcrypt to argon2"""
+    return not hashed_password.startswith('$argon2')
 
   def encode_token(self, user):
     payload = {
