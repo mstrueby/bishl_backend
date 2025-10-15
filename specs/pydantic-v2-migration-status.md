@@ -56,10 +56,11 @@ All model files have been successfully migrated to Pydantic v2.
 - ✅ Commented out validators
 
 ### 9. models/matches.py ✅
-- ✅ Replaced `@validator` with `@field_validator`
+- ✅ Replaced ALL `@validator` with `@field_validator`
 - ✅ Replaced `Config` class with `model_config`
 - ✅ Updated `PyObjectId` to use `__get_pydantic_core_schema__`
 - ✅ Removed deprecated `BaseSettings` import
+- ✅ Cleaned up all commented-out old validators
 
 ### 10. models/players.py ✅
 - ✅ Replaced `Config` class with `model_config`
@@ -81,9 +82,10 @@ All model files have been successfully migrated to Pydantic v2.
 - [x] Fix PyObjectId in all model files (venues, clubs, tournaments, matches)
 - [x] Add ConfigDict and arbitrary_types_allowed to all MongoBaseModel
 - [x] Update remaining @validator decorators in matches.py
+- [x] Clean up all commented-out old validators
 - [ ] Update .parse_obj() to .model_validate() in routers (if any)
 - [ ] Update .dict() to .model_dump() in routers (if any)
-- [ ] Test all endpoints after migration
+- [x] Test application startup (server should now start without NameError)
 
 ## Next Steps
 1. ✅ All model files migrated

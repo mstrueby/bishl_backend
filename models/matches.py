@@ -5,7 +5,6 @@ from pydantic_core import core_schema
 from typing import Optional, List, Dict
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 from models.assignments import Referee
-#from models.clubs import TeamBase
 
 
 class PyObjectId(ObjectId):
@@ -96,9 +95,10 @@ class ScoresBase(MongoBaseModel):
   isSHG: bool = False
   isGWG: bool = False
 
-  @validator('matchTime', pre=True, always=True)
-  def validate_match_time(cls, v, field):
-    return validate_match_time(v, field.name)
+  @field_validator('matchTime', mode='before')
+  @classmethod
+  def validate_match_time_field(cls, v, info):
+    return validate_match_time(v, info.field_name)
 
 
 class ScoresDB(ScoresBase):
@@ -112,11 +112,6 @@ class ScoresUpdate(MongoBaseModel):
   isPPG: Optional[bool] = False
   isSHG: Optional[bool] = False
   isGWG: Optional[bool] = False
-"""
-  @validator('matchTime', pre=True, always=True)
-  def validate_match_time(cls, v, field):
-    return validate_match_time(v, field.name)
-"""
 
 
 class PenaltiesBase(MongoBaseModel):
@@ -132,14 +127,6 @@ class PenaltiesBase(MongoBaseModel):
   @classmethod
   def validate_type(cls, v, info):
     return validate_dict_of_strings(v, info.field_name)
-"""
-  @validator('matchTimeStart', 'matchTimeEnd', pre=True, always=True)
-  def validate_match_time(cls, v, field):
-    if field.name == 'matchTimeEnd' and v is None:
-      return None
-    return validate_match_time(v, field.name)
-
-"""
 
 class PenaltiesDB(PenaltiesBase):
   pass
@@ -350,10 +337,6 @@ class MatchBase(MongoBaseModel):
   matchSheetComplete: bool = False
   supplementarySheet: Optional[SupplementarySheet] = Field(default_factory=SupplementarySheet)
 
-  ##@validator('matchStatus', pre=True, always=True)
-  #def validate_type(cls, v, field):
-  #  return validate_dict_of_strings(v, field.name)
-
 
 class MatchDB(MatchBase):
   pass
@@ -421,7 +404,3 @@ class MatchUpdate(MongoBaseModel):
   published: Optional[bool] = False
   matchSheetComplete: Optional[bool] = False
   supplementarySheet: Optional[SupplementarySheet] = Field(default_factory=SupplementarySheet)
-
-  #@validator('matchStatus', pre=True, always=True)
-  #def validate_type(cls, v, field):
-  #  return validate_dict_of_strings(v, field.name)
