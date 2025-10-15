@@ -98,6 +98,15 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Incorrect email and/or password",
                             headers={"WWW-Authenticate": "Bearer"})
+    
+    # Auto-upgrade password from bcrypt to argon2 if needed
+    if auth.needs_rehash(existing_user["password"]):
+        new_hash = auth.get_password_hash(loginUser.password)
+        await mongodb["users"].update_one(
+            {"_id": existing_user["_id"]},
+            {"$set": {"password": new_hash}}
+        )
+        existing_user["password"] = new_hash  # Update for token generation
 
     # Calculate referee points if user is a referee
     if "REFEREE" in existing_user.get("roles", []):
