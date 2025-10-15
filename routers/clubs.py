@@ -212,7 +212,7 @@ async def update_club(
                          description=description,
                          website=website,
                          ishdId=ishdId,
-                         active=active).dict(exclude_none=True)
+                         active=active).model_dump(exclude_none=True)
   club_data.pop('id', None)
 
   # handle image upload

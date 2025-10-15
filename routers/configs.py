@@ -110,7 +110,7 @@ configs: List[Config] = [  # Use List[Config] for type hinting
             response_description="Get all configs")
 async def get_all_configs(request: Request):
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=[config.dict() for config in configs])
+                      content=[config.model_dump() for config in configs])
 
 
 # Get one config
@@ -122,6 +122,6 @@ async def get_one_config(request: Request, key: str = Path(...)):
   for config in configs:
     if config.key.lower() == lower_key:
       return JSONResponse(status_code=status.HTTP_200_OK,
-                          content=config.dict())
+                          content=config.model_dump())
   raise HTTPException(status_code=404,
                       detail=f"Config with key {key} not found")
