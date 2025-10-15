@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python
 import asyncio
 import motor.motor_asyncio
 import os
