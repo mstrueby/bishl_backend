@@ -181,7 +181,7 @@ async def update_round(
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  round_dict = round.dict(exclude_unset=True)
+  round_dict = round.model_dump(exclude_unset=True)
   if DEBUG_LEVEL > 20:
     print("round: ", round_dict)
   # Check if the tournament exists

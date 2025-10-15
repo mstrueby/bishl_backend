@@ -790,7 +790,7 @@ async def update_match(request: Request,
   if DEBUG_LEVEL > 10:
     print("passed match: ", match)
   # Check if this is a stats-affecting change - only check fields that were explicitly provided
-  match_data_provided = match.dict(exclude_unset=True)
+  match_data_provided = match.model_dump(exclude_unset=True)
   stats_affecting_fields = ['matchStatus', 'finishType', 'home.stats', 'away.stats']
   stats_change_detected = any(
     field in match_data_provided or
@@ -838,7 +838,7 @@ async def update_match(request: Request,
     else:
       raise ValueError("Calculating match statistics returned None")
 
-  match_data = match.dict(exclude_unset=True)
+  match_data = match.model_dump(exclude_unset=True)
   match_data.pop("id", None)
 
   # Only update referee points if match status changed to FINISHED/FORFEITED

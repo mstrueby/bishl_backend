@@ -151,7 +151,7 @@ async def create_penalty(
     penalty_data = {}
     new_penalty_id = str(ObjectId())
     penalty_data["_id"] = new_penalty_id
-    penalty_data.update(penalty.dict())
+    penalty_data.update(penalty.model_dump())
     penalty_data.pop("id")
     penalty_data["matchSecondsStart"] = parse_time_to_seconds(
         penalty_data["matchTimeStart"])
@@ -264,7 +264,7 @@ async def patch_one_penalty(
         detail=f"Penalty with id {penalty_id} not found in match {match_id}")
 
   # Update data
-  penalty_data = penalty.dict(exclude_unset=True)
+  penalty_data = penalty.model_dump(exclude_unset=True)
   if 'matchTimeStart' in penalty_data:
     penalty_data['matchSecondsStart'] = parse_time_to_seconds(
         penalty_data['matchTimeStart'])

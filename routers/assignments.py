@@ -498,7 +498,7 @@ async def update_assignment(
         # REF_ADMIN mode ------------------------------------------------------------
         print("REF_ADMIN mode")
         ref_id = assignment["referee"]["userId"]
-        update_data = assignment_data.dict(exclude_unset=True)
+        update_data = assignment_data.model_dump(exclude_unset=True)
         # exclude unchanged data
         for key, value in assignment.items():
             if key in update_data and value == update_data[key]:
@@ -611,7 +611,7 @@ async def update_assignment(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to update assignment of other referee")
-        update_data = assignment_data.dict(exclude_unset=True)
+        update_data = assignment_data.model_dump(exclude_unset=True)
         # exclude unchanged data
         for key, value in assignment.items():
             if key in update_data and value == update_data[key]:

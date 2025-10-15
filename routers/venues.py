@@ -194,7 +194,7 @@ async def update_venue(
         description=description,
         active=active,
         usageApprovalId=usageApprovalId,
-        usageApprovalValidTo=usageApprovalValidTo).dict(exclude_none=True)
+        usageApprovalValidTo=usageApprovalValidTo).model_dump(exclude_none=True)
   except ValueError as e:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Failed to parse input data") from e

@@ -265,7 +265,7 @@ async def update_team(
         external=external,
         ishdId=ishdId,
         legacyId=legacyId
-    ).dict(exclude_none=True)
+    ).model_dump(exclude_none=True)
     team_data.pop('id', None)
    
     # handle image upload

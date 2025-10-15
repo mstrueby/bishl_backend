@@ -48,8 +48,7 @@ async def get_matchdays_for_round(
         raise HTTPException(
             status_code=404,
             detail=
-            f"Season {season_alias} not found in tournament {tournament_alias}"
-        )
+            f"Season {season_alias} not found in tournament {tournament_alias}")
     raise HTTPException(
         status_code=404,
         detail=f"Tournament with alias {tournament_alias} not found")
@@ -212,9 +211,9 @@ async def update_matchday(
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
-    if DEBUG_LEVEL > 20:
+    if DEBUG_LEVEL > 10:
         print("update matchday: ", matchday)
-    matchday_dict = matchday.dict(exclude_unset=True)
+    matchday_dict = matchday.model_dump(exclude_unset=True)
     if DEBUG_LEVEL > 100:
         print("excluded unset: ", matchday_dict)
     # check if tournament exists
@@ -230,8 +229,7 @@ async def update_matchday(
         raise HTTPException(
             status_code=404,
             detail=
-            f"Season {season_alias} not found in tournament {tournament_alias}"
-        )
+            f"Season {season_alias} not found in tournament {tournament_alias}")
     if DEBUG_LEVEL > 20:
         print("season_index: ", season_index)
     # check if round exists
