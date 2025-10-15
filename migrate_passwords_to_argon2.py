@@ -2,17 +2,22 @@
 import asyncio
 import motor.motor_asyncio
 import os
+import argparse
 from datetime import datetime
 from collections import defaultdict
 
-async def check_password_migration_status():
+async def check_password_migration_status(is_prod: bool = False):
     """
     Check the status of password migration from bcrypt to argon2.
     Shows statistics and lists users who still need migration.
     """
     # Connect to database
-    DB_URL = os.environ.get('DB_URL')
-    DB_NAME = os.environ.get('DB_NAME')
+    if is_prod:
+        DB_URL = os.environ.get('DB_URL_PROD')
+        DB_NAME = 'bishl'
+    else:
+        DB_URL = os.environ.get('DB_URL')
+        DB_NAME = os.environ.get('DB_NAME')
     
     if not DB_URL or not DB_NAME:
         print("Error: DB_URL and DB_NAME environment variables must be set")
@@ -110,4 +115,8 @@ async def check_password_migration_status():
         client.close()
 
 if __name__ == "__main__":
-    asyncio.run(check_password_migration_status())
+    parser = argparse.ArgumentParser(description='Check password migration status')
+    parser.add_argument('--prod', action='store_true', help='Use production database')
+    args = parser.parse_args()
+    
+    asyncio.run(check_password_migration_status(is_prod=args.prod))
