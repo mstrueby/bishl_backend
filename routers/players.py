@@ -1469,7 +1469,7 @@ async def update_player(request: Request,
                                managedByISHD=managedByISHD,
                                imageVisible=imageVisible,
                                source=source,
-                               sex=sex).dict(exclude_none=True)
+                               sex=sex).model_dump(exclude_none=True)
 
     player_data.pop('id', None)
     if image:

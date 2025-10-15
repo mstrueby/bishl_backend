@@ -83,8 +83,8 @@ All model files have been successfully migrated to Pydantic v2.
 - [x] Add ConfigDict and arbitrary_types_allowed to all MongoBaseModel
 - [x] Update remaining @validator decorators in matches.py
 - [x] Clean up all commented-out old validators
-- [ ] Update .parse_obj() to .model_validate() in routers (if any)
-- [ ] Update .dict() to .model_dump() in routers (if any)
+- [x] Update .parse_obj() to .model_validate() in routers (none found)
+- [x] Update .dict() to .model_dump() in routers (completed)
 - [x] Test application startup (server should now start without NameError)
 
 ## Next Steps
