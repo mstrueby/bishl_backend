@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import datetime
-from pydantic import BaseSettings, Field, BaseModel, HttpUrl, validator
+from pydantic import BaseSettings, Field, BaseModel, HttpUrl, validator, field_validator
 from typing import Optional, List, Dict
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 from models.assignments import Referee
@@ -218,15 +218,15 @@ class MatchTeam(BaseModel):
   penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
   stats: Optional[MatchStats] = Field(default_factory=dict)
 
-  @validator('teamAlias',
+  @field_validator('teamAlias',
              'name',
              'fullName',
              'shortName',
              'tinyName',
-             pre=True,
-             always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+             mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
 
 class MatchTeamUpdate(BaseModel):
@@ -248,15 +248,15 @@ class MatchTeamUpdate(BaseModel):
   penalties: Optional[List[PenaltiesBase]] = Field(default_factory=list)
   stats: Optional[MatchStats] = Field(default_factory=dict)
 
-  @validator('teamAlias',
+  @field_validator('teamAlias',
              'name',
              'fullName',
              'shortName',
              'tinyName',
-             pre=True,
-             always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+             mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
 
 class MatchVenue(BaseModel):
@@ -363,15 +363,15 @@ class MatchListTeam(BaseModel):
   rosterPublished: Optional[bool] = False
   stats: Optional[MatchStats] = Field(default_factory=dict)
 
-  @validator('teamAlias',
+  @field_validator('teamAlias',
              'name',
              'fullName',
              'shortName',
              'tinyName',
-             pre=True,
-             always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+             mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
 
 class MatchListBase(MongoBaseModel):

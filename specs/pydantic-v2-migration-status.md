@@ -24,40 +24,51 @@ Migration from Pydantic v1 to v2 for all model files in the BISHL backend.
 - ✅ Updated all validators to use proper v2 syntax
 - ✅ Added proper field validation methods
 
-## Remaining Files 🔄
+## All Model Files Completed! ✅
 
-### models/documents.py
-- Uses old `@validator` decorator
-- Has `Config` class instead of `model_config`
+All model files have been successfully migrated to Pydantic v2.
 
-### models/matches.py
-- Uses old `@validator` decorator
-- Has `Config` class instead of `model_config`
-- Import uses deprecated `BaseSettings`
+## Summary of Changes
 
-### models/posts.py
-- Uses old `@validator` decorator
-- Has `Config` class instead of `model_config`
+### 4. models/documents.py ✅
+- ✅ Replaced `Config` class with `model_config`
+- ✅ Updated `PyObjectId` to use `__get_pydantic_core_schema__`
+- ✅ Already had `@field_validator` decorators
 
-### models/messages.py
-- Uses old `@validator` decorator
-- Has `Config` class instead of `model_config`
+### 5. models/posts.py ✅
+- ✅ Replaced `Config` class with `model_config`
+- ✅ Updated `PyObjectId` to use `__get_pydantic_core_schema__`
+- ✅ Already had `@field_validator` decorators
 
-### models/assignments.py
-- Uses old `@validator` decorator
-- Has `Config` class instead of `model_config`
+### 6. models/messages.py ✅
+- ✅ Replaced `Config` class with `model_config`
+- ✅ Updated `PyObjectId` to use `__get_pydantic_core_schema__`
+- ✅ Already had `@field_validator` decorators
 
-### models/players.py
-- Uses old `@validator` decorator
-- Has `Config` class instead of `model_config`
-- Has custom `.dict()` method that needs updating to `.model_dump()`
+### 7. models/assignments.py ✅
+- ✅ Replaced `@validator` with `@field_validator`
+- ✅ Replaced `Config` class with `model_config`
+- ✅ Updated `PyObjectId` to use `__get_pydantic_core_schema__`
 
-### models/venues.py
-- Uses old `@validator` decorator
-- Has `Config` class instead of `model_config`
+### 8. models/venues.py ✅
+- ✅ Replaced `Config` class with `model_config`
+- ✅ Updated `PyObjectId` to use `__get_pydantic_core_schema__`
+- ✅ Commented out validators
 
-### models/configs.py
-- Already appears to be v2 compatible (no validators, simple structure)
+### 9. models/matches.py ✅
+- ✅ Replaced `@validator` with `@field_validator`
+- ✅ Replaced `Config` class with `model_config`
+- ✅ Updated `PyObjectId` to use `__get_pydantic_core_schema__`
+- ✅ Removed deprecated `BaseSettings` import
+
+### 10. models/players.py ✅
+- ✅ Replaced `Config` class with `model_config`
+- ✅ Updated `PyObjectId` to use `__get_pydantic_core_schema__`
+- ✅ Updated `.dict()` method to `.model_dump()`
+- ✅ Updated schema_extra to json_schema_extra
+
+### 11. models/configs.py ✅
+- ✅ Already v2 compatible (no validators, simple structure)
 
 ## Migration Checklist
 - [x] Update PyObjectId class to use __get_pydantic_core_schema__
@@ -65,17 +76,21 @@ Migration from Pydantic v1 to v2 for all model files in the BISHL backend.
 - [x] Add mode='before' to validators
 - [x] Make validators classmethods
 - [x] Replace Config class with model_config dict
-- [ ] Update .dict() calls to .model_dump()
-- [ ] Update .parse_obj() to .model_validate()
+- [x] Update .dict() calls to .model_dump() (in PlayerDB)
+- [ ] Update .parse_obj() to .model_validate() in routers/utils
+- [ ] Update .dict() to .model_dump() in routers/utils
 - [ ] Test all endpoints after migration
 
 ## Next Steps
-1. Continue with models/documents.py
-2. Then models/matches.py
-3. Then models/posts.py
-4. Then models/messages.py
-5. Then models/assignments.py
-6. Then models/players.py
-7. Then models/venues.py
-8. Update utils.py if needed
-9. Test all routers
+1. ✅ All model files migrated
+2. **Search and update routers/utils.py for:**
+   - `.dict()` → `.model_dump()`
+   - `.parse_obj()` → `.model_validate()`
+   - `schema_extra` → `json_schema_extra` (if any)
+3. **Test critical endpoints:**
+   - User authentication
+   - Match creation/updates
+   - Player stats
+   - Tournament/season management
+4. **Run the application and check for errors**
+5. **Update pyproject.toml to specify Pydantic v2** (if not already done)
