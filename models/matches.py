@@ -1,6 +1,7 @@
 from bson import ObjectId
 from datetime import datetime
-from pydantic import BaseSettings, Field, BaseModel, HttpUrl, validator, field_validator
+from pydantic import Field, BaseModel, HttpUrl, field_validator, ConfigDict
+from pydantic_core import core_schema
 from typing import Optional, List, Dict
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 from models.assignments import Referee
@@ -10,25 +11,31 @@ from models.assignments import Referee
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_validators__(cls):
-    yield cls.validate
+  def __get_pydantic_core_schema__(cls, source_type, handler):
+    return core_schema.no_info_plain_validator_function(
+      cls.validate,
+      serialization=core_schema.plain_serializer_function_ser_schema(
+        lambda x: str(x)
+      )
+    )
 
   @classmethod
   def validate(cls, v):
+    if isinstance(v, ObjectId):
+      return v
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
-  @classmethod
-  def __modify_schema__(cls, field_schema):
-    field_schema.update(type="string")
-
 
 class MongoBaseModel(BaseModel):
+  model_config = ConfigDict(
+    populate_by_name=True,
+    arbitrary_types_allowed=True,
+    json_encoders={ObjectId: str}
+  )
+  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-
-  class Config:
-    json_encoders = {ObjectId: str}
 
 
 # --- sub documents without _id
@@ -121,9 +128,10 @@ class PenaltiesBase(MongoBaseModel):
   isGM: bool = False
   isMP: bool = False
 
-  @validator('penaltyCode', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
+  @field_validator('penaltyCode', mode='before')
+  @classmethod
+  def validate_type(cls, v, info):
+    return validate_dict_of_strings(v, info.field_name)
 """
   @validator('matchTimeStart', 'matchTimeEnd', pre=True, always=True)
   def validate_match_time(cls, v, field):
@@ -146,17 +154,19 @@ class PenaltiesUpdate(MongoBaseModel):
   isGM: Optional[bool] = False
   isMP: Optional[bool] = False
 
-  @validator('penaltyCode', pre=True, always=True)
-  def validate_type(cls, v, field):
+  @field_validator('penaltyCode', mode='before')
+  @classmethod
+  def validate_type(cls, v, info):
     if v is None:
       return v
-    return validate_dict_of_strings(v, field.name)
+    return validate_dict_of_strings(v, info.field_name)
 
-  @validator('matchTimeStart', 'matchTimeEnd', pre=True, always=True)
-  def validate_match_time(cls, v, field):
-    if field.name == 'matchTimeEnd' and v is None:
+  @field_validator('matchTimeStart', 'matchTimeEnd', mode='before')
+  @classmethod
+  def validate_match_time_field(cls, v, info):
+    if info.field_name == 'matchTimeEnd' and v is None:
       return None
-    return validate_match_time(v, field.name)
+    return validate_match_time(v, info.field_name)
 
 
 class MatchStats(BaseModel):

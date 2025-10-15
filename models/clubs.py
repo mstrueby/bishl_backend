@@ -1,32 +1,37 @@
 from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, EmailStr, validator, field_validator
+from pydantic import Field, BaseModel, HttpUrl, EmailStr, field_validator, ConfigDict
+from pydantic_core import core_schema
 from typing import Optional, List
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_validators__(cls):
-    yield cls.validate
+  def __get_pydantic_core_schema__(cls, source_type, handler):
+    return core_schema.no_info_plain_validator_function(
+      cls.validate,
+      serialization=core_schema.plain_serializer_function_ser_schema(
+        lambda x: str(x)
+      )
+    )
 
   @classmethod
   def validate(cls, v):
+    if isinstance(v, ObjectId):
+      return v
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
-  @classmethod
-  def __modify_schema__(cls, field_schema):
-    field_schema.update(type="string")
-
 
 class MongoBaseModel(BaseModel):
+  model_config = ConfigDict(
+    populate_by_name=True,
+    arbitrary_types_allowed=True,
+    json_encoders={ObjectId: str}
+  )
+  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-
-  # Pydantic v2: Config class replaced by model_config
-  model_config = {
-      "json_encoders": {ObjectId: str}
-  }
 
 
 # Clubs
