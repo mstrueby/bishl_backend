@@ -338,7 +338,7 @@ def init_team_standings(team_data: dict) -> dict:
       soWins=0,
       soLosses=0,
       streak=[],
-  ).dict()
+  ).model_dump()
 
 
 def calc_standings(matches):
