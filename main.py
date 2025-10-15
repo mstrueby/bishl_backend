@@ -46,13 +46,14 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_db_client():
-    app.state.mongodb_client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
-    app.state.mongodb = app.state.mongodb_client[DB_NAME]
+  app.state.client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
+  app.state.mongodb_client = app.state.client  # Keep backward compatibility
+  app.state.mongodb = app.state.client[DB_NAME]
 
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    app.state.mongodb_client.close()
+    app.state.client.close()
 
 app.include_router(root_router, prefix="", tags=["root"])
 app.include_router(configs_router, prefix="/configs", tags=["configs"])
