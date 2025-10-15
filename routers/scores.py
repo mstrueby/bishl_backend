@@ -164,7 +164,7 @@ async def create_score(
     score_data = {}
     new_score_id = str(ObjectId())
     score_data['_id'] = new_score_id
-    score_data.update(score.dict())
+    score_data.update(score.model_dump())
     score_data.pop('id')
     score_data['matchSeconds'] = parse_time_to_seconds(score_data['matchTime'])
     score_data = jsonable_encoder(score_data)
@@ -302,7 +302,7 @@ async def patch_one_score(
         detail=f"Score with id {score_id} not found in match {match_id}")
 
   # Update data
-  score_data = score.dict()
+  score_data = score.model_dump()
   score_data.pop('id', None)
   if 'matchTime' in score_data:
     score_data['matchSeconds'] = parse_time_to_seconds(score_data['matchTime'])
