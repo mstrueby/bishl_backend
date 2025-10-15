@@ -1,5 +1,7 @@
+
 from bson import ObjectId
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic_core import core_schema
 from typing import Optional, List
 from enum import Enum
 from datetime import datetime
@@ -9,25 +11,30 @@ from models.users import RefereeLevel
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_validators__(cls):
-    yield cls.validate
+  def __get_pydantic_core_schema__(cls, source_type, handler):
+    return core_schema.no_info_plain_validator_function(
+      cls.validate,
+      serialization=core_schema.plain_serializer_function_ser_schema(
+        lambda x: str(x)
+      )
+    )
 
   @classmethod
   def validate(cls, v):
+    if isinstance(v, ObjectId):
+      return v
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
-  @classmethod
-  def __modify_schema__(cls, field_schema):
-    field_schema.update(type="string")
-
 
 class MongoBaseModel(BaseModel):
+  model_config = ConfigDict(
+    populate_by_name=True,
+    arbitrary_types_allowed=True
+  )
+  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-
-  class Config:
-    json_encoders = {ObjectId: str}
 
 
 class Status(str, Enum):
@@ -85,6 +92,7 @@ class AssignmentUpdate(MongoBaseModel):
                                   ge=1,
                                   le=2)
 
-  @validator('status', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('status', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
