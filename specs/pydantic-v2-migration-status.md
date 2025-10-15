@@ -77,24 +77,28 @@ All model files have been successfully migrated to Pydantic v2.
 - [x] Make validators classmethods
 - [x] Replace Config class with model_config dict
 - [x] Update .dict() calls to .model_dump() (in PlayerDB and utils.py)
+- [x] Install pydantic-core dependency
+- [x] Fix PyObjectId in all model files (venues, clubs, tournaments, matches)
+- [x] Add ConfigDict and arbitrary_types_allowed to all MongoBaseModel
+- [x] Update remaining @validator decorators in matches.py
 - [ ] Update .parse_obj() to .model_validate() in routers (if any)
 - [ ] Update .dict() to .model_dump() in routers (if any)
-- [ ] Install pydantic-core dependency
 - [ ] Test all endpoints after migration
 
 ## Next Steps
 1. ✅ All model files migrated
 2. ✅ Updated utils.py `.dict()` to `.model_dump()`
-3. **Install pydantic-core:**
-   - The error shows `ModuleNotFoundError: No module named 'pydantic_core'`
-   - This is required for Pydantic v2
-4. **Search and update routers for:**
+3. ✅ Installed pydantic-core
+4. ✅ Fixed PyObjectId validator pattern in venues, clubs, tournaments, matches
+5. ✅ Updated remaining @validator in matches.py to @field_validator
+6. **Test application startup:**
+   - Check if server starts without errors
+7. **Search and update routers for:**
    - `.dict()` → `.model_dump()`
    - `.parse_obj()` → `.model_validate()`
    - `schema_extra` → `json_schema_extra` (if any)
-5. **Test critical endpoints:**
+8. **Test critical endpoints:**
    - User authentication
    - Match creation/updates
    - Player stats
    - Tournament/season management
-6. **Run the application and check for errors**
