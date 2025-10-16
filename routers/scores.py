@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler, TokenPayload
 from utils import (DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds,
-                   calc_player_card_stats,
                    populate_event_player_fields)
 from services.stats_service import StatsService
 import os
@@ -200,7 +199,7 @@ async def create_score(
 
     # Execute the optimized update
     update_result = await mongodb['matches'].update_one(
-        {"_id": match_id}, 
+        {"_id": match_id},
         update_operations,
         array_filters=array_filters if array_filters else None
     )
@@ -492,7 +491,7 @@ async def delete_one_score(
       # Full player stats calculation only on match finish
       player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
       if player_ids:
-        await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
+        await stats_service.calculate_player_card_stats(player_ids, t_alias, s_alias,
                                    r_alias, md_alias, token_payload)
     else:
       # For INPROGRESS matches, only update standings (much faster)

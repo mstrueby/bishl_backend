@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
 from authentication import AuthHandler, TokenPayload
-from utils import (my_jsonable_encoder, parse_datetime,
+from utils import (validate_match_time, parse_datetime,
                    calc_player_card_stats)
 from services.stats_service import StatsService
 import os
@@ -15,7 +15,8 @@ from bson import ObjectId
 import httpx
 
 router = APIRouter()
-auth = AuthHandler()
+auth_handler = AuthHandler()
+stats_service = None  # Will be initialized with MongoDB instance
 BASE_URL = os.environ.get('BE_API_URL')
 DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
 
@@ -606,7 +607,7 @@ async def get_match(request: Request, match_id: str) -> JSONResponse:
 async def create_match(
     request: Request,
     match: MatchBase = Body(...),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
@@ -620,7 +621,7 @@ async def create_match(
       if DEBUG_LEVEL > 10:
         print("get standingsSettings")
       # fetch standing settings
-      stats_service = StatsService()
+      stats_service = StatsService(mongodb)
       standings_settings = await stats_service.get_standings_settings(
           match.tournament.alias, match.season.alias)
       if DEBUG_LEVEL > 10:
@@ -759,7 +760,7 @@ async def update_match(request: Request,
                        match_id: str,
                        match: MatchUpdate = Body(...),
                        token_payload: TokenPayload = Depends(
-                           auth.auth_wrapper)):
+                           auth_handler.auth_wrapper)):
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles
              for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
@@ -834,7 +835,7 @@ async def update_match(request: Request,
         is not None) else existing_match['away']['stats']['goalsFor']
 
     # fetch standing settings
-    stats_service = StatsService()
+    stats_service = StatsService(mongodb)
     standings_settings = await stats_service.get_standings_settings(
         t_alias, s_alias)
 
@@ -985,7 +986,9 @@ async def update_match(request: Request,
     if player_ids and DEBUG_LEVEL > 0:
       print(f"Stats change detected on finished match - calculating player card stats for {len(player_ids)} players...")
     if player_ids:
-      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias, r_alias, md_alias, token_payload)
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_player_card_stats(player_ids,
+                                                     t_alias, s_alias, r_alias, md_alias, token_payload)
 
   if DEBUG_LEVEL > 0:
     change_type = "stats-affecting" if stats_change_detected else "minor"
@@ -1001,7 +1004,7 @@ async def update_match(request: Request,
 async def delete_match(
     request: Request,
     match_id: str,
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
@@ -1072,7 +1075,8 @@ async def delete_match(
                                             {'$set': {
                                                 'stats': updated_stats
                                             }})
-      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_player_card_stats(player_ids, t_alias, s_alias,
                                    r_alias, md_alias, token_payload)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
