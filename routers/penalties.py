@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
 from utils import (my_jsonable_encoder,
-                   calc_standings_per_round, calc_standings_per_matchday,
                    calc_roster_stats, calc_player_card_stats,
                    populate_event_player_fields)
 from services.stats_service import StatsService

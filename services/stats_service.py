@@ -186,16 +186,310 @@ class StatsService:
             stats['away']['soWin'] = 1
             stats['away']['points'] = settings.get("pointsWinShootout", 2)
 
+    # ==================== STANDINGS AGGREGATION ====================
+
+    async def aggregate_round_standings(self, t_alias: str, s_alias: str, r_alias: str) -> None:
+        """
+        Aggregate standings for an entire round.
+        
+        Args:
+            t_alias: Tournament alias
+            s_alias: Season alias
+            r_alias: Round alias
+        """
+        if not self.db:
+            raise ValueError("MongoDB instance required for standings aggregation")
+            
+        if DEBUG_LEVEL > 0:
+            print(f'Calculating standings for {t_alias}, {s_alias}, {r_alias}...')
+        
+        r_filter = {
+            'alias': t_alias,
+            'seasons.alias': s_alias,
+            'seasons.rounds.alias': r_alias,
+            'seasons': {
+                '$elemMatch': {
+                    'alias': s_alias,
+                    'rounds': {
+                        '$elemMatch': {
+                            'alias': r_alias
+                        }
+                    }
+                }
+            }
+        }
+
+        if await self._check_create_standings_for_round(r_filter, s_alias, r_alias):
+            matches = await self.db["matches"].find({
+                "tournament.alias": t_alias,
+                "season.alias": s_alias,
+                "round.alias": r_alias
+            }).sort("startDate", 1).to_list(length=None)
+
+            if not matches:
+                if DEBUG_LEVEL > 0:
+                    print(f"No matches for {t_alias}, {s_alias}, {r_alias}")
+                standings = {}
+            else:
+                standings = self._calculate_standings(matches)
+        else:
+            standings = {}
+            if DEBUG_LEVEL > 0:
+                print(f"No standings for {t_alias}, {s_alias}, {r_alias}")
+
+        if DEBUG_LEVEL > 20:
+            print(f"Standings for {t_alias}, {s_alias}, {r_alias}: {standings}")
+
+        response = await self.db["tournaments"].update_one(
+            r_filter,
+            {'$set': {
+                "seasons.$[season].rounds.$[round].standings": standings
+            }},
+            array_filters=[{
+                'season.alias': s_alias
+            }, {
+                'round.alias': r_alias
+            }],
+            upsert=False)
+        
+        if not response.acknowledged:
+            raise HTTPException(status_code=500,
+                                detail="Failed to update tournament standings.")
+        else:
+            if DEBUG_LEVEL > 10:
+                print("Updated round standings: ", standings)
+
+    async def aggregate_matchday_standings(self, t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> None:
+        """
+        Aggregate standings for a specific matchday.
+        
+        Args:
+            t_alias: Tournament alias
+            s_alias: Season alias
+            r_alias: Round alias
+            md_alias: Matchday alias
+        """
+        if not self.db:
+            raise ValueError("MongoDB instance required for standings aggregation")
+            
+        if DEBUG_LEVEL > 0:
+            print(f'Calculating standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}...')
+            
+        md_filter = {
+            'alias': t_alias,
+            'seasons.alias': s_alias,
+            'seasons.rounds.alias': r_alias,
+            'seasons.rounds.matchdays.alias': md_alias,
+            'seasons': {
+                '$elemMatch': {
+                    'alias': s_alias,
+                    'rounds': {
+                        '$elemMatch': {
+                            'alias': r_alias,
+                            'matchdays': {
+                                '$elemMatch': {
+                                    'alias': md_alias
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if await self._check_create_standings_for_matchday(md_filter, s_alias, r_alias, md_alias):
+            matches = await self.db["matches"].find({
+                "tournament.alias": t_alias,
+                "season.alias": s_alias,
+                "round.alias": r_alias,
+                "matchday.alias": md_alias
+            }).sort("startDate").to_list(1000)
+
+            if not matches:
+                if DEBUG_LEVEL > 10:
+                    print(f"No matches for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
+                standings = {}
+            else:
+                if DEBUG_LEVEL > 10:
+                    print("Calculating standings")
+                standings = self._calculate_standings(matches)
+        else:
+            if DEBUG_LEVEL > 10:
+                print(f"No standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}")
+            standings = {}
+
+        response = await self.db["tournaments"].update_one(
+            md_filter, 
+            {
+                '$set': {
+                    "seasons.$[season].rounds.$[round].matchdays.$[matchday].standings": standings
+                }
+            },
+            array_filters=[
+                {'season.alias': s_alias},
+                {'round.alias': r_alias},
+                {'matchday.alias': md_alias}
+            ],
+            upsert=False)
+        
+        if not response.acknowledged:
+            raise HTTPException(status_code=500,
+                                detail="Failed to update tournament standings.")
+        else:
+            if DEBUG_LEVEL > 10:
+                print("Updated matchday standings: ", standings)
+
+    # ==================== HELPER METHODS ====================
+
+    async def _check_create_standings_for_round(self, round_filter: dict, s_alias: str, r_alias: str) -> bool:
+        """Check if standings should be created for a round"""
+        if (tournament := await self.db['tournaments'].find_one(round_filter)) is not None:
+            for season in tournament.get('seasons', []):
+                if season.get("alias") == s_alias:
+                    for round_data in season.get("rounds", []):
+                        if round_data.get("alias") == r_alias:
+                            return round_data.get("createStandings", False)
+        return False
+
+    async def _check_create_standings_for_matchday(self, md_filter: dict, s_alias: str, 
+                                                   r_alias: str, md_alias: str) -> bool:
+        """Check if standings should be created for a matchday"""
+        tournament = await self.db['tournaments'].find_one(md_filter)
+        if tournament is not None:
+            for season in tournament.get('seasons', []):
+                if season.get("alias") == s_alias:
+                    for round_data in season.get("rounds", []):
+                        if round_data.get("alias") == r_alias:
+                            for matchday in round_data.get("matchdays", []):
+                                if matchday.get("alias") == md_alias:
+                                    return matchday.get("createStandings", False)
+        return False
+
+    def _calculate_standings(self, matches: List[dict]) -> dict:
+        """
+        Calculate standings from a list of matches.
+        
+        Args:
+            matches: List of match documents
+            
+        Returns:
+            Dictionary of team standings sorted by points, goal difference, etc.
+        """
+        standings = {}
+        
+        for match in matches:
+            home_team = {
+                'fullName': match['home']['fullName'],
+                'shortName': match['home']['shortName'],
+                'tinyName': match['home']['tinyName'],
+                'logo': match['home']['logo']
+            }
+            away_team = {
+                'fullName': match['away']['fullName'],
+                'shortName': match['away']['shortName'],
+                'tinyName': match['away']['tinyName'],
+                'logo': match['away']['logo']
+            }
+            h_key = home_team['fullName']
+            a_key = away_team['fullName']
+
+            if h_key not in standings:
+                standings[h_key] = self._init_team_standings(home_team)
+            if a_key not in standings:
+                standings[a_key] = self._init_team_standings(away_team)
+
+            # Aggregate stats from match
+            standings[h_key]['gamesPlayed'] += match['home']['stats'].get('gamePlayed', 0)
+            standings[a_key]['gamesPlayed'] += match['away']['stats'].get('gamePlayed', 0)
+            standings[h_key]['goalsFor'] += match['home']['stats'].get('goalsFor', 0)
+            standings[h_key]['goalsAgainst'] += match['home']['stats'].get('goalsAgainst', 0)
+            standings[a_key]['goalsFor'] += match['away']['stats'].get('goalsFor', 0)
+            standings[a_key]['goalsAgainst'] += match['away']['stats'].get('goalsAgainst', 0)
+            standings[h_key]['points'] += match['home']['stats'].get('points', 0)
+            standings[a_key]['points'] += match['away']['stats'].get('points', 0)
+            standings[h_key]['wins'] += match['home']['stats'].get('win', 0)
+            standings[a_key]['wins'] += match['away']['stats'].get('win', 0)
+            standings[h_key]['losses'] += match['home']['stats'].get('loss', 0)
+            standings[a_key]['losses'] += match['away']['stats'].get('loss', 0)
+            standings[h_key]['draws'] += match['home']['stats'].get('draw', 0)
+            standings[a_key]['draws'] += match['away']['stats'].get('draw', 0)
+            standings[h_key]['otWins'] += match['home']['stats'].get('otWin', 0)
+            standings[a_key]['otWins'] += match['away']['stats'].get('otWin', 0)
+            standings[h_key]['otLosses'] += match['home']['stats'].get('otLoss', 0)
+            standings[a_key]['otLosses'] += match['away']['stats'].get('otLoss', 0)
+            standings[h_key]['soWins'] += match['home']['stats'].get('soWin', 0)
+            standings[a_key]['soWins'] += match['away']['stats'].get('soWin', 0)
+            standings[h_key]['soLosses'] += match['home']['stats'].get('soLoss', 0)
+            standings[a_key]['soLosses'] += match['away']['stats'].get('soLoss', 0)
+
+            # Update streak
+            self._update_streak(standings[h_key], match['home']['stats'])
+            self._update_streak(standings[a_key], match['away']['stats'])
+
+        # Sort standings by points, goal difference, goals for, and team name
+        sorted_standings = {
+            k: v
+            for k, v in sorted(
+                standings.items(),
+                key=lambda item: (
+                    item[1]['points'],
+                    item[1]['goalsFor'] - item[1]['goalsAgainst'],
+                    item[1]['goalsFor'],
+                    -ord(item[1]['fullName'][0])
+                ),
+                reverse=True
+            )
+        }
+        return sorted_standings
+
+    def _init_team_standings(self, team_data: dict) -> dict:
+        """Initialize standings structure for a team"""
+        from models.tournaments import Standings
+        return Standings(
+            fullName=team_data['fullName'],
+            shortName=team_data['shortName'],
+            tinyName=team_data['tinyName'],
+            logo=team_data['logo'],
+            gamesPlayed=0,
+            goalsFor=0,
+            goalsAgainst=0,
+            points=0,
+            wins=0,
+            losses=0,
+            draws=0,
+            otWins=0,
+            otLosses=0,
+            soWins=0,
+            soLosses=0,
+            streak=[],
+        ).model_dump()
+
+    def _update_streak(self, team_standings: dict, match_stats: dict) -> None:
+        """Update the team's streak based on match result"""
+        if 'win' in match_stats and match_stats['win'] == 1:
+            result = 'W'
+        elif 'loss' in match_stats and match_stats['loss'] == 1:
+            result = 'L'
+        elif 'draw' in match_stats and match_stats['draw'] == 1:
+            result = 'D'
+        elif 'otWin' in match_stats and match_stats['otWin'] == 1:
+            result = 'OTW'
+        elif 'otLoss' in match_stats and match_stats['otLoss'] == 1:
+            result = 'OTL'
+        elif 'soWin' in match_stats and match_stats['soWin'] == 1:
+            result = 'SOW'
+        elif 'soLoss' in match_stats and match_stats['soLoss'] == 1:
+            result = 'SOL'
+        else:
+            result = None
+        
+        if result:
+            team_standings['streak'].append(result)
+            if len(team_standings['streak']) > 5:
+                team_standings['streak'].pop(0)
+
     # ==================== PLACEHOLDER METHODS ====================
     # These will be implemented in subsequent phases
-
-    async def aggregate_round_standings(self, t_alias: str, s_alias: str, r_alias: str):
-        """Aggregate standings for entire round - To be implemented in Phase 3"""
-        pass
-
-    async def aggregate_matchday_standings(self, t_alias: str, s_alias: str, r_alias: str, md_alias: str):
-        """Aggregate standings for specific matchday - To be implemented in Phase 3"""
-        pass
 
     async def calculate_roster_stats(self, match_id: str, team_flag: str):
         """Calculate roster stats for a team - To be implemented in Phase 4"""
