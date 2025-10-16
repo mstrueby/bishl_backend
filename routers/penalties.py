@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
 from utils import (my_jsonable_encoder,
-                   calc_roster_stats, calc_player_card_stats,
+                   calc_player_card_stats,
                    populate_event_player_fields)
 from services.stats_service import StatsService
 
@@ -298,7 +298,8 @@ async def patch_one_penalty(
 
       # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
       # Only recalculate roster stats (lightweight operation)
-      await calc_roster_stats(mongodb, match_id, team_flag)
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_roster_stats(match_id, team_flag)
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))

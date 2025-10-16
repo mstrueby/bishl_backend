@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler, TokenPayload
 from utils import (DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds,
-                   calc_roster_stats, calc_player_card_stats,
+                   calc_player_card_stats,
                    populate_event_player_fields)
 from services.stats_service import StatsService
 import os
@@ -339,7 +339,8 @@ async def patch_one_score(
 
       # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
       # Only recalculate roster stats (lightweight operation)
-      await calc_roster_stats(mongodb, match_id, team_flag)
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_roster_stats(match_id, team_flag)
 
     except HTTPException as e:
       if e.status_code == status.HTTP_304_NOT_MODIFIED:

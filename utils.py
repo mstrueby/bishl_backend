@@ -171,107 +171,17 @@ async def get_sys_ref_tool_token(email: str, password: str):
     raise Exception(f"Error logging in: {login_response.json()}")
   return login_response.json()['token']
 
-# refresh player stats in roster
+# calc_roster_stats has been moved to services.stats_service.StatsService.calculate_roster_stats()
+# This function is deprecated - import StatsService directly instead
 async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
   """
-  Fetches the team's roster, updates goals and assists for players, and saves back to the database.
-
-  Parameters
-  - mongodb: FastAPI Request object (monogdb)
-  - match_id: The ID of the match
-  - team_flag: The team flag ('home'/'away')
-  """
-  if DEBUG_LEVEL > 0:
-    print(f'calculating roster stats ({team_flag})...')
+  DEPRECATED: Use StatsService.calculate_roster_stats() instead.
   
-  async with httpx.AsyncClient() as client:
-
-    response = await client.get(
-        f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
-    if response.status_code != 200:
-      raise HTTPException(status_code=response.status_code,
-                          detail=response.text)
-    roster = response.json()
-
-    response = await client.get(
-        f"{BASE_URL}/matches/{match_id}/{team_flag}/scores/")
-    if response.status_code != 200:
-      raise HTTPException(
-          status_code=response.status_code,
-          detail=
-          f"Failed to fetch scoreboard for {team_flag} team in match {match_id}"
-      )
-    scoreboard = response.json()
-
-    response = await client.get(
-        f"{BASE_URL}/matches/{match_id}/{team_flag}/penalties/")
-    if response.status_code != 200:
-      raise HTTPException(
-          status_code=response.status_code,
-          detail=
-          f"Failed to fetch penaltysheet for {team_flag} team in match {match_id}"
-      )
-    penaltysheet = response.json()
-
-    # Summing up all goals and assists for each player from scoreboard
-    player_stats = {}
-    # Initialize each player from roster in player_stats
-    for roster_player in roster:
-      player_id = roster_player['player']['playerId']
-      if player_id not in player_stats:
-        player_stats[player_id] = {
-            'goals': 0,
-            'assists': 0,
-            'points': 0,
-            'penaltyMinutes': 0
-        }
-
-    for score in scoreboard:
-      goal_player_id = score['goalPlayer']['playerId']
-      if goal_player_id not in player_stats:
-        player_stats[goal_player_id] = {'goals': 0, 'assists': 0}
-      player_stats[goal_player_id]['goals'] += 1
-      player_stats[goal_player_id][
-          'points'] = player_stats[goal_player_id].get('points', 0) + 1
-
-      assist_player = score.get('assistPlayer')
-      assist_player_id = assist_player.get(
-          'playerId') if assist_player else None
-      if assist_player_id:
-        if assist_player_id not in player_stats:
-          player_stats[assist_player_id] = {'goals': 0, 'assists': 0}
-        player_stats[assist_player_id]['assists'] += 1
-        player_stats[assist_player_id][
-            'points'] = player_stats[assist_player_id].get('points', 0) + 1
-
-    for penalty in penaltysheet:
-      pen_player_id = penalty['penaltyPlayer']['playerId']
-      if pen_player_id not in player_stats:
-        player_stats[pen_player_id] = {'penaltyMinutes': 0}
-      player_stats[pen_player_id]['penaltyMinutes'] += penalty[
-          'penaltyMinutes']
-
-  # Update roster with summed goals and assists
-  for roster_player in roster:
-    player_id = roster_player['player']['playerId']
-    if player_id in player_stats:
-      roster_player.update(player_stats[player_id])
-
-  if DEBUG_LEVEL > 10:
-    print("### player_stats", player_stats)
-    print("### roster: ", roster)
-
-  # update roster for match in mongodb
-  if roster:
-    try:
-      await mongodb["matches"].update_one(
-          {"_id": match_id}, {"$set": {
-              f"{team_flag}.roster": roster
-          }})
-    except Exception as e:
-      raise HTTPException(
-          status_code=500,
-          detail=f"Could not update roster in mongoDB, {str(e)}")
+  This is a temporary wrapper for backward compatibility.
+  """
+  from services.stats_service import StatsService
+  stats_service = StatsService(mongodb)
+  await stats_service.calculate_roster_stats(match_id, team_flag)
 
 
 # Refresh Stats for EACH PLAYER(!) in a tournament/season/round/matchday
