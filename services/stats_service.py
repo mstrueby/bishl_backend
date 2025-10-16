@@ -1,6 +1,8 @@
 
 import os
+import time
 from typing import Dict, List, Optional
+from functools import wraps
 import httpx
 import aiohttp
 from fastapi import HTTPException
@@ -9,6 +11,32 @@ from models.matches import MatchStats
 
 DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
 BASE_URL = os.environ.get('BE_API_URL')
+
+
+def log_performance(func):
+    """Decorator to log execution time and basic metrics for stats operations"""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        start_time = time.time()
+        func_name = func.__name__
+        
+        if DEBUG_LEVEL > 0:
+            print(f"[STATS] Starting {func_name}...")
+        
+        try:
+            result = await func(*args, **kwargs)
+            elapsed = time.time() - start_time
+            
+            if DEBUG_LEVEL > 0:
+                print(f"[STATS] ✓ {func_name} completed in {elapsed:.3f}s")
+            
+            return result
+        except Exception as e:
+            elapsed = time.time() - start_time
+            print(f"[STATS] ✗ {func_name} failed after {elapsed:.3f}s: {str(e)}")
+            raise
+    
+    return wrapper
 
 
 class StatsService:
@@ -89,8 +117,8 @@ class StatsService:
         """
         stats = {'home': {}, 'away': {}}
         
-        if DEBUG_LEVEL > 0:
-            print("Calculating match stats...")
+        if DEBUG_LEVEL > 10:
+            print(f"[MATCH_STATS] Calculating stats: {match_status}/{finish_type}, Score: {home_score}-{away_score}")
 
         def reset_points():
             """Initialize/reset all stats to zero"""
@@ -130,7 +158,7 @@ class StatsService:
                 reset_points()
         else:
             if DEBUG_LEVEL > 0:
-                print(f"No match stats for matchStatus {match_status}")
+                print(f"[MATCH_STATS] ⊘ Skipping stats calculation for match status: {match_status}")
             reset_points()
 
         return stats
@@ -188,6 +216,7 @@ class StatsService:
 
     # ==================== STANDINGS AGGREGATION ====================
 
+    @log_performance
     async def aggregate_round_standings(self, t_alias: str, s_alias: str, r_alias: str) -> None:
         """
         Aggregate standings for an entire round.
@@ -201,7 +230,7 @@ class StatsService:
             raise ValueError("MongoDB instance required for standings aggregation")
             
         if DEBUG_LEVEL > 0:
-            print(f'Calculating standings for {t_alias}, {s_alias}, {r_alias}...')
+            print(f'[STANDINGS] Calculating round standings for {t_alias}/{s_alias}/{r_alias}...')
         
         r_filter = {
             'alias': t_alias,
@@ -259,6 +288,7 @@ class StatsService:
             if DEBUG_LEVEL > 10:
                 print("Updated round standings: ", standings)
 
+    @log_performance
     async def aggregate_matchday_standings(self, t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> None:
         """
         Aggregate standings for a specific matchday.
@@ -273,7 +303,7 @@ class StatsService:
             raise ValueError("MongoDB instance required for standings aggregation")
             
         if DEBUG_LEVEL > 0:
-            print(f'Calculating standings for {t_alias}, {s_alias}, {r_alias}, {md_alias}...')
+            print(f'[STANDINGS] Calculating matchday standings for {t_alias}/{s_alias}/{r_alias}/{md_alias}...')
             
         md_filter = {
             'alias': t_alias,
@@ -376,6 +406,9 @@ class StatsService:
             Dictionary of team standings sorted by points, goal difference, etc.
         """
         standings = {}
+        
+        if DEBUG_LEVEL > 10:
+            print(f"[STANDINGS] Processing {len(matches)} matches for standings calculation")
         
         for match in matches:
             home_team = {
@@ -490,6 +523,7 @@ class StatsService:
 
     # ==================== ROSTER STATISTICS ====================
 
+    @log_performance
     async def calculate_roster_stats(self, match_id: str, team_flag: str) -> None:
         """
         Calculate and update roster statistics for a team in a match.
@@ -514,7 +548,7 @@ class StatsService:
             )
         
         if DEBUG_LEVEL > 0:
-            print(f'Calculating roster stats ({team_flag})...')
+            print(f'[ROSTER] Calculating roster stats for match {match_id} ({team_flag} team)...')
         
         try:
             async with httpx.AsyncClient() as client:
@@ -538,8 +572,9 @@ class StatsService:
                 updated_roster = self._apply_stats_to_roster(roster, player_stats)
                 
                 if DEBUG_LEVEL > 10:
-                    print("### player_stats", player_stats)
-                    print("### updated roster: ", updated_roster)
+                    players_with_stats = len([p for p in player_stats.values() if any(v > 0 for v in p.values())])
+                    print(f"[ROSTER] Updated {players_with_stats}/{len(player_stats)} players with stats")
+                    print(f"[ROSTER] Player stats summary: {player_stats}")
                 
                 # Save updated roster to database
                 await self._save_roster_to_db(match_id, team_flag, updated_roster)
@@ -701,6 +736,7 @@ class StatsService:
 
     # ==================== PLAYER CARD STATISTICS ====================
 
+    @log_performance
     async def calculate_player_card_stats(self, player_ids: List[str], t_alias: str, s_alias: str, 
                                          r_alias: str, md_alias: str, token_payload=None):
         """
@@ -719,7 +755,7 @@ class StatsService:
             raise ValueError("MongoDB instance required for player card stats calculation")
             
         if DEBUG_LEVEL > 0:
-            print(f'Calculating player card stats for {t_alias}, {s_alias}, {r_alias}, {md_alias} with {len(player_ids)} players...')
+            print(f'[PLAYER_STATS] Processing {len(player_ids)} players for {t_alias}/{s_alias}/{r_alias}/{md_alias}...')
 
         if not all([t_alias, s_alias, r_alias, md_alias]):
             return
@@ -875,6 +911,9 @@ class StatsService:
     async def _save_player_stats_to_db(self, player_card_stats: dict, t_alias: str, s_alias: str, 
                                       r_alias: str, md_alias: str, flag: str) -> None:
         """Save calculated player statistics to the database."""
+        if DEBUG_LEVEL > 10:
+            print(f"[PLAYER_STATS] Saving stats for {len(player_card_stats)} players ({flag})")
+        
         for player_id, stats_by_team in player_card_stats.items():
             for team_key, stats in stats_by_team.items():
                 player = await self.db['players'].find_one({"_id": player_id})
@@ -925,7 +964,12 @@ class StatsService:
         """Check calledMatches for affected players and update assignedTeams if needed."""
         base_url = os.environ.get('BE_API_URL', '')
         if not base_url or not token_payload:
+            if DEBUG_LEVEL > 10:
+                print("[CALLED_TEAMS] ⊘ Skipping called teams processing (no base_url or token)")
             return
+        
+        if DEBUG_LEVEL > 10:
+            print(f"[CALLED_TEAMS] Checking {len(player_ids)} players for called team assignments...")
 
         # Prepare authentication headers
         from authentication import AuthHandler
@@ -1046,9 +1090,12 @@ class StatsService:
             json={"assignedTeams": assigned_teams},
             headers=headers
         )
-        if update_response.status_code == 200 and DEBUG_LEVEL > 0:
-            if DEBUG_LEVEL > 10:
-                print(f"Added CALLED team assignment for player {player_id}")
+        if update_response.status_code == 200:
+            if DEBUG_LEVEL > 0:
+                print(f"[CALLED_TEAMS] ✓ Added CALLED assignment: Player {player_id} → Team {team_name}")
+        else:
+            if DEBUG_LEVEL > 0:
+                print(f"[CALLED_TEAMS] ✗ Failed to add assignment for player {player_id}: HTTP {update_response.status_code}")
 
     def _create_team_assignment(self, team_info: tuple) -> dict:
         """Create a team assignment dictionary."""
