@@ -73,28 +73,28 @@ Consolidate scattered statistics calculation logic from `utils.py` and various r
 
 ## Step-by-Step Implementation Plan
 
-### Phase 1: Create Service Structure (2-3 hours)
+### Phase 1: Create Service Structure ✅ COMPLETE
 
-#### Step 1.1: Create Service Directory & Base File
+#### Step 1.1: Create Service Directory & Base File ✅
 ```bash
 mkdir -p services
 touch services/__init__.py
 touch services/stats_service.py
 ```
 
-#### Step 1.2: Define Service Class Structure
+#### Step 1.2: Define Service Class Structure ✅
 Create `StatsService` class with clear responsibilities:
 - Match statistics calculation
 - Standings aggregation
 - Player statistics tracking
 - Roster statistics
 
-#### Step 1.3: Add Logging Infrastructure
+#### Step 1.3: Add Logging Infrastructure ✅
 - Import and configure logging
 - Add performance timing decorators
 - Create debug level controls
 
-### Phase 2: Extract Match Stats Logic (2 hours)
+### Phase 2: Extract Match Stats Logic ✅ COMPLETE
 
 #### Step 2.1: Move `calc_match_stats()` 
 **From:** `utils.py` lines ~250-350
@@ -114,7 +114,7 @@ Create `StatsService` class with clear responsibilities:
 
 **Why:** Always used together with match stats
 
-### Phase 3: Extract Standings Aggregation (3 hours)
+### Phase 3: Extract Standings Aggregation ✅ COMPLETE
 
 #### Step 3.1: Move `calc_standings_per_round()`
 **From:** `utils.py` lines ~400-600
@@ -134,7 +134,7 @@ Create `StatsService` class with clear responsibilities:
 - Share common logic with round standings
 - Extract aggregation logic to reusable helpers
 
-### Phase 4: Extract Roster Stats (2 hours)
+### Phase 4: Extract Roster Stats ✅ COMPLETE
 
 #### Step 4.1: Move `calc_roster_stats()`
 **From:** `utils.py` lines ~700-850
@@ -145,9 +145,9 @@ Create `StatsService` class with clear responsibilities:
 - Extract player lookup to helper
 - Add validation for team_flag parameter
 
-### Phase 5: Refactor Player Card Stats (4-5 hours)
+### Phase 5: Refactor Player Card Stats ✅ COMPLETE (4-5 hours)
 
-#### Step 5.1: Break Down `calc_player_card_stats()` - THE BIG ONE
+#### Step 5.1: Break Down `calc_player_card_stats()` - THE BIG ONE ✅
 **From:** `utils.py` (500+ lines!)
 **To:** Multiple focused methods in `StatsService`
 
