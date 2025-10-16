@@ -122,34 +122,12 @@ def validate_match_time(v, field_name: str):
   return v
 
 
-async def fetch_standings_settings(tournament_alias: str, season_alias: str) -> dict:
-  """
-  DEPRECATED: Use StatsService.get_standings_settings() instead.
-  This wrapper maintains backward compatibility.
-  """
-  from services.stats_service import StatsService
-  service = StatsService()
-  return await service.get_standings_settings(tournament_alias, season_alias)
+# fetch_standings_settings has been moved to services.stats_service.StatsService.get_standings_settings()
+# This function is deprecated - import StatsService directly instead
 
 
-def calc_match_stats(match_status,
-                     finish_type,
-                     standings_setting,
-                     home_score: int = 0,
-                     away_score: int = 0):
-  """
-  DEPRECATED: Use StatsService.calculate_match_stats() instead.
-  This wrapper maintains backward compatibility.
-  """
-  from services.stats_service import StatsService
-  service = StatsService()
-  return service.calculate_match_stats(
-      match_status, 
-      finish_type, 
-      standings_setting, 
-      home_score, 
-      away_score
-  )
+# calc_match_stats has been moved to services.stats_service.StatsService.calculate_match_stats()
+# This function is deprecated - import StatsService directly instead
 
 
 async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str,
