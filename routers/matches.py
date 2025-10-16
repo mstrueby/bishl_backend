@@ -6,8 +6,7 @@ from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
 from authentication import AuthHandler, TokenPayload
 from utils import (my_jsonable_encoder, parse_datetime,
-                   calc_standings_per_round,
-                   calc_standings_per_matchday, calc_roster_stats,
+                   calc_roster_stats,
                    calc_player_card_stats)
 from services.stats_service import StatsService
 import os
@@ -963,9 +962,11 @@ async def update_match(request: Request,
 
   # PHASE 1 OPTIMIZATION: Only update standings if stats changed, skip all heavy player calculations
   if stats_change_detected and t_alias and s_alias and r_alias:
-    await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
+    stats_service = StatsService(mongodb)
+    await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
   if stats_change_detected and t_alias and s_alias and r_alias and md_alias:
-    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+    stats_service = StatsService(mongodb)
+    await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
 
   # PHASE 1 OPTIMIZATION: Only calculate player card stats when both conditions are met:
   # 1. Stats-affecting changes detected AND 2. Match is/becomes FINISHED
@@ -1043,11 +1044,12 @@ async def delete_match(
 
     # Only update standings if we have all required aliases
     if t_alias and s_alias and r_alias:
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
+      stats_service = StatsService(mongodb)
+      await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
 
     if t_alias and s_alias and r_alias and md_alias:
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
-                                        md_alias)
+      stats_service = StatsService(mongodb)
+      await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
     # for each player in player_ids loop through stats list and compare tournament, season and round. if found then remove item from list
     if player_ids and t_alias and s_alias and r_alias:
       for player_id in player_ids:

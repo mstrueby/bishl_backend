@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler, TokenPayload
 from utils import (DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds,
-                   calc_standings_per_round, calc_standings_per_matchday,
                    calc_roster_stats, calc_player_card_stats,
                    populate_event_player_fields)
 from services.stats_service import StatsService
@@ -212,8 +211,9 @@ async def create_score(
           detail="Failed to update match with score")
 
     # PHASE 1 OPTIMIZATION: For INPROGRESS matches, only update standings (much faster)
-    await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+    stats_service = StatsService(mongodb)
+    await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+    await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
 
     if DEBUG_LEVEL > 0:
       print(f"Score added with incremental updates - Goal: {goal_player_id}, Assist: {assist_player_id}")
@@ -482,10 +482,11 @@ async def delete_one_score(
           detail=f"Score with ID {score_id} not found in match {match_id}")
 
     # PHASE 1 OPTIMIZATION: Only update standings, skip heavy player calculations for INPROGRESS
+    stats_service = StatsService(mongodb)
     if match_status == 'FINISHED':
       # Only do full calculations when match is finished
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+      await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+      await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
 
       # Full player stats calculation only on match finish
       player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
@@ -494,8 +495,8 @@ async def delete_one_score(
                                    r_alias, md_alias, token_payload)
     else:
       # For INPROGRESS matches, only update standings (much faster)
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+      await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+      await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
 
     if DEBUG_LEVEL > 0:
       print(f"Score deleted with incremental updates - Goal: {goal_player_id}, Assist: {assist_player_id}")
