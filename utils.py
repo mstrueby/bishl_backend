@@ -123,32 +123,13 @@ def validate_match_time(v, field_name: str):
 
 
 async def fetch_standings_settings(tournament_alias: str, season_alias: str) -> dict:
-  if not tournament_alias or not season_alias:
-    raise HTTPException(status_code=400, detail="Tournament and season aliases are required")
-
-  async with aiohttp.ClientSession() as session:
-    try:
-      async with session.get(
-          f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}"
-      ) as response:
-        if response.status != 200:
-          raise HTTPException(
-              status_code=404,
-              detail=f"Could not fetch standings settings: Tournament/Season {tournament_alias}/{season_alias} not found"
-          )
-        data = await response.json()
-        settings = data.get('standingsSettings')
-        if not settings:
-          raise HTTPException(
-              status_code=404,
-              detail=f"No standings settings found for {tournament_alias}/{season_alias}"
-          )
-        return settings
-    except aiohttp.ClientError as e:
-      raise HTTPException(
-          status_code=500,
-          detail=f"Failed to fetch standings settings: {str(e)}"
-      )
+  """
+  DEPRECATED: Use StatsService.get_standings_settings() instead.
+  This wrapper maintains backward compatibility.
+  """
+  from services.stats_service import StatsService
+  service = StatsService()
+  return await service.get_standings_settings(tournament_alias, season_alias)
 
 
 def calc_match_stats(match_status,
@@ -156,100 +137,19 @@ def calc_match_stats(match_status,
                      standings_setting,
                      home_score: int = 0,
                      away_score: int = 0):
-  stats = {'home': {}, 'away': {}}
-  if DEBUG_LEVEL > 0:
-    print("calculating match stats...")
-
-  def reset_points():
-    stats['home']['gamePlayed'] = 0
-    # reassign goals
-    stats['home']['goalsFor'] = home_score
-    stats['home']['goalsAgainst'] = away_score
-    stats['away']['goalsFor'] = away_score
-    stats['away']['goalsAgainst'] = home_score
-    stats['home']['points'] = 0
-    stats['home']['win'] = 0
-    stats['home']['loss'] = 0
-    stats['home']['draw'] = 0
-    stats['home']['otWin'] = 0
-    stats['home']['otLoss'] = 0
-    stats['home']['soWin'] = 0
-    stats['home']['soLoss'] = 0
-    stats['away']['gamePlayed'] = 0
-    stats['away']['points'] = 0
-    stats['away']['win'] = 0
-    stats['away']['loss'] = 0
-    stats['away']['draw'] = 0
-    stats['away']['otWin'] = 0
-    stats['away']['otLoss'] = 0
-    stats['away']['soWin'] = 0
-    stats['away']['soLoss'] = 0
-
-  if match_status in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
-    if DEBUG_LEVEL > 10:
-      print("set match stats")
-    # matchStats goals are always for the home team!
-    if finish_type == 'REGULAR':
-      reset_points()
-      stats['home']['gamePlayed'] = 1
-      stats['away']['gamePlayed'] = 1
-      if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-        # home team wins in regulation
-        stats['home']['win'] = 1
-        stats['home']['points'] = standings_setting.get("pointsWinReg")
-        stats['away']['loss'] = 1
-        stats['away']['points'] = standings_setting.get("pointsLossReg")
-      elif stats['home']['goalsFor'] < stats['away']['goalsFor']:
-        # away team wins in regulation
-        stats['home']['loss'] = 1
-        stats['home']['points'] = standings_setting.get("pointsLossReg")
-        stats['away']['win'] = 1
-        stats['away']['points'] = standings_setting.get("pointsWinReg")
-      else:
-        # draw
-        stats['home']['draw'] = 1
-        stats['home']['points'] = standings_setting.get("pointsDrawReg")
-        stats['away']['draw'] = 1
-        stats['away']['points'] = standings_setting.get("pointsDrawReg")
-    elif finish_type == 'OVERTIME':
-      reset_points()
-      stats['home']['gamePlayed'] = 1
-      stats['away']['gamePlayed'] = 1
-      if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-        # home team wins in OT
-        stats['home']['otWin'] = 1
-        stats['home']['points'] = standings_setting.get("pointsWinOvertime")
-        stats['away']['otLoss'] = 1
-        stats['away']['points'] = standings_setting.get("pointsLossOvertime")
-      else:
-        # away team wins in OT
-        stats['home']['otLoss'] = 1
-        stats['home']['points'] = standings_setting.get("pointsLossOvertime")
-        stats['away']['otWin'] = 1
-        stats['away']['points'] = standings_setting.get("pointsWinOvertime")
-    elif finish_type == 'SHOOTOUT':
-      reset_points()
-      stats['home']['gamePlayed'] = 1
-      stats['away']['gamePlayed'] = 1
-      if stats['home']['goalsFor'] > stats['away']['goalsFor']:
-        # home team wins in shootout
-        stats['home']['soWin'] = 1
-        stats['home']['points'] = standings_setting.get("pointsWinShootout")
-        stats['away']['soLoss'] = 1
-        stats['away']['points'] = standings_setting.get("pointsLossShootout")
-      else:
-        # away team wins in shootout
-        stats['home']['soLoss'] = 1
-        stats['home']['points'] = standings_setting.get("pointsLossShootout")
-        stats['away']['soWin'] = 1
-        stats['away']['points'] = standings_setting.get("pointsWinShootout")
-    else:
-      print("Unknown finish_type:", finish_type)
-  else:
-    if DEBUG_LEVEL > 0:
-      print("no match stats for matchStatus", match_status)
-    reset_points()
-  return stats
+  """
+  DEPRECATED: Use StatsService.calculate_match_stats() instead.
+  This wrapper maintains backward compatibility.
+  """
+  from services.stats_service import StatsService
+  service = StatsService()
+  return service.calculate_match_stats(
+      match_status, 
+      finish_type, 
+      standings_setting, 
+      home_score, 
+      away_score
+  )
 
 
 async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str,
