@@ -226,7 +226,7 @@ class StatsService:
             s_alias: Season alias
             r_alias: Round alias
         """
-        if not self.db:
+        if self.db is None:
             raise ValueError("MongoDB instance required for standings aggregation")
             
         if DEBUG_LEVEL > 0:
@@ -299,7 +299,7 @@ class StatsService:
             r_alias: Round alias
             md_alias: Matchday alias
         """
-        if not self.db:
+        if self.db is None:
             raise ValueError("MongoDB instance required for standings aggregation")
             
         if DEBUG_LEVEL > 0:
@@ -536,7 +536,7 @@ class StatsService:
         Raises:
             HTTPException: If team_flag is invalid or data cannot be fetched
         """
-        if not self.db:
+        if self.db is None:
             raise ValueError("MongoDB instance required for roster stats calculation")
             
         # Validate team_flag
@@ -751,7 +751,7 @@ class StatsService:
             md_alias: Matchday alias
             token_payload: Authentication token payload for API calls
         """
-        if not self.db:
+        if self.db is None:
             raise ValueError("MongoDB instance required for player card stats calculation")
             
         if DEBUG_LEVEL > 0:
