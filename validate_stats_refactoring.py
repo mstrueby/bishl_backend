@@ -68,9 +68,13 @@ async def validate_standings_calculation():
     """Validate standings aggregation with real data"""
     print("\n=== VALIDATING STANDINGS CALCULATION ===")
     
-    client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
-    mongodb = client[DB_NAME]
-    stats_service = StatsService(mongodb)
+    try:
+        client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
+        mongodb = client[DB_NAME]
+        stats_service = StatsService(mongodb)
+    except Exception as e:
+        print(f"✗ Failed to connect to database: {str(e)}")
+        return
     
     # Find a round with createStandings=true
     tournament = await mongodb['tournaments'].find_one({
@@ -141,9 +145,13 @@ async def validate_roster_stats():
     """Validate roster stats calculation with real data"""
     print("\n=== VALIDATING ROSTER STATS ===")
     
-    client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
-    mongodb = client[DB_NAME]
-    stats_service = StatsService(mongodb)
+    try:
+        client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
+        mongodb = client[DB_NAME]
+        stats_service = StatsService(mongodb)
+    except Exception as e:
+        print(f"✗ Failed to connect to database: {str(e)}")
+        return
     
     # Find a finished match
     match = await mongodb['matches'].find_one({
@@ -202,19 +210,24 @@ async def main():
     print("STATS SERVICE REFACTORING VALIDATION")
     print("=" * 60)
     
-    await validate_match_stats()
-    await validate_standings_calculation()
-    await validate_roster_stats()
-    await performance_comparison()
-    
-    print("\n" + "=" * 60)
-    print("VALIDATION COMPLETE")
-    print("=" * 60)
-    print("\nNext steps:")
-    print("1. Review any warnings above")
-    print("2. Test in production with DEBUG_LEVEL=1 to see detailed logs")
-    print("3. Monitor for errors in actual usage")
-    print("4. If all looks good, mark Phase 8 as complete!")
+    try:
+        await validate_match_stats()
+        await validate_standings_calculation()
+        await validate_roster_stats()
+        await performance_comparison()
+        
+        print("\n" + "=" * 60)
+        print("VALIDATION COMPLETE")
+        print("=" * 60)
+        print("\nNext steps:")
+        print("1. Review any warnings above")
+        print("2. Test in production with DEBUG_LEVEL=1 to see detailed logs")
+        print("3. Monitor for errors in actual usage")
+        print("4. If all looks good, mark Phase 8 as complete!")
+    except Exception as e:
+        print(f"\n✗ Validation failed with error: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
