@@ -181,7 +181,7 @@ class StatsService:
 - Simplify team assignment creation
 - Add better error handling for API calls
 
-### Phase 6: Update Router Imports (1 hour)
+### Phase 6: Update Router Imports ✅ COMPLETE (1 hour)
 
 #### Step 6.1: Update `routers/matches.py`
 Replace:

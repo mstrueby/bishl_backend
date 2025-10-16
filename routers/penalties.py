@@ -5,7 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import (my_jsonable_encoder,
+from utils import (validate_match_time,
                    calc_player_card_stats,
                    populate_event_player_fields)
 from services.stats_service import StatsService
@@ -52,11 +52,11 @@ async def get_penalty_object(mongodb, match_id: str, team_flag: str,
   return_data = penalty[team_flag]["penalties"][0]
   # Parse matchSeconds to a string format
   if 'matchSecondsStart' in return_data:
-    return_data['matchTimeStart'] = parse_time_from_seconds(
+    return_data['matchTimeStart'] = validate_match_time(
         return_data['matchSecondsStart'])
   if 'matchSecondsEnd' in return_data and return_data[
       'matchSecondsEnd'] is not None:
-    return_data['matchTimeEnd'] = parse_time_from_seconds(
+    return_data['matchTimeEnd'] = validate_match_time(
         return_data['matchSecondsEnd'])
 
   # Populate EventPlayer fields
@@ -90,10 +90,10 @@ async def get_penalty_sheet(
 
   for penalty in penalties:
     if 'matchSecondsStart' in penalty:
-      penalty['matchTimeStart'] = parse_time_from_seconds(
+      penalty['matchTimeStart'] = validate_match_time(
           penalty['matchSecondsStart'])
     if 'matchSecondsEnd' in penalty and penalty['matchSecondsEnd'] is not None:
-      penalty['matchTimeEnd'] = parse_time_from_seconds(
+      penalty['matchTimeEnd'] = validate_match_time(
           penalty['matchSecondsEnd'])
     if penalty.get('penaltyPlayer'):
       penalty['penaltyPlayer'] = await populate_event_player_fields(
@@ -156,10 +156,10 @@ async def create_penalty(
     penalty_data["_id"] = new_penalty_id
     penalty_data.update(penalty.model_dump())
     penalty_data.pop("id")
-    penalty_data["matchSecondsStart"] = parse_time_to_seconds(
+    penalty_data["matchSecondsStart"] = validate_match_time(
         penalty_data["matchTimeStart"])
     if penalty_data["matchTimeEnd"] is not None:
-      penalty_data["matchSecondsEnd"] = parse_time_to_seconds(
+      penalty_data["matchSecondsEnd"] = validate_match_time(
           penalty_data['matchTimeEnd'])
     penalty_data = jsonable_encoder(penalty_data)
 
@@ -173,7 +173,7 @@ async def create_penalty(
 
     # Execute the optimized update
     update_result = await mongodb["matches"].update_one(
-        {"_id": match_id}, 
+        {"_id": match_id},
         update_operations,
         array_filters=array_filters
     )
@@ -269,11 +269,11 @@ async def patch_one_penalty(
   # Update data
   penalty_data = penalty.model_dump(exclude_unset=True)
   if 'matchTimeStart' in penalty_data:
-    penalty_data['matchSecondsStart'] = parse_time_to_seconds(
+    penalty_data['matchSecondsStart'] = validate_match_time(
         penalty_data['matchTimeStart'])
     #penalty_data.pop('matchTimeStart')
   if 'matchTimeEnd' in penalty_data:
-    penalty_data['matchSecondsEnd'] = parse_time_to_seconds(
+    penalty_data['matchSecondsEnd'] = validate_match_time(
         penalty_data['matchTimeEnd'])
     #penalty_data.pop('matchTimeEnd')
   penalty_data = jsonable_encoder(penalty_data)

@@ -7,7 +7,7 @@ from models.matches import RosterPlayer
 from authentication import AuthHandler, TokenPayload
 import httpx
 import os
-from utils import calc_player_card_stats, populate_event_player_fields
+from services.stats_service import StatsService
 
 router = APIRouter()
 auth = AuthHandler()
@@ -38,12 +38,12 @@ async def get_roster(
   if not isinstance(roster, list):
     raise HTTPException(status_code=500,
                         detail="Unexpected data structure in roster")
-  
+
   # Populate display fields from player data
   for roster_entry in roster:
     if roster_entry.get("player"):
       await populate_event_player_fields(mongodb, roster_entry["player"])
-  
+
   roster_players = [RosterPlayer(**player) for player in roster]
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(roster_players))
@@ -132,7 +132,7 @@ async def update_roster(
         {"_id": match_id}, {"$set": {
             f"{team_flag}.roster": roster_data
         }})
-    
+
     # Update jersey numbers in scores and penalties
     if jersey_updates:
       # Update scores - goal players
@@ -142,29 +142,29 @@ async def update_roster(
             {"$set": {f"{team_flag}.scores.$[score].goalPlayer.jerseyNumber": jersey_number}},
             array_filters=[{"score.goalPlayer.playerId": player_id}]
         )
-        
+
         # Update scores - assist players
         await mongodb["matches"].update_one(
             {"_id": match_id},
             {"$set": {f"{team_flag}.scores.$[score].assistPlayer.jerseyNumber": jersey_number}},
             array_filters=[{"score.assistPlayer.playerId": player_id}]
         )
-        
+
         # Update penalties
         await mongodb["matches"].update_one(
             {"_id": match_id},
             {"$set": {f"{team_flag}.penalties.$[penalty].penaltyPlayer.jerseyNumber": jersey_number}},
             array_filters=[{"penalty.penaltyPlayer.playerId": player_id}]
         )
-      
+
       if DEBUG_LEVEL > 0:
         print(f"Updated jersey numbers for {len(jersey_updates)} players in scores/penalties")
-    
+
     # PHASE 1 OPTIMIZATION: Skip heavy player calculations completely
     # Roster stats within the match document are maintained via incremental updates in scores/penalties
     if DEBUG_LEVEL > 0:
       print(f"Roster updated - skipped heavy player calculations for match {match_id}")
-    
+
     return await get_roster(request, match_id, team_flag)
 
   except Exception as e:
