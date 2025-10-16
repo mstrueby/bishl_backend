@@ -6,7 +6,6 @@ from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
 from authentication import AuthHandler, TokenPayload
 from utils import (my_jsonable_encoder, parse_datetime,
-                   calc_roster_stats,
                    calc_player_card_stats)
 from services.stats_service import StatsService
 import os
@@ -732,10 +731,11 @@ async def create_match(
 
     if DEBUG_LEVEL > 0:
       print("calc_roster_stats (home) ...")
-    await calc_roster_stats(mongodb, result.inserted_id, 'home')
+    stats_service = StatsService(mongodb)
+    await stats_service.calculate_roster_stats(result.inserted_id, 'home')
     if DEBUG_LEVEL > 0:
       print("calc_roster_stats (away) ...")
-    await calc_roster_stats(mongodb, result.inserted_id, 'away')
+    await stats_service.calculate_roster_stats(result.inserted_id, 'away')
 
     # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
     # Player stats will be calculated when match status changes to FINISHED
@@ -952,8 +952,9 @@ async def update_match(request: Request,
 
     if stats_recalc_needed:
       # Recalculate roster stats since goals/assists/penalties changed
-      await calc_roster_stats(mongodb, match_id, 'home')
-      await calc_roster_stats(mongodb, match_id, 'away')
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_roster_stats(match_id, 'home')
+      await stats_service.calculate_roster_stats(match_id, 'away')
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))

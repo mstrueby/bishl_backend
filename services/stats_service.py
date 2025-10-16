@@ -488,12 +488,219 @@ class StatsService:
             if len(team_standings['streak']) > 5:
                 team_standings['streak'].pop(0)
 
+    # ==================== ROSTER STATISTICS ====================
+
+    async def calculate_roster_stats(self, match_id: str, team_flag: str) -> None:
+        """
+        Calculate and update roster statistics for a team in a match.
+        Updates goals, assists, points, and penalty minutes for each player.
+        
+        Args:
+            match_id: The ID of the match
+            team_flag: The team flag ('home' or 'away')
+            
+        Raises:
+            HTTPException: If team_flag is invalid or data cannot be fetched
+        """
+        if not self.db:
+            raise ValueError("MongoDB instance required for roster stats calculation")
+            
+        # Validate team_flag
+        team_flag = team_flag.lower()
+        if team_flag not in ['home', 'away']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid team flag: {team_flag}. Must be 'home' or 'away'"
+            )
+        
+        if DEBUG_LEVEL > 0:
+            print(f'Calculating roster stats ({team_flag})...')
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                # Fetch roster
+                roster = await self._fetch_roster(client, match_id, team_flag)
+                
+                # Fetch scoreboard and penaltysheet
+                scoreboard = await self._fetch_scoreboard(client, match_id, team_flag)
+                penaltysheet = await self._fetch_penaltysheet(client, match_id, team_flag)
+                
+                # Initialize player stats from roster
+                player_stats = self._initialize_roster_player_stats(roster)
+                
+                # Calculate stats from scores
+                self._calculate_scoring_stats(scoreboard, player_stats)
+                
+                # Calculate stats from penalties
+                self._calculate_penalty_stats(penaltysheet, player_stats)
+                
+                # Update roster with calculated stats
+                updated_roster = self._apply_stats_to_roster(roster, player_stats)
+                
+                if DEBUG_LEVEL > 10:
+                    print("### player_stats", player_stats)
+                    print("### updated roster: ", updated_roster)
+                
+                # Save updated roster to database
+                await self._save_roster_to_db(match_id, team_flag, updated_roster)
+                
+        except httpx.HTTPError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to fetch match data: {str(e)}"
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to calculate roster stats: {str(e)}"
+            )
+
+    async def _fetch_roster(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
+        """Fetch roster for a team from the API"""
+        response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to fetch roster for {team_flag} team in match {match_id}"
+            )
+        return response.json()
+
+    async def _fetch_scoreboard(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
+        """Fetch scoreboard for a team from the API"""
+        response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/scores/")
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to fetch scoreboard for {team_flag} team in match {match_id}"
+            )
+        return response.json()
+
+    async def _fetch_penaltysheet(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
+        """Fetch penaltysheet for a team from the API"""
+        response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/penalties/")
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to fetch penaltysheet for {team_flag} team in match {match_id}"
+            )
+        return response.json()
+
+    def _initialize_roster_player_stats(self, roster: List[dict]) -> dict:
+        """
+        Initialize stats dictionary for all players in roster.
+        
+        Args:
+            roster: List of roster player entries
+            
+        Returns:
+            Dictionary mapping player_id to initialized stats
+        """
+        player_stats = {}
+        for roster_player in roster:
+            player_id = roster_player.get('player', {}).get('playerId')
+            if player_id:
+                player_stats[player_id] = {
+                    'goals': 0,
+                    'assists': 0,
+                    'points': 0,
+                    'penaltyMinutes': 0
+                }
+        return player_stats
+
+    def _calculate_scoring_stats(self, scoreboard: List[dict], player_stats: dict) -> None:
+        """
+        Calculate goals and assists from scoreboard.
+        Updates player_stats dictionary in place.
+        
+        Args:
+            scoreboard: List of score entries
+            player_stats: Dictionary of player stats to update
+        """
+        for score in scoreboard:
+            # Process goal scorer
+            goal_player_id = score.get('goalPlayer', {}).get('playerId')
+            if goal_player_id:
+                if goal_player_id not in player_stats:
+                    player_stats[goal_player_id] = {
+                        'goals': 0, 'assists': 0, 'points': 0, 'penaltyMinutes': 0
+                    }
+                player_stats[goal_player_id]['goals'] += 1
+                player_stats[goal_player_id]['points'] += 1
+
+            # Process assist player
+            assist_player = score.get('assistPlayer')
+            assist_player_id = assist_player.get('playerId') if assist_player else None
+            if assist_player_id:
+                if assist_player_id not in player_stats:
+                    player_stats[assist_player_id] = {
+                        'goals': 0, 'assists': 0, 'points': 0, 'penaltyMinutes': 0
+                    }
+                player_stats[assist_player_id]['assists'] += 1
+                player_stats[assist_player_id]['points'] += 1
+
+    def _calculate_penalty_stats(self, penaltysheet: List[dict], player_stats: dict) -> None:
+        """
+        Calculate penalty minutes from penaltysheet.
+        Updates player_stats dictionary in place.
+        
+        Args:
+            penaltysheet: List of penalty entries
+            player_stats: Dictionary of player stats to update
+        """
+        for penalty in penaltysheet:
+            pen_player_id = penalty.get('penaltyPlayer', {}).get('playerId')
+            if pen_player_id:
+                if pen_player_id not in player_stats:
+                    player_stats[pen_player_id] = {
+                        'goals': 0, 'assists': 0, 'points': 0, 'penaltyMinutes': 0
+                    }
+                player_stats[pen_player_id]['penaltyMinutes'] += penalty.get('penaltyMinutes', 0)
+
+    def _apply_stats_to_roster(self, roster: List[dict], player_stats: dict) -> List[dict]:
+        """
+        Apply calculated stats to roster entries.
+        
+        Args:
+            roster: Original roster list
+            player_stats: Dictionary of calculated player stats
+            
+        Returns:
+            Updated roster list with stats applied
+        """
+        for roster_player in roster:
+            player_id = roster_player.get('player', {}).get('playerId')
+            if player_id and player_id in player_stats:
+                roster_player.update(player_stats[player_id])
+        return roster
+
+    async def _save_roster_to_db(self, match_id: str, team_flag: str, roster: List[dict]) -> None:
+        """
+        Save updated roster to the database.
+        
+        Args:
+            match_id: The match ID
+            team_flag: The team flag ('home' or 'away')
+            roster: Updated roster list
+        """
+        if roster:
+            try:
+                result = await self.db["matches"].update_one(
+                    {"_id": match_id},
+                    {"$set": {f"{team_flag}.roster": roster}}
+                )
+                if not result.acknowledged:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to update roster in database"
+                    )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Could not update roster in mongoDB: {str(e)}"
+                )
+
     # ==================== PLACEHOLDER METHODS ====================
     # These will be implemented in subsequent phases
-
-    async def calculate_roster_stats(self, match_id: str, team_flag: str):
-        """Calculate roster stats for a team - To be implemented in Phase 4"""
-        pass
 
     async def calculate_player_card_stats(self, player_ids: List[str], t_alias: str, s_alias: str, 
                                          r_alias: str, md_alias: str, token_payload=None):
