@@ -223,23 +223,37 @@ stats_service = StatsService()
 - ✅ Add prefixed logging categories: [STATS], [STANDINGS], [ROSTER], [PLAYER_STATS], [CALLED_TEAMS], [MATCH_STATS]
 - ✅ Use visual indicators: ✓ (success), ✗ (failure), ⊘ (skipped)
 
-### Phase 8: Testing & Validation (2-3 hours)
+### Phase 8: Manual Testing & Validation ✅ READY (1-2 hours)
 
-#### Step 8.1: Create Test Match Scenarios
-- Regular time win/loss/draw
-- Overtime scenarios
-- Shootout scenarios
-- Forfeited matches
+**Note:** Full testing infrastructure deferred to separate story. Using validation scripts instead.
 
-#### Step 8.2: Validate Stats Consistency
-- Compare old vs new calculations
-- Verify standings aggregation
-- Check player card stats accuracy
+#### Step 8.1: Run Automated Validation Script ✅
+```bash
+python validate_stats_refactoring.py
+```
+- Validates match stats calculation (9 scenarios)
+- Compares old vs new standings
+- Verifies roster stats accuracy
+- Checks performance logging
 
-#### Step 8.3: Performance Testing
-- Measure improvement in match updates
-- Test with large tournaments
-- Validate PHASE 1 optimization still works
+#### Step 8.2: Manual Smoke Tests ✅
+Use checklist: `specs/manual-testing-checklist.md`
+- Test match stats in real matches
+- Verify standings recalculation
+- Check roster updates
+- Monitor performance logs
+
+#### Step 8.3: Edge Case Validation ✅
+- Scheduled matches (no stats)
+- Overtime/shootout scenarios
+- Empty rosters
+- Called teams processing (5+ matches)
+
+#### Step 8.4: Performance Monitoring ✅
+- Set DEBUG_LEVEL=1 for timing logs
+- Monitor [STATS] console output
+- Verify <2s for round standings
+- Check no performance degradation
 
 ---
 
