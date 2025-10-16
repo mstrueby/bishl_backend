@@ -5,7 +5,11 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
 from authentication import AuthHandler, TokenPayload
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token, populate_event_player_fields
+from utils import (my_jsonable_encoder, parse_datetime,
+                   calc_standings_per_round,
+                   calc_standings_per_matchday, calc_roster_stats,
+                   calc_player_card_stats)
+from services.stats_service import StatsService
 import os
 import isodate
 from datetime import datetime, timedelta
@@ -56,7 +60,7 @@ def convert_seconds_to_times(data):
             penalty["matchSecondsEnd"])
   for penalty in (data.get("away", {}).get("penalties") or []):
     if penalty is not None:
-      penalty["matchTimeStart"] = parse_time_from_seconds(
+      penalty["matchTimeStart"] = parse_time_to_seconds(
           penalty["matchSecondsStart"])
       if penalty.get('matchSecondsEnd') is not None:
         penalty["matchTimeEnd"] = parse_time_from_seconds(
@@ -617,20 +621,26 @@ async def create_match(
         and hasattr(match.season, 'alias')):
       if DEBUG_LEVEL > 10:
         print("get standingsSettings")
-      standings_settings = await fetch_standings_settings(
+      # fetch standing settings
+      stats_service = StatsService()
+      standings_settings = await stats_service.get_standings_settings(
           match.tournament.alias, match.season.alias)
       if DEBUG_LEVEL > 10:
         print(standings_settings)
       home_score = 0 if match.home is None or not match.home.stats or match.home.stats.goalsFor is None else match.home.stats.goalsFor
       away_score = 0 if match.away is None or not match.away.stats or match.away.stats.goalsFor is None else match.away.stats.goalsFor
-      stats = calc_match_stats(match.matchStatus.key, match.finishType.key,
-                               standings_settings, home_score, away_score)
+
+      match_stats = stats_service.calculate_match_stats(
+          match.matchStatus.key, match.finishType.key,
+          standings_settings,
+          home_score=home_score,
+          away_score=away_score)
       if DEBUG_LEVEL > 20:
-        print("stats: ", stats)
+        print("stats: ", match_stats)
 
       # Now safely assign the stats
-      match.home.stats = MatchStats(**stats['home'])
-      match.away.stats = MatchStats(**stats['away'])
+      match.home.stats = MatchStats(**match_stats['home'])
+      match.away.stats = MatchStats(**match_stats['away'])
 
     t_alias = match.tournament.alias if match.tournament is not None else None
     s_alias = match.season.alias if match.season is not None else None
@@ -824,17 +834,24 @@ async def update_match(request: Request,
         away_stats and away_stats.goalsFor
         is not None) else existing_match['away']['stats']['goalsFor']
 
-    stats = calc_match_stats(new_match_status, new_finish_type, await
-                             fetch_standings_settings(t_alias, s_alias),
-                             home_goals, away_goals)
+    # fetch standing settings
+    stats_service = StatsService()
+    standings_settings = await stats_service.get_standings_settings(
+        t_alias, s_alias)
+
+    match_stats = stats_service.calculate_match_stats(
+        new_match_status, new_finish_type,
+        standings_settings,
+        home_score=home_goals,
+        away_score=away_goals)
     if getattr(match, 'home', None) is None:
       match.home = MatchTeamUpdate()
     if getattr(match, 'away', None) is None:
       match.away = MatchTeamUpdate()
 
-    if match.home and match.away and stats is not None:
-      match.home.stats = MatchStats(**stats['home'])
-      match.away.stats = MatchStats(**stats['away'])
+    if match.home and match.away and match_stats is not None:
+      match.home.stats = MatchStats(**match_stats['home'])
+      match.away.stats = MatchStats(**match_stats['away'])
     else:
       raise ValueError("Calculating match statistics returned None")
 
@@ -945,8 +962,9 @@ async def update_match(request: Request,
   updated_match = await get_match_object(mongodb, match_id)
 
   # PHASE 1 OPTIMIZATION: Only update standings if stats changed, skip all heavy player calculations
-  if stats_change_detected and t_alias and s_alias and r_alias and md_alias:
+  if stats_change_detected and t_alias and s_alias and r_alias:
     await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
+  if stats_change_detected and t_alias and s_alias and r_alias and md_alias:
     await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
 
   # PHASE 1 OPTIMIZATION: Only calculate player card stats when both conditions are met:
@@ -997,12 +1015,12 @@ async def delete_match(
     season = match.get('season') or {}
     round_data = match.get('round') or {}
     matchday = match.get('matchday') or {}
-    
+
     t_alias = tournament.get('alias', None)
     s_alias = season.get('alias', None)
     r_alias = round_data.get('alias', None)
     md_alias = matchday.get('alias', None)
-    
+
     home_players = [
         player['player']['playerId']
         for player in match.get('home', {}).get('roster') or []
@@ -1026,7 +1044,7 @@ async def delete_match(
     # Only update standings if we have all required aliases
     if t_alias and s_alias and r_alias:
       await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-    
+
     if t_alias and s_alias and r_alias and md_alias:
       await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
                                         md_alias)

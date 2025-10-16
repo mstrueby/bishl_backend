@@ -5,7 +5,11 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds, calc_roster_stats, calc_player_card_stats, populate_event_player_fields
+from utils import (my_jsonable_encoder,
+                   calc_standings_per_round, calc_standings_per_matchday,
+                   calc_roster_stats, calc_player_card_stats,
+                   populate_event_player_fields)
+from services.stats_service import StatsService
 
 router = APIRouter()
 auth = AuthHandler()
@@ -115,7 +119,7 @@ async def create_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  
+
   #check
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -292,7 +296,7 @@ async def patch_one_penalty(
             status_code=404,
             detail=f"Penalty with ID {penalty_id} not found in match {match_id}"
         )
-      
+
       # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
       # Only recalculate roster stats (lightweight operation)
       await calc_roster_stats(mongodb, match_id, team_flag)
@@ -322,7 +326,7 @@ async def delete_one_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  
+
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
