@@ -1,30 +1,37 @@
 from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, EmailStr, validator
+from pydantic import Field, BaseModel, HttpUrl, EmailStr, field_validator, ConfigDict
+from pydantic_core import core_schema
 from typing import Optional, List
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_validators__(cls):
-    yield cls.validate
+  def __get_pydantic_core_schema__(cls, source_type, handler):
+    return core_schema.no_info_plain_validator_function(
+      cls.validate,
+      serialization=core_schema.plain_serializer_function_ser_schema(
+        lambda x: str(x)
+      )
+    )
 
   @classmethod
   def validate(cls, v):
+    if isinstance(v, ObjectId):
+      return v
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
-  @classmethod
-  def __modify_schema__(cls, field_schema):
-    field_schema.update(type="string")
-
 
 class MongoBaseModel(BaseModel):
+  model_config = ConfigDict(
+    populate_by_name=True,
+    arbitrary_types_allowed=True,
+    json_encoders={ObjectId: str}
+  )
+  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-
-  class Config:
-    json_encoders = {ObjectId: str}
 
 
 # Clubs
@@ -55,7 +62,8 @@ class TeamBase(MongoBaseModel):
   ishdId: Optional[str] = None
   legacyId: Optional[int] = None
 
-  @validator('ishdId', pre=True, always=True)
+  @field_validator('ishdId', mode='before')
+  @classmethod
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
@@ -76,7 +84,8 @@ class TeamBase(MongoBaseModel):
 """
 
 
-@validator('teamNumber', pre=True, always=True)
+@field_validator('teamNumber', mode='before')
+@classmethod
 def int_must_be_positive(cls, v):
   if v < 1 or v is None:
     raise ValueError("Field must be positive")
@@ -101,7 +110,8 @@ class TeamUpdate(MongoBaseModel):
   ishdId: Optional[str] = None
   legacyId: Optional[int] = None
 
-  @validator('ishdId', pre=True, always=True)
+  @field_validator('ishdId', mode='before')
+  @classmethod
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
@@ -145,13 +155,13 @@ class ClubBase(MongoBaseModel):
   legacyId: Optional[int] = None
   logoUrl: Optional[HttpUrl] = None
 
-  @validator('email',
+  @field_validator('email',
              'website',
              'yearOfFoundation',
              'ishdId',
              'logoUrl',
-             pre=True,
-             always=True)
+             mode='before')
+  @classmethod
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
@@ -185,7 +195,8 @@ class ClubUpdate(MongoBaseModel):
   legacyId: Optional[int] = None
   logoUrl: Optional[str] = None
 
-  @validator('email', 'website', 'logoUrl', pre=True, always=True)
+  @field_validator('email', 'website', 'logoUrl', mode='before')
+  @classmethod
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 

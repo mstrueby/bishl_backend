@@ -231,7 +231,7 @@ async def update_document(request: Request,
       alias=alias,
       category=category,
       published=published,
-  ).dict(exclude_none=True)
+  ).model_dump(exclude_none=True)
   doc_data.pop("id", None)
   print("doc_data: ", doc_data)
 

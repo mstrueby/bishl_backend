@@ -150,7 +150,7 @@ async def update_season(
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
   print("input season: ", season)
   # exclude unset
-  season_dict = season.dict(exclude_unset=True)
+  season_dict = season.model_dump(exclude_unset=True)
   print("exclude unset: ", season_dict)
 
   # Find the tournament by alias

@@ -5,7 +5,10 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds, calc_roster_stats, calc_player_card_stats, populate_event_player_fields
+from utils import (validate_match_time,
+                   calc_player_card_stats,
+                   populate_event_player_fields)
+from services.stats_service import StatsService
 
 router = APIRouter()
 auth = AuthHandler()
@@ -49,11 +52,11 @@ async def get_penalty_object(mongodb, match_id: str, team_flag: str,
   return_data = penalty[team_flag]["penalties"][0]
   # Parse matchSeconds to a string format
   if 'matchSecondsStart' in return_data:
-    return_data['matchTimeStart'] = parse_time_from_seconds(
+    return_data['matchTimeStart'] = validate_match_time(
         return_data['matchSecondsStart'])
   if 'matchSecondsEnd' in return_data and return_data[
       'matchSecondsEnd'] is not None:
-    return_data['matchTimeEnd'] = parse_time_from_seconds(
+    return_data['matchTimeEnd'] = validate_match_time(
         return_data['matchSecondsEnd'])
 
   # Populate EventPlayer fields
@@ -87,10 +90,10 @@ async def get_penalty_sheet(
 
   for penalty in penalties:
     if 'matchSecondsStart' in penalty:
-      penalty['matchTimeStart'] = parse_time_from_seconds(
+      penalty['matchTimeStart'] = validate_match_time(
           penalty['matchSecondsStart'])
     if 'matchSecondsEnd' in penalty and penalty['matchSecondsEnd'] is not None:
-      penalty['matchTimeEnd'] = parse_time_from_seconds(
+      penalty['matchTimeEnd'] = validate_match_time(
           penalty['matchSecondsEnd'])
     if penalty.get('penaltyPlayer'):
       penalty['penaltyPlayer'] = await populate_event_player_fields(
@@ -115,7 +118,7 @@ async def create_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  
+
   #check
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
@@ -151,12 +154,12 @@ async def create_penalty(
     penalty_data = {}
     new_penalty_id = str(ObjectId())
     penalty_data["_id"] = new_penalty_id
-    penalty_data.update(penalty.dict())
+    penalty_data.update(penalty.model_dump())
     penalty_data.pop("id")
-    penalty_data["matchSecondsStart"] = parse_time_to_seconds(
+    penalty_data["matchSecondsStart"] = validate_match_time(
         penalty_data["matchTimeStart"])
     if penalty_data["matchTimeEnd"] is not None:
-      penalty_data["matchSecondsEnd"] = parse_time_to_seconds(
+      penalty_data["matchSecondsEnd"] = validate_match_time(
           penalty_data['matchTimeEnd'])
     penalty_data = jsonable_encoder(penalty_data)
 
@@ -170,7 +173,7 @@ async def create_penalty(
 
     # Execute the optimized update
     update_result = await mongodb["matches"].update_one(
-        {"_id": match_id}, 
+        {"_id": match_id},
         update_operations,
         array_filters=array_filters
     )
@@ -264,13 +267,13 @@ async def patch_one_penalty(
         detail=f"Penalty with id {penalty_id} not found in match {match_id}")
 
   # Update data
-  penalty_data = penalty.dict(exclude_unset=True)
+  penalty_data = penalty.model_dump(exclude_unset=True)
   if 'matchTimeStart' in penalty_data:
-    penalty_data['matchSecondsStart'] = parse_time_to_seconds(
+    penalty_data['matchSecondsStart'] = validate_match_time(
         penalty_data['matchTimeStart'])
     #penalty_data.pop('matchTimeStart')
   if 'matchTimeEnd' in penalty_data:
-    penalty_data['matchSecondsEnd'] = parse_time_to_seconds(
+    penalty_data['matchSecondsEnd'] = validate_match_time(
         penalty_data['matchTimeEnd'])
     #penalty_data.pop('matchTimeEnd')
   penalty_data = jsonable_encoder(penalty_data)
@@ -292,10 +295,11 @@ async def patch_one_penalty(
             status_code=404,
             detail=f"Penalty with ID {penalty_id} not found in match {match_id}"
         )
-      
+
       # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
       # Only recalculate roster stats (lightweight operation)
-      await calc_roster_stats(mongodb, match_id, team_flag)
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_roster_stats(match_id, team_flag)
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -322,7 +326,7 @@ async def delete_one_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  
+
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")

@@ -7,7 +7,7 @@ from typing import List, Optional, Dict
 from bson.objectid import ObjectId
 from fastapi import UploadFile
 from pydantic import HttpUrl, BaseModel
-from pydantic.types import OptionalInt
+from typing import Optional
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, SexEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
@@ -1469,7 +1469,7 @@ async def update_player(request: Request,
                                managedByISHD=managedByISHD,
                                imageVisible=imageVisible,
                                source=source,
-                               sex=sex).dict(exclude_none=True)
+                               sex=sex).model_dump(exclude_none=True)
 
     player_data.pop('id', None)
     if image:

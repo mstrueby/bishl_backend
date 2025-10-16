@@ -208,10 +208,10 @@ async def update_user(
             lastName=lastName,
             club=Club(**json.loads(club)) if club else None,
             roles=[Role(role) for role in roles] if roles else None,
-            referee=json.loads(referee) if referee else None).dict(
+            referee=json.loads(referee) if referee else None).model_dump(
                 exclude_none=True,
         )
-        #user_data = UserUpdate(**user_update_fields).dict(exclude_none=True)
+        #user_data = UserUpdate(**user_update_fields).model_dump(exclude_none=True)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Failed to parse input data: {e}") from e

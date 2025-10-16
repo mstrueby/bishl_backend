@@ -1,6 +1,7 @@
 from bson import ObjectId
 from datetime import datetime
-from pydantic import Field, BaseModel, HttpUrl, validator
+from pydantic import Field, BaseModel, HttpUrl, field_validator, ConfigDict
+from pydantic_core import core_schema
 from typing import Optional, List, Dict
 from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings
 from enum import Enum
@@ -9,25 +10,31 @@ from enum import Enum
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_validators__(cls):
-    yield cls.validate
+  def __get_pydantic_core_schema__(cls, source_type, handler):
+    return core_schema.no_info_plain_validator_function(
+      cls.validate,
+      serialization=core_schema.plain_serializer_function_ser_schema(
+        lambda x: str(x)
+      )
+    )
 
   @classmethod
   def validate(cls, v):
+    if isinstance(v, ObjectId):
+      return v
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
-  @classmethod
-  def __modify_schema__(cls, field_schema):
-    field_schema.update(type="string")
-
 
 class MongoBaseModel(BaseModel):
+  model_config = ConfigDict(
+    populate_by_name=True,
+    arbitrary_types_allowed=True,
+    json_encoders={ObjectId: str}
+  )
+  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-
-  class Config:
-    json_encoders = {ObjectId: str}
 
 
 # sub documents
@@ -39,9 +46,10 @@ class Teams(BaseModel):
   tinyName: str = Field(...)
   logo: Optional[HttpUrl] = None
 
-  @validator('logo', pre=True, always=True)
-  def validate_logo(cls, v):
-    return empty_str_to_none(v, 'logo')
+  @field_validator('logo', mode='before')
+  @classmethod
+  def validate_logo(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
 
 
 class Standings(BaseModel):
@@ -110,13 +118,15 @@ class MatchdayBase(MongoBaseModel):
   standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
   owner: Optional[MatchdayOwner] = Field(default_factory=dict)
 
-  @validator('startDate', 'endDate', pre=True, always=True)
-  def validate_strings(cls, v, field):
-    return empty_str_to_none(v, field.name)
+  @field_validator('startDate', 'endDate', mode='before')
+  @classmethod
+  def validate_strings(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
 
-  @validator('name', 'alias', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('name', 'alias', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
 class MatchdayDB(MatchdayBase):
   pass
@@ -135,13 +145,15 @@ class MatchdayUpdate(MongoBaseModel):
   standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
   owner: Optional[MatchdayOwner] = Field(default_factory=dict)
 
-  @validator('startDate', 'endDate', pre=True, always=True)
-  def validate_strings(cls, v, field):
-    return empty_str_to_none(v, field.name)
+  @field_validator('startDate', 'endDate', mode='before')
+  @classmethod
+  def validate_strings(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
 
-  @validator('name', 'alias', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('name', 'alias', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
 
 class RoundBase(MongoBaseModel):
@@ -159,17 +171,20 @@ class RoundBase(MongoBaseModel):
   matchdays: Optional[List[MatchdayBase]] = Field(default_factory=list)
   standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
 
-  @validator('startDate', 'endDate', pre=True, always=True)
-  def validate_strings(cls, v, field):
-    return empty_str_to_none(v, field.name)
+  @field_validator('startDate', 'endDate', mode='before')
+  @classmethod
+  def validate_strings(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
 
-  @validator('name', 'alias', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('name', 'alias', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
-  @validator('matchdaysType', 'matchdaysSortedBy', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
+  @field_validator('matchdaysType', 'matchdaysSortedBy', mode='before')
+  @classmethod
+  def validate_type(cls, v, info):
+    return validate_dict_of_strings(v, info.field_name)
 
 
 class RoundDB(RoundBase):
@@ -191,17 +206,20 @@ class RoundUpdate(MongoBaseModel):
   matchdays: Optional[List[MatchdayBase]] = Field(default_factory=list)
   standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
 
-  @validator('startDate', 'endDate', pre=True, always=True)
-  def validate_strings(cls, v, field):
-    return empty_str_to_none(v, field.name)
+  @field_validator('startDate', 'endDate', mode='before')
+  @classmethod
+  def validate_strings(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
 
-  @validator('name', 'alias', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('name', 'alias', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
-  @validator('matchdaysType', 'matchdaysSortedBy', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
+  @field_validator('matchdaysSortedBy', 'matchdaysType', mode='before')
+  @classmethod
+  def validate_type(cls, v, info):
+    return validate_dict_of_strings(v, info.field_name)
 
 
 class SeasonBase(MongoBaseModel):
@@ -211,9 +229,10 @@ class SeasonBase(MongoBaseModel):
   published: bool = False
   rounds: Optional[List[RoundBase]] = Field(default_factory=list)
 
-  @validator('name', 'alias', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('name', 'alias', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
 
 class SeasonDB(SeasonBase):
@@ -227,9 +246,10 @@ class SeasonUpdate(MongoBaseModel):
   published: Optional[bool] = False
   rounds: Optional[List[RoundBase]] = Field(default_factory=list)
 
-  @validator('name', 'alias', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('name', 'alias', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
 
 # --------
@@ -247,17 +267,20 @@ class TournamentBase(MongoBaseModel):
   seasons: Optional[List[SeasonBase]] = Field(default_factory=list)
   legacyId: Optional[int] = None
 
-  @validator('website', pre=True, always=True)
-  def validate_string(cls, v, field):
-    return empty_str_to_none(v, field.name)
+  @field_validator('website', mode='before')
+  @classmethod
+  def validate_string(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
 
-  @validator('name', 'alias', 'tinyName', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('name', 'alias', 'tinyName', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
-  @validator('ageGroup', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
+  @field_validator('ageGroup', mode='before')
+  @classmethod
+  def validate_type(cls, v, info):
+    return validate_dict_of_strings(v, info.field_name)
 
 
 class TournamentDB(TournamentBase):
@@ -275,15 +298,17 @@ class TournamentUpdate(MongoBaseModel):
   website: Optional[HttpUrl] = None
   seasons: Optional[List[SeasonBase]] = Field(default_factory=list)
 
-  @validator('website', pre=True, always=True)
-  def validate_string(cls, v, field):
-    return empty_str_to_none(v, field.name)
+  @field_validator('website', mode='before')
+  @classmethod
+  def validate_string(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
 
-  @validator('name', 'alias', 'tinyName', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
-  
-  @validator('ageGroup', pre=True, always=True)
-  def validate_type(cls, v, field):
-    return validate_dict_of_strings(v, field.name)
-  
+  @field_validator('name', 'alias', 'tinyName', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
+
+  @field_validator('ageGroup', mode='before')
+  @classmethod
+  def validate_type(cls, v, info):
+    return validate_dict_of_strings(v, info.field_name)

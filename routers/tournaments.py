@@ -96,7 +96,7 @@ async def update_tournament(request: Request,
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
     print("tournament pre exclude: ", tournament)
-    tournament_dict = tournament.dict(exclude_unset=True)
+    tournament_dict = tournament.model_dump(exclude_unset=True)
     tournament_dict.pop("id", None)
     #print("tournament: ", tournament)
 

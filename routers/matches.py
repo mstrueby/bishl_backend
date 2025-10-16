@@ -5,7 +5,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
 from authentication import AuthHandler, TokenPayload
-from utils import my_jsonable_encoder, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, flatten_dict, calc_standings_per_round, calc_standings_per_matchday, fetch_ref_points, calc_roster_stats, calc_player_card_stats, get_sys_ref_tool_token, populate_event_player_fields
+from utils import (validate_match_time, parse_datetime,
+                   calc_player_card_stats)
+from services.stats_service import StatsService
 import os
 import isodate
 from datetime import datetime, timedelta
@@ -13,7 +15,8 @@ from bson import ObjectId
 import httpx
 
 router = APIRouter()
-auth = AuthHandler()
+auth_handler = AuthHandler()
+stats_service = None  # Will be initialized with MongoDB instance
 BASE_URL = os.environ.get('BE_API_URL')
 DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
 
@@ -56,7 +59,7 @@ def convert_seconds_to_times(data):
             penalty["matchSecondsEnd"])
   for penalty in (data.get("away", {}).get("penalties") or []):
     if penalty is not None:
-      penalty["matchTimeStart"] = parse_time_from_seconds(
+      penalty["matchTimeStart"] = parse_time_to_seconds(
           penalty["matchSecondsStart"])
       if penalty.get('matchSecondsEnd') is not None:
         penalty["matchTimeEnd"] = parse_time_from_seconds(
@@ -604,7 +607,7 @@ async def get_match(request: Request, match_id: str) -> JSONResponse:
 async def create_match(
     request: Request,
     match: MatchBase = Body(...),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
@@ -617,20 +620,26 @@ async def create_match(
         and hasattr(match.season, 'alias')):
       if DEBUG_LEVEL > 10:
         print("get standingsSettings")
-      standings_settings = await fetch_standings_settings(
+      # fetch standing settings
+      stats_service = StatsService(mongodb)
+      standings_settings = await stats_service.get_standings_settings(
           match.tournament.alias, match.season.alias)
       if DEBUG_LEVEL > 10:
         print(standings_settings)
       home_score = 0 if match.home is None or not match.home.stats or match.home.stats.goalsFor is None else match.home.stats.goalsFor
       away_score = 0 if match.away is None or not match.away.stats or match.away.stats.goalsFor is None else match.away.stats.goalsFor
-      stats = calc_match_stats(match.matchStatus.key, match.finishType.key,
-                               standings_settings, home_score, away_score)
+
+      match_stats = stats_service.calculate_match_stats(
+          match.matchStatus.key, match.finishType.key,
+          standings_settings,
+          home_score=home_score,
+          away_score=away_score)
       if DEBUG_LEVEL > 20:
-        print("stats: ", stats)
+        print("stats: ", match_stats)
 
       # Now safely assign the stats
-      match.home.stats = MatchStats(**stats['home'])
-      match.away.stats = MatchStats(**stats['away'])
+      match.home.stats = MatchStats(**match_stats['home'])
+      match.away.stats = MatchStats(**match_stats['away'])
 
     t_alias = match.tournament.alias if match.tournament is not None else None
     s_alias = match.season.alias if match.season is not None else None
@@ -723,10 +732,11 @@ async def create_match(
 
     if DEBUG_LEVEL > 0:
       print("calc_roster_stats (home) ...")
-    await calc_roster_stats(mongodb, result.inserted_id, 'home')
+    stats_service = StatsService(mongodb)
+    await stats_service.calculate_roster_stats(result.inserted_id, 'home')
     if DEBUG_LEVEL > 0:
       print("calc_roster_stats (away) ...")
-    await calc_roster_stats(mongodb, result.inserted_id, 'away')
+    await stats_service.calculate_roster_stats(result.inserted_id, 'away')
 
     # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
     # Player stats will be calculated when match status changes to FINISHED
@@ -750,7 +760,7 @@ async def update_match(request: Request,
                        match_id: str,
                        match: MatchUpdate = Body(...),
                        token_payload: TokenPayload = Depends(
-                           auth.auth_wrapper)):
+                           auth_handler.auth_wrapper)):
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles
              for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
@@ -790,7 +800,7 @@ async def update_match(request: Request,
   if DEBUG_LEVEL > 10:
     print("passed match: ", match)
   # Check if this is a stats-affecting change - only check fields that were explicitly provided
-  match_data_provided = match.dict(exclude_unset=True)
+  match_data_provided = match.model_dump(exclude_unset=True)
   stats_affecting_fields = ['matchStatus', 'finishType', 'home.stats', 'away.stats']
   stats_change_detected = any(
     field in match_data_provided or
@@ -824,21 +834,28 @@ async def update_match(request: Request,
         away_stats and away_stats.goalsFor
         is not None) else existing_match['away']['stats']['goalsFor']
 
-    stats = calc_match_stats(new_match_status, new_finish_type, await
-                             fetch_standings_settings(t_alias, s_alias),
-                             home_goals, away_goals)
+    # fetch standing settings
+    stats_service = StatsService(mongodb)
+    standings_settings = await stats_service.get_standings_settings(
+        t_alias, s_alias)
+
+    match_stats = stats_service.calculate_match_stats(
+        new_match_status, new_finish_type,
+        standings_settings,
+        home_score=home_goals,
+        away_score=away_goals)
     if getattr(match, 'home', None) is None:
       match.home = MatchTeamUpdate()
     if getattr(match, 'away', None) is None:
       match.away = MatchTeamUpdate()
 
-    if match.home and match.away and stats is not None:
-      match.home.stats = MatchStats(**stats['home'])
-      match.away.stats = MatchStats(**stats['away'])
+    if match.home and match.away and match_stats is not None:
+      match.home.stats = MatchStats(**match_stats['home'])
+      match.away.stats = MatchStats(**match_stats['away'])
     else:
       raise ValueError("Calculating match statistics returned None")
 
-  match_data = match.dict(exclude_unset=True)
+  match_data = match.model_dump(exclude_unset=True)
   match_data.pop("id", None)
 
   # Only update referee points if match status changed to FINISHED/FORFEITED
@@ -936,8 +953,9 @@ async def update_match(request: Request,
 
     if stats_recalc_needed:
       # Recalculate roster stats since goals/assists/penalties changed
-      await calc_roster_stats(mongodb, match_id, 'home')
-      await calc_roster_stats(mongodb, match_id, 'away')
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_roster_stats(match_id, 'home')
+      await stats_service.calculate_roster_stats(match_id, 'away')
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -945,9 +963,12 @@ async def update_match(request: Request,
   updated_match = await get_match_object(mongodb, match_id)
 
   # PHASE 1 OPTIMIZATION: Only update standings if stats changed, skip all heavy player calculations
+  if stats_change_detected and t_alias and s_alias and r_alias:
+    stats_service = StatsService(mongodb)
+    await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
   if stats_change_detected and t_alias and s_alias and r_alias and md_alias:
-    await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+    stats_service = StatsService(mongodb)
+    await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
 
   # PHASE 1 OPTIMIZATION: Only calculate player card stats when both conditions are met:
   # 1. Stats-affecting changes detected AND 2. Match is/becomes FINISHED
@@ -965,7 +986,9 @@ async def update_match(request: Request,
     if player_ids and DEBUG_LEVEL > 0:
       print(f"Stats change detected on finished match - calculating player card stats for {len(player_ids)} players...")
     if player_ids:
-      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias, r_alias, md_alias, token_payload)
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_player_card_stats(player_ids,
+                                                     t_alias, s_alias, r_alias, md_alias, token_payload)
 
   if DEBUG_LEVEL > 0:
     change_type = "stats-affecting" if stats_change_detected else "minor"
@@ -981,7 +1004,7 @@ async def update_match(request: Request,
 async def delete_match(
     request: Request,
     match_id: str,
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
@@ -997,12 +1020,12 @@ async def delete_match(
     season = match.get('season') or {}
     round_data = match.get('round') or {}
     matchday = match.get('matchday') or {}
-    
+
     t_alias = tournament.get('alias', None)
     s_alias = season.get('alias', None)
     r_alias = round_data.get('alias', None)
     md_alias = matchday.get('alias', None)
-    
+
     home_players = [
         player['player']['playerId']
         for player in match.get('home', {}).get('roster') or []
@@ -1025,11 +1048,12 @@ async def delete_match(
 
     # Only update standings if we have all required aliases
     if t_alias and s_alias and r_alias:
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-    
+      stats_service = StatsService(mongodb)
+      await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+
     if t_alias and s_alias and r_alias and md_alias:
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias,
-                                        md_alias)
+      stats_service = StatsService(mongodb)
+      await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
     # for each player in player_ids loop through stats list and compare tournament, season and round. if found then remove item from list
     if player_ids and t_alias and s_alias and r_alias:
       for player_id in player_ids:
@@ -1051,7 +1075,8 @@ async def delete_match(
                                             {'$set': {
                                                 'stats': updated_stats
                                             }})
-      await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_player_card_stats(player_ids, t_alias, s_alias,
                                    r_alias, md_alias, token_payload)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
