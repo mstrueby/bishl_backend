@@ -1,6 +1,21 @@
 
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+# Monkey-patch SecretStr for fastapi-mail compatibility with Pydantic v2
 from pydantic import SecretStr
+import sys
+from types import ModuleType
+
+# Create a fake pydantic module with SecretStr available at module level
+# This fixes fastapi-mail's assumption that SecretStr is globally available
+pydantic_types = ModuleType('pydantic.types')
+pydantic_types.SecretStr = SecretStr
+sys.modules['pydantic.types'] = pydantic_types
+
+# Also add to main pydantic module
+import pydantic
+pydantic.SecretStr = SecretStr
+
+# Now import fastapi-mail
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 import os
 
 conf = ConnectionConfig(
@@ -11,7 +26,7 @@ conf = ConnectionConfig(
     MAIL_PORT=int(os.environ.get("MAIL_PORT", 587)),
     MAIL_SERVER=os.environ["MAIL_SERVER"],
     MAIL_STARTTLS=os.environ.get("MAIL_TLS", "True").lower() == "true",
-    MAIL_SSL_TLS=os.environ.get("MAIL_SSL_TLS", "True").lower() == "true",
+    MAIL_SSL_TLS=os.environ.get("MAIL_SSL_TLS", "False").lower() == "true",
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True
 )
