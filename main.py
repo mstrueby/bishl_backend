@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Import pydantic patch FIRST to fix fastapi-mail compatibility
+import pydantic_patch
+
 import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
