@@ -1,0 +1,108 @@
+~/workspace$ ./validate_stats_refactoring.py 
+============================================================
+STATS SERVICE REFACTORING VALIDATION
+============================================================
+
+=== VALIDATING MATCH STATS ===
+
+✓ Regular time home win
+  Status: FINISHED, Finish: REGULAR, Score: 3-1
+  Home: {'gamePlayed': 1, 'goalsFor': 3, 'goalsAgainst': 1, 'points': 3, 'win': 1, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0}
+  Away: {'goalsFor': 1, 'goalsAgainst': 3, 'points': 0, 'win': 0, 'loss': 1, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0, 'gamePlayed': 1}
+
+✓ Regular time away win
+  Status: FINISHED, Finish: REGULAR, Score: 1-3
+  Home: {'gamePlayed': 1, 'goalsFor': 1, 'goalsAgainst': 3, 'points': 0, 'win': 0, 'loss': 1, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0}
+  Away: {'goalsFor': 3, 'goalsAgainst': 1, 'points': 3, 'win': 1, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0, 'gamePlayed': 1}
+
+✓ Regular time draw
+  Status: FINISHED, Finish: REGULAR, Score: 2-2
+  Home: {'gamePlayed': 1, 'goalsFor': 2, 'goalsAgainst': 2, 'points': 1, 'win': 0, 'loss': 0, 'draw': 1, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0}
+  Away: {'goalsFor': 2, 'goalsAgainst': 2, 'points': 1, 'win': 0, 'loss': 0, 'draw': 1, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0, 'gamePlayed': 1}
+
+✓ Overtime home win
+  Status: FINISHED, Finish: OVERTIME, Score: 3-2
+  Home: {'gamePlayed': 1, 'goalsFor': 3, 'goalsAgainst': 2, 'points': 2, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 1, 'otLoss': 0, 'soWin': 0, 'soLoss': 0}
+  Away: {'goalsFor': 2, 'goalsAgainst': 3, 'points': 1, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 1, 'soWin': 0, 'soLoss': 0, 'gamePlayed': 1}
+
+✓ Overtime away win
+  Status: FINISHED, Finish: OVERTIME, Score: 2-3
+  Home: {'gamePlayed': 1, 'goalsFor': 2, 'goalsAgainst': 3, 'points': 1, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 1, 'soWin': 0, 'soLoss': 0}
+  Away: {'goalsFor': 3, 'goalsAgainst': 2, 'points': 2, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 1, 'otLoss': 0, 'soWin': 0, 'soLoss': 0, 'gamePlayed': 1}
+
+✓ Shootout home win
+  Status: FINISHED, Finish: SHOOTOUT, Score: 2-1
+  Home: {'gamePlayed': 1, 'goalsFor': 2, 'goalsAgainst': 1, 'points': 2, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 1, 'soLoss': 0}
+  Away: {'goalsFor': 1, 'goalsAgainst': 2, 'points': 1, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 1, 'gamePlayed': 1}
+
+✓ Shootout away win
+  Status: FINISHED, Finish: SHOOTOUT, Score: 1-2
+  Home: {'gamePlayed': 1, 'goalsFor': 1, 'goalsAgainst': 2, 'points': 1, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 1}
+  Away: {'goalsFor': 2, 'goalsAgainst': 1, 'points': 2, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 1, 'soLoss': 0, 'gamePlayed': 1}
+[MATCH_STATS] ⊘ Skipping stats calculation for match status: SCHEDULED
+
+✓ Scheduled match (no stats)
+  Status: SCHEDULED, Finish: REGULAR, Score: 0-0
+  Home: {'gamePlayed': 0, 'goalsFor': 0, 'goalsAgainst': 0, 'points': 0, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0}
+  Away: {'goalsFor': 0, 'goalsAgainst': 0, 'points': 0, 'win': 0, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0}
+
+✓ Forfeited match
+  Status: FORFEITED, Finish: REGULAR, Score: 5-0
+  Home: {'gamePlayed': 1, 'goalsFor': 5, 'goalsAgainst': 0, 'points': 3, 'win': 1, 'loss': 0, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0}
+  Away: {'goalsFor': 0, 'goalsAgainst': 5, 'points': 0, 'win': 0, 'loss': 1, 'draw': 0, 'otWin': 0, 'otLoss': 0, 'soWin': 0, 'soLoss': 0, 'gamePlayed': 1}
+
+✓✓✓ All match stats validations passed!
+
+=== VALIDATING STANDINGS CALCULATION ===
+
+→ Testing round: schuelerliga-p/2024/hauptrunde
+[STATS] Starting aggregate_round_standings...
+[STANDINGS] Calculating round standings for schuelerliga-p/2024/hauptrunde...
+[STATS] ✓ aggregate_round_standings completed in 0.125s
+  Old standings: 7 teams
+  New standings: 7 teams
+  ✓ Team count matches
+  Sample team 'Berlin Buffalos II':
+    Old points: 29
+    New points: 29
+    ✓ Points match
+
+✓✓✓ Standings validation complete!
+
+=== VALIDATING ROSTER STATS ===
+
+→ Testing match: 67165c5890212e4ad16ca749
+  Polarstern Potsdam vs Märkische Löwen
+
+  Testing home team:
+[STATS] Starting calculate_roster_stats...
+[ROSTER] Calculating roster stats for match 67165c5890212e4ad16ca749 (home team)...
+[STATS] ✓ calculate_roster_stats completed in 0.449s
+    Old total goals: 0, assists: 0
+    New total goals: 0, assists: 0
+    ✓ Roster stats match
+
+  Testing away team:
+[STATS] Starting calculate_roster_stats...
+[ROSTER] Calculating roster stats for match 67165c5890212e4ad16ca749 (away team)...
+[STATS] ✓ calculate_roster_stats completed in 0.213s
+    Old total goals: 0, assists: 0
+    New total goals: 0, assists: 0
+    ✓ Roster stats match
+
+✓✓✓ Roster stats validation complete!
+
+=== PERFORMANCE LOGGING CHECK ===
+✓ Performance logging enabled via @log_performance decorator
+✓ Check console output for [STATS] timing logs
+✓ DEBUG_LEVEL > 0 enables detailed logging
+
+============================================================
+VALIDATION COMPLETE
+============================================================
+
+Next steps:
+1. Review any warnings above
+2. Test in production with DEBUG_LEVEL=1 to see detailed logs
+3. Monitor for errors in actual usage
+4. If all looks good, mark Phase 8 as complete!
