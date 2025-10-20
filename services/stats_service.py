@@ -529,7 +529,7 @@ class StatsService:
     # ==================== ROSTER STATISTICS ====================
 
     @log_performance
-    async def calculate_roster_stats(self, match_id: str, team_flag: str) -> None:
+    async def calculate_roster_stats(self, match_id: str, team_flag: str, use_db_direct: bool = False) -> None:
         """
         Calculate and update roster statistics for a team in a match.
         Updates goals, assists, points, and penalty minutes for each player.
@@ -537,6 +537,7 @@ class StatsService:
         Args:
             match_id: The ID of the match
             team_flag: The team flag ('home' or 'away')
+            use_db_direct: If True, fetch data directly from DB instead of API (for validation/testing)
             
         Raises:
             HTTPException: If team_flag is invalid or data cannot be fetched
@@ -556,34 +557,36 @@ class StatsService:
             print(f'[ROSTER] Calculating roster stats for match {match_id} ({team_flag} team)...')
         
         try:
-            async with httpx.AsyncClient() as client:
-                # Fetch roster
-                roster = await self._fetch_roster(client, match_id, team_flag)
-                
-                # Fetch scoreboard and penaltysheet
-                scoreboard = await self._fetch_scoreboard(client, match_id, team_flag)
-                penaltysheet = await self._fetch_penaltysheet(client, match_id, team_flag)
-                
-                # Initialize player stats from roster
-                player_stats = self._initialize_roster_player_stats(roster)
-                
-                # Calculate stats from scores
-                self._calculate_scoring_stats(scoreboard, player_stats)
-                
-                # Calculate stats from penalties
-                self._calculate_penalty_stats(penaltysheet, player_stats)
-                
-                # Update roster with calculated stats
-                updated_roster = self._apply_stats_to_roster(roster, player_stats)
-                
-                if DEBUG_LEVEL > 10:
-                    players_with_stats = len([p for p in player_stats.values() if any(v > 0 for v in p.values())])
-                    print(f"[ROSTER] Updated {players_with_stats}/{len(player_stats)} players with stats")
-                    print(f"[ROSTER] Player stats summary: {player_stats}")
-                
-                # Save updated roster to database
-                await self._save_roster_to_db(match_id, team_flag, updated_roster)
-                
+            if use_db_direct:
+                # Fetch directly from database (for validation/testing)
+                roster, scoreboard, penaltysheet = await self._fetch_match_data_from_db(match_id, team_flag)
+            else:
+                # Fetch via HTTP API (normal operation)
+                async with httpx.AsyncClient() as client:
+                    roster = await self._fetch_roster(client, match_id, team_flag)
+                    scoreboard = await self._fetch_scoreboard(client, match_id, team_flag)
+                    penaltysheet = await self._fetch_penaltysheet(client, match_id, team_flag)
+            
+            # Initialize player stats from roster
+            player_stats = self._initialize_roster_player_stats(roster)
+            
+            # Calculate stats from scores
+            self._calculate_scoring_stats(scoreboard, player_stats)
+            
+            # Calculate stats from penalties
+            self._calculate_penalty_stats(penaltysheet, player_stats)
+            
+            # Update roster with calculated stats
+            updated_roster = self._apply_stats_to_roster(roster, player_stats)
+            
+            if DEBUG_LEVEL > 10:
+                players_with_stats = len([p for p in player_stats.values() if any(v > 0 for v in p.values())])
+                print(f"[ROSTER] Updated {players_with_stats}/{len(player_stats)} players with stats")
+                print(f"[ROSTER] Player stats summary: {player_stats}")
+            
+            # Save updated roster to database
+            await self._save_roster_to_db(match_id, team_flag, updated_roster)
+            
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=500,
@@ -594,6 +597,31 @@ class StatsService:
                 status_code=500,
                 detail=f"Failed to calculate roster stats: {str(e)}"
             )
+
+    async def _fetch_match_data_from_db(self, match_id: str, team_flag: str) -> tuple:
+        """
+        Fetch roster, scores, and penalties directly from database.
+        Used for validation/testing when API might not be available.
+        
+        Returns:
+            Tuple of (roster, scoreboard, penaltysheet)
+        """
+        match = await self.db["matches"].find_one({"_id": match_id})
+        if not match:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Match {match_id} not found"
+            )
+        
+        team_data = match.get(team_flag, {})
+        roster = team_data.get('roster', [])
+        scoreboard = team_data.get('scores', [])
+        penaltysheet = team_data.get('penalties', [])
+        
+        if DEBUG_LEVEL > 10:
+            print(f"[ROSTER] Fetched from DB: {len(roster)} roster, {len(scoreboard)} scores, {len(penaltysheet)} penalties")
+        
+        return roster, scoreboard, penaltysheet
 
     async def _fetch_roster(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
         """Fetch roster for a team from the API"""
