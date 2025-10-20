@@ -1,4 +1,24 @@
 #!/usr/bin/env python
+
+# CRITICAL: This must be the VERY FIRST import to fix fastapi-mail with Pydantic v2
+# It patches SecretStr into pydantic module before any other imports happen
+import sys
+from types import ModuleType
+from pydantic import SecretStr
+
+# Patch pydantic module
+import pydantic
+pydantic.SecretStr = SecretStr
+
+# Create pydantic.types module with SecretStr
+try:
+    import pydantic.types
+    pydantic.types.SecretStr = SecretStr
+except (ImportError, AttributeError):
+    pydantic_types = ModuleType('pydantic.types')
+    pydantic_types.SecretStr = SecretStr
+    sys.modules['pydantic.types'] = pydantic_types
+
 import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
