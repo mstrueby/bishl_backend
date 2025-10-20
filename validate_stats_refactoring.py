@@ -206,8 +206,8 @@ async def validate_roster_stats():
         old_total_goals = sum(p.get('goals', 0) for p in old_roster)
         old_total_assists = sum(p.get('assists', 0) for p in old_roster)
         
-        # Recalculate
-        await stats_service.calculate_roster_stats(match_id, team_flag)
+        # Recalculate using direct DB access (avoid API calls during validation)
+        await stats_service.calculate_roster_stats(match_id, team_flag, use_db_direct=True)
         
         # Get new roster stats
         updated_match = await mongodb['matches'].find_one({'_id': match_id})
