@@ -1,0 +1,65 @@
+=== VALIDATING STANDINGS CALCULATION ===
+
+→ Testing round: schuelerliga-p/2024/hauptrunde
+[STATS] Starting aggregate_round_standings...
+[STANDINGS] Calculating round standings for schuelerliga-p/2024/hauptrunde...
+[STATS] ✗ aggregate_round_standings failed after 0.115s: cannot encode object: HttpUrl('https://res.cloudinary.com/dajtykxvp/image/upload/v1701389432/logos/berlin-buffalos.png'), of type: <class 'pydantic.networks.HttpUrl'>
+
+✗ Validation failed with error: cannot encode object: HttpUrl('https://res.cloudinary.com/dajtykxvp/image/upload/v1701389432/logos/berlin-buffalos.png'), of type: <class 'pydantic.networks.HttpUrl'>
+Traceback (most recent call last):
+  File "/home/runner/workspace/./validate_stats_refactoring.py", line 215, in main
+    await validate_standings_calculation()
+  File "/home/runner/workspace/./validate_stats_refactoring.py", line 102, in validate_standings_calculation
+    await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+  File "/home/runner/workspace/services/stats_service.py", line 27, in wrapper
+    result = await func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/services/stats_service.py", line 272, in aggregate_round_standings
+    response = await self.db["tournaments"].update_one(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/vnvdzw4182wb2ifzi0cczhv80yfnpx1q-python3-3.12.11/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/collection.py", line 1291, in update_one
+    self._update_retryable(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/collection.py", line 1086, in _update_retryable
+    return self._database.client._retryable_write(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/mongo_client.py", line 1898, in _retryable_write
+    return self._retry_with_session(retryable, func, s, bulk, operation, operation_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/mongo_client.py", line 1784, in _retry_with_session
+    return self._retry_internal(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/_csot.py", line 120, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/mongo_client.py", line 1830, in _retry_internal
+    ).run()
+      ^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/mongo_client.py", line 2554, in run
+    return self._read() if self._is_read else self._write()
+                                              ^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/mongo_client.py", line 2676, in _write
+    return self._func(self._session, conn, self._retryable)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/collection.py", line 1067, in _update
+    return self._update(
+           ^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/collection.py", line 1019, in _update
+    conn.command(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/helpers.py", line 45, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/pool.py", line 566, in command
+    self._raise_connection_failure(error)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/pool.py", line 538, in command
+    return command(
+           ^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/synchronous/network.py", line 158, in command
+    request_id, msg, size, max_doc_size = message._op_msg(
+                                          ^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pymongo/message.py", line 415, in _op_msg
+    return _op_msg_uncompressed(flags, command, identifier, docs, opts)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bson.errors.InvalidDocument: cannot encode object: HttpUrl('https://res.cloudinary.com/dajtykxvp/image/upload/v1701389432/logos/berlin-buffalos.png'), of type: <class 'pydantic.networks.HttpUrl'>
