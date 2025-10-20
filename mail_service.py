@@ -1,7 +1,4 @@
 
-# Import pydantic patch FIRST before anything else
-import pydantic_patch  # This must be first!
-
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from pydantic import SecretStr
 import os
