@@ -13,6 +13,13 @@ import certifi
 DB_URL = os.environ["DB_URL"]
 DB_NAME = os.environ["DB_NAME"]
 
+# Optional: Specify a specific match ID for roster testing
+# Set this environment variable to test a specific match with known good data
+TEST_MATCH_ID = os.environ.get("TEST_MATCH_ID", None)
+
+# Set to 'true' to run validation without modifying the database
+DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
+
 
 async def validate_match_stats():
     """Validate match stats calculation with different scenarios"""
@@ -153,19 +160,43 @@ async def validate_roster_stats():
         print(f"✗ Failed to connect to database: {str(e)}")
         return
     
-    # Find a finished match
-    match = await mongodb['matches'].find_one({
-        'matchStatus.key': 'FINISHED'
-    })
+    # Use specific test match if provided, otherwise find one with rosters
+    if TEST_MATCH_ID:
+        match = await mongodb['matches'].find_one({'_id': TEST_MATCH_ID})
+        if not match:
+            print(f"✗ Test match {TEST_MATCH_ID} not found")
+            client.close()
+            return
+    else:
+        match = await mongodb['matches'].find_one({
+            'matchStatus.key': 'FINISHED',
+            '$or': [
+                {'home.roster.0': {'$exists': True}},
+                {'away.roster.0': {'$exists': True}}
+            ]
+        })
     
     if not match:
-        print("⊘ No finished matches found, skipping roster validation")
+        print("⊘ No finished matches with rosters found, skipping roster validation")
         client.close()
         return
     
     match_id = match['_id']
     print(f"\n→ Testing match: {match_id}")
     print(f"  {match['home']['fullName']} vs {match['away']['fullName']}")
+    
+    # Check if match has roster data
+    has_home_roster = len(match.get('home', {}).get('roster', [])) > 0
+    has_away_roster = len(match.get('away', {}).get('roster', [])) > 0
+    print(f"  Home roster: {len(match.get('home', {}).get('roster', []))} players")
+    print(f"  Away roster: {len(match.get('away', {}).get('roster', []))} players")
+    
+    if not has_home_roster and not has_away_roster:
+        print("  ⚠ WARNING: Match has no roster data - test won't be meaningful")
+        if not TEST_MATCH_ID:
+            print("  Skipping this match...")
+            client.close()
+            return
     
     for team_flag in ['home', 'away']:
         print(f"\n  Testing {team_flag} team:")
@@ -208,6 +239,10 @@ async def main():
     """Run all validation checks"""
     print("=" * 60)
     print("STATS SERVICE REFACTORING VALIDATION")
+    if DRY_RUN:
+        print("🔍 DRY RUN MODE - No database modifications will be made")
+    if TEST_MATCH_ID:
+        print(f"🎯 Testing specific match: {TEST_MATCH_ID}")
     print("=" * 60)
     
     try:
