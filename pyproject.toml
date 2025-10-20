@@ -29,6 +29,7 @@ isodate = "^0.7.2"
 pyjwt = "^2.9.0"
 fastapi-mail = "^1.4.0"
 argon2-cffi = "^25.1.0"
+loguru = "^0.7.2"
 
 [tool.poetry.dev-dependencies]
 
