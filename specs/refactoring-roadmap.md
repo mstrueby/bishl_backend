@@ -106,27 +106,26 @@ class Model(BaseModel):
 
 ---
 
-### 5. Centralized Stats Calculation Service
+### 5. Centralized Stats Calculation Service ✅ COMPLETE
 **Effort:** Medium | **Impact:** Medium | **Risk if ignored:** Low
 
-**Problem:**
-- `calc_roster_stats`, `calc_standings`, `calc_player_card_stats` scattered
-- Similar logic in `utils.py` lines 500+ and multiple routers
-- Difficult to maintain consistency
+**Status:** ✅ **COMPLETED**
 
-**Current Code Location:**
-- `utils.py` lines 156-850
-- `routers/scores.py`
-- `routers/penalties.py`
-- `routers/roster.py`
+**What was done:**
+- ✅ Created `services/stats_service.py` with `StatsService` class
+- ✅ Extracted all calculation logic (match stats, standings, roster stats, player card stats)
+- ✅ Added comprehensive logging with @log_performance decorator
+- ✅ Maintained backward compatibility in `utils.py`
+- ✅ Created validation script to verify correctness
+- ✅ All stats calculations working identically to original implementation
 
-**Actions:**
-- Create `services/stats_service.py`
-- Extract all calculation logic
-- Create unified API for stats updates
-- Add proper logging
+**Files Created:**
+- `services/stats_service.py` (~900 lines, well-documented)
+- `validate_stats_refactoring.py` (comprehensive validation)
+- `find_test_matches.py` (helper for testing)
+- `specs/stats-service-refactoring-plan.md` (detailed spec)
 
-**Estimated Time:** 8-12 hours
+**Estimated Time:** 8-12 hours ✅
 
 ---
 
@@ -161,7 +160,7 @@ faker = "^20.0.0"
 
 ## Medium Priority
 
-### 7. Error Handling Standardization
+### 7. Error Handling Standardization ⏳ NEXT PRIORITY
 **Effort:** Medium | **Impact:** Medium | **Risk if ignored:** Low
 
 **Problem:**
@@ -172,12 +171,15 @@ faker = "^20.0.0"
 **Current Code Location:**
 - All router files
 - `utils.py` helper functions
+- `services/stats_service.py`
 
 **Actions:**
 - Create `exceptions/custom_exceptions.py`
 - Create exception handlers in `main.py`
 - Standardize error response format
 - Add structured logging (loguru)
+
+**Specification:** See `specs/error-handling-standardization.md` for detailed implementation plan
 
 **Estimated Time:** 8-12 hours
 
