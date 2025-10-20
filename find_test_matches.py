@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 """
 Helper script to find suitable matches for testing roster stats calculation.
