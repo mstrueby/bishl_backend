@@ -478,7 +478,7 @@ class StatsService:
     def _init_team_standings(self, team_data: dict) -> dict:
         """Initialize standings structure for a team"""
         from models.tournaments import Standings
-        return Standings(
+        standings_obj = Standings(
             fullName=team_data['fullName'],
             shortName=team_data['shortName'],
             tinyName=team_data['tinyName'],
@@ -495,7 +495,12 @@ class StatsService:
             soWins=0,
             soLosses=0,
             streak=[],
-        ).model_dump()
+        )
+        # Convert to dict and ensure logo is a string, not HttpUrl object
+        standings_dict = standings_obj.model_dump()
+        if standings_dict.get('logo'):
+            standings_dict['logo'] = str(standings_dict['logo'])
+        return standings_dict
 
     def _update_streak(self, team_standings: dict, match_stats: dict) -> None:
         """Update the team's streak based on match result"""
