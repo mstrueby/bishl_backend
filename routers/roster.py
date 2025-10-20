@@ -5,6 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from models.matches import RosterPlayer
 from authentication import AuthHandler, TokenPayload
+from utils import populate_event_player_fields
 import httpx
 import os
 from services.stats_service import StatsService
