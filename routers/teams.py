@@ -11,6 +11,13 @@ from pydantic import HttpUrl
 from utils import configure_cloudinary
 import cloudinary
 import cloudinary.uploader
+from exceptions import (
+    ResourceNotFoundException,
+    ValidationException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -61,8 +68,11 @@ async def list_teams_of_one_club(
     teams = [TeamDB(**team) for team in (club.get("teams") or [])]
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(teams))
-  raise HTTPException(status_code=404,
-                      detail=f"Club with alias {club_alias} not found")
+  raise ResourceNotFoundException(
+      resource_type="Club",
+      resource_id=club_alias,
+      details={"query_field": "alias"}
+  )
 
 
 # get one team of a club
