@@ -10,6 +10,13 @@ from pymongo.errors import DuplicateKeyError
 import cloudinary
 import cloudinary.uploader
 from datetime import datetime
+from exceptions import (
+    ResourceNotFoundException,
+    ValidationException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -80,8 +87,11 @@ async def get_venue(alias: str, request: Request) -> JSONResponse:
   if (venue := await mongodb["venues"].find_one({"alias": alias})) is not None:
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(VenueDB(**venue)))
-  raise HTTPException(status_code=404,
-                      detail=f"Venue with alias {alias} not found")
+  raise ResourceNotFoundException(
+      resource_type="Venue",
+      resource_id=alias,
+      details={"query_field": "alias"}
+  )
 
 
 # create new venue
@@ -107,7 +117,10 @@ async def create_venue(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+        message="Admin role required to create venues",
+        details={"user_roles": token_payload.roles}
+    )
   venue = VenueBase(name=name,
                     alias=alias,
                     shortName=shortName,

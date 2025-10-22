@@ -9,6 +9,13 @@ from models.documents import DocumentBase, DocumentDB, DocumentUpdate
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
 from pymongo.errors import DuplicateKeyError
+from exceptions import (
+    ResourceNotFoundException,
+    ValidationException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -109,7 +116,11 @@ async def get_document(
   query = {"alias": alias}
   document = await mongodb["documents"].find_one(query)
   if not document:
-    raise HTTPException(status_code=404, detail="Document not found")
+    raise ResourceNotFoundException(
+        resource_type="Document",
+        resource_id=alias,
+        details={"query_field": "alias"}
+    )
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(DocumentDB(**document)))
 
@@ -143,13 +154,19 @@ async def upload_document(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "DOC_ADMIN"]):
-    raise HTTPException(status_code=403, detail="Not authorized")
+    raise AuthorizationException(
+        message="Admin or Doc Admin role required",
+        details={"user_roles": token_payload.roles}
+    )
 
   # Check if document already exists in db
   existing_doc = await mongodb['documents'].find_one({'title': title})
   if existing_doc:
-    raise HTTPException(status_code=400,
-                        detail=f"Document '{title}' already exists.")
+    raise ValidationException(
+        field="title",
+        message=f"Document '{title}' already exists",
+        details={"existing_id": existing_doc.get("_id")}
+    )
 
   check_reserved_aliases(alias)
   validate_file_type(file)
