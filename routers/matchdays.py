@@ -6,6 +6,8 @@ from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from authentication import AuthHandler, TokenPayload
 from fastapi.encoders import jsonable_encoder
 from utils import DEBUG_LEVEL, parse_datetime, my_jsonable_encoder
+from logging_config import logger
+from exceptions import AuthorizationException, DatabaseOperationException
 
 router = APIRouter()
 auth = AuthHandler()
@@ -108,7 +110,9 @@ async def add_matchday(
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin role required to add matchdays",
+            details={"user_role": token_payload.roles})
     # print("add matchday")
     # check if tournament exists
     if (tournament := await
@@ -174,18 +178,29 @@ async def add_matchday(
                             (md for md in round_data['matchdays']
                              if md.get('alias') == matchday.alias), None)
                         if inserted_matchday:
-                            print("xxx", inserted_matchday)
+                            logger.info(f"Matchday added: {matchday.alias} in {tournament_alias}/{season_alias}/{round_alias}")
                             return JSONResponse(
                                 status_code=status.HTTP_201_CREATED,
                                 content=jsonable_encoder(
                                     MatchdayDB(**inserted_matchday)))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=
-            f"Error adding matchday {matchday.alias} to round {round_alias} of season {season_alias} of tournament {tournament_alias}"
+        raise DatabaseOperationException(
+            operation="insert",
+            collection="tournaments.matchdays",
+            details={
+                "matchday_alias": matchday.alias,
+                "round": round_alias,
+                "season": season_alias,
+                "tournament": tournament_alias,
+                "modified_count": result.modified_count
+            }
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error adding matchday {matchday.alias}: {str(e)}")
+        raise DatabaseOperationException(
+            operation="insert",
+            collection="tournaments.matchdays",
+            details={"error": str(e), "matchday_alias": matchday.alias}
+        )
 
 
 # update matchday of a round
@@ -210,7 +225,9 @@ async def update_matchday(
 ):
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin role required to update matchdays",
+            details={"user_role": token_payload.roles})
     if DEBUG_LEVEL > 10:
         print("update matchday: ", matchday)
     matchday_dict = matchday.model_dump(exclude_unset=True)
@@ -295,13 +312,25 @@ async def update_matchday(
                     "seasons.rounds.matchdays._id": matchday_id
                 }, update_data)
             if result.modified_count == 0:
-                raise HTTPException(
-                    status_code=404,
-                    detail=
-                    f"Matchday {matchday_id} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
+                raise DatabaseOperationException(
+                    operation="update",
+                    collection="tournaments.matchdays",
+                    details={
+                        "matchday_id": matchday_id,
+                        "round": round_alias,
+                        "season": season_alias,
+                        "tournament": tournament_alias,
+                        "modified_count": 0
+                    }
                 )
+            logger.info(f"Matchday updated: {matchday_id} in {tournament_alias}/{season_alias}/{round_alias}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"Error updating matchday {matchday_id}: {str(e)}")
+            raise DatabaseOperationException(
+                operation="update",
+                collection="tournaments.matchdays",
+                details={"error": str(e), "matchday_id": matchday_id}
+            )
     else:
         if DEBUG_LEVEL > 10:
             print("no update needed")
@@ -356,7 +385,9 @@ async def delete_matchday(
 ) -> Response:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin role required to delete matchdays",
+            details={"user_role": token_payload.roles})
     result = await mongodb['tournaments'].update_one(
         {
             "alias": tournament_alias,
@@ -376,10 +407,18 @@ async def delete_matchday(
             "r.alias": round_alias
         }])
     if result.modified_count == 1:
+        logger.info(f"Matchday deleted: {matchday_alias} in {tournament_alias}/{season_alias}/{round_alias}")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     else:
-        raise HTTPException(
-            status_code=404,
-            detail=
-            f"Matchday with alias {matchday_alias} not found in round {round_alias} of season {season_alias} of tournament {tournament_alias}"
+        logger.warning(f"Attempted to delete non-existent matchday: {matchday_alias} in {tournament_alias}/{season_alias}/{round_alias}")
+        raise DatabaseOperationException(
+            operation="delete",
+            collection="tournaments.matchdays",
+            details={
+                "matchday_alias": matchday_alias,
+                "round": round_alias,
+                "season": season_alias,
+                "tournament": tournament_alias,
+                "modified_count": 0
+            }
         )

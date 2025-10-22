@@ -6,6 +6,9 @@ from fastapi.responses import JSONResponse
 from models.matches import RosterPlayer
 from authentication import AuthHandler, TokenPayload
 from utils import populate_event_player_fields
+from exceptions import (ResourceNotFoundException, ValidationException,
+                       DatabaseOperationException, AuthorizationException)
+from logging_config import logger
 import httpx
 import os
 from services.stats_service import StatsService
@@ -28,11 +31,17 @@ async def get_roster(
   mongodb = request.app.state.mongodb
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
-    raise HTTPException(status_code=400, detail="Invalid team flag")
+    raise ValidationException(
+      field="team_flag",
+      message=f"Must be 'home' or 'away', got '{team_flag}'"
+    )
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+      resource_type="Match",
+      resource_id=match_id,
+      details={"team_flag": team_flag}
+    )
 
   roster = match.get(team_flag, {}).get("roster") or []
 
@@ -66,16 +75,33 @@ async def update_roster(
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles
              for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  if DEBUG_LEVEL > 10:
-    print("new roster: ", roster)
+    raise AuthorizationException(
+      message="Admin, League Admin, or Club Admin role required",
+      details={
+        "user_roles": token_payload.roles,
+        "required_roles": ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]
+      }
+    )
+  
+  logger.debug(f"Updating roster", extra={
+    "match_id": match_id,
+    "team_flag": team_flag,
+    "roster_size": len(roster)
+  })
+  
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
-    raise HTTPException(status_code=400, detail="Invalid team flag")
+    raise ValidationException(
+      field="team_flag",
+      message=f"Must be 'home' or 'away', got '{team_flag}'"
+    )
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+      resource_type="Match",
+      resource_id=match_id,
+      details={"team_flag": team_flag}
+    )
 
   # check if any player from the new roster exists in scores or penalties array of the match
   scores = match.get(team_flag, {}).get("scores") or []
@@ -100,17 +126,26 @@ async def update_roster(
   for score in scores:
     if score['goalPlayer']['playerId'] not in new_player_ids or \
        (score['assistPlayer'] and score['assistPlayer']['playerId'] not in new_player_ids):
-      raise HTTPException(
-          status_code=400,
-          detail=
-          "Roster can not be updated. All players in scores must be in roster")
+      raise ValidationException(
+        field="roster",
+        message="All players in scores must be in roster",
+        details={
+          "match_id": match_id,
+          "team_flag": team_flag,
+          "missing_player": score['goalPlayer']['playerId']
+        }
+      )
 
   for penalty in penalties:
     if penalty['penaltyPlayer']['playerId'] not in new_player_ids:
-      raise HTTPException(
-          status_code=400,
-          detail=
-          "Roster can not be updated. All players in penalties must be in roster"
+      raise ValidationException(
+        field="roster",
+        message="All players in penalties must be in roster",
+        details={
+          "match_id": match_id,
+          "team_flag": team_flag,
+          "missing_player": penalty['penaltyPlayer']['playerId']
+        }
       )
 
   # Populate display fields from player data before saving
@@ -129,10 +164,28 @@ async def update_roster(
   # do update
   try:
     # Update roster
-    await mongodb["matches"].update_one(
+    update_result = await mongodb["matches"].update_one(
         {"_id": match_id}, {"$set": {
             f"{team_flag}.roster": roster_data
         }})
+    
+    if update_result.modified_count == 0:
+      raise DatabaseOperationException(
+        operation="update_one",
+        collection="matches",
+        details={
+          "match_id": match_id,
+          "team_flag": team_flag,
+          "reason": "No changes detected"
+        }
+      )
+    
+    logger.info(f"Roster updated", extra={
+      "match_id": match_id,
+      "team_flag": team_flag,
+      "roster_size": len(roster_data),
+      "user": token_payload.sub
+    })
 
     # Update jersey numbers in scores and penalties
     if jersey_updates:

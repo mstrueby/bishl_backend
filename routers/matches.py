@@ -8,6 +8,9 @@ from authentication import AuthHandler, TokenPayload
 from utils import (validate_match_time, parse_datetime,
                    calc_player_card_stats)
 from services.stats_service import StatsService
+from exceptions import (ResourceNotFoundException, ValidationException, 
+                       DatabaseOperationException, AuthorizationException)
+from logging_config import logger
 import os
 import isodate
 from datetime import datetime, timedelta
@@ -72,8 +75,10 @@ def convert_seconds_to_times(data):
 async def get_match_object(mongodb, match_id: str) -> MatchDB:
   match = await mongodb["matches"].find_one({"_id": match_id})
   if not match:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+      resource_type="Match",
+      resource_id=match_id
+    )
 
   # Populate EventPlayer display fields for scores and penalties
   for team_key in ["home", "away"]:
@@ -562,8 +567,11 @@ async def list_matches(request: Request,
                                               datetime.max.time())
       query["startDate"] = date_query
     except Exception as e:
-      raise HTTPException(status_code=400,
-                          detail=f"Invalid date format: {str(e)}")
+      raise ValidationException(
+        field="date_from/date_to",
+        message=str(e),
+        details={"date_from": date_from, "date_to": date_to}
+      )
   if DEBUG_LEVEL > 20:
     print("query: ", query)
   # Project only necessary fields, excluding roster, scores, and penalties
@@ -595,9 +603,7 @@ async def list_matches(request: Request,
 async def get_match(request: Request, match_id: str) -> JSONResponse:
   mongodb = request.app.state.mongodb
   match = await get_match_object(mongodb, match_id)
-  if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with ID {match_id} not found.")
+  # get_match_object already raises ResourceNotFoundException if not found
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(match))
 
@@ -611,7 +617,17 @@ async def create_match(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+      message="Admin role required to create matches",
+      details={"user_roles": token_payload.roles, "required_role": "ADMIN"}
+    )
+  
+  logger.info(f"Creating match", extra={
+    "tournament": match.tournament.alias if match.tournament else None,
+    "season": match.season.alias if match.season else None,
+    "user": token_payload.sub
+  })
+  
   try:
     # get standingsSettings and set points per team
     if (match.tournament is not None and match.season is not None
@@ -661,10 +677,14 @@ async def create_match(
             match.referee2.points = ref_points
       except HTTPException as e:
         if e.status_code == 404:
-          raise HTTPException(
-              status_code=404,
-              detail=
-              f"Could not fetch referee points: Matchday {md_alias} not found for {t_alias} / {s_alias} / {r_alias}"
+          raise ResourceNotFoundException(
+              resource_type="Matchday",
+              resource_id=md_alias,
+              details={
+                "tournament": t_alias,
+                "season": s_alias, 
+                "round": r_alias
+              }
           )
         raise e
 
@@ -690,13 +710,30 @@ async def create_match(
                                            start_date_parts.microsecond,
                                            tzinfo=start_date_parts.tzinfo)
       except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise ValidationException(
+          field="startDate",
+          message=str(e),
+          details={"value": start_date_str}
+        )
 
     if DEBUG_LEVEL > 0:
       print("xxx match_data: ", match_data)
 
     # add match to collection matches
-    result = await mongodb["matches"].insert_one(match_data)
+    try:
+      result = await mongodb["matches"].insert_one(match_data)
+    except Exception as e:
+      raise DatabaseOperationException(
+        operation="insert_one",
+        collection="matches",
+        details={"error": str(e)}
+      )
+
+    logger.info(f"Match created successfully", extra={
+      "match_id": result.inserted_id,
+      "tournament": t_alias,
+      "season": s_alias
+    })
 
     # Update rounds and matchdays dates, and calc standings
     if t_alias and s_alias and r_alias and md_alias:
@@ -764,7 +801,13 @@ async def update_match(request: Request,
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles
              for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+      message="Admin, League Admin, or Club Admin role required",
+      details={
+        "user_roles": token_payload.roles,
+        "required_roles": ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]
+      }
+    )
 
   # Helper function to add _id to new nested documents and clean up ObjectId id fields
   def add_id_to_scores_and_penalties(items):
@@ -778,8 +821,10 @@ async def update_match(request: Request,
   # Get existing match
   existing_match = await mongodb["matches"].find_one({"_id": match_id})
   if existing_match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+      resource_type="Match",
+      resource_id=match_id
+    )
 
   # Extract tournament info for potential use
   t_alias = getattr(match.tournament, 'alias',
@@ -912,8 +957,17 @@ async def update_match(request: Request,
     update_result = await mongodb["matches"].update_one({"_id": match_id}, set_data)
 
     if update_result.modified_count == 0:
-      raise HTTPException(status_code=404,
-                          detail=f"Match with id {match_id} not found")
+      raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id
+      )
+    
+    logger.info(f"Match updated", extra={
+      "match_id": match_id,
+      "stats_change": stats_change_detected,
+      "date_change": date_change_detected,
+      "user": token_payload.sub
+    })
 
     # Only update round/matchday dates if date-affecting fields changed
     if date_change_detected and t_alias and s_alias and r_alias and md_alias:
@@ -1008,12 +1062,18 @@ async def delete_match(
 ) -> Response:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+      message="Admin role required to delete matches",
+      details={"user_roles": token_payload.roles, "required_role": "ADMIN"}
+    )
+  
   # check and get match
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with ID {match_id} not found.")
+    raise ResourceNotFoundException(
+      resource_type="Match",
+      resource_id=match_id
+    )
 
   try:
     tournament = match.get('tournament') or {}
@@ -1043,8 +1103,17 @@ async def delete_match(
     # delete in matches
     result = await mongodb["matches"].delete_one({"_id": match_id})
     if result.deleted_count == 0:
-      raise HTTPException(status_code=404,
-                          detail=f"Match with id {match_id} not found")
+      raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id
+      )
+    
+    logger.info(f"Match deleted", extra={
+      "match_id": match_id,
+      "tournament": t_alias,
+      "season": s_alias,
+      "user": token_payload.sub
+    })
 
     # Only update standings if we have all required aliases
     if t_alias and s_alias and r_alias:

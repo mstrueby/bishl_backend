@@ -7,6 +7,12 @@ from models.messages import MessageBase, MessageDB, MessageUpdate
 from fastapi.encoders import jsonable_encoder
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
+from exceptions import (
+    ResourceNotFoundException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
