@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHash
 from datetime import datetime, timedelta
+from exceptions import AuthenticationException
 
 
 class AuthHandler:
@@ -72,9 +73,15 @@ class AuthHandler:
         clubId=payload.get("clubId"),
         clubName=payload.get("clubName"))
     except jwt.ExpiredSignatureError:
-      raise HTTPException(status_code=401, detail="Signature has expired")
+      raise AuthenticationException(
+        message="Token has expired",
+        details={"reason": "expired_signature"}
+      )
     except jwt.InvalidTokenError:
-      raise HTTPException(status_code=401, detail="Invalid token")
+      raise AuthenticationException(
+        message="Invalid token",
+        details={"reason": "invalid_token"}
+      )
   
   def encode_reset_token(self, user):
     payload = {
@@ -92,9 +99,15 @@ class AuthHandler:
           raise jwt.InvalidTokenError
       return TokenPayload(sub=payload["sub"], roles=[])
     except jwt.ExpiredSignatureError:
-      raise HTTPException(status_code=401, detail="Reset token has expired")
+      raise AuthenticationException(
+        message="Reset token has expired",
+        details={"reason": "expired_reset_token"}
+      )
     except jwt.InvalidTokenError:
-      raise HTTPException(status_code=401, detail="Invalid reset token")
+      raise AuthenticationException(
+        message="Invalid reset token",
+        details={"reason": "invalid_reset_token"}
+      )
 
 
   def auth_wrapper(self,

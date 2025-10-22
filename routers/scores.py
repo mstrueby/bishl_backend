@@ -9,6 +9,7 @@ from authentication import AuthHandler, TokenPayload
 from utils import (DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds,
                    populate_event_player_fields)
 from services.stats_service import StatsService
+from exceptions.custom_exceptions import ResourceNotFoundException
 import os
 
 
@@ -49,9 +50,10 @@ async def get_score_object(mongodb, match_id: str, team_flag: str,
 
   if not score or not score.get(team_flag
                                 or "scores" not in score.get(team_flag)):
-    raise HTTPException(
-        status_code=404,
-        detail=f"Score with ID {score_id} not found in match {match_id}")
+    raise ResourceNotFoundException(
+        resource_type="Score",
+        resource_id=score_id,
+        details={"match_id": match_id, "team_flag": team_flag})
 
   return_data = score[team_flag]["scores"][0]
 
@@ -85,8 +87,10 @@ async def get_score_sheet(
 
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with ID {match_id} not found")
+    raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id,
+    )
 
   # Get score sheet from match document
   scores = match.get(team_flag, {}).get("scores") or []
@@ -128,8 +132,10 @@ async def create_score(
     raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id,
+    )
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
@@ -265,8 +271,10 @@ async def patch_one_score(
     raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id,
+    )
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
@@ -300,9 +308,11 @@ async def patch_one_score(
       break
 
   if current_score is None:
-    raise HTTPException(
-        status_code=404,
-        detail=f"Score with id {score_id} not found in match {match_id}")
+    raise ResourceNotFoundException(
+      resource_type="Score",
+      resource_id=score_id,
+      details={"match_id": match_id, "team_flag": team_flag}
+    )
 
   # Update data
   score_data = score.model_dump()
@@ -374,8 +384,10 @@ async def delete_one_score(
     raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id,
+    )
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
@@ -392,9 +404,11 @@ async def delete_one_score(
       break
 
   if current_score is None:
-    raise HTTPException(
-        status_code=404,
-        detail=f"Score with id {score_id} not found in match {match_id}")
+    raise ResourceNotFoundException(
+      resource_type="Score",
+      resource_id=score_id,
+      details={"match_id": match_id, "team_flag": team_flag}
+    )
 
   # Get match info for optimizations
   finish_type = match.get('finishType', {}).get('key')
@@ -477,9 +491,11 @@ async def delete_one_score(
     )
 
     if result.modified_count == 0:
-      raise HTTPException(
-          status_code=404,
-          detail=f"Score with ID {score_id} not found in match {match_id}")
+      raise ResourceNotFoundException(
+        resource_type="Score",
+        resource_id=score_id,
+        details={"match_id": match_id, "team_flag": team_flag}
+      )
 
     # PHASE 1 OPTIMIZATION: Only update standings, skip heavy player calculations for INPROGRESS
     stats_service = StatsService(mongodb)
