@@ -12,6 +12,7 @@ from models.matches import MatchDB
 from authentication import AuthHandler, TokenPayload
 from datetime import date
 from mail_service import send_email
+from exceptions import ResourceNotFoundException, AuthorizationException
 
 router = APIRouter()
 auth = AuthHandler()
@@ -30,14 +31,14 @@ async def calculate_referee_points(mongodb, user_id):
             {"referee2.userId": user_id, "referee2.points": {"$exists": True}}
         ]
     }).to_list(length=None)
-    
+
     total_points = 0
     for match in matches:
         if match.get("referee1") and match["referee1"].get("userId") == user_id and match["referee1"].get("points"):
             total_points += match["referee1"]["points"]
         if match.get("referee2") and match["referee2"].get("userId") == user_id and match["referee2"].get("points"):
             total_points += match["referee2"]["points"]
-    
+
     return total_points
 
 
@@ -98,7 +99,7 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Incorrect email and/or password",
                             headers={"WWW-Authenticate": "Bearer"})
-    
+
     # Auto-upgrade password from bcrypt to argon2 if needed
     if auth.needs_rehash(existing_user["password"]):
         new_hash = auth.get_password_hash(loginUser.password)
@@ -111,7 +112,7 @@ async def login(
     # Calculate referee points if user is a referee
     if "REFEREE" in existing_user.get("roles", []):
         total_points = await calculate_referee_points(mongodb, existing_user["_id"])
-        
+
         # Update user's referee points
         if not existing_user.get("referee"):
             existing_user["referee"] = {"points": total_points}
@@ -147,7 +148,7 @@ async def me(
     # Calculate referee points if user is a referee
     if "REFEREE" in user.get("roles", []):
         total_points = await calculate_referee_points(mongodb, user_id)
-        
+
         # Update user's referee points
         if not user.get("referee"):
             user["referee"] = {"points": total_points}
@@ -253,11 +254,15 @@ async def get_assigned_matches(
     user_id = token_payload.sub
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="User not found")
+        raise ResourceNotFoundException(
+            resource_type="User",
+            resource_id=user_id
+        )
     if "REFEREE" not in user["roles"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="User is not a referee")
+        raise AuthorizationException(
+            message="User is not a referee",
+            details={"user_id": user_id, "user_roles": user.get("roles", [])}
+        )
 
     # Fetch matches assigned to me as referee using the GET endpoint
     async with httpx.AsyncClient() as client:
@@ -281,11 +286,15 @@ async def get_assignments(
     user_id = token_payload.sub
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="User not found")
+        raise ResourceNotFoundException(
+            resource_type="User",
+            resource_id=user_id
+        )
     if "REFEREE" not in user["roles"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="User is not a referee")
+        raise AuthorizationException(
+            message="User is not a referee",
+            details={"user_id": user_id, "user_roles": user.get("roles", [])}
+        )
 
     # Fetch assignments assigned to me using the GET endpoint
     async with httpx.AsyncClient() as client:
@@ -349,19 +358,21 @@ async def get_user(
     mongodb = request.app.state.mongodb
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="User not found")
-    
+        raise ResourceNotFoundException(
+            resource_type="User",
+            resource_id=user_id
+        )
+
     # Calculate referee points if user is a referee
     if "REFEREE" in user.get("roles", []):
         total_points = await calculate_referee_points(mongodb, user_id)
-        
+
         # Update user's referee points
         if not user.get("referee"):
             user["referee"] = {"points": total_points}
         else:
             user["referee"]["points"] = total_points
-    
+
     response = CurrentUser(**user)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(response))
