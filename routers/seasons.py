@@ -5,7 +5,7 @@ from fastapi.responses import Response, JSONResponse
 from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
 from authentication import AuthHandler, TokenPayload
 from fastapi.encoders import jsonable_encoder
-from utils.exceptions import ResourceNotFoundException
+from exceptions import ResourceNotFoundException
 
 router = APIRouter()
 auth = AuthHandler()

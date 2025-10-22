@@ -12,6 +12,13 @@ from datetime import datetime
 import cloudinary
 import cloudinary.uploader
 import os
+from exceptions import (
+    ResourceNotFoundException,
+    ValidationException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -83,7 +90,11 @@ async def get_post(request: Request, alias: str) -> JSONResponse:
   query = {"alias": alias}
   post = await mongodb["posts"].find_one(query)
   if not post:
-    raise HTTPException(status_code=404, detail="Post not found")
+    raise ResourceNotFoundException(
+        resource_type="Post",
+        resource_id=alias,
+        details={"query_field": "alias"}
+    )
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(PostDB(**post)))
 
@@ -107,7 +118,10 @@ async def create_post(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+        message="Admin or Author role required",
+        details={"user_roles": token_payload.roles}
+    )
 
   # Data preparation
   post = PostBase(

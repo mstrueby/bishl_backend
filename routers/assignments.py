@@ -11,6 +11,13 @@ import httpx
 from enum import Enum
 from datetime import datetime
 from mail_service import send_email
+from exceptions import (
+    ResourceNotFoundException,
+    ValidationException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 
 
 router = APIRouter()
@@ -159,13 +166,17 @@ async def get_assignments_by_match(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized")
+        raise AuthorizationException(
+            message="Admin or Ref Admin role required",
+            details={"user_roles": token_payload.roles}
+        )
 
     match = await mongodb["matches"].find_one({"_id": match_id})
     if not match:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Match with id {match_id} not found")
+        raise ResourceNotFoundException(
+            resource_type="Match",
+            resource_id=match_id
+        )
 
     # Get all users with role REFEREE
     referees = await mongodb["users"].find({
@@ -240,13 +251,17 @@ async def get_assignments_by_user(
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if not (user_id == token_payload.sub or any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles)):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized")
+        raise AuthorizationException(
+            message="Not authorized to view assignments for other users",
+            details={"requested_user": user_id, "requester": token_payload.sub}
+        )
 
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"User with id {user_id} not found")
+        raise ResourceNotFoundException(
+            resource_type="User",
+            resource_id=user_id
+        )
     # Get all assignments for the user
     assignments = await mongodb["assignments"].find({
         "referee.userId": user_id
