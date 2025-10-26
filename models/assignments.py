@@ -86,5 +86,5 @@ class AssignmentUpdate(MongoBaseModel):
                                   le=2)
 
   @validator('status', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
