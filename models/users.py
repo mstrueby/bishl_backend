@@ -69,7 +69,7 @@ class Referee(BaseModel):
 
 
 class UserBase(MongoBaseModel):
-  email: str = EmailStr(...)
+  email: EmailStr
   password: str = Field(...)
   firstName: str = Field(...)
   lastName: str = Field(...)
@@ -107,12 +107,12 @@ class UserUpdate(MongoBaseModel):
 
 
 class LoginBase(BaseModel):
-  email: str = EmailStr(...)
+  email: EmailStr
   password: str = Field(...)
 
 
 class CurrentUser(MongoBaseModel):
-  email: str = EmailStr(...)
+  email: EmailStr
   firstName: str = Field(...)
   lastName: str = Field(...)
   club: Optional[Club] = None
