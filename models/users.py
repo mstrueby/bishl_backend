@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Optional, List
-from pydantic import EmailStr, Field, BaseModel, validator
+from pydantic import EmailStr, Field, BaseModel, validator, field_validator
 from email_validator import validate_email, EmailNotValidError
 from bson import ObjectId
 
@@ -77,7 +77,8 @@ class UserBase(MongoBaseModel):
   roles: Optional[List[Role]] = Field(default_factory=list)
   referee: Optional[Referee] = None
 
-  @validator('email')
+  @field_validator('email')
+  @classmethod
   def email_is_valid(cls, v):
     try:
       validate_email(v)
