@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import datetime
-from pydantic import BaseSettings, Field, BaseModel, HttpUrl, validator, field_validator
+from pydantic import Field, BaseModel, HttpUrl, validator, field_validator
 from typing import Optional, List, Dict
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 from models.assignments import Referee
