@@ -5,8 +5,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
 from authentication import AuthHandler, TokenPayload
-from utils import (validate_match_time, parse_datetime,
-                   calc_player_card_stats)
+from utils import validate_match_time, parse_datetime
 from services.stats_service import StatsService
 from exceptions import (ResourceNotFoundException, ValidationException, 
                        DatabaseOperationException, AuthorizationException)
