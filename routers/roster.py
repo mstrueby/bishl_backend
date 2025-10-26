@@ -82,13 +82,13 @@ async def update_roster(
         "required_roles": ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]
       }
     )
-  
+
   logger.debug(f"Updating roster", extra={
     "match_id": match_id,
     "team_flag": team_flag,
     "roster_size": len(roster)
   })
-  
+
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise ValidationException(
@@ -168,7 +168,7 @@ async def update_roster(
         {"_id": match_id}, {"$set": {
             f"{team_flag}.roster": roster_data
         }})
-    
+
     if update_result.modified_count == 0:
       raise DatabaseOperationException(
         operation="update_one",
@@ -179,7 +179,7 @@ async def update_roster(
           "reason": "No changes detected"
         }
       )
-    
+
     logger.info(f"Roster updated", extra={
       "match_id": match_id,
       "team_flag": team_flag,

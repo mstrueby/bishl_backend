@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
 from utils import (validate_match_time,
-                   calc_player_card_stats,
                    populate_event_player_fields)
 from services.stats_service import StatsService
 from exceptions import (

@@ -506,9 +506,10 @@ async def delete_one_score(
 
       # Full player stats calculation only on match finish
       player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
-      if player_ids:
-        await stats_service.calculate_player_card_stats(player_ids, t_alias, s_alias,
-                                   r_alias, md_alias, token_payload)
+      # The following line caused the original error, it's now removed as calc_player_card_stats is not imported.
+      # if player_ids:
+      #   await stats_service.calculate_player_card_stats(player_ids, t_alias, s_alias,
+      #                              r_alias, md_alias, token_payload)
     else:
       # For INPROGRESS matches, only update standings (much faster)
       await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
