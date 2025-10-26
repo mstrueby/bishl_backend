@@ -14,6 +14,8 @@ from exceptions.custom_exceptions import (
 )
 from logging_config import logger
 
+BASE_URL = os.environ.get('BE_API_URL', 'http://localhost:8080')
+
 # Remove the pydantic_patch.py file as requested.
 
 

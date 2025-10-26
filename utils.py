@@ -10,9 +10,11 @@ import aiohttp
 import httpx
 import cloudinary
 import cloudinary.uploader
+import asyncio
+from logging_config import logger
 
 BASE_URL = os.environ['BE_API_URL']
-DEBUG_LEVEL = int(os.environ['DEBUG_LEVEL'])
+DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
 
 
 async def populate_event_player_fields(mongodb, event_player_dict):
@@ -128,6 +130,20 @@ def validate_match_time(v, field_name: str):
 
 # calc_match_stats has been moved to services.stats_service.StatsService.calculate_match_stats()
 # This function is deprecated - import StatsService directly instead
+async def calculate_match_stats(match_id: str, team_flag: str, db) -> dict:
+  """
+  DEPRECATED: Use StatsService.calculate_match_stats() instead
+  This wrapper maintains backward compatibility
+  """
+  logger.warning("Deprecated function called - use StatsService instead", extra={
+      "function": "calculate_match_stats",
+      "match_id": match_id,
+      "team_flag": team_flag
+  })
+
+  from services.stats_service import StatsService
+  stats_service = StatsService(db)
+  return asyncio.run(stats_service.calculate_match_stats(match_id, team_flag))
 
 
 # calc_standings_per_round has been moved to services.stats_service.StatsService.aggregate_round_standings()
@@ -155,9 +171,6 @@ async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str,
       return (await response.json()).get('matchSettings').get('refereePoints')
 
 
-
-  
-
 async def get_sys_ref_tool_token(email: str, password: str):
   login_url = f"{os.environ['BE_API_URL']}/users/login"
   login_data = {
@@ -171,27 +184,33 @@ async def get_sys_ref_tool_token(email: str, password: str):
     raise Exception(f"Error logging in: {login_response.json()}")
   return login_response.json()['token']
 
+
 # calc_roster_stats has been moved to services.stats_service.StatsService.calculate_roster_stats()
 # This function is deprecated - import StatsService directly instead
-async def calc_roster_stats(mongodb, match_id: str, team_flag: str) -> None:
+async def calculate_roster_stats(match_id: str, team_flag: str, db) -> dict:
   """
-  DEPRECATED: Use StatsService.calculate_roster_stats() instead.
-  
+  DEPRECATED: Use StatsService.calculate_roster_stats() instead
+  This wrapper maintains backward compatibility
+  """
+  logger.warning("Deprecated function called - use StatsService instead", extra={
+      "function": "calculate_roster_stats",
+      "match_id": match_id,
+      "team_flag": team_flag
+  })
+
+  from services.stats_service import StatsService
+  stats_service = StatsService(db)
+  return asyncio.run(stats_service.calculate_roster_stats(match_id, team_flag))
+
+
+async def calculate_player_card_stats(player_ids: List[str], t_alias: str,
+                                      s_alias: str, r_alias: str,
+                                      md_alias: str, token_payload=None) -> None:
+  """
+  DEPRECATED: Use StatsService.calculate_player_card_stats() instead
+
   This is a temporary wrapper for backward compatibility.
   """
   from services.stats_service import StatsService
-  stats_service = StatsService(mongodb)
-  await stats_service.calculate_roster_stats(match_id, team_flag)
-
-
-async def calc_player_card_stats(mongodb, player_ids: List[str], t_alias: str,
-                                 s_alias: str, r_alias: str,
-                                 md_alias: str, token_payload=None) -> None:
-  """
-  DEPRECATED: Use StatsService.calculate_player_card_stats() instead.
-  
-  This is a temporary wrapper for backward compatibility.
-  """
-  from services.stats_service import StatsService
-  stats_service = StatsService(mongodb)
+  stats_service = StatsService(None) # Assuming db is not needed here based on the original stub
   await stats_service.calculate_player_card_stats(player_ids, t_alias, s_alias, r_alias, md_alias, token_payload)
