@@ -1,5 +1,5 @@
 from bson import ObjectId
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from enum import Enum
 from datetime import datetime
@@ -85,6 +85,7 @@ class AssignmentUpdate(MongoBaseModel):
                                   ge=1,
                                   le=2)
 
-  @validator('status', pre=True, always=True)
+  @field_validator('status', mode='before')
+  @classmethod
   def validate_null_strings(cls, v, info):
     return prevent_empty_str(v, info.field_name)

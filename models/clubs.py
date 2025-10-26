@@ -1,5 +1,5 @@
 from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, EmailStr, validator
+from pydantic import Field, BaseModel, HttpUrl, EmailStr, validator, field_validator
 from typing import Optional, List
 
 
@@ -55,7 +55,8 @@ class TeamBase(MongoBaseModel):
   ishdId: Optional[str] = None
   legacyId: Optional[int] = None
 
-  @validator('ishdId', pre=True, always=True)
+  @field_validator('ishdId', mode='before')
+  @classmethod
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
@@ -76,7 +77,7 @@ class TeamBase(MongoBaseModel):
 """
 
 
-@validator('teamNumber', pre=True, always=True)
+@field_validator('teamNumber', mode='before')
 def int_must_be_positive(cls, v):
   if v < 1 or v is None:
     raise ValueError("Field must be positive")
@@ -101,7 +102,8 @@ class TeamUpdate(MongoBaseModel):
   ishdId: Optional[str] = None
   legacyId: Optional[int] = None
 
-  @validator('ishdId', pre=True, always=True)
+  @field_validator('ishdId', mode='before')
+  @classmethod
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
@@ -145,13 +147,13 @@ class ClubBase(MongoBaseModel):
   legacyId: Optional[int] = None
   logoUrl: Optional[HttpUrl] = None
 
-  @validator('email',
+  @field_validator('email',
              'website',
              'yearOfFoundation',
              'ishdId',
              'logoUrl',
-             pre=True,
-             always=True)
+             mode='before')
+  @classmethod
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
@@ -185,7 +187,8 @@ class ClubUpdate(MongoBaseModel):
   legacyId: Optional[int] = None
   logoUrl: Optional[str] = None
 
-  @validator('email', 'website', 'logoUrl', pre=True, always=True)
+  @field_validator('email', 'website', 'logoUrl', mode='before')
+  @classmethod
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 

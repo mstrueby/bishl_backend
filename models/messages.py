@@ -1,5 +1,5 @@
 from bson import ObjectId
-from pydantic import Field, BaseModel, validator
+from pydantic import Field, BaseModel, field_validator
 from typing import Optional
 from utils import prevent_empty_str
 from datetime import datetime
@@ -35,9 +35,10 @@ class User(BaseModel):
   firstName: str = Field(...)
   lastName: str = Field(...)
 
-  @validator('userId', 'firstName', 'lastName', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('userId', 'firstName', 'lastName', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
 
 # Messages
