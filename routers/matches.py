@@ -846,14 +846,28 @@ async def update_match(request: Request,
       current_match_status != new_match_status):
     if t_alias and s_alias and r_alias and md_alias:
       ref_points = await fetch_ref_points(t_alias, s_alias, r_alias, md_alias)
-      if existing_match.get('referee1') is not None:
-        if 'referee1' not in match_data:
-          match_data['referee1'] = {}
-        match_data['referee1']['points'] = ref_points
-      if existing_match.get('referee2') is not None:
-        if 'referee2' not in match_data:
-          match_data['referee2'] = {}
-        match_data['referee2']['points'] = ref_points
+      # Only update if referees exist in the existing match
+      if existing_match.get('referee1'):
+        # Get existing referee1 data or create empty dict
+        ref1_data = match_data.get('referee1', {})
+        if ref1_data is None:
+          ref1_data = {}
+        # Copy all existing referee1 data if not already in match_data
+        if 'referee1' not in match_data or not match_data['referee1']:
+          ref1_data = existing_match.get('referee1', {}).copy()
+        ref1_data['points'] = ref_points
+        match_data['referee1'] = ref1_data
+      
+      if existing_match.get('referee2'):
+        # Get existing referee2 data or create empty dict
+        ref2_data = match_data.get('referee2', {})
+        if ref2_data is None:
+          ref2_data = {}
+        # Copy all existing referee2 data if not already in match_data
+        if 'referee2' not in match_data or not match_data['referee2']:
+          ref2_data = existing_match.get('referee2', {}).copy()
+        ref2_data['points'] = ref_points
+        match_data['referee2'] = ref2_data
 
   if DEBUG_LEVEL > 10:
     print("match_data: ", match_data)
