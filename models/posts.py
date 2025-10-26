@@ -1,7 +1,5 @@
-
 from bson import ObjectId
-from pydantic import Field, BaseModel, field_validator, HttpUrl, ConfigDict
-from pydantic_core import core_schema
+from pydantic import Field, BaseModel, field_validator, HttpUrl
 from typing import Optional
 from datetime import datetime
 from utils import prevent_empty_str
@@ -10,31 +8,25 @@ from utils import prevent_empty_str
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_pydantic_core_schema__(cls, source_type, handler):
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x)
-      )
-    )
+  def __get_validators__(cls):
+    yield cls.validate
 
   @classmethod
-  def validate(cls, v):
-    if isinstance(v, ObjectId):
-      return v
+  def validate(cls, v, handler=None):
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
+  @classmethod
+  def __get_pydantic_json_schema__(cls, core_schema, handler):
+    return {"type": "string"}
+
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(
-    populate_by_name=True,
-    arbitrary_types_allowed=True,
-    json_encoders={ObjectId: str}
-  )
-  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+
+  class Config:
+    json_encoders = {ObjectId: str}
 
 
 class Author(BaseModel):
@@ -84,15 +76,13 @@ class PostBase(MongoBaseModel):
 
 
 """
-  @field_validator('title', 'alias', 'content', mode='before')
-  @classmethod
-  def validate_null_strings(cls, v, info):
-    return prevent_empty_str(v, info.field_name)
+  @validator('title', 'alias', 'content', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
 
-  @field_validator('imageUrl', mode='before')
-  @classmethod
-  def validate_strings(cls, v, info):
-    return empty_str_to_none(v, info.field_name)
+  @validator('imageUrl', pre=True, always=True)
+  def validate_strings(cls, v, field):
+    return empty_str_to_none(v, field.name)
 """
 
 
@@ -117,13 +107,11 @@ class PostUpdate(MongoBaseModel):
   publishDateFrom: Optional[datetime] = None
   publishDateTo: Optional[datetime] = None
   """
-  @field_validator('title', 'alias', 'content', mode='before')
-  @classmethod
-  def validate_null_strings(cls, v, info):
-    return prevent_empty_str(v, info.field_name)
+  @validator('title', 'alias', 'content', pre=True, always=True)
+  def validate_null_strings(cls, v, field):
+    return prevent_empty_str(v, field.name)
 
-  @field_validator('imageUrl', mode='before')
-  @classmethod
-  def validate_strings(cls, v, info):
-    return empty_str_to_none(v, info.field_name)
+  @validator('imageUrl', pre=True, always=True)
+  def validate_strings(cls, v, field):
+    return empty_str_to_none(v, field.name)
   """

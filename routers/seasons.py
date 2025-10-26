@@ -5,7 +5,6 @@ from fastapi.responses import Response, JSONResponse
 from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
 from authentication import AuthHandler, TokenPayload
 from fastapi.encoders import jsonable_encoder
-from exceptions import ResourceNotFoundException
 
 router = APIRouter()
 auth = AuthHandler()
@@ -30,9 +29,9 @@ async def get_seasons_for_tournament(
     ]
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(seasons))
-  raise ResourceNotFoundException(
-      resource_type="Tournament",
-      resource_id=tournament_alias)
+  raise HTTPException(
+      status_code=404,
+      detail=f"Tournament with alias {tournament_alias} not found")
 
 
 # get one season of a tournament
@@ -56,14 +55,13 @@ async def get_season(
         season_response = SeasonDB(**season)
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(season_response))
-    raise ResourceNotFoundException(
-        resource_type="Season",
-        resource_id=season_alias,
-        parent_resource_type="Tournament",
-        parent_resource_id=tournament_alias)
-  raise ResourceNotFoundException(
-      resource_type="Tournament",
-      resource_id=tournament_alias)
+    raise HTTPException(
+        status_code=404,
+        detail=
+        f"Season {season_alias} not found in tournament {tournament_alias}")
+  raise HTTPException(
+      status_code=404,
+      detail=f"Tournament with alias {tournament_alias} not found")
 
 
 # add new season to tournament
@@ -78,13 +76,14 @@ async def create_season(
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
+  #print("add season")
   # Check if the tournament exists
   if (tournament := await
       mongodb['tournaments'].find_one({"alias":
                                                    tournament_alias})) is None:
-    raise ResourceNotFoundException(
-        resource_type="Tournament",
-        resource_id=tournament_alias)
+    raise HTTPException(
+        status_code=404,
+        detail=f"Tournament with alias {tournament_alias} not found")
   # Check for existing season with the same alias as the one to add
   if any(
       s.get("alias") == season.alias for s in tournament.get("seasons", [])):
@@ -118,17 +117,16 @@ async def create_season(
         return JSONResponse(status_code=status.HTTP_201_CREATED,
                             content=jsonable_encoder(season_response))
       else:
-        raise ResourceNotFoundException(
-            resource_type="Season",
-            resource_id=season.alias,
-            parent_resource_type="Tournament",
-            parent_resource_id=tournament_alias)
+        raise HTTPException(
+            status_code=404,
+            detail=
+            f"Season {season.alias} not found in tournament {tournament_alias}"
+        )
     else:
-      # This case should ideally not be reached if the tournament exists and modified_count is 0
-      # but it's a safeguard.
-      raise ResourceNotFoundException(
-          resource_type="Tournament",
-          resource_id=tournament_alias)
+      raise HTTPException(
+          status_code=404,
+          detail=
+          f"Season {season.alias} or tournament {tournament_alias} not found")
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -150,25 +148,28 @@ async def update_season(
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
+  print("input season: ", season)
   # exclude unset
-  season_dict = season.model_dump(exclude_unset=True)
+  season_dict = season.dict(exclude_unset=True)
+  print("exclude unset: ", season_dict)
+
   # Find the tournament by alias
   tournament = await mongodb['tournaments'].find_one(
       {"alias": tournament_alias})
   if not tournament:
-    raise ResourceNotFoundException(
-        resource_type="Tournament",
-        resource_id=tournament_alias)
+    raise HTTPException(
+        status_code=404,
+        detail=f"Tournament with alias {tournament_alias} not found")
 
   # Find the index of the season to update
   season_index = next((index for (index, d) in enumerate(tournament["seasons"])
                        if d["_id"] == season_id), None)
   if season_index is None:
-    raise ResourceNotFoundException(
-        resource_type="Season",
-        resource_id=season_id,
-        parent_resource_type="Tournament",
-        parent_resource_id=tournament_alias)
+    raise HTTPException(
+        status_code=404,
+        detail=
+        f"Season with id {season_id} not found in tournament {tournament_alias}"
+    )
 
   # Prepare the update by excluding unchanged data
   update_data = {"$set": {}}
@@ -176,9 +177,11 @@ async def update_season(
     if field != "_id" and season_dict[field] != tournament["seasons"][
         season_index].get(field):
       update_data["$set"][f"seasons.{season_index}.{field}"] = season_dict[field]
+  print("updated data: ", update_data)
 
   # Proceed with the update only if there are changes
   if update_data["$set"]:
+    print("do update")
     # Update season in tournament
     try:
       result = await mongodb['tournaments'].update_one(
@@ -187,31 +190,19 @@ async def update_season(
               f"seasons.{season_index}._id": season_id
           }, update_data)
       if result.modified_count == 0:
-        # This could happen if the document was found but no fields changed,
-        # or if the season_id somehow didn't match after finding the tournament.
-        # Given we found the tournament and the season index, if modified_count is 0
-        # it implies no fields were actually changed in the update_data.
-        # However, if the season ID was somehow invalid at this point (e.g., race condition),
-        # it might also result in 0 modified. We re-check for the season to be sure.
-        updated_tournament_check = await mongodb['tournaments'].find_one(
-            {"alias": tournament_alias}, {"seasons.$": ""})
-        if not any(s["_id"] == season_id for s in updated_tournament_check.get("seasons", [])):
-           raise ResourceNotFoundException(
-                resource_type="Season",
-                resource_id=season_id,
-                parent_resource_type="Tournament",
-                parent_resource_id=tournament_alias)
-        else:
-            # If season exists but no changes were applied because data was the same
-            return Response(status_code=status.HTTP_304_NOT_MODIFIED)
-
+        raise HTTPException(
+            status_code=404,
+            detail=
+            f"Update: Season with id {season_id} not found in tournament {tournament_alias}"
+        )
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
 
   else:
+    print("no update")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
-  # Fetch the current season data after update
+  # Fetch the current season data
   tournament = await mongodb['tournaments'].find_one(
       {"alias": tournament_alias}, {
           '_id': 0,
@@ -221,7 +212,7 @@ async def update_season(
               }
           }
       })
-  if tournament and "seasons" in tournament and tournament["seasons"]:
+  if tournament and "seasons" in tournament:
     updated_season = tournament["seasons"][0]
     if "rounds" in updated_season and updated_season["rounds"] is not None:
       for round in updated_season["rounds"]:
@@ -231,12 +222,11 @@ async def update_season(
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(season_response))
   else:
-    # This case means the season was not found after the update, which is unexpected if modified_count was > 0
-    raise ResourceNotFoundException(
-        resource_type="Season",
-        resource_id=season_id,
-        parent_resource_type="Tournament",
-        parent_resource_id=tournament_alias)
+    raise HTTPException(
+        status_code=404,
+        detail=
+        f"Fetch: Season with id {season_id} not found in tournament {tournament_alias}"
+    )
 
 
 # delete season from tournament
@@ -263,16 +253,9 @@ async def delete_season(
       }})
   if delete_result.modified_count == 1:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-  # If modified_count is 0, it means the tournament was found but the season wasn't there to be pulled.
-  # We should check if the tournament exists first to provide a more specific error.
-  tournament = await mongodb['tournaments'].find_one({"alias": tournament_alias})
-  if not tournament:
-       raise ResourceNotFoundException(
-            resource_type="Tournament",
-            resource_id=tournament_alias)
-  else:
-       raise ResourceNotFoundException(
-            resource_type="Season",
-            resource_id=season_alias,
-            parent_resource_type="Tournament",
-            parent_resource_id=tournament_alias)
+
+  raise HTTPException(
+      status_code=404,
+      detail=
+      f"Season with alias {season_alias} not found in tournament {tournament_alias}"
+  )

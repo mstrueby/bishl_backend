@@ -12,13 +12,6 @@ from datetime import datetime
 import cloudinary
 import cloudinary.uploader
 import os
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -90,11 +83,7 @@ async def get_post(request: Request, alias: str) -> JSONResponse:
   query = {"alias": alias}
   post = await mongodb["posts"].find_one(query)
   if not post:
-    raise ResourceNotFoundException(
-        resource_type="Post",
-        resource_id=alias,
-        details={"query_field": "alias"}
-    )
+    raise HTTPException(status_code=404, detail="Post not found")
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(PostDB(**post)))
 
@@ -118,10 +107,7 @@ async def create_post(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "AUTHOR"]):
-    raise AuthorizationException(
-        message="Admin or Author role required",
-        details={"user_roles": token_payload.roles}
-    )
+    raise HTTPException(status_code=403, detail="Nicht authorisiert")
 
   # Data preparation
   post = PostBase(
@@ -238,7 +224,7 @@ async def update_post(
         published=published,
         featured=featured,
         deleted=deleted,
-    ).model_dump(exclude_none=True)
+    ).dict(exclude_none=True)
   except ValueError as e:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Failed to parse input data") from e

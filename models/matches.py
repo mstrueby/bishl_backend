@@ -1,40 +1,34 @@
 from bson import ObjectId
 from datetime import datetime
-from pydantic import Field, BaseModel, HttpUrl, field_validator, ConfigDict
-from pydantic_core import core_schema
+from pydantic import Field, BaseModel, HttpUrl, validator, field_validator
 from typing import Optional, List, Dict
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 from models.assignments import Referee
+#from models.clubs import TeamBase
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_pydantic_core_schema__(cls, source_type, handler):
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x)
-      )
-    )
+  def __get_validators__(cls):
+    yield cls.validate
 
   @classmethod
-  def validate(cls, v):
-    if isinstance(v, ObjectId):
-      return v
+  def validate(cls, v, handler=None):
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
+  @classmethod
+  def __get_pydantic_json_schema__(cls, core_schema, handler):
+    return {"type": "string"}
+
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(
-    populate_by_name=True,
-    arbitrary_types_allowed=True,
-    json_encoders={ObjectId: str}
-  )
-  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+
+  class Config:
+    json_encoders = {ObjectId: str}
 
 
 # --- sub documents without _id
@@ -97,7 +91,7 @@ class ScoresBase(MongoBaseModel):
 
   @field_validator('matchTime', mode='before')
   @classmethod
-  def validate_match_time_field(cls, v, info):
+  def validate_match_time(cls, v, info):
     return validate_match_time(v, info.field_name)
 
 
@@ -112,6 +106,11 @@ class ScoresUpdate(MongoBaseModel):
   isPPG: Optional[bool] = False
   isSHG: Optional[bool] = False
   isGWG: Optional[bool] = False
+  @field_validator('matchTime', mode='before')
+  @classmethod
+  def validate_match_time_field(cls, v, info):
+    return validate_match_time(v, info.field_name)
+
 
 
 class PenaltiesBase(MongoBaseModel):
@@ -127,6 +126,14 @@ class PenaltiesBase(MongoBaseModel):
   @classmethod
   def validate_type(cls, v, info):
     return validate_dict_of_strings(v, info.field_name)
+
+  @field_validator('matchTimeStart', 'matchTimeEnd', mode='before')
+  @classmethod
+  def validate_match_time(cls, v, info):
+    if info.field_name == 'matchTimeEnd' and v is None:
+      return None
+    return validate_match_time(v, info.field_name)
+
 
 class PenaltiesDB(PenaltiesBase):
   pass
@@ -150,7 +157,7 @@ class PenaltiesUpdate(MongoBaseModel):
 
   @field_validator('matchTimeStart', 'matchTimeEnd', mode='before')
   @classmethod
-  def validate_match_time_field(cls, v, info):
+  def validate_match_time(cls, v, info):
     if info.field_name == 'matchTimeEnd' and v is None:
       return None
     return validate_match_time(v, info.field_name)
@@ -337,6 +344,10 @@ class MatchBase(MongoBaseModel):
   matchSheetComplete: bool = False
   supplementarySheet: Optional[SupplementarySheet] = Field(default_factory=SupplementarySheet)
 
+  ##@validator('matchStatus', pre=True, always=True)
+  #def validate_type(cls, v, field):
+  #  return validate_dict_of_strings(v, field.name)
+
 
 class MatchDB(MatchBase):
   pass
@@ -404,3 +415,7 @@ class MatchUpdate(MongoBaseModel):
   published: Optional[bool] = False
   matchSheetComplete: Optional[bool] = False
   supplementarySheet: Optional[SupplementarySheet] = Field(default_factory=SupplementarySheet)
+
+  #@validator('matchStatus', pre=True, always=True)
+  #def validate_type(cls, v, field):
+  #  return validate_dict_of_strings(v, field.name)

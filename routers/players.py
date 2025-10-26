@@ -7,7 +7,6 @@ from typing import List, Optional, Dict
 from bson.objectid import ObjectId
 from fastapi import UploadFile
 from pydantic import HttpUrl, BaseModel
-from typing import Optional
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, SexEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
@@ -18,13 +17,6 @@ import aiohttp
 import base64
 import cloudinary
 import cloudinary.uploader
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    ExternalServiceException
-)
-from logging_config import logger
 
 
 router = APIRouter()
@@ -48,12 +40,10 @@ async def handle_image_upload(image: UploadFile, playerId) -> str:
                 'crop': 'thumb',
                 'gravity': 'face'
             }])
-        logger.info(f"Player image uploaded to Cloudinary: {result['public_id']}")
+        print(f"Player image uploaded to Cloudinary: {result['public_id']}")
         return result["secure_url"]
-    raise ValidationException(
-        field="image",
-        message="No image file provided for upload"
-    )
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="No image uploaded.")
 
 
 async def delete_from_cloudinary(image_url: str):
@@ -61,15 +51,11 @@ async def delete_from_cloudinary(image_url: str):
         try:
             public_id = image_url.rsplit('/', 1)[-1].split('.')[0]
             result = cloudinary.uploader.destroy(f"players/{public_id}")
-            logger.info(f"Document deleted from Cloudinary: players/{public_id}")
-            logger.debug(f"Cloudinary deletion result: {result}")
+            print("Document deleted from Cloudinary:", f"players/{public_id}")
+            print("Result:", result)
             return result
         except Exception as e:
-            raise ExternalServiceException(
-                service="Cloudinary",
-                operation="delete_image",
-                details={"public_id": f"players/{public_id}", "error": str(e)}
-            )
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 # Helper function to search players
@@ -211,12 +197,9 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
     assigned_teams_list = []
     try:
         assigned_teams_list = json.loads(assignedTeams)
-    except json.JSONDecodeError as e:
-        raise ValidationException(
-            field="assignedTeams",
-            message="Invalid JSON format for team assignments",
-            details={"error": str(e)}
-        )
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400,
+                            detail="Invalid JSON for assignedTeams")
 
     print(f"assigned_teams_list: {assigned_teams_list}")
     # Validate and convert to the proper Pydantic models
@@ -230,20 +213,19 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
         club_exists = await mongodb["clubs"].find_one(
             {"_id": club_to_assign.clubId})
         if not club_exists:
-            raise ResourceNotFoundException(
-                resource_type="Club",
-                resource_id=club_to_assign.clubId
-            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Club with id {club_to_assign.clubId} does not exist.")
         teams = []
         for team_to_assign in club_to_assign.teams:
             print("team_to_assign:", club_exists['name'], '/', team_to_assign)
             team = next((team for team in club_exists['teams']
                          if team['_id'] == team_to_assign.teamId), None)
             if not team:
-                raise ResourceNotFoundException(
-                    resource_type="Team",
-                    resource_id=team_to_assign.teamId,
-                    details={"club_id": club_to_assign.clubId, "club_name": club_exists['name']}
+                raise HTTPException(
+                    status_code=400,
+                    detail=
+                    f"Team with id {team_to_assign.teamId} does not exist in club {club_to_assign.clubId}."
                 )
             else:
                 teams.append({
@@ -299,7 +281,7 @@ async def process_ishd_data(
     if mode == "test" and run == 1:
         await mongodb['players'].delete_many({})
         log_line = "Deleted all documents in players."
-        logger.warning(log_line)
+        print(log_line)
         log_lines.append(log_line)
 
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
@@ -1486,7 +1468,7 @@ async def update_player(request: Request,
                                managedByISHD=managedByISHD,
                                imageVisible=imageVisible,
                                source=source,
-                               sex=sex).model_dump(exclude_none=True)
+                               sex=sex).dict(exclude_none=True)
 
     player_data.pop('id', None)
     if image:

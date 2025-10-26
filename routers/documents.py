@@ -9,13 +9,6 @@ from models.documents import DocumentBase, DocumentDB, DocumentUpdate
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
 from pymongo.errors import DuplicateKeyError
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -116,11 +109,7 @@ async def get_document(
   query = {"alias": alias}
   document = await mongodb["documents"].find_one(query)
   if not document:
-    raise ResourceNotFoundException(
-        resource_type="Document",
-        resource_id=alias,
-        details={"query_field": "alias"}
-    )
+    raise HTTPException(status_code=404, detail="Document not found")
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(DocumentDB(**document)))
 
@@ -154,19 +143,13 @@ async def upload_document(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if not any(role in token_payload.roles for role in ["ADMIN", "DOC_ADMIN"]):
-    raise AuthorizationException(
-        message="Admin or Doc Admin role required",
-        details={"user_roles": token_payload.roles}
-    )
+    raise HTTPException(status_code=403, detail="Not authorized")
 
   # Check if document already exists in db
   existing_doc = await mongodb['documents'].find_one({'title': title})
   if existing_doc:
-    raise ValidationException(
-        field="title",
-        message=f"Document '{title}' already exists",
-        details={"existing_id": existing_doc.get("_id")}
-    )
+    raise HTTPException(status_code=400,
+                        detail=f"Document '{title}' already exists.")
 
   check_reserved_aliases(alias)
   validate_file_type(file)
@@ -248,7 +231,7 @@ async def update_document(request: Request,
       alias=alias,
       category=category,
       published=published,
-  ).model_dump(exclude_none=True)
+  ).dict(exclude_none=True)
   doc_data.pop("id", None)
   print("doc_data: ", doc_data)
 

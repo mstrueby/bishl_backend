@@ -1,11 +1,9 @@
 # routers/configs.py
-from fastapi import APIRouter, Request, status, Path
+from fastapi import APIRouter, Request, status, HTTPException, Path
 from fastapi.responses import JSONResponse
 from models.configs import Config, ConfigValue
 from authentication import AuthHandler, TokenPayload
 from typing import List
-from exceptions import ResourceNotFoundException
-from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -112,7 +110,7 @@ configs: List[Config] = [  # Use List[Config] for type hinting
             response_description="Get all configs")
 async def get_all_configs(request: Request):
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=[config.model_dump() for config in configs])
+                      content=[config.dict() for config in configs])
 
 
 # Get one config
@@ -123,11 +121,7 @@ async def get_one_config(request: Request, key: str = Path(...)):
   lower_key = key.lower()
   for config in configs:
     if config.key.lower() == lower_key:
-      logger.debug(f"Config retrieved: {key}")
       return JSONResponse(status_code=status.HTTP_200_OK,
-                          content=config.model_dump())
-  raise ResourceNotFoundException(
-    resource_type="Config",
-    resource_id=key,
-    details={"searched_key": lower_key}
-  )
+                          content=config.dict())
+  raise HTTPException(status_code=404,
+                      detail=f"Config with key {key} not found")

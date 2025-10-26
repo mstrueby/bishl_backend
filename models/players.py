@@ -1,6 +1,5 @@
 from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, ConfigDict
-from pydantic_core import core_schema
+from pydantic import Field, BaseModel, HttpUrl
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -10,31 +9,28 @@ from models.matches import MatchTournament, MatchSeason, MatchRound, MatchMatchd
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_pydantic_core_schema__(cls, source_type, handler):
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x)
-      )
-    )
+  def __get_validators__(cls):
+    yield cls.validate
 
   @classmethod
-  def validate(cls, v):
-    if isinstance(v, ObjectId):
-      return v
+  def validate(cls, v, handler=None):
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
+  @classmethod
+  def __get_pydantic_json_schema__(cls, core_schema, handler):
+    return {"type": "string"}
+
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(
-    populate_by_name=True,
-    arbitrary_types_allowed=True,
-    json_encoders={ObjectId: str}
-  )
-  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+
+  class Config:
+    json_encoders = {ObjectId: str}
+    
+    def dict(self, *args, **kwargs):
+      return super().dict(*args, **kwargs)
 
 
 class PositionEnum(str, Enum):
@@ -193,21 +189,17 @@ class PlayerDB(PlayerBase):
     else:
       return False
   
-  model_config = ConfigDict(
-    populate_by_name=True,
-    arbitrary_types_allowed=True,
-    json_encoders={ObjectId: str},
-    json_schema_extra={
-      "properties": {
-        "ageGroup": {"type": "string"},
-        "overAge": {"type": "boolean"}
-      }
-    }
-  )
+  class Config(MongoBaseModel.Config):
+      @staticmethod
+      def schema_extra(schema, model):
+          """Enhance schema documentation by adding properties"""
+          props = schema.setdefault("properties", {})
+          props["ageGroup"] = {"type": "string"}
+          props["overAge"] = {"type": "boolean"}
 
-  def model_dump(self, *args, **kwargs):
+  def dict(self, *args, **kwargs):
       """Incorporate properties when converting to dictionary"""
-      result = super().model_dump(*args, **kwargs)
+      result = super().dict(*args, **kwargs)
       result["ageGroup"] = self.ageGroup
       result["overAge"] = self.overAge
       return result

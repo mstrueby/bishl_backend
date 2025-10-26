@@ -11,13 +11,6 @@ import httpx
 from enum import Enum
 from datetime import datetime
 from mail_service import send_email
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
 
 
 router = APIRouter()
@@ -32,7 +25,7 @@ class AllStatuses(Enum):
     ASSIGNED = "ASSIGNED"
     ACCEPTED = "ACCEPTED"
 
-async def add_status_history_entry(db, assignment_id, new_status, updated_by=None, updated_by_name=None, session=None):
+async def add_status_history_entry(db, assignment_id, new_status, updated_by=None, updated_by_name=None):
     """Add a new entry to the status history of an assignment"""
     status_entry = StatusHistory(
         status=new_status,
@@ -43,12 +36,11 @@ async def add_status_history_entry(db, assignment_id, new_status, updated_by=Non
 
     await db["assignments"].update_one(
         {"_id": assignment_id},
-        {"$push": {"statusHistory": jsonable_encoder(status_entry)}},
-        session=session
+        {"$push": {"statusHistory": jsonable_encoder(status_entry)}}
     )
 
 
-async def insert_assignment(db, match_id, referee, status, position=None, updated_by=None, updated_by_name=None, session=None):
+async def insert_assignment(db, match_id, referee, status, position=None, updated_by=None, updated_by_name=None):
     # Create initial status history entry
     initial_status_history = [StatusHistory(
         status=status,
@@ -64,12 +56,12 @@ async def insert_assignment(db, match_id, referee, status, position=None, update
                               statusHistory=initial_status_history)
     #print(assignment)
     insert_response = await db["assignments"].insert_one(
-        jsonable_encoder(assignment), session=session)
+        jsonable_encoder(assignment))
     return await db["assignments"].find_one(
-        {"_id": insert_response.inserted_id}, session=session)
+        {"_id": insert_response.inserted_id})
 
 
-async def set_referee_in_match(db, match_id, referee, position, session=None):
+async def set_referee_in_match(db, match_id, referee, position):
     await db['matches'].update_one({'_id': match_id}, {
         '$set': {
             f'referee{position}': {
@@ -81,7 +73,7 @@ async def set_referee_in_match(db, match_id, referee, position, session=None):
                 'logoUrl': referee['logoUrl'],
             }
         }
-    }, session=session)
+    })
 
 
 async def send_message_to_referee(match, receiver_id, content, footer = None):
@@ -166,17 +158,13 @@ async def get_assignments_by_match(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
-        raise AuthorizationException(
-            message="Admin or Ref Admin role required",
-            details={"user_roles": token_payload.roles}
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized")
 
     match = await mongodb["matches"].find_one({"_id": match_id})
     if not match:
-        raise ResourceNotFoundException(
-            resource_type="Match",
-            resource_id=match_id
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Match with id {match_id} not found")
 
     # Get all users with role REFEREE
     referees = await mongodb["users"].find({
@@ -251,17 +239,13 @@ async def get_assignments_by_user(
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if not (user_id == token_payload.sub or any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles)):
-        raise AuthorizationException(
-            message="Not authorized to view assignments for other users",
-            details={"requested_user": user_id, "requester": token_payload.sub}
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized")
 
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
-        raise ResourceNotFoundException(
-            resource_type="User",
-            resource_id=user_id
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"User with id {user_id} not found")
     # Get all assignments for the user
     assignments = await mongodb["assignments"].find({
         "referee.userId": user_id
@@ -358,32 +342,14 @@ async def create_assignment(
         referee["points"] = ref_user.get('referee', {}).get('points', 0)
         referee["level"] = ref_user.get('referee', {}).get('level', 'n/a')
 
-        # Use transaction to ensure assignment and match are updated together
-        async with await request.app.state.client.start_session() as session:
-            async with session.start_transaction():
-                try:
-                    # Create assignment within transaction
-                    new_assignment = await insert_assignment(mongodb, match_id, referee,
-                                                             assignment_data.status,
-                                                             assignment_data.position,
-                                                             token_payload.sub,
-                                                             f"{token_payload.firstName} {token_payload.lastName}",
-                                                             session=session)
-                    
-                    # Update match document within same transaction
-                    await set_referee_in_match(mongodb, match_id, referee,
-                                               assignment_data.position,
-                                               session=session)
-                    
-                    # Transaction commits automatically on success
-                except Exception as e:
-                    # Transaction aborts automatically on exception
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to create assignment: {str(e)}"
-                    )
+        new_assignment = await insert_assignment(mongodb, match_id, referee,
+                                                 assignment_data.status,
+                                                 assignment_data.position,
+                                                 token_payload.sub,
+                                                 f"{token_payload.firstName} {token_payload.lastName}")
+        await set_referee_in_match(mongodb, match_id, referee,
+                                   assignment_data.position)
 
-        # Send notification after transaction commits
         await send_message_to_referee(
             match=match,
             receiver_id=referee["userId"],
@@ -513,7 +479,7 @@ async def update_assignment(
         # REF_ADMIN mode ------------------------------------------------------------
         print("REF_ADMIN mode")
         ref_id = assignment["referee"]["userId"]
-        update_data = assignment_data.model_dump(exclude_unset=True)
+        update_data = assignment_data.dict(exclude_unset=True)
         # exclude unchanged data
         for key, value in assignment.items():
             if key in update_data and value == update_data[key]:
@@ -540,70 +506,53 @@ async def update_assignment(
             #print("do update")
             if 'ref_admin' in update_data:
                 del update_data['ref_admin']
-            
-            # Use transaction for assignment and match updates
-            async with await request.app.state.client.start_session() as session:
-                async with session.start_transaction():
-                    try:
-                        if update_data['status'] not in [Status.assigned, Status.accepted]:
-                            # Ref wurde aus Ansetzung entfernt
-                            result = await mongodb["assignments"].update_one(
-                                {"_id": assignment_id}, {
-                                    "$set": update_data,
-                                    "$unset": {
-                                        "position": ""
-                                    }
-                                }, session=session)
-                            # Add status history entry
-                            await add_status_history_entry(
-                                mongodb, assignment_id, update_data['status'],
-                                token_payload.sub, f"{token_payload.firstName} {token_payload.lastName}",
-                                session=session
-                            )
-                            # Update match and remove referee
-                            await mongodb['matches'].update_one(
-                                {'_id': match_id},
-                                {'$set': {
-                                    f'referee{assignment["position"]}': None
-                                }}, session=session)
-                        else:
-                            result = await mongodb["assignments"].update_one(
-                                {"_id": assignment_id}, {"$set": update_data}, session=session)
-                            # Add status history entry
-                            await add_status_history_entry(
-                                mongodb, assignment_id, update_data['status'],
-                                token_payload.sub, f"{token_payload.firstName} {token_payload.lastName}",
-                                session=session
-                            )
-                            if update_data['status'] in [Status.assigned, Status.accepted]:
-                                await set_referee_in_match(mongodb, match_id,
-                                                           assignment['referee'],
-                                                           assignment_data.position,
-                                                           session=session)
-                        # Transaction commits automatically on success
-                    except Exception as e:
-                        # Transaction aborts automatically on exception
-                        raise HTTPException(
-                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Failed to update assignment: {str(e)}"
-                        )
-            
-            # Send notifications after transaction commits
             if update_data['status'] not in [Status.assigned, Status.accepted]:
+                # Ref wurde aus Ansetzung entfernt
+                result = await mongodb["assignments"].update_one(
+                    {"_id": assignment_id}, {
+                        "$set": update_data,
+                        "$unset": {
+                            "position": ""
+                        }
+                    })
+                # Add status history entry
+                await add_status_history_entry(
+                    mongodb, assignment_id, update_data['status'],
+                    token_payload.sub, f"{token_payload.firstName} {token_payload.lastName}"
+                )
+                # Update match and remove referee
+                await mongodb['matches'].update_one(
+                    {'_id': match_id},
+                    {'$set': {
+                        f'referee{assignment["position"]}': None
+                    }})
                 await send_message_to_referee(
                     match=match,
                     receiver_id=ref_id,
                     content=
                     f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
                 )
-            elif update_data['status'] in [Status.assigned, Status.accepted]:
-                await send_message_to_referee(
-                    match=match,
-                    receiver_id=ref_id,
-                    content=
-                    f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
-                    footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast."
+            else:
+                result = await mongodb["assignments"].update_one(
+                    {"_id": assignment_id}, {"$set": update_data})
+                # Add status history entry
+                await add_status_history_entry(
+                    mongodb, assignment_id, update_data['status'],
+                    token_payload.sub, f"{token_payload.firstName} {token_payload.lastName}"
                 )
+                if update_data['status'] in [Status.assigned, Status.accepted]:
+
+                    await set_referee_in_match(mongodb, match_id,
+                                               assignment['referee'],
+                                               assignment_data.position)
+
+                    await send_message_to_referee(
+                        match=match,
+                        receiver_id=ref_id,
+                        content=
+                        f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+                        footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast."
+                    )
             #print("update_data before update", update_data)
             if result.modified_count == 1:
                 updated_assignment = await mongodb["assignments"].find_one(
@@ -626,7 +575,7 @@ async def update_assignment(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to update assignment of other referee")
-        update_data = assignment_data.model_dump(exclude_unset=True)
+        update_data = assignment_data.dict(exclude_unset=True)
         # exclude unchanged data
         for key, value in assignment.items():
             if key in update_data and value == update_data[key]:
@@ -1017,36 +966,23 @@ async def delete_assignment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Match with id {match_id} not found")
 
-    # Use transaction to delete assignment and update match together
-    async with await request.app.state.client.start_session() as session:
-        async with session.start_transaction():
-            try:
-                # Delete assignment
-                result = await mongodb["assignments"].delete_one({"_id": id}, session=session)
-                if result.deleted_count == 1:
-                    # Update match and remove referee
-                    await mongodb['matches'].update_one(
-                        {'_id': match_id},
-                        {'$set': {
-                            f'referee{assignment["position"]}': None
-                        }}, session=session)
-                    # Transaction commits automatically on success
-                else:
-                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                        detail=f"Assignment with id {id} not found")
-            except HTTPException:
-                raise
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to delete assignment: {str(e)}"
-                )
-    
-    # Send notification after transaction commits
-    await send_message_to_referee(
-        match=match,
-        receiver_id=ref_id,
-        content=
-        f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    # delete assignment
+    result = await mongodb["assignments"].delete_one({"_id": id})
+    if result.deleted_count == 1:
+        # Update match and remove referee
+        await mongodb['matches'].update_one(
+            {'_id': match_id},
+            {'$set': {
+                f'referee{assignment["position"]}': None
+            }})
+        await send_message_to_referee(
+            match=match,
+            receiver_id=ref_id,
+            content=
+            f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Assignment with id {id} not found")

@@ -5,17 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from authentication import AuthHandler, TokenPayload
-from utils import (validate_match_time,
-                   calc_player_card_stats,
-                   populate_event_player_fields)
-from services.stats_service import StatsService
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    StatsCalculationException
-)
-from logging_config import logger
+from utils import DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds, calc_roster_stats, calc_player_card_stats, populate_event_player_fields
 
 router = APIRouter()
 auth = AuthHandler()
@@ -38,10 +28,7 @@ async def get_penalty_object(mongodb, match_id: str, team_flag: str,
 
   # Validate team_flag
   if team_flag not in ["home", "away"]:
-    raise ValidationException(
-        field="team_flag",
-        message=f"Must be 'home' or 'away', got '{team_flag}'"
-    )
+    raise HTTPException(status_code=400, detail="Invalid team flag")
 
   # Perform the query
   penalty = await mongodb["matches"].find_one(
@@ -55,20 +42,18 @@ async def get_penalty_object(mongodb, match_id: str, team_flag: str,
 
   if not penalty or not penalty.get(
       team_flag or "penalties" not in penalty.get(team_flag)):
-    raise ResourceNotFoundException(
-        resource_type="Penalty",
-        resource_id=penalty_id,
-        details={"match_id": match_id, "team_flag": team_flag}
-    )
+    raise HTTPException(
+        status_code=404,
+        detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
 
   return_data = penalty[team_flag]["penalties"][0]
   # Parse matchSeconds to a string format
   if 'matchSecondsStart' in return_data:
-    return_data['matchTimeStart'] = validate_match_time(
+    return_data['matchTimeStart'] = parse_time_from_seconds(
         return_data['matchSecondsStart'])
   if 'matchSecondsEnd' in return_data and return_data[
       'matchSecondsEnd'] is not None:
-    return_data['matchTimeEnd'] = validate_match_time(
+    return_data['matchTimeEnd'] = parse_time_from_seconds(
         return_data['matchSecondsEnd'])
 
   # Populate EventPlayer fields
@@ -90,27 +75,22 @@ async def get_penalty_sheet(
   mongodb = request.app.state.mongodb
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
-    raise ValidationException(
-        field="team_flag",
-        message=f"Must be 'home' or 'away', got '{team_flag}'"
-    )
+    raise HTTPException(status_code=400, detail="Invalid team flag")
 
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise ResourceNotFoundException(
-        resource_type="Match",
-        resource_id=match_id
-    )
+    raise HTTPException(status_code=404,
+                        detail=f"Match with ID {match_id} not found")
 
   # Get penalty sheet from match document
   penalties = match.get(team_flag, {}).get("penalties") or []
 
   for penalty in penalties:
     if 'matchSecondsStart' in penalty:
-      penalty['matchTimeStart'] = validate_match_time(
+      penalty['matchTimeStart'] = parse_time_from_seconds(
           penalty['matchSecondsStart'])
     if 'matchSecondsEnd' in penalty and penalty['matchSecondsEnd'] is not None:
-      penalty['matchTimeEnd'] = validate_match_time(
+      penalty['matchTimeEnd'] = parse_time_from_seconds(
           penalty['matchSecondsEnd'])
     if penalty.get('penaltyPlayer'):
       penalty['penaltyPlayer'] = await populate_event_player_fields(
@@ -135,37 +115,29 @@ async def create_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-
+  
   #check
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
-    raise ValidationException(
-        field="team_flag",
-        message=f"Must be 'home' or 'away', got '{team_flag}'"
-    )
+    raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise ResourceNotFoundException(
-        resource_type="Match",
-        resource_id=match_id
-    )
+    raise HTTPException(status_code=404,
+                        detail=f"Match with id {match_id} not found")
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
   if match_status != 'INPROGRESS':
-    raise ValidationException(
-        field="matchStatus",
-        message="Penalties can only be added when match status is INPROGRESS",
-        details={"current_status": match_status}
-    )
+    raise HTTPException(
+        status_code=400,
+        detail="Penalties can only be added when match status is INPROGRESS")
 
   # check if player exists in roster
   if not any(player['player']['playerId'] == penalty.penaltyPlayer.playerId
              for player in match.get(team_flag, {}).get('roster', [])):
-    raise ValidationException(
-        field="penaltyPlayer",
-        message=f"Player with id {penalty.penaltyPlayer.playerId} not in roster",
-        details={"match_id": match_id, "team_flag": team_flag}
+    raise HTTPException(
+        status_code=400,
+        detail=f"Player with id {penalty.penaltyPlayer.playerId} not in roster"
     )
 
   # Get match info for optimizations
@@ -179,12 +151,12 @@ async def create_penalty(
     penalty_data = {}
     new_penalty_id = str(ObjectId())
     penalty_data["_id"] = new_penalty_id
-    penalty_data.update(penalty.model_dump())
+    penalty_data.update(penalty.dict())
     penalty_data.pop("id")
-    penalty_data["matchSecondsStart"] = validate_match_time(
+    penalty_data["matchSecondsStart"] = parse_time_to_seconds(
         penalty_data["matchTimeStart"])
     if penalty_data["matchTimeEnd"] is not None:
-      penalty_data["matchSecondsEnd"] = validate_match_time(
+      penalty_data["matchSecondsEnd"] = parse_time_to_seconds(
           penalty_data['matchTimeEnd'])
     penalty_data = jsonable_encoder(penalty_data)
 
@@ -198,23 +170,17 @@ async def create_penalty(
 
     # Execute the optimized update
     update_result = await mongodb["matches"].update_one(
-        {"_id": match_id},
+        {"_id": match_id}, 
         update_operations,
         array_filters=array_filters
     )
 
     if update_result.modified_count == 0:
-      raise DatabaseOperationException(
-          operation="update_one",
-          collection="matches",
-          details={"match_id": match_id, "penalty_data": penalty_data}
-      )
+      raise HTTPException(status_code=500, detail="Failed to update match with penalty")
 
     # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS penalties
-    logger.info(
-        f"Penalty added with incremental updates",
-        extra={"match_id": match_id, "player_id": penalty_player_id, "minutes": penalty.penaltyMinutes}
-    )
+    if DEBUG_LEVEL > 0:
+      print(f"Penalty added with incremental updates - Player: {penalty_player_id}, Minutes: {penalty.penaltyMinutes}")
 
     # Use the reusable function to return the new penalty
     new_penalty = await get_penalty_object(mongodb, match_id, team_flag, new_penalty_id)
@@ -262,35 +228,28 @@ async def patch_one_penalty(
   # Data validation and conversion
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
-    raise ValidationException(
-        field="team_flag",
-        message=f"Must be 'home' or 'away', got '{team_flag}'"
-    )
+    raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise ResourceNotFoundException(
-        resource_type="Match",
-        resource_id=match_id
-    )
+    raise HTTPException(status_code=404,
+                        detail=f"Match with id {match_id} not found")
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
   if match_status != 'INPROGRESS':
-    raise ValidationException(
-        field="matchStatus",
-        message="Penalties can only be modified when match status is INPROGRESS",
-        details={"current_status": match_status}
+    raise HTTPException(
+        status_code=400,
+        detail="Penalties can only be modified when match status is INPROGRESS"
     )
 
   # check if player exists in roster
   if penalty.penaltyPlayer and penalty.penaltyPlayer.playerId:
     if not any(player['player']['playerId'] == penalty.penaltyPlayer.playerId
                for player in match.get(team_flag, {}).get('roster', [])):
-      raise ValidationException(
-          field="penaltyPlayer",
-          message=f"Player with id {penalty.penaltyPlayer.playerId} not in roster",
-          details={"match_id": match_id, "team_flag": team_flag}
-      )
+      raise HTTPException(
+          status_code=400,
+          detail=
+          f"Player with id {penalty.penaltyPlayer.playerId} not in roster")
 
   # Fetch the current penalty
   current_penalty = None
@@ -300,20 +259,18 @@ async def patch_one_penalty(
       break
 
   if current_penalty is None:
-    raise ResourceNotFoundException(
-        resource_type="Penalty",
-        resource_id=penalty_id,
-        details={"match_id": match_id, "team_flag": team_flag}
-    )
+    raise HTTPException(
+        status_code=404,
+        detail=f"Penalty with id {penalty_id} not found in match {match_id}")
 
   # Update data
-  penalty_data = penalty.model_dump(exclude_unset=True)
+  penalty_data = penalty.dict(exclude_unset=True)
   if 'matchTimeStart' in penalty_data:
-    penalty_data['matchSecondsStart'] = validate_match_time(
+    penalty_data['matchSecondsStart'] = parse_time_to_seconds(
         penalty_data['matchTimeStart'])
     #penalty_data.pop('matchTimeStart')
   if 'matchTimeEnd' in penalty_data:
-    penalty_data['matchSecondsEnd'] = validate_match_time(
+    penalty_data['matchSecondsEnd'] = parse_time_to_seconds(
         penalty_data['matchTimeEnd'])
     #penalty_data.pop('matchTimeEnd')
   penalty_data = jsonable_encoder(penalty_data)
@@ -335,11 +292,10 @@ async def patch_one_penalty(
             status_code=404,
             detail=f"Penalty with ID {penalty_id} not found in match {match_id}"
         )
-
+      
       # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
       # Only recalculate roster stats (lightweight operation)
-      stats_service = StatsService(mongodb)
-      await stats_service.calculate_roster_stats(match_id, team_flag)
+      await calc_roster_stats(mongodb, match_id, team_flag)
 
     except Exception as e:
       raise HTTPException(status_code=500, detail=str(e))
@@ -366,28 +322,21 @@ async def delete_one_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-
+  
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
-    raise ValidationException(
-        field="team_flag",
-        message=f"Must be 'home' or 'away', got '{team_flag}'"
-    )
+    raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise ResourceNotFoundException(
-        resource_type="Match",
-        resource_id=match_id
-    )
+    raise HTTPException(status_code=404,
+                        detail=f"Match with id {match_id} not found")
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
   if match_status != 'INPROGRESS':
-    raise ValidationException(
-        field="matchStatus",
-        message="Penalties can only be deleted when match status is INPROGRESS",
-        details={"current_status": match_status}
-    )
+    raise HTTPException(
+        status_code=400,
+        detail="Penalties can only be deleted when match status is INPROGRESS")
 
   # Fetch the current penalty before deletion
   current_penalty = None
@@ -397,11 +346,9 @@ async def delete_one_penalty(
       break
 
   if current_penalty is None:
-    raise ResourceNotFoundException(
-        resource_type="Penalty",
-        resource_id=penalty_id,
-        details={"match_id": match_id, "team_flag": team_flag}
-    )
+    raise HTTPException(
+        status_code=404,
+        detail=f"Penalty with id {penalty_id} not found in match {match_id}")
 
   # Get match info for optimizations
   t_alias = match.get('tournament', {}).get('alias')
@@ -428,26 +375,15 @@ async def delete_one_penalty(
     )
 
     if result.modified_count == 0:
-      raise ResourceNotFoundException(
-          resource_type="Penalty",
-          resource_id=penalty_id,
-          details={"match_id": match_id, "team_flag": team_flag}
-      )
+      raise HTTPException(
+          status_code=404,
+          detail=f"Penalty with ID {penalty_id} not found in match {match_id}")
 
     # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS penalties
-    logger.info(
-        f"Penalty deleted with incremental updates",
-        extra={"match_id": match_id, "player_id": penalty_player_id, "minutes": penalty_minutes}
-    )
+    if DEBUG_LEVEL > 0:
+      print(f"Penalty deleted with incremental updates - Player: {penalty_player_id}, Minutes: {penalty_minutes}")
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-  except (ValidationException, ResourceNotFoundException, DatabaseOperationException):
-    raise
   except Exception as e:
-    logger.error(f"Unexpected error deleting penalty: {str(e)}", extra={"match_id": match_id, "penalty_id": penalty_id})
-    raise DatabaseOperationException(
-        operation="delete_penalty",
-        collection="matches",
-        details={"match_id": match_id, "penalty_id": penalty_id, "error": str(e)}
-    )
+    raise HTTPException(status_code=500, detail=str(e))

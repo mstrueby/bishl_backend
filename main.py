@@ -1,17 +1,7 @@
 #!/usr/bin/env python
 import os
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import HTTPException
+from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
-import uuid
-from datetime import datetime
-import traceback
-
-# Import custom exceptions and logging
-from exceptions import BISHLException
-from logging_config import logger
-
 #import uvicorn
 from routers.root import router as root_router
 from routers.configs import router as configs_router
@@ -54,116 +44,15 @@ app.add_middleware(
 )
 
 
-# Exception Handlers
-@app.exception_handler(BISHLException)
-async def bishl_exception_handler(request: Request, exc: BISHLException):
-    """Handle all BISHL custom exceptions"""
-    correlation_id = str(uuid.uuid4())
-    
-    error_response = {
-        "error": {
-            "message": exc.message,
-            "status_code": exc.status_code,
-            "correlation_id": correlation_id,
-            "timestamp": datetime.utcnow().isoformat(),
-            "path": request.url.path,
-            "details": exc.details
-        }
-    }
-    
-    # Log the error with correlation ID
-    logger.error(
-        f"[{correlation_id}] {exc.__class__.__name__}: {exc.message}",
-        extra={
-            "correlation_id": correlation_id,
-            "status_code": exc.status_code,
-            "path": request.url.path,
-            "details": exc.details
-        }
-    )
-    
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=error_response
-    )
-
-
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle FastAPI HTTPExceptions with consistent format"""
-    correlation_id = str(uuid.uuid4())
-    
-    error_response = {
-        "error": {
-            "message": exc.detail,
-            "status_code": exc.status_code,
-            "correlation_id": correlation_id,
-            "timestamp": datetime.utcnow().isoformat(),
-            "path": request.url.path
-        }
-    }
-    
-    logger.error(
-        f"[{correlation_id}] HTTPException: {exc.detail}",
-        extra={
-            "correlation_id": correlation_id,
-            "status_code": exc.status_code,
-            "path": request.url.path
-        }
-    )
-    
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=error_response
-    )
-
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    """Catch-all handler for unexpected exceptions"""
-    correlation_id = str(uuid.uuid4())
-    
-    # Log full traceback for unexpected errors
-    logger.error(
-        f"[{correlation_id}] Unhandled exception: {str(exc)}",
-        extra={
-            "correlation_id": correlation_id,
-            "path": request.url.path,
-            "traceback": traceback.format_exc()
-        }
-    )
-    
-    error_response = {
-        "error": {
-            "message": "An unexpected error occurred",
-            "status_code": 500,
-            "correlation_id": correlation_id,
-            "timestamp": datetime.utcnow().isoformat(),
-            "path": request.url.path
-        }
-    }
-    
-    return JSONResponse(
-        status_code=500,
-        content=error_response
-    )
-
-
 @app.on_event("startup")
 async def startup_db_client():
-  logger.info("Starting BISHL API server...")
-  logger.info(f"Connecting to MongoDB: {DB_NAME}")
-  app.state.client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
-  app.state.mongodb_client = app.state.client  # Keep backward compatibility
-  app.state.mongodb = app.state.client[DB_NAME]
-  logger.info("MongoDB connection established")
+    app.state.mongodb_client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
+    app.state.mongodb = app.state.mongodb_client[DB_NAME]
 
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    logger.info("Shutting down BISHL API server...")
-    app.state.client.close()
-    logger.info("MongoDB connection closed")
+    app.state.mongodb_client.close()
 
 app.include_router(root_router, prefix="", tags=["root"])
 app.include_router(configs_router, prefix="/configs", tags=["configs"])

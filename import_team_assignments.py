@@ -132,7 +132,7 @@ try:
 
       # Iterate over the current assignments and ensure proper initialization
       for assignment in player.assignedTeams or []:
-        assigned_team_object = AssignedClubs(**assignment.model_dump())
+        assigned_team_object = AssignedClubs(**assignment.dict())
         assigned_clubs.append(assigned_team_object)
 
       #print(f"Assigning {len(assigned_clubs)} teams to {first_name} {last_name}")
@@ -202,7 +202,7 @@ try:
       try:
         from pprint import pprint
         print(f"Updating player ... {first_name} {last_name} (ID: {player.id})")
-        assignments_data = [x.model_dump() for x in assigned_clubs]
+        assignments_data = [x.dict() for x in assigned_clubs]
         pprint(assignments_data, indent=4)
 
         # Perform the update with the correct ID format

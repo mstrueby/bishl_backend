@@ -1,6 +1,5 @@
 from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, ConfigDict
-from pydantic_core import core_schema
+from pydantic import Field, BaseModel, HttpUrl, validator
 from typing import Optional
 from datetime import datetime
 
@@ -8,31 +7,25 @@ from datetime import datetime
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_pydantic_core_schema__(cls, source_type, handler):
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x)
-      )
-    )
+  def __get_validators__(cls):
+    yield cls.validate
 
   @classmethod
-  def validate(cls, v):
-    if isinstance(v, ObjectId):
-      return v
+  def validate(cls, v, handler=None):
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
+  @classmethod
+  def __get_pydantic_json_schema__(cls, core_schema, handler):
+    return {"type": "string"}
+
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(
-    populate_by_name=True,
-    arbitrary_types_allowed=True,
-    json_encoders={ObjectId: str}
-  )
-
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+
+  class Config:
+    json_encoders = {ObjectId: str}
 
 
 # Venues
@@ -57,14 +50,13 @@ class VenueBase(MongoBaseModel):
   legacyId: Optional[int] = None
 
   """
-  @field_validator('imageUrl', 'description', mode='before')
-  @classmethod
+  @validator('image', 'description', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
   """
 
   """
-  @field_validator('name',
+  @validator('name',
              'alias',
              'shortName',
              'street',
@@ -73,8 +65,8 @@ class VenueBase(MongoBaseModel):
              'country',
              'latitude',
              'longitude',
-             mode='before')
-  @classmethod
+             pre=True,
+             always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")
@@ -103,12 +95,11 @@ class VenueUpdate(MongoBaseModel):
   usageApprovalValidTo: Optional[datetime] = None
 
   """
-  @field_validator('imageUrl', 'description', mode='before')
-  @classmethod
+  @validator('image', 'description', pre=True, always=True)
   def empty_str_to_none(cls, v):
     return None if v == "" else v
 
-  @field_validator('name',
+  @validator('name',
              'alias',
              'shortName',
              'street',
@@ -117,8 +108,8 @@ class VenueUpdate(MongoBaseModel):
              'country',
              'latitude',
              'longitude',
-             mode='before')
-  @classmethod
+             pre=True,
+             always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
       raise ValueError("Field cannot be null or empty string")

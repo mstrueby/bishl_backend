@@ -1,7 +1,6 @@
 from enum import Enum
 from typing import Optional, List
-from pydantic import EmailStr, Field, BaseModel, field_validator, ConfigDict
-from pydantic_core import core_schema
+from pydantic import EmailStr, Field, BaseModel, validator, field_validator
 from email_validator import validate_email, EmailNotValidError
 from bson import ObjectId
 
@@ -9,31 +8,25 @@ from bson import ObjectId
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_pydantic_core_schema__(cls, source_type, handler):
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x)
-      )
-    )
+  def __get_validators__(cls):
+    yield cls.validate
 
   @classmethod
-  def validate(cls, v):
-    if isinstance(v, ObjectId):
-      return v
+  def validate(cls, v, handler=None):
     if not ObjectId.is_valid(v):
       raise ValueError("Invalid objectid")
     return ObjectId(v)
 
+  @classmethod
+  def __get_pydantic_json_schema__(cls, core_schema, handler):
+    return {"type": "string"}
+
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(
-    populate_by_name=True,
-    arbitrary_types_allowed=True,
-    json_encoders={ObjectId: str}
-  )
-
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+
+  class Config:
+    json_encoders = {ObjectId: str}
 
 
 class Role(str, Enum):
@@ -76,7 +69,7 @@ class Referee(BaseModel):
 
 
 class UserBase(MongoBaseModel):
-  email: EmailStr = Field(...)
+  email: EmailStr
   password: str = Field(...)
   firstName: str = Field(...)
   lastName: str = Field(...)
@@ -115,12 +108,12 @@ class UserUpdate(MongoBaseModel):
 
 
 class LoginBase(BaseModel):
-  email: EmailStr = Field(...)
+  email: EmailStr
   password: str = Field(...)
 
 
 class CurrentUser(MongoBaseModel):
-  email: EmailStr = Field(...)
+  email: EmailStr
   firstName: str = Field(...)
   lastName: str = Field(...)
   club: Optional[Club] = None
