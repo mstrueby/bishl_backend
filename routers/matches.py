@@ -848,10 +848,10 @@ async def update_match(request: Request,
       ref_points = await fetch_ref_points(t_alias, s_alias, r_alias, md_alias)
       if existing_match['referee1'] is not None:
         if match_data.get('referee1'):
-      match_data['referee1']['points'] = ref_points
+          match_data['referee1']['points'] = ref_points
       if existing_match['referee2'] is not None:
         if match_data.get('referee2'):
-      match_data['referee2']['points'] = ref_points
+          match_data['referee2']['points'] = ref_points
 
   if DEBUG_LEVEL > 10:
     print("match_data: ", match_data)
