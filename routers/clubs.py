@@ -176,17 +176,17 @@ async def create_club(
                 collection="clubs",
                 details={"club_name": name, "reason": "Insert acknowledged but club not found"},
             )
-    except DuplicateKeyError:
+    except DuplicateKeyError as e:
         raise DatabaseOperationException(
             operation="insert",
             collection="clubs",
             details={"club_name": name, "reason": "Duplicate key - club already exists"},
-        )
+        ) from e
     except Exception as e:
         logger.error(f"Unexpected error creating club {name}: {str(e)}")
         raise DatabaseOperationException(
             operation="insert", collection="clubs", details={"club_name": name, "error": str(e)}
-        )
+        ) from e
 
 
 # Update club
@@ -270,12 +270,12 @@ async def update_club(
             collection="clubs",
             details={"club_id": id, "modified_count": update_result.modified_count},
         )
-    except DuplicateKeyError:
+    except DuplicateKeyError as e:
         raise DatabaseOperationException(
             operation="update",
             collection="clubs",
             details={"club_id": id, "reason": "Duplicate key - club name already exists"},
-        )
+        ) from e
     except Exception as e:
         logger.error(f"Unexpected error updating club {id}: {str(e)}")
         raise DatabaseOperationException(

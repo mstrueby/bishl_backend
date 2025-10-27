@@ -193,7 +193,7 @@ async def add_matchday(
             operation="insert",
             collection="tournaments.matchdays",
             details={"error": str(e), "matchday_alias": matchday.alias},
-        )
+        ) from e
 
 
 # update matchday of a round
@@ -335,7 +335,7 @@ async def update_matchday(
                 operation="update",
                 collection="tournaments.matchdays",
                 details={"error": str(e), "matchday_id": matchday_id},
-            )
+            ) from e
     else:
         if DEBUG_LEVEL > 10:
             print("no update needed")
