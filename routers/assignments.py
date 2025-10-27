@@ -609,7 +609,7 @@ async def update_assignment(
                         raise HTTPException(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Failed to update assignment: {str(e)}",
-                        )
+                        ) from e
 
             # Send notifications after transaction commits
             if update_data["status"] not in [Status.assigned, Status.accepted]:
@@ -1090,7 +1090,7 @@ async def delete_assignment(
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to delete assignment: {str(e)}",
-                )
+                ) from e
 
     # Send notification after transaction commits
     await send_message_to_referee(
