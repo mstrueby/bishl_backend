@@ -26,6 +26,11 @@ class Settings(BaseSettings):
         default="*", description="Comma-separated list of allowed CORS origins"
     )
 
+    # Security
+    SECRET_KEY: str = Field(
+        default="", description="General application secret key for encryption/signing"
+    )
+
     # JWT Configuration
     JWT_SECRET: str = Field(default="", description="Secret key for JWT token generation")
     JWT_ALGORITHM: str = Field(default="HS256", description="Algorithm for JWT encoding")
