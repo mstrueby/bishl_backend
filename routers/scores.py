@@ -316,14 +316,6 @@ async def patch_one_score(
         score_data["matchSeconds"] = parse_time_to_seconds(score_data["matchTime"])
     # score_data.pop('matchTime')
     score_data = jsonable_encoder(score_data)
-    goal_player_id = (
-        score_data.get("goalPlayer", {}).get("playerId") if score_data.get("goalPlayer") else None
-    )
-    assist_player_id = (
-        score_data.get("assistPlayer", {}).get("playerId")
-        if score_data.get("assistPlayer")
-        else None
-    )
     print("score_data: ", score_data)
 
     update_data = {"$set": {}}
