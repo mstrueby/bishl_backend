@@ -226,7 +226,7 @@ async def create_score(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # get one score
@@ -349,7 +349,7 @@ async def patch_one_score(
                 return Response(status_code=status.HTTP_304_NOT_MODIFIED)
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
     else:
         print("No update data")
         return Response(status_code=status.HTTP_304_NOT_MODIFIED)
@@ -512,4 +512,4 @@ async def delete_one_score(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

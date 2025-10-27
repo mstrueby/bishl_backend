@@ -100,7 +100,7 @@ async def create_tournament(
             status_code=status.HTTP_201_CREATED,
             content=jsonable_encoder(TournamentDB(**created_tournament)),
         )
-    except DuplicateKeyError:
+    except DuplicateKeyError as e:
         raise DatabaseOperationException(
             operation="insert",
             collection="tournaments",
@@ -108,7 +108,7 @@ async def create_tournament(
                 "tournament_name": tournament_data.get("name", "unknown"),
                 "reason": "Duplicate key",
             },
-        )
+        ) from e
 
 
 # update tournament
@@ -149,19 +149,19 @@ async def update_tournament(
                     collection="tournaments",
                     details={"tournament_id": tournament_id, "modified_count": 0},
                 )
-        except DuplicateKeyError:
+        except DuplicateKeyError as e:
             raise DatabaseOperationException(
                 operation="update",
                 collection="tournaments",
                 details={"tournament_id": tournament_id, "reason": "Duplicate key"},
-            )
+            ) from e
         except Exception as e:
             logger.error(f"Unexpected error updating tournament {tournament_id}: {str(e)}")
             raise DatabaseOperationException(
                 operation="update",
                 collection="tournaments",
                 details={"tournament_id": tournament_id, "error": str(e)},
-            )
+            ) from e
     else:
         logger.info(f"No changes to update for tournament {tournament_id}")
         return Response(status_code=status.HTTP_304_NOT_MODIFIED)
