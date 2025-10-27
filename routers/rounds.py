@@ -190,7 +190,7 @@ async def add_round(
         )
         raise DatabaseOperationException(
             operation="insert_round", collection="tournaments", details={"error": str(e)}
-        )
+        ) from e
 
 
 # update a round of a season
@@ -330,7 +330,7 @@ async def update_round(
             )
             raise DatabaseOperationException(
                 operation="update_round", collection="tournaments", details={"error": str(e)}
-            )
+            ) from e
     else:
         if DEBUG_LEVEL > 10:
             print("no update needed")

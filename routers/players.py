@@ -213,7 +213,7 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
             field="assignedTeams",
             message="Invalid JSON format for team assignments",
             details={"error": str(e)},
-        )
+        ) from e
 
     print(f"assigned_teams_list: {assigned_teams_list}")
     # Validate and convert to the proper Pydantic models
@@ -1446,7 +1446,7 @@ async def create_player(
         logger.error(f"Error creating player: {str(e)}")
         raise DatabaseOperationException(
             operation="insert_one", collection="players", details={"error": str(e)}
-        )
+        ) from e
 
 
 # UPDATE PLAYER
@@ -1573,7 +1573,7 @@ async def update_player(
         logger.error(f"Error updating player {id}: {str(e)}")
         raise DatabaseOperationException(
             operation="update_one", collection="players", details={"player_id": id, "error": str(e)}
-        )
+        ) from e
 
 
 # DELETE PLAYER

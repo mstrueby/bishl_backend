@@ -226,4 +226,4 @@ async def update_roster(
         return await get_roster(request, match_id, team_flag)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

@@ -195,7 +195,7 @@ async def update_season(
                     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     else:
         return Response(status_code=status.HTTP_304_NOT_MODIFIED)

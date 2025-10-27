@@ -150,15 +150,15 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "ruff check --fix ."
+args = "ruff check --fix routers/ models/ services/ exceptions/ *.py"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "black ."
+args = "black routers/ models/ services/ exceptions/ *.py"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "mypy ."
+args = "mypy routers/ models/ services/ exceptions/ *.py"
 
 [[workflows.workflow]]
 name = "Full Build"

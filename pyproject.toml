@@ -52,12 +52,17 @@ extend-exclude = '''
 line-length = 100
 target-version = "py312"
 exclude = [
+    ".venv",
+    "venv",
+    "virtualenv",
+    "__pycache__",
     ".git",
+    ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
-    ".venv",
-    "backups",
-    "logs",
+    "build",
+    "dist",
+    "*.egg-info",
 ]
 
 [tool.ruff.lint]
@@ -91,6 +96,15 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 strict_optional = true
+exclude = [
+    '^\.venv/',
+    '^venv/',
+    '^virtualenv/',
+    '^__pycache__/',
+    '^\.git/',
+    '^build/',
+    '^dist/',
+]
 
 [[tool.mypy.overrides]]
 module = [
