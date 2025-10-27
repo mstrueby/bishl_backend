@@ -36,7 +36,7 @@ class AuthHandler:
         # Fallback to bcrypt (legacy passwords)
         try:
             return self.pwd_content_legacy.verify(plain_password, hashed_password)
-        except:
+        except Exception:
             return False
 
     def needs_rehash(self, hashed_password):
