@@ -1,11 +1,13 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form, Depends, status
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form, Depends, status, Query
 from fastapi.responses import JSONResponse, Response
 from fastapi.encoders import jsonable_encoder
 from utils import configure_cloudinary, my_jsonable_encoder
+from services.pagination import PaginationHelper
 from typing import List, Optional
 import cloudinary
 import cloudinary.uploader
 from models.documents import DocumentBase, DocumentDB, DocumentUpdate
+from models.responses import PaginatedResponse
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
 from pymongo.errors import DuplicateKeyError
@@ -81,27 +83,38 @@ async def get_categories(request: Request) -> List[str]:
 
 # get documents of a category
 @router.get("/categories/{category}",
-            response_model=List[DocumentDB],
+            response_model=PaginatedResponse[DocumentDB],
             response_description="Get documents for a category")
 async def get_documents_by_category(
     request: Request,
     category: str,
-    published: Optional[bool] = None) -> JSONResponse:
+    published: Optional[bool] = None,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=100, description="Items per page")
+) -> JSONResponse:
   mongodb = request.app.state.mongodb
   query = {'category': {'$regex': rf'^{category}$', '$options': 'i'}}
   if published is not None:
-    query = {
-        'category': {
-            '$regex': rf'^{category}$',
-            '$options': 'i'
-        },
-        'published': published
-    }
-  documents = await mongodb["documents"].find(query).to_list(1000)
-  documents.sort(key=lambda x: x["title"])
-  result = [DocumentDB(**document) for document in documents]
+    query['published'] = published
+  
+  items, total_count = await PaginationHelper.paginate_query(
+      collection=mongodb["documents"],
+      query=query,
+      page=page,
+      page_size=page_size,
+      sort=[("title", 1)]
+  )
+  
+  paginated_result = PaginationHelper.create_response(
+      items=[DocumentDB(**document) for document in items],
+      page=page,
+      page_size=page_size,
+      total_count=total_count,
+      message=f"Retrieved {len(items)} documents for category {category}"
+  )
+  
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(result))
+                      content=jsonable_encoder(paginated_result))
 
 
 # get one document by alias
@@ -127,16 +140,35 @@ async def get_document(
 
 # get list of all documents
 @router.get("/",
-            response_model=List[DocumentDB],
+            response_model=PaginatedResponse[DocumentDB],
             response_description="Get list of all documents")
-async def get_documents(request: Request,
-                        published: Optional[bool] = None) -> JSONResponse:
+async def get_documents(
+    request: Request,
+    published: Optional[bool] = None,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=100, description="Items per page")
+) -> JSONResponse:
   mongodb = request.app.state.mongodb
   query = {"published": published} if published is not None else {}
-  documents = await mongodb["documents"].find(query).to_list(1000)
-  result = [DocumentDB(**document) for document in documents]
+  
+  items, total_count = await PaginationHelper.paginate_query(
+      collection=mongodb["documents"],
+      query=query,
+      page=page,
+      page_size=page_size,
+      sort=[("title", 1)]
+  )
+  
+  paginated_result = PaginationHelper.create_response(
+      items=[DocumentDB(**document) for document in items],
+      page=page,
+      page_size=page_size,
+      total_count=total_count,
+      message=f"Retrieved {len(items)} documents"
+  )
+  
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(result))
+                      content=jsonable_encoder(paginated_result))
 
 
 # create/upload new document
