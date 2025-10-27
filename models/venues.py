@@ -1,23 +1,22 @@
-from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, ConfigDict
-from pydantic_core import core_schema
-from typing import Optional
 from datetime import datetime
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic_core import core_schema
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -55,12 +54,12 @@ class VenueBase(MongoBaseModel):
   country: str = Field(...)
   latitude: str = Field(...)
   longitude: str = Field(...)
-  imageUrl: Optional[HttpUrl] = None
-  description: Optional[str] = None
+  imageUrl: HttpUrl | None = None
+  description: str | None = None
   active: bool = False
-  usageApprovalId: Optional[str] = None
-  usageApprovalValidTo: Optional[datetime] = None
-  legacyId: Optional[int] = None
+  usageApprovalId: str | None = None
+  usageApprovalValidTo: datetime | None = None
+  legacyId: int | None = None
 
   """
   @field_validator('imageUrl', 'description', mode='before')
@@ -93,20 +92,20 @@ class VenueDB(VenueBase):
 
 
 class VenueUpdate(MongoBaseModel):
-  name: Optional[str] = "DEFAULT"
-  alias: Optional[str] = "DEFAULT"
-  shortName: Optional[str] = "DEFAULT"
-  street: Optional[str] = "DEFAULT"
-  zipCode: Optional[str] = "DEFAULT"
-  city: Optional[str] = "DEFAULT"
-  country: Optional[str] = "DEFAULT"
-  latitude: Optional[str] = "DEFAULT"
-  longitude: Optional[str] = "DEFAULT"
-  imageUrl: Optional[HttpUrl] = None
-  description: Optional[str] = None
-  active: Optional[bool] = False
-  usageApprovalId: Optional[str] = None
-  usageApprovalValidTo: Optional[datetime] = None
+  name: str | None = "DEFAULT"
+  alias: str | None = "DEFAULT"
+  shortName: str | None = "DEFAULT"
+  street: str | None = "DEFAULT"
+  zipCode: str | None = "DEFAULT"
+  city: str | None = "DEFAULT"
+  country: str | None = "DEFAULT"
+  latitude: str | None = "DEFAULT"
+  longitude: str | None = "DEFAULT"
+  imageUrl: HttpUrl | None = None
+  description: str | None = None
+  active: bool | None = False
+  usageApprovalId: str | None = None
+  usageApprovalValidTo: datetime | None = None
 
   """
   @field_validator('imageUrl', 'description', mode='before')

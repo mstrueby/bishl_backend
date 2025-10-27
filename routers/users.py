@@ -1,21 +1,22 @@
 # filename routers/users.py
-from typing import List, Optional
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Form, Query
+import json
+import logging
+import os
+from datetime import date
+
+import httpx
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-import os
-import httpx
-import json
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import AuthorizationException, ResourceNotFoundException
+from mail_service import send_email
 from models.assignments import AssignmentDB
-from models.users import Role, Club, UserBase, LoginBase, CurrentUser, UserUpdate
 from models.matches import MatchDB
 from models.responses import PaginatedResponse
+from models.users import Club, CurrentUser, LoginBase, Role, UserBase, UserUpdate
 from services.pagination import PaginationHelper
-from authentication import AuthHandler, TokenPayload
-from datetime import date
-from mail_service import send_email
-from exceptions import ResourceNotFoundException, AuthorizationException
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -177,13 +178,13 @@ async def me(
 async def update_user(
     request: Request,
     user_id: str,
-    email: Optional[str] = Form(default=None),
-    password: Optional[str] = Form(default=None),
-    firstName: Optional[str] = Form(default=None),
-    lastName: Optional[str] = Form(default=None),
-    club: Optional[str] = Form(default=None),
-    roles: Optional[List[str]] = Form(default=None),
-    referee: Optional[str] = Form(default=None),
+    email: str | None = Form(default=None),
+    password: str | None = Form(default=None),
+    firstName: str | None = Form(default=None),
+    lastName: str | None = Form(default=None),
+    club: str | None = Form(default=None),
+    roles: list[str] | None = Form(default=None),
+    referee: str | None = Form(default=None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
     mongodb = request.app.state.mongodb
@@ -256,7 +257,7 @@ async def update_user(
 
 @router.get("/matches",
             response_description="All assigned matches for me as a referee",
-            response_model=List[MatchDB])
+            response_model=list[MatchDB])
 async def get_assigned_matches(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
@@ -288,7 +289,7 @@ async def get_assigned_matches(
 
 @router.get("/assignments",
             response_description="All assignments by me",
-            response_model=List[AssignmentDB])
+            response_model=list[AssignmentDB])
 async def get_assignments(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
@@ -335,7 +336,7 @@ async def get_all_referees(
                             detail="Not authorized")
 
     current_season = os.environ['CURRENT_SEASON']
-    
+
     # Use pagination helper
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["users"],
@@ -360,7 +361,7 @@ async def get_all_referees(
         total_count=total_count,
         message=f"Retrieved {len(items)} referees"
     )
-    
+
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(paginated_result))
 
@@ -475,6 +476,6 @@ async def reset_password(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Password update failed")
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Invalid or expired reset token")

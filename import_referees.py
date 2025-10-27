@@ -1,18 +1,14 @@
 #!/usr/bin/env python
+import argparse
 import csv
 import json
 import os
-import glob
-import requests
-from pymongo import MongoClient
-import certifi
-from fastapi.encoders import jsonable_encoder
-import argparse
-from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue, MatchTeam
-from models.tournaments import RoundDB, MatchdayBase, MatchdayType
-from datetime import datetime
 import random
 import string
+
+import certifi
+import requests
+from pymongo import MongoClient
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Manage matches.')
@@ -67,7 +63,7 @@ headers = {
 
 # import and register referees
 with open(filename, encoding='utf-8') as f:
-  reader = csv.DictReader(f, 
+  reader = csv.DictReader(f,
                          delimiter=';',
                          quotechar='"',
                          doublequote=True,
@@ -81,7 +77,7 @@ with open(filename, encoding='utf-8') as f:
     if not email:
       print("No email found for referee", first_name, last_name)
       continue
-      
+
     club = None
     if isinstance(row.get('club'), str):
       club = json.loads(row['club'])
@@ -89,7 +85,7 @@ with open(filename, encoding='utf-8') as f:
     if not club:
       print("No club found for referee", row)
       continue
-    
+
     # Look up club logoUrl from clubs collection
     if club.get('clubId'):
       club_doc = db_collection_clubs.find_one({'_id': club['clubId']})
@@ -114,11 +110,11 @@ with open(filename, encoding='utf-8') as f:
     else:
       # create new user
       # generate password
-      
+
       # generate a random password
       password_length = 12
       random_password = ''.join(random.choices(string.ascii_letters + string.digits, k=password_length))
-      
+
       # Create user via API endpoint instead of direct DB insertion
       referee_obj = {
         'club': club,
@@ -133,22 +129,23 @@ with open(filename, encoding='utf-8') as f:
         'firstName': first_name,
         'lastName': last_name,
         'roles': ['REFEREE'],
-        'referee': referee_obj 
+        'referee': referee_obj
       }
-      
+
       # Use the API endpoint to register the user
       register_url = f"{BASE_URL}/users/register"
       register_response = requests.post(register_url, json=new_user, headers=headers)
-      
+
       if register_response.status_code == 201:
         print(f"User {email} created via API endpoint.")
-        
+
         # Send welcome email to the new user
         try:
           # Import here to avoid circular imports
           import asyncio
+
           from mail_service import send_email
-          
+
           # Prepare email content
           subject = "BISHL - Schiedsrichter-Account angelegt"
           #email='marian.strueby@web.de'
@@ -168,7 +165,7 @@ with open(filename, encoding='utf-8') as f:
           #print("reciepient", recipients)
           #print("subject", subject)
           #print("body", body)
-          
+
           # Run the async function in a separate event loop
           if args.prod:
               loop = asyncio.new_event_loop()

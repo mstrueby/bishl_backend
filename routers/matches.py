@@ -1,23 +1,32 @@
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Query
+import os
+from datetime import datetime, timedelta
+
+import httpx
+import isodate
+from bson import ObjectId
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse, JSONResponse, Response
-from typing import List, Optional
-from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase, KeyValue
-from models.responses import StandardResponse, PaginatedResponse
+from fastapi.responses import JSONResponse, Response
+
 from authentication import AuthHandler, TokenPayload
-from utils import validate_match_time, parse_datetime
+from exceptions import (
+  AuthorizationException,
+  DatabaseOperationException,
+  ResourceNotFoundException,
+  ValidationException,
+)
+from logging_config import logger
+from models.matches import (
+  MatchBase,
+  MatchDB,
+  MatchListBase,
+  MatchStats,
+  MatchTeamUpdate,
+  MatchUpdate,
+)
+from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.stats_service import StatsService
-from services.performance_monitor import monitor_query
-from exceptions import (ResourceNotFoundException, ValidationException,
-                       DatabaseOperationException, AuthorizationException)
-from logging_config import logger
-import os
-import isodate
-from datetime import datetime, timedelta
-from bson import ObjectId
-import httpx
-
 
 router = APIRouter()
 auth_handler = AuthHandler()
@@ -141,17 +150,17 @@ async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias,
 
 # get today's matches
 @router.get("/today",
-            response_model=List[MatchListBase],
+            response_model=list[MatchListBase],
             response_description="Get today's matches")
 async def get_todays_matches(request: Request,
-                            tournament: Optional[str] = None,
-                            season: Optional[str] = None,
-                            round: Optional[str] = None,
-                            matchday: Optional[str] = None,
-                            referee: Optional[str] = None,
-                            club: Optional[str] = None,
-                            team: Optional[str] = None,
-                            assigned: Optional[bool] = None) -> JSONResponse:
+                            tournament: str | None = None,
+                            season: str | None = None,
+                            round: str | None = None,
+                            matchday: str | None = None,
+                            referee: str | None = None,
+                            club: str | None = None,
+                            team: str | None = None,
+                            assigned: bool | None = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
 
   # Get today's date range
@@ -241,17 +250,17 @@ async def get_todays_matches(request: Request,
 
 # get upcoming matches (next day with matches)
 @router.get("/upcoming",
-            response_model=List[MatchListBase],
+            response_model=list[MatchListBase],
             response_description="Get upcoming matches for next day where matches exist")
 async def get_upcoming_matches(request: Request,
-                              tournament: Optional[str] = None,
-                              season: Optional[str] = None,
-                              round: Optional[str] = None,
-                              matchday: Optional[str] = None,
-                              referee: Optional[str] = None,
-                              club: Optional[str] = None,
-                              team: Optional[str] = None,
-                              assigned: Optional[bool] = None) -> JSONResponse:
+                              tournament: str | None = None,
+                              season: str | None = None,
+                              round: str | None = None,
+                              matchday: str | None = None,
+                              referee: str | None = None,
+                              club: str | None = None,
+                              team: str | None = None,
+                              assigned: bool | None = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
 
   # Get current time and start searching from tomorrow
@@ -365,14 +374,14 @@ async def get_upcoming_matches(request: Request,
 @router.get("/rest-of-week",
             response_description="Get matches for rest of current week (tomorrow until Sunday)")
 async def get_rest_of_week_matches(request: Request,
-                               tournament: Optional[str] = None,
-                               season: Optional[str] = None,
-                               round: Optional[str] = None,
-                               matchday: Optional[str] = None,
-                               referee: Optional[str] = None,
-                               club: Optional[str] = None,
-                               team: Optional[str] = None,
-                               assigned: Optional[bool] = None) -> JSONResponse:
+                               tournament: str | None = None,
+                               season: str | None = None,
+                               round: str | None = None,
+                               matchday: str | None = None,
+                               referee: str | None = None,
+                               club: str | None = None,
+                               team: str | None = None,
+                               assigned: bool | None = None) -> JSONResponse:
   mongodb = request.app.state.mongodb
 
   # Get current date and calculate tomorrow and end of week (Sunday)
@@ -648,7 +657,7 @@ async def create_match(
       details={"user_roles": token_payload.roles, "required_role": "ADMIN"}
     )
 
-  logger.info(f"Creating match", extra={
+  logger.info("Creating match", extra={
     "tournament": match.tournament.alias if match.tournament else None,
     "season": match.season.alias if match.season else None,
     "user": token_payload.sub
@@ -753,9 +762,9 @@ async def create_match(
         operation="insert_one",
         collection="matches",
         details={"error": str(e)}
-      )
+      ) from e
 
-    logger.info(f"Match created successfully", extra={
+    logger.info("Match created successfully", extra={
       "match_id": result.inserted_id,
       "tournament": t_alias,
       "season": s_alias
@@ -812,7 +821,7 @@ async def create_match(
                         content=jsonable_encoder(new_match))
 
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ------ update match
@@ -988,7 +997,7 @@ async def update_match(request: Request,
         resource_id=match_id
       )
 
-    logger.info(f"Match updated", extra={
+    logger.info("Match updated", extra={
       "match_id": match_id,
       "stats_change": stats_change_detected,
       "date_change": date_change_detected,
@@ -1038,22 +1047,14 @@ async def update_match(request: Request,
       await stats_service.calculate_roster_stats(match_id, 'away')
 
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail=str(e)) from e
 
   updated_match = await get_match_object(mongodb, match_id)
 
-  # PHASE 1 OPTIMIZATION: Only update standings if stats changed, skip all heavy player calculations
-  if stats_change_detected and t_alias and s_alias and r_alias:
-    stats_service = StatsService(mongodb)
-    await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
-  if stats_change_detected and t_alias and s_alias and r_alias and md_alias:
-    stats_service = StatsService(mongodb)
-    await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
-
-  # PHASE 1 OPTIMIZATION: Only calculate player card stats when both conditions are met:
-  # 1. Stats-affecting changes detected AND 2. Match is/becomes FINISHED
-  if (stats_change_detected and 'FINISHED' in {new_match_status, current_match_status} and
-      t_alias and s_alias and r_alias and md_alias):
+  # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
+  # Player stats will be calculated when match status changes to FINISHED
+  if stats_change_detected and 'FINISHED' in {new_match_status, current_match_status} and \
+      t_alias and s_alias and r_alias and md_alias:
     home_players = [
         player.get('player', {}).get('playerId') for player in existing_match.get('home', {}).get('roster', [])
         if player.get('player', {}).get('playerId')
@@ -1134,7 +1135,7 @@ async def delete_match(
         resource_id=match_id
       )
 
-    logger.info(f"Match deleted", extra={
+    logger.info("Match deleted", extra={
       "match_id": match_id,
       "tournament": t_alias,
       "season": s_alias,
@@ -1177,4 +1178,4 @@ async def delete_match(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail=str(e)) from e

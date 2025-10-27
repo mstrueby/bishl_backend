@@ -1,8 +1,9 @@
 #!/usr/bin/env python
+import argparse
 import os
+
 import certifi
 from pymongo import MongoClient
-import argparse
 
 # Set up argument parser
 parser = argparse.ArgumentParser(

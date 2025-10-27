@@ -1,19 +1,14 @@
-from typing import List
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
-from models.responses import PaginatedResponse
-from services.pagination import PaginationHelper
-from authentication import AuthHandler, TokenPayload
-from services.performance_monitor import monitor_query
 from pymongo.errors import DuplicateKeyError
-from exceptions import (
-    ResourceNotFoundException,
-    DatabaseOperationException,
-    AuthorizationException
-)
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import AuthorizationException, DatabaseOperationException, ResourceNotFoundException
 from logging_config import logger
+from models.responses import PaginatedResponse
+from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
+from services.pagination import PaginationHelper
 
 router = APIRouter()
 auth = AuthHandler()
@@ -31,7 +26,7 @@ async def get_tournaments(
     mongodb = request.app.state.mongodb
     exclusion_projection = {"seasons.rounds": 0}
     query = {}
-    
+
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["tournaments"],
         query=query,
@@ -40,7 +35,7 @@ async def get_tournaments(
         sort=[("name", 1)],
         projection=exclusion_projection
     )
-    
+
     paginated_result = PaginationHelper.create_response(
         items=[TournamentDB(**tournament) for tournament in items],
         page=page,
@@ -48,7 +43,7 @@ async def get_tournaments(
         total_count=total_count,
         message=f"Retrieved {len(items)} tournaments"
     )
-    
+
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(paginated_result))
 

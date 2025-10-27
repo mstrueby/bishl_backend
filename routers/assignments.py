@@ -1,24 +1,21 @@
 # filename: routers/assignments.py
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, Path, Query
+import os
+from datetime import datetime
+from enum import Enum
+
+import httpx
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from typing import Optional
+
 from authentication import AuthHandler, TokenPayload
-import os
+from exceptions import (
+    AuthorizationException,
+    ResourceNotFoundException,
+)
+from mail_service import send_email
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory
 from utils import get_sys_ref_tool_token
-import httpx
-from enum import Enum
-from datetime import datetime
-from mail_service import send_email
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
-
 
 router = APIRouter()
 auth = AuthHandler()
@@ -118,7 +115,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
                                     detail=error_msg)
 
             # After successfully sending the message, also send an email
-            try:                
+            try:
                 # Get referee's email by making a request to users endpoint
                 user_url = f"{BASE_URL}/users/{receiver_id}"
                 user_response = await client.get(user_url, headers=headers)
@@ -162,7 +159,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
 async def get_assignments_by_match(
     request: Request,
     match_id: str = Path(..., description="Match ID"),
-    assignmentStatus: Optional[list[AllStatuses]] = Query(None),
+    assignmentStatus: list[AllStatuses] | None = Query(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
@@ -369,12 +366,12 @@ async def create_assignment(
                                                              token_payload.sub,
                                                              f"{token_payload.firstName} {token_payload.lastName}",
                                                              session=session)
-                    
+
                     # Update match document within same transaction
                     await set_referee_in_match(mongodb, match_id, referee,
                                                assignment_data.position,
                                                session=session)
-                    
+
                     # Transaction commits automatically on success
                 except Exception as e:
                     # Transaction aborts automatically on exception
@@ -540,7 +537,7 @@ async def update_assignment(
             #print("do update")
             if 'ref_admin' in update_data:
                 del update_data['ref_admin']
-            
+
             # Use transaction for assignment and match updates
             async with await request.app.state.client.start_session() as session:
                 async with session.start_transaction():
@@ -587,7 +584,7 @@ async def update_assignment(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Failed to update assignment: {str(e)}"
                         )
-            
+
             # Send notifications after transaction commits
             if update_data['status'] not in [Status.assigned, Status.accepted]:
                 await send_message_to_referee(
@@ -806,7 +803,7 @@ async def get_unassigned_matches_in_14_days(
 
                 # Determine if this is a matchday owner or home club
                 is_matchday_owner = matchday_owner and matchday_owner.get('clubId') == club_id
-                
+
                 # Prepare email content
                 email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
 
@@ -1041,7 +1038,7 @@ async def delete_assignment(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to delete assignment: {str(e)}"
                 )
-    
+
     # Send notification after transaction commits
     await send_message_to_referee(
         match=match,

@@ -1,14 +1,19 @@
 # filename: routers/rounds.py
-from typing import List
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
-from fastapi.responses import JSONResponse, Response
-from models.tournaments import RoundBase, RoundDB, RoundUpdate
-from authentication import AuthHandler, TokenPayload
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 from fastapi.encoders import jsonable_encoder
-from utils import DEBUG_LEVEL, my_jsonable_encoder
-from exceptions import (ResourceNotFoundException, ValidationException,
-                       DatabaseOperationException, AuthorizationException)
+from fastapi.responses import JSONResponse, Response
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import (
+  AuthorizationException,
+  DatabaseOperationException,
+  ResourceNotFoundException,
+  ValidationException,
+)
 from logging_config import logger
+from models.tournaments import RoundBase, RoundDB, RoundUpdate
+from utils import DEBUG_LEVEL, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
@@ -17,7 +22,7 @@ auth = AuthHandler()
 # get all rounds of a season
 @router.get('/',
             response_description="List all rounds for a season",
-            response_model=List[RoundDB])
+            response_model=list[RoundDB])
 async def get_rounds_for_season(
     request: Request,
     tournament_alias: str = Path(
@@ -100,13 +105,13 @@ async def add_round(
     raise AuthorizationException(
         message="Admin role required to add rounds",
         details={"user_roles": token_payload.roles})
-  
+
   logger.info(f"Adding round to {tournament_alias}/{season_alias}", extra={
       "round_alias": round.alias,
       "tournament_alias": tournament_alias,
       "season_alias": season_alias
   })
-  
+
   # Check if the tournament exists
   if (tournament := await
       mongodb['tournaments'].find_one({"alias": tournament_alias})) is None:
@@ -203,14 +208,14 @@ async def update_round(
     raise AuthorizationException(
         message="Admin role required to update rounds",
         details={"user_roles": token_payload.roles})
-  
+
   round_dict = round.model_dump(exclude_unset=True)
   logger.info(f"Updating round {round_id}", extra={
       "tournament_alias": tournament_alias,
       "season_alias": season_alias,
       "fields": list(round_dict.keys())
   })
-  
+
   # Check if the tournament exists
   tournament = await mongodb['tournaments'].find_one(
       {"alias": tournament_alias})
@@ -360,12 +365,12 @@ async def delete_round(
     raise AuthorizationException(
         message="Admin role required to delete rounds",
         details={"user_roles": token_payload.roles})
-  
+
   logger.info(f"Deleting round {round_alias}", extra={
       "tournament_alias": tournament_alias,
       "season_alias": season_alias
   })
-  
+
   delete_result = await mongodb['tournaments'].update_one(
       {
           "alias": tournament_alias,

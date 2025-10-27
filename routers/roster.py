@@ -1,17 +1,20 @@
 # filename: routers/roster.py
-from typing import List
-from fastapi import APIRouter, Request, Body, Response, status, HTTPException, Depends, Path
+import os
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from models.matches import RosterPlayer
+
 from authentication import AuthHandler, TokenPayload
-from utils import populate_event_player_fields
-from exceptions import (ResourceNotFoundException, ValidationException,
-                       DatabaseOperationException, AuthorizationException)
+from exceptions import (
+  AuthorizationException,
+  DatabaseOperationException,
+  ResourceNotFoundException,
+  ValidationException,
+)
 from logging_config import logger
-import httpx
-import os
-from services.stats_service import StatsService
+from models.matches import RosterPlayer
+from utils import populate_event_player_fields
 
 router = APIRouter()
 auth = AuthHandler()
@@ -21,7 +24,7 @@ DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
 # get roster of a team
 @router.get("/",
             response_description="Get roster of a team",
-            response_model=List[RosterPlayer])
+            response_model=list[RosterPlayer])
 async def get_roster(
     request: Request,
     match_id: str = Path(..., description="The match id of the roster"),
@@ -62,13 +65,13 @@ async def get_roster(
 # update roster of a team
 @router.put("/",
             response_description="Update roster of a team",
-            response_model=List[RosterPlayer])
+            response_model=list[RosterPlayer])
 async def update_roster(
     request: Request,
     match_id: str = Path(..., description="The match id of the roster"),
     team_flag: str = Path(
         ..., description="The team flag (home/away) of the roster"),
-    roster: List[RosterPlayer] = Body(...,
+    roster: list[RosterPlayer] = Body(...,
                                       description="The roster to be updated"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
@@ -83,7 +86,7 @@ async def update_roster(
       }
     )
 
-  logger.debug(f"Updating roster", extra={
+  logger.debug("Updating roster", extra={
     "match_id": match_id,
     "team_flag": team_flag,
     "roster_size": len(roster)
@@ -180,7 +183,7 @@ async def update_roster(
         }
       )
 
-    logger.info(f"Roster updated", extra={
+    logger.info("Roster updated", extra={
       "match_id": match_id,
       "team_flag": team_flag,
       "roster_size": len(roster_data),

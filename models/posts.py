@@ -1,9 +1,10 @@
 
-from bson import ObjectId
-from pydantic import Field, BaseModel, field_validator, HttpUrl, ConfigDict
-from pydantic_core import core_schema
-from typing import Optional
 from datetime import datetime
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic_core import core_schema
+
 from utils import prevent_empty_str
 
 
@@ -11,15 +12,14 @@ class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -39,7 +39,7 @@ class MongoBaseModel(BaseModel):
     arbitrary_types_allowed=True,
     json_encoders={ObjectId: str}
   )
-  
+
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
@@ -78,15 +78,15 @@ class PostBase(MongoBaseModel):
   title: str = Field(...)
   alias: str = Field(...)
   content: str = Field(...)
-  author: Optional[Author] = None
-  tags: Optional[list] = Field(default_factory=list)
-  imageUrl: Optional[HttpUrl] = None
+  author: Author | None = None
+  tags: list | None = Field(default_factory=list)
+  imageUrl: HttpUrl | None = None
   published: bool = False
   featured: bool = False
   deleted: bool = False
-  publishDateFrom: Optional[datetime] = None
-  publishDateTo: Optional[datetime] = None
-  legacyId: Optional[int] = None
+  publishDateFrom: datetime | None = None
+  publishDateTo: datetime | None = None
+  legacyId: int | None = None
 
 
 """
@@ -103,25 +103,25 @@ class PostBase(MongoBaseModel):
 
 
 class PostDB(PostBase):
-  createDate: Optional[datetime] = None
+  createDate: datetime | None = None
   createUser: User = Field(...)
-  updateDate: Optional[datetime] = None
-  updateUser: Optional[User] = None
+  updateDate: datetime | None = None
+  updateUser: User | None = None
   revisions: list[Revision] = Field(default_factory=list)
 
 
 class PostUpdate(MongoBaseModel):
-  title: Optional[str] = None
-  alias: Optional[str] = None
-  content: Optional[str] = None
-  author: Optional[Author] = None
-  tags: Optional[list] = Field(default_factory=list)
-  imageUrl: Optional[HttpUrl] = None
-  published: Optional[bool] = None
-  featured: Optional[bool] = None
-  deleted: Optional[bool] = None
-  publishDateFrom: Optional[datetime] = None
-  publishDateTo: Optional[datetime] = None
+  title: str | None = None
+  alias: str | None = None
+  content: str | None = None
+  author: Author | None = None
+  tags: list | None = Field(default_factory=list)
+  imageUrl: HttpUrl | None = None
+  published: bool | None = None
+  featured: bool | None = None
+  deleted: bool | None = None
+  publishDateFrom: datetime | None = None
+  publishDateTo: datetime | None = None
   """
   @field_validator('title', 'alias', 'content', mode='before')
   @classmethod

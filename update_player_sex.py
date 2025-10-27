@@ -1,9 +1,11 @@
 #!/usr/bin/env python
-import os
-import certifi
-from pymongo import MongoClient
-import requests
 import argparse
+import os
+
+import certifi
+import requests
+from pymongo import MongoClient
+
 from models.players import SexEnum
 
 # Set up argument parser
@@ -43,17 +45,17 @@ updated_players = 0
 for player in players:
     total_players += 1
     first_name = player.get('firstName', '').split()[0]  # Get first word of first name
-    
+
     if first_name:
         predicted_sex = get_gender_from_api(first_name)
         current_sex = player.get('sex', SexEnum.MALE)
-        
+
         if current_sex != predicted_sex:
             update_result = db['players'].update_one(
                 {'_id': player['_id']},
                 {'$set': {'sex': predicted_sex}}
             )
-            
+
             if update_result.modified_count > 0:
                 updated_players += 1
                 print(f"  ✅ Updated player: {player.get('firstName', 'Unknown')} {player.get('lastName', 'Unknown')} - {current_sex} -> {predicted_sex}")

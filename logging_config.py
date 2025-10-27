@@ -8,9 +8,10 @@ Configures loguru for structured logging with:
 - Debug log file (only if DEBUG_LEVEL > 0)
 """
 
-from loguru import logger
-import sys
 import os
+import sys
+
+from loguru import logger
 
 DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
 

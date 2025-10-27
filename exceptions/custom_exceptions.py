@@ -8,7 +8,7 @@ All custom exceptions inherit from BISHLException which includes status codes an
 
 class BISHLException(Exception):
     """Base exception for all BISHL errors"""
-    
+
     def __init__(self, message: str, status_code: int = 500, details: dict = None):
         """
         Args:
@@ -24,7 +24,7 @@ class BISHLException(Exception):
 
 class ResourceNotFoundException(BISHLException):
     """Raised when a requested resource doesn't exist"""
-    
+
     def __init__(self, resource_type: str, resource_id: str, details: dict = None):
         """
         Args:
@@ -44,7 +44,7 @@ class ResourceNotFoundException(BISHLException):
 
 class ValidationException(BISHLException):
     """Raised when input validation fails"""
-    
+
     def __init__(self, field: str, message: str, details: dict = None):
         """
         Args:
@@ -64,7 +64,7 @@ class ValidationException(BISHLException):
 
 class DatabaseOperationException(BISHLException):
     """Raised when database operations fail"""
-    
+
     def __init__(self, operation: str, collection: str, details: dict = None):
         """
         Args:
@@ -84,7 +84,7 @@ class DatabaseOperationException(BISHLException):
 
 class StatsCalculationException(BISHLException):
     """Raised when stats calculation fails"""
-    
+
     def __init__(self, calculation_type: str, message: str, details: dict = None):
         """
         Args:
@@ -104,7 +104,7 @@ class StatsCalculationException(BISHLException):
 
 class AuthenticationException(BISHLException):
     """Raised when authentication fails"""
-    
+
     def __init__(self, message: str = "Authentication failed", details: dict = None):
         """
         Args:
@@ -119,7 +119,7 @@ class AuthenticationException(BISHLException):
 
 class AuthorizationException(BISHLException):
     """Raised when user lacks permission for an action"""
-    
+
     def __init__(self, message: str = "Insufficient permissions", details: dict = None):
         """
         Args:
@@ -134,7 +134,7 @@ class AuthorizationException(BISHLException):
 
 class ExternalServiceException(BISHLException):
     """Raised when external service calls fail"""
-    
+
     def __init__(self, service_name: str, message: str, details: dict = None):
         """
         Args:

@@ -1,17 +1,18 @@
 # routers/configs.py
-from fastapi import APIRouter, Request, status, Path
+
+from fastapi import APIRouter, Path, Request, status
 from fastapi.responses import JSONResponse
-from models.configs import Config, ConfigValue
-from authentication import AuthHandler, TokenPayload
-from typing import List
+
+from authentication import AuthHandler
 from exceptions import ResourceNotFoundException
 from logging_config import logger
+from models.configs import Config, ConfigValue
 
 router = APIRouter()
 auth = AuthHandler()
 
 # Config document
-configs: List[Config] = [  # Use List[Config] for type hinting
+configs: list[Config] = [  # Use List[Config] for type hinting
   Config(key="COUNTRY",
          name="Land",
          value=[
@@ -46,7 +47,7 @@ configs: List[Config] = [  # Use List[Config] for type hinting
            ConfigValue(key="STARTDATE", value="Startdatum", sortOrder=2)
          ]),
   Config(key="MATCHDAYTYPE",
-         name="Spieltagstyp",  
+         name="Spieltagstyp",
          value=[
            ConfigValue(key="PLAYOFFS", value="Playoffs", sortOrder=1),
            ConfigValue(key="REGULAR", value="Regulär", sortOrder=2)
@@ -108,7 +109,7 @@ configs: List[Config] = [  # Use List[Config] for type hinting
 
 # Get all configs
 @router.get("/",
-            response_model=List[Config],
+            response_model=list[Config],
             response_description="Get all configs")
 async def get_all_configs(request: Request):
   return JSONResponse(status_code=status.HTTP_200_OK,

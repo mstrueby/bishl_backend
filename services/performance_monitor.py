@@ -8,17 +8,18 @@ Logs slow queries and tracks performance metrics.
 
 import time
 from functools import wraps
+
 from logging_config import logger
-from typing import Optional
+
 
 class QueryPerformanceMonitor:
     """Monitor and log database query performance"""
-    
+
     # Threshold in seconds for what constitutes a "slow" query
     SLOW_QUERY_THRESHOLD = 1.0
-    
+
     @staticmethod
-    def monitor_query(operation_name: str, slow_threshold: Optional[float] = None):
+    def monitor_query(operation_name: str, slow_threshold: float | None = None):
         """
         Decorator to monitor database query performance
         
@@ -33,7 +34,7 @@ class QueryPerformanceMonitor:
                 pass
         """
         threshold = slow_threshold or QueryPerformanceMonitor.SLOW_QUERY_THRESHOLD
-        
+
         def decorator(func):
             @wraps(func)
             async def wrapper(*args, **kwargs):
@@ -41,7 +42,7 @@ class QueryPerformanceMonitor:
                 try:
                     result = await func(*args, **kwargs)
                     elapsed = time.time() - start_time
-                    
+
                     if elapsed > threshold:
                         logger.warning(
                             f"Slow query detected: {operation_name}",
@@ -60,7 +61,7 @@ class QueryPerformanceMonitor:
                                 "duration_seconds": round(elapsed, 3)
                             }
                         )
-                    
+
                     return result
                 except Exception as e:
                     elapsed = time.time() - start_time
@@ -75,7 +76,7 @@ class QueryPerformanceMonitor:
                     raise
             return wrapper
         return decorator
-    
+
     @staticmethod
     def log_query_plan(collection_name: str, filter_dict: dict, explanation: dict):
         """

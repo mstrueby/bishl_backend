@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-import os
-import certifi
 import argparse
+import os
+
+import certifi
 from pymongo import MongoClient
-from datetime import datetime
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Update managedByISHD flag for hobby players.')
@@ -32,22 +32,22 @@ try:
   query = {
     "assignedTeams.teams.teamAlias": "1-hobby"
   }
-  
+
   players = list(db_players.find(query))
   print(f"Found {len(players)} players with '1-hobby' team assignment")
-  
+
   # Update each player's managedByISHD flag
   for player in players:
     player_id = player["_id"]
     first_name = player["firstName"]
     last_name = player["lastName"]
-    
+
     # Update the player's managedByISHD flag
     update_result = db_players.update_one(
       {"_id": player_id},
       {"$set": {"managedByISHD": False}}
     )
-    
+
     if update_result.modified_count > 0:
       print(f"✅ Successfully updated Player: {first_name} {last_name}")
     else:
@@ -55,7 +55,7 @@ try:
 
   # Print summary
   print(f"\nUpdate completed. Processed {len(players)} players with '1-hobby' team assignment.")
-  
+
 except Exception as e:
   print(f"❌ An error occurred: {e}")
   import traceback

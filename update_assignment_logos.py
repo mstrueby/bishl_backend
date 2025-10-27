@@ -1,9 +1,9 @@
 #!/usr/bin/env python
+import argparse
 import os
+
 import certifi
 from pymongo import MongoClient
-import argparse
-from datetime import datetime
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Update club logo URLs in assignment documents.')
@@ -42,14 +42,14 @@ updated_assignments = 0
 for assignment in assignments:
     total_assignments += 1
     updates_needed = {}
-    
+
     # Get referee club info
     referee = assignment.get('referee', {})
     if referee and referee.get('clubId') in clubs_lookup:
         club_id = referee['clubId']
         if clubs_lookup[club_id] != referee.get('logoUrl'):
             updates_needed['referee.logoUrl'] = clubs_lookup[club_id]
-    
+
     # Apply updates if needed
     if updates_needed:
         try:
@@ -57,7 +57,7 @@ for assignment in assignments:
                 {'_id': assignment['_id']},
                 {'$set': updates_needed}
             )
-            
+
             if result.modified_count > 0:
                 updated_assignments += 1
                 print(f"✅ Updated logo for referee {referee.get('firstName', '')} {referee.get('lastName', '')}")

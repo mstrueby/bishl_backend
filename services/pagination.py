@@ -6,9 +6,10 @@ Provides helpers for paginating database queries and creating standardized
 paginated responses.
 """
 
-from typing import List, TypeVar, Generic, Any, Optional, Tuple
-from pydantic import BaseModel, Field
+from typing import Any, TypeVar
+
 from motor.motor_asyncio import AsyncIOMotorCollection
+from pydantic import BaseModel, Field
 
 T = TypeVar('T')
 
@@ -25,15 +26,15 @@ class PaginationMetadata(BaseModel):
 
 class PaginationHelper:
     """Helper class for database query pagination"""
-    
+
     @staticmethod
     async def paginate_query(
         collection: AsyncIOMotorCollection,
         query: dict,
         page: int,
         page_size: int,
-        sort: Optional[List[Tuple[str, int]]] = None
-    ) -> Tuple[List[dict], int]:
+        sort: list[tuple[str, int]] | None = None
+    ) -> tuple[list[dict], int]:
         """
         Paginate a MongoDB query.
         
@@ -48,23 +49,23 @@ class PaginationHelper:
             Tuple of (items, total_count)
         """
         skip = (page - 1) * page_size
-        
+
         # Get total count
         total_count = await collection.count_documents(query)
-        
+
         # Get paginated items
         cursor = collection.find(query).skip(skip).limit(page_size)
-        
+
         if sort:
             cursor = cursor.sort(sort)
-        
+
         items = await cursor.to_list(length=page_size)
-        
+
         return items, total_count
-    
+
     @staticmethod
     def create_response(
-        items: List[Any],
+        items: list[Any],
         page: int,
         page_size: int,
         total_count: int,
@@ -84,7 +85,7 @@ class PaginationHelper:
             Dictionary with standardized pagination response format
         """
         total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
-        
+
         return {
             "success": True,
             "data": items,

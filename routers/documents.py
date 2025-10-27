@@ -1,23 +1,32 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form, Depends, status, Query
-from fastapi.responses import JSONResponse, Response
-from fastapi.encoders import jsonable_encoder
-from utils import configure_cloudinary, my_jsonable_encoder
-from services.pagination import PaginationHelper
-from typing import List, Optional
+from datetime import datetime
+
 import cloudinary
 import cloudinary.uploader
+from fastapi import (
+  APIRouter,
+  Depends,
+  File,
+  Form,
+  HTTPException,
+  Query,
+  Request,
+  UploadFile,
+  status,
+)
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
+from pymongo.errors import DuplicateKeyError
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import (
+  AuthorizationException,
+  ResourceNotFoundException,
+  ValidationException,
+)
 from models.documents import DocumentBase, DocumentDB, DocumentUpdate
 from models.responses import PaginatedResponse
-from authentication import AuthHandler, TokenPayload
-from datetime import datetime
-from pymongo.errors import DuplicateKeyError
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
+from services.pagination import PaginationHelper
+from utils import configure_cloudinary
 
 router = APIRouter()
 auth = AuthHandler()
@@ -74,7 +83,7 @@ def check_reserved_aliases(alias: str):
 
 # get all catgories
 @router.get("/categories", response_description="Get list of all categories")
-async def get_categories(request: Request) -> List[str]:
+async def get_categories(request: Request) -> list[str]:
   mongodb = request.app.state.mongodb
   categories = await mongodb["documents"].distinct("category")
   categories.sort()
@@ -88,7 +97,7 @@ async def get_categories(request: Request) -> List[str]:
 async def get_documents_by_category(
     request: Request,
     category: str,
-    published: Optional[bool] = None,
+    published: bool | None = None,
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(100, ge=1, le=100, description="Items per page")
 ) -> JSONResponse:
@@ -96,7 +105,7 @@ async def get_documents_by_category(
   query = {'category': {'$regex': rf'^{category}$', '$options': 'i'}}
   if published is not None:
     query['published'] = published
-  
+
   items, total_count = await PaginationHelper.paginate_query(
       collection=mongodb["documents"],
       query=query,
@@ -104,7 +113,7 @@ async def get_documents_by_category(
       page_size=page_size,
       sort=[("title", 1)]
   )
-  
+
   paginated_result = PaginationHelper.create_response(
       items=[DocumentDB(**document) for document in items],
       page=page,
@@ -112,7 +121,7 @@ async def get_documents_by_category(
       total_count=total_count,
       message=f"Retrieved {len(items)} documents for category {category}"
   )
-  
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(paginated_result))
 
@@ -144,13 +153,13 @@ async def get_document(
             response_description="Get list of all documents")
 async def get_documents(
     request: Request,
-    published: Optional[bool] = None,
+    published: bool | None = None,
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(100, ge=1, le=100, description="Items per page")
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   query = {"published": published} if published is not None else {}
-  
+
   items, total_count = await PaginationHelper.paginate_query(
       collection=mongodb["documents"],
       query=query,
@@ -158,7 +167,7 @@ async def get_documents(
       page_size=page_size,
       sort=[("title", 1)]
   )
-  
+
   paginated_result = PaginationHelper.create_response(
       items=[DocumentDB(**document) for document in items],
       page=page,
@@ -166,7 +175,7 @@ async def get_documents(
       total_count=total_count,
       message=f"Retrieved {len(items)} documents"
   )
-  
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(paginated_result))
 
@@ -259,11 +268,11 @@ async def upload_document(
               response_description="Update an existing document")
 async def update_document(request: Request,
                           id: str,
-                          title: Optional[str] = Form(None),
-                          alias: Optional[str] = Form(None),
-                          category: Optional[str] = Form(None),
+                          title: str | None = Form(None),
+                          alias: str | None = Form(None),
+                          category: str | None = Form(None),
                           file: UploadFile = File(None),
-                          published: Optional[bool] = Form(None),
+                          published: bool | None = Form(None),
                           token_payload: TokenPayload = Depends(
                               auth.auth_wrapper)):
   mongodb = request.app.state.mongodb

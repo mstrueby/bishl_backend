@@ -1,26 +1,27 @@
 
-from bson import ObjectId
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from pydantic_core import core_schema
-from typing import Optional, List
-from enum import Enum
 from datetime import datetime
-from utils import prevent_empty_str
+from enum import Enum
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import core_schema
+
 from models.users import RefereeLevel
+from utils import prevent_empty_str
+
 
 class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -39,7 +40,7 @@ class MongoBaseModel(BaseModel):
     populate_by_name=True,
     arbitrary_types_allowed=True
   )
-  
+
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
@@ -53,27 +54,27 @@ class Status(str, Enum):
 class StatusHistory(BaseModel):
   status: Status = Field(...)
   updateDate: datetime = Field(...)
-  updatedBy: Optional[str] = None
-  updatedByName: Optional[str] = None
+  updatedBy: str | None = None
+  updatedByName: str | None = None
 
 
 class Referee(BaseModel):
   userId: str = Field(...)
   firstName: str = Field(...)
   lastName: str = Field(...)
-  clubId: Optional[str] = None
-  clubName: Optional[str] = None
-  logoUrl: Optional[str] = None
+  clubId: str | None = None
+  clubName: str | None = None
+  logoUrl: str | None = None
   points: int = 0
-  level: Optional[RefereeLevel] = RefereeLevel.NA
+  level: RefereeLevel | None = RefereeLevel.NA
 
 
 class AssignmentBase(MongoBaseModel):
   matchId: str = Field(...)
   status: Status = Field(...)
-  userId: Optional[str] = None
+  userId: str | None = None
   refAdmin: bool = False
-  position: Optional[int] = Field(None,
+  position: int | None = Field(None,
                                   description='Possible values are 1 and 2',
                                   ge=1,
                                   le=2)
@@ -83,17 +84,17 @@ class AssignmentDB(MongoBaseModel):
   matchId: str = Field(...)
   status: Status = Field(...)
   referee: Referee = Field(...)
-  position: Optional[int] = Field(None,
+  position: int | None = Field(None,
                                   description='Possible values are 1 and 2',
                                   ge=1,
                                   le=2)
-  statusHistory: Optional[List[StatusHistory]] = Field(default_factory=list)
+  statusHistory: list[StatusHistory] | None = Field(default_factory=list)
 
 
 class AssignmentUpdate(MongoBaseModel):
-  status: Optional[Status] = None
-  refAdmin: Optional[bool] = False
-  position: Optional[int] = Field(None,
+  status: Status | None = None
+  refAdmin: bool | None = False
+  position: int | None = Field(None,
                                   description='Possible values are 1 and 2',
                                   ge=1,
                                   le=2)

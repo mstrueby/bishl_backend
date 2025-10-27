@@ -1,11 +1,12 @@
 # filename: routers/seasons.py
-from typing import List
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
-from fastapi.responses import Response, JSONResponse
-from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
-from authentication import AuthHandler, TokenPayload
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
+
+from authentication import AuthHandler, TokenPayload
 from exceptions import ResourceNotFoundException
+from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
 
 router = APIRouter()
 auth = AuthHandler()
@@ -14,7 +15,7 @@ auth = AuthHandler()
 # get all seasons of a tournament
 @router.get('/',
             response_description="List all seasons for a tournament",
-            response_model=List[SeasonDB])
+            response_model=list[SeasonDB])
 async def get_seasons_for_tournament(
     request: Request,
     tournament_alias: str = Path(

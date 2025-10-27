@@ -1,25 +1,25 @@
-from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, ConfigDict
-from pydantic_core import core_schema
-from typing import Optional, List
 from datetime import datetime
 from enum import Enum
-from models.matches import MatchTournament, MatchSeason, MatchRound, MatchMatchday
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic_core import core_schema
+
+from models.matches import MatchMatchday, MatchRound, MatchSeason, MatchTournament
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -39,7 +39,7 @@ class MongoBaseModel(BaseModel):
     arbitrary_types_allowed=True,
     json_encoders={ObjectId: str}
   )
-  
+
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
@@ -64,32 +64,32 @@ class AssignedTeams(BaseModel):
   teamName: str = Field(...)
   teamAlias: str = Field(...)
   teamAgeGroup: str = Field(...)
-  teamIshdId: Optional[str] = None
+  teamIshdId: str | None = None
   passNo: str = Field(...)
   source: SourceEnum = Field(default=SourceEnum.BISHL)
-  modifyDate: Optional[datetime] = None
+  modifyDate: datetime | None = None
   active: bool = False
-  jerseyNo: Optional[int] = None
+  jerseyNo: int | None = None
 
 
 class AssignedClubs(BaseModel):
   clubId: str = Field(...)
   clubName: str = Field(...)
   clubAlias: str = Field(...)
-  clubIshdId: Optional[int] = None
+  clubIshdId: int | None = None
   teams: list[AssignedTeams] = Field(...)
 
 class TeamInput(BaseModel):
   teamId: str = Field(...)
   passNo: str = Field(...)
-  jerseyNo: Optional[int] = None
-  active: Optional[bool] = False
-  source: Optional[SourceEnum] = Field(default=SourceEnum.BISHL)
-  modifyDate: Optional[datetime] = None
+  jerseyNo: int | None = None
+  active: bool | None = False
+  source: SourceEnum | None = Field(default=SourceEnum.BISHL)
+  modifyDate: datetime | None = None
 
 class AssignedTeamsInput(BaseModel):
   clubId: str = Field(...)
-  teams: List[TeamInput] = Field(...)
+  teams: list[TeamInput] = Field(...)
 
 class PlayerStatsTeam(BaseModel):
   #team_id: str = Field(...)
@@ -103,7 +103,7 @@ class PlayerStats(BaseModel):
   tournament: MatchTournament = Field(...)
   season: MatchSeason = Field(...)
   round: MatchRound = Field(...)
-  matchday: Optional[MatchMatchday] = None
+  matchday: MatchMatchday | None = None
   team: PlayerStatsTeam = Field(...)
   gamesPlayed: int = Field(0)
   goals: int = Field(0)
@@ -119,16 +119,16 @@ class PlayerBase(MongoBaseModel):
   birthdate: datetime = Field(..., description='format: yyyy-mm-dd hh:mi:ss')
   displayFirstName: str = Field(...)
   displayLastName: str = Field(...)
-  nationality: Optional[str] = None
+  nationality: str | None = None
   position: PositionEnum = Field(default=PositionEnum.SKATER)
   fullFaceReq: bool = False
   source: SourceEnum = Field(default=SourceEnum.BISHL)
   sex: SexEnum = Field(default=SexEnum.MALE)
-  assignedTeams: Optional[List[AssignedClubs]] = Field(default_factory=list)
-  stats: Optional[List[PlayerStats]] = Field(default_factory=list)
-  imageUrl: Optional[HttpUrl] = None
+  assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
+  stats: list[PlayerStats] | None = Field(default_factory=list)
+  imageUrl: HttpUrl | None = None
   imageVisible: bool = False
-  legacyId: Optional[int] = None
+  legacyId: int | None = None
   managedByISHD: bool = True
   """
   @validator('firstName', 'lastName', 'position', pre=True, always=True)
@@ -141,7 +141,7 @@ class PlayerBase(MongoBaseModel):
 """
 
 class PlayerDB(PlayerBase):
-  createDate: Optional[datetime] = None
+  createDate: datetime | None = None
 
   @property
   def ageGroup(self) -> str:
@@ -198,7 +198,7 @@ class PlayerDB(PlayerBase):
         return False
     else:
       return False
-  
+
   model_config = ConfigDict(
     populate_by_name=True,
     arbitrary_types_allowed=True,
@@ -220,21 +220,21 @@ class PlayerDB(PlayerBase):
 
 
 class PlayerUpdate(MongoBaseModel):
-  firstName: Optional[str] = None
-  lastName: Optional[str] = None
-  birthdate: Optional[datetime] = None
-  displayFirstName: Optional[str] = None
-  displayLastName: Optional[str] = None
-  nationality: Optional[str] = None
-  position: Optional[PositionEnum] = None
-  fullFaceReq: Optional[bool] = None
-  source: Optional[SourceEnum] = None
-  sex: Optional[SexEnum] = None
-  assignedTeams: Optional[List[AssignedClubs]] = None
-  stats: Optional[List[PlayerStats]] = None
-  imageUrl: Optional[HttpUrl] = None
-  imageVisible: Optional[bool] = None
-  managedByISHD: Optional[bool] = None
+  firstName: str | None = None
+  lastName: str | None = None
+  birthdate: datetime | None = None
+  displayFirstName: str | None = None
+  displayLastName: str | None = None
+  nationality: str | None = None
+  position: PositionEnum | None = None
+  fullFaceReq: bool | None = None
+  source: SourceEnum | None = None
+  sex: SexEnum | None = None
+  assignedTeams: list[AssignedClubs] | None = None
+  stats: list[PlayerStats] | None = None
+  imageUrl: HttpUrl | None = None
+  imageVisible: bool | None = None
+  managedByISHD: bool | None = None
   """
   @validator('firstName', 'lastName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
@@ -254,11 +254,11 @@ class IshdActionEnum(str, Enum):
   ADD_TEAM = 'Add team assigment'
   DEL_TEAM = 'Remove team assigment'
   DEL_CLUB = 'Remove club assignment'
-  
+
 
 
 class IshdLogPlayer(BaseModel):
-  action: Optional[IshdActionEnum] = None
+  action: IshdActionEnum | None = None
   firstName: str = Field(...)
   lastName: str = Field(...)
   birthdate: datetime = Field(...)
@@ -267,15 +267,15 @@ class IshdLogPlayer(BaseModel):
 class IshdLogTeam(BaseModel):
   teamIshdId: str = Field(...)
   url: str = Field(...)
-  players: Optional[List[IshdLogPlayer]] = None
+  players: list[IshdLogPlayer] | None = None
 
 
 class IshdLogClub(BaseModel):
   clubName: str = Field(...)
   ishdId: int = Field(...)
-  teams: Optional[List[IshdLogTeam]] = None
+  teams: list[IshdLogTeam] | None = None
 
 
 class IshdLogBase(MongoBaseModel):
   processDate: datetime = Field(...)
-  clubs: Optional[List[IshdLogClub]] = None
+  clubs: list[IshdLogClub] | None = None

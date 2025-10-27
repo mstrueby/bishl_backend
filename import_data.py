@@ -1,21 +1,19 @@
 #!/usr/bin/env python
 
 import csv
-import sys
 import os
-import json
-from datetime import date, datetime, timezone
-from fastapi.encoders import jsonable_encoder
-import certifi
+import sys
 from urllib.parse import urlparse
-from bson import ObjectId
-from pymongo import MongoClient
+
+import certifi
 
 # dotenv environment variables
-from dotenv import dotenv_values
+from fastapi.encoders import jsonable_encoder
+from pymongo import MongoClient
+
 from models.clubs import ClubBase, TeamBase
 from models.venues import VenueBase
-from utils import my_jsonable_encoder, parse_datetime
+
 
 def is_valid_url(url):
   try:
@@ -27,7 +25,7 @@ def is_valid_url(url):
 
 #config = dotenv_values(".env")
 collection = sys.argv[1]
-filename = "data/data_{}.csv".format(collection)
+filename = f"data/data_{collection}.csv"
 
 # read csv
 with open(filename, encoding='utf-8') as f:
@@ -43,7 +41,7 @@ db_collection = db[collection]
 
 match collection:
   case "venues":
-    print("Delete all records in {}".format(collection))
+    print(f"Delete all records in {collection}")
     db_collection.delete_many({})
     for rec in name_records:
       try:
@@ -53,7 +51,7 @@ match collection:
         rec['legacyId'] = int(rec['legacyId'])
         rec['_id'] = rec['py_id']
 
-        venue = jsonable_encoder(VenueBase(**rec))  
+        venue = jsonable_encoder(VenueBase(**rec))
         print("Inserting: ", venue)
         db_collection.insert_one(venue)
 
@@ -63,7 +61,7 @@ match collection:
         exit()
 
   case "clubs":
-    print("Delete all records in {}".format(collection))
+    print(f"Delete all records in {collection}")
     db_collection.delete_many({})
     for rec in name_records:
       try:
@@ -78,7 +76,7 @@ match collection:
         rec['legacyId'] = int(rec['legacyId'])
         rec['teams'] = list(rec['teams']) if rec['teams'] else []
 
-        club = jsonable_encoder(ClubBase(**rec))  
+        club = jsonable_encoder(ClubBase(**rec))
         print("Inserting: ", club)
         db_collection.insert_one(club)
 
@@ -103,7 +101,7 @@ match collection:
 
         team = TeamBase(**rec)
         print(team)
-        
+
         db_collection=db["clubs"]
         filter= {'alias': rec['clubAlias']}
         new_values = {
@@ -119,11 +117,11 @@ match collection:
         print("ERROR at ", rec['clubAlias'], '/', rec['name'])
         print(e)
         exit()
-          
 
-        
+
+
   case _:
     print("Unknown parameter value!")
-    
+
 print("SUCCESS")
 

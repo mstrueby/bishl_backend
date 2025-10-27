@@ -1,17 +1,21 @@
 # filename: routers/scores.py
-from typing import List
-from bson import ObjectId
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
-from models.matches import ScoresBase, ScoresUpdate, ScoresDB
-from authentication import AuthHandler, TokenPayload
-from utils import (DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds,
-                   populate_event_player_fields)
-from services.stats_service import StatsService
-from exceptions.custom_exceptions import ResourceNotFoundException
 import os
 
+from bson import ObjectId
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
+
+from authentication import AuthHandler, TokenPayload
+from exceptions.custom_exceptions import ResourceNotFoundException
+from models.matches import ScoresBase, ScoresDB, ScoresUpdate
+from services.stats_service import StatsService
+from utils import (
+  DEBUG_LEVEL,
+  parse_time_from_seconds,
+  parse_time_to_seconds,
+  populate_event_player_fields,
+)
 
 router = APIRouter()
 auth = AuthHandler()
@@ -74,7 +78,7 @@ async def get_score_object(mongodb, match_id: str, team_flag: str,
 # get score sheet of a team
 @router.get("/",
             response_description="Get score sheet",
-            response_model=List[ScoresDB])
+            response_model=list[ScoresDB])
 async def get_score_sheet(
     request: Request,
     match_id: str = Path(..., description="The ID of the match"),

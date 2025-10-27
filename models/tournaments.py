@@ -1,25 +1,25 @@
-from bson import ObjectId
 from datetime import datetime
-from pydantic import Field, BaseModel, HttpUrl, field_validator, ConfigDict
-from pydantic_core import core_schema
-from typing import Optional, List, Dict
-from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings
 from enum import Enum
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic_core import core_schema
+
+from utils import empty_str_to_none, prevent_empty_str, validate_dict_of_strings
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -39,7 +39,7 @@ class MongoBaseModel(BaseModel):
     arbitrary_types_allowed=True,
     json_encoders={ObjectId: str}
   )
-  
+
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
@@ -50,7 +50,7 @@ class Teams(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
-  logo: Optional[HttpUrl] = None
+  logo: HttpUrl | None = None
 
   @field_validator('logo', mode='before')
   @classmethod
@@ -62,7 +62,7 @@ class Standings(BaseModel):
   fullName: str = Field(...)
   shortName: str = Field(...)
   tinyName: str = Field(...)
-  logo: Optional[HttpUrl] = None
+  logo: HttpUrl | None = None
   gamesPlayed: int = Field(...)
   goalsFor: int = Field(...)
   goalsAgainst: int = Field(...)
@@ -74,29 +74,29 @@ class Standings(BaseModel):
   otLosses: int = Field(...)
   soWins: int = Field(...)
   soLosses: int = Field(...)
-  streak: Optional[List[str]] = Field(default_factory=list)
+  streak: list[str] | None = Field(default_factory=list)
 
 
 # settings at tournament level
 class StandingsSettings(BaseModel):
-  pointsWinReg: Optional[int] = Field(default=0)
-  pointsLossReg: Optional[int] = Field(default=0)
-  pointsDrawReg: Optional[int] = Field(default=0)
-  pointsWinOvertime: Optional[int] = Field(default=0)
-  pointsLossOvertime: Optional[int] = Field(default=0)
-  pointsWinShootout: Optional[int] = Field(default=0)
-  pointsLossShootout: Optional[int] = Field(default=0)
+  pointsWinReg: int | None = Field(default=0)
+  pointsLossReg: int | None = Field(default=0)
+  pointsDrawReg: int | None = Field(default=0)
+  pointsWinOvertime: int | None = Field(default=0)
+  pointsLossOvertime: int | None = Field(default=0)
+  pointsWinShootout: int | None = Field(default=0)
+  pointsLossShootout: int | None = Field(default=0)
 
 
 # settings on round and matchday level
 class MatchSettings(BaseModel):
-  numOfPeriods: Optional[int] = Field(default=0)
-  periodLengthMin: Optional[int] = Field(default=0)
-  overtime: Optional[bool] = Field(default=False)
-  numOfPeriodsOvertime: Optional[int] = Field(default=0)
-  periodLengthMinOvertime: Optional[int] = Field(default=0)
-  shootout: Optional[bool] = Field(default=False)
-  refereePoints: Optional[int] = Field(default=0)
+  numOfPeriods: int | None = Field(default=0)
+  periodLengthMin: int | None = Field(default=0)
+  overtime: bool | None = Field(default=False)
+  numOfPeriodsOvertime: int | None = Field(default=0)
+  periodLengthMinOvertime: int | None = Field(default=0)
+  shootout: bool | None = Field(default=False)
+  refereePoints: int | None = Field(default=0)
 
 
 # ------------
@@ -107,22 +107,22 @@ class MatchdayType(Enum):
   REGULAR = {"key": "REGULAR", "value": "Regulär"}
 
 class MatchdayOwner(BaseModel):
-  clubId: Optional[str] = None
-  clubName: Optional[str] = None
-  clubAlias: Optional[str] = None
+  clubId: str | None = None
+  clubName: str | None = None
+  clubAlias: str | None = None
 
 class MatchdayBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  type: Dict[str, str] = Field(...)
-  startDate: Optional[datetime] = None
-  endDate: Optional[datetime] = None
+  type: dict[str, str] = Field(...)
+  startDate: datetime | None = None
+  endDate: datetime | None = None
   createStandings: bool = False
   createStats: bool = False
-  matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
+  matchSettings: MatchSettings | None = Field(default_factory=dict)
   published: bool = False
-  standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
-  owner: Optional[MatchdayOwner] = Field(default_factory=dict)
+  standings: dict[str, Standings] | None = Field(default_factory=dict)
+  owner: MatchdayOwner | None = Field(default_factory=dict)
 
   @field_validator('startDate', 'endDate', mode='before')
   @classmethod
@@ -139,17 +139,17 @@ class MatchdayDB(MatchdayBase):
 
 
 class MatchdayUpdate(MongoBaseModel):
-  name: Optional[str] = "DEFAULT"
-  alias: Optional[str] = "DEFAULT"
-  type: Optional[Dict[str, str]] = Field(default_factory=dict)
-  startDate: Optional[datetime] = None
-  endDate: Optional[datetime] = None
-  createStandings: Optional[bool] = False
-  createStats: Optional[bool] = False
-  matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
-  published: Optional[bool] = False
-  standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
-  owner: Optional[MatchdayOwner] = Field(default_factory=dict)
+  name: str | None = "DEFAULT"
+  alias: str | None = "DEFAULT"
+  type: dict[str, str] | None = Field(default_factory=dict)
+  startDate: datetime | None = None
+  endDate: datetime | None = None
+  createStandings: bool | None = False
+  createStats: bool | None = False
+  matchSettings: MatchSettings | None = Field(default_factory=dict)
+  published: bool | None = False
+  standings: dict[str, Standings] | None = Field(default_factory=dict)
+  owner: MatchdayOwner | None = Field(default_factory=dict)
 
   @field_validator('startDate', 'endDate', mode='before')
   @classmethod
@@ -168,14 +168,14 @@ class RoundBase(MongoBaseModel):
   sortOrder: int = Field(0)
   createStandings: bool = False
   createStats: bool = False
-  matchdaysType: Dict[str, str] = Field(...)
-  matchdaysSortedBy: Dict[str, str] = Field(...)
-  startDate: Optional[datetime] = None
-  endDate: Optional[datetime] = None
-  matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
+  matchdaysType: dict[str, str] = Field(...)
+  matchdaysSortedBy: dict[str, str] = Field(...)
+  startDate: datetime | None = None
+  endDate: datetime | None = None
+  matchSettings: MatchSettings | None = Field(default_factory=dict)
   published: bool = False
-  matchdays: Optional[List[MatchdayBase]] = Field(default_factory=list)
-  standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
+  matchdays: list[MatchdayBase] | None = Field(default_factory=list)
+  standings: dict[str, Standings] | None = Field(default_factory=dict)
 
   @field_validator('startDate', 'endDate', mode='before')
   @classmethod
@@ -198,19 +198,19 @@ class RoundDB(RoundBase):
 
 
 class RoundUpdate(MongoBaseModel):
-  name: Optional[str] = "DEFAULT"
-  alias: Optional[str] = "DEFAULT"
-  sortOrder: Optional[int] = None
-  createStandings: Optional[bool] = False
-  createStats: Optional[bool] = False
-  matchdaysType: Optional[Dict[str, str]] = Field(default_factory=dict)
-  matchdaysSortedBy: Optional[Dict[str, str]] = Field(default_factory=dict)
-  startDate: Optional[datetime] = None
-  endDate: Optional[datetime] = None
-  matchSettings: Optional[MatchSettings] = Field(default_factory=dict)
-  published: Optional[bool] = False
-  matchdays: Optional[List[MatchdayBase]] = Field(default_factory=list)
-  standings: Optional[Dict[str, Standings]] = Field(default_factory=dict)
+  name: str | None = "DEFAULT"
+  alias: str | None = "DEFAULT"
+  sortOrder: int | None = None
+  createStandings: bool | None = False
+  createStats: bool | None = False
+  matchdaysType: dict[str, str] | None = Field(default_factory=dict)
+  matchdaysSortedBy: dict[str, str] | None = Field(default_factory=dict)
+  startDate: datetime | None = None
+  endDate: datetime | None = None
+  matchSettings: MatchSettings | None = Field(default_factory=dict)
+  published: bool | None = False
+  matchdays: list[MatchdayBase] | None = Field(default_factory=list)
+  standings: dict[str, Standings] | None = Field(default_factory=dict)
 
   @field_validator('startDate', 'endDate', mode='before')
   @classmethod
@@ -231,9 +231,9 @@ class RoundUpdate(MongoBaseModel):
 class SeasonBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  standingsSettings: Optional[StandingsSettings] = Field(default_factory=dict)
+  standingsSettings: StandingsSettings | None = Field(default_factory=dict)
   published: bool = False
-  rounds: Optional[List[RoundBase]] = Field(default_factory=list)
+  rounds: list[RoundBase] | None = Field(default_factory=list)
 
   @field_validator('name', 'alias', mode='before')
   @classmethod
@@ -246,11 +246,11 @@ class SeasonDB(SeasonBase):
 
 
 class SeasonUpdate(MongoBaseModel):
-  name: Optional[str] = "DEFAULT"
-  alias: Optional[str] = "DEFAULT"
-  standingsSettings: Optional[StandingsSettings] = Field(default_factory=dict)
-  published: Optional[bool] = False
-  rounds: Optional[List[RoundBase]] = Field(default_factory=list)
+  name: str | None = "DEFAULT"
+  alias: str | None = "DEFAULT"
+  standingsSettings: StandingsSettings | None = Field(default_factory=dict)
+  published: bool | None = False
+  rounds: list[RoundBase] | None = Field(default_factory=list)
 
   @field_validator('name', 'alias', mode='before')
   @classmethod
@@ -265,13 +265,13 @@ class TournamentBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
   tinyName: str = Field(...)
-  ageGroup: Dict[str, str] = Field(...)
+  ageGroup: dict[str, str] = Field(...)
   published: bool = False
   active: bool = False
   external: bool = False
-  website: Optional[HttpUrl] = None
-  seasons: Optional[List[SeasonBase]] = Field(default_factory=list)
-  legacyId: Optional[int] = None
+  website: HttpUrl | None = None
+  seasons: list[SeasonBase] | None = Field(default_factory=list)
+  legacyId: int | None = None
 
   @field_validator('website', mode='before')
   @classmethod
@@ -294,15 +294,15 @@ class TournamentDB(TournamentBase):
 
 
 class TournamentUpdate(MongoBaseModel):
-  name: Optional[str] = "DEFAULT"
-  alias: Optional[str] = "DEFAULT"
-  tinyName: Optional[str] = "DEFAULT"
-  ageGroup: Optional[Dict[str, str]] = Field(default_factory=dict)
-  published: Optional[bool] = False
-  active: Optional[bool] = False
-  external: Optional[bool] = False
-  website: Optional[HttpUrl] = None
-  seasons: Optional[List[SeasonBase]] = Field(default_factory=list)
+  name: str | None = "DEFAULT"
+  alias: str | None = "DEFAULT"
+  tinyName: str | None = "DEFAULT"
+  ageGroup: dict[str, str] | None = Field(default_factory=dict)
+  published: bool | None = False
+  active: bool | None = False
+  external: bool | None = False
+  website: HttpUrl | None = None
+  seasons: list[SeasonBase] | None = Field(default_factory=list)
 
   @field_validator('website', mode='before')
   @classmethod

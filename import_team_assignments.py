@@ -1,13 +1,20 @@
 #!/usr/bin/env python
+import argparse
 import csv
 import os
+from datetime import datetime
+
 import certifi
-import argparse
 import requests
 from pymongo import MongoClient
-from models.players import AssignedTeams, AssignedClubs, PlayerDB, AssignedTeamsInput, TeamInput, SourceEnum
+
 from models.clubs import ClubDB, TeamDB
-from datetime import datetime
+from models.players import (
+  AssignedClubs,
+  AssignedTeams,
+  PlayerDB,
+  SourceEnum,
+)
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Manage teams.')
@@ -107,9 +114,9 @@ try:
         # Use the first matching player
         player = PlayerDB(**existing_players[0])
         #print("player", player)
-     
+
       player_id_str = str(player.id)  # Convert to string (works if _id is stored as string)
-      
+
       # get club from db
       club_res = db.clubs.find_one({"alias": club_alias})
       if club_res is None:
@@ -183,7 +190,7 @@ try:
         # Club exists, check if team already exists in this club's teams
         existing_team = next(
             (t for t in existing_club.teams if t.teamId == str(team_db.id)), None)
-        
+
         if existing_team:
           # Team already exists, update its properties if needed
           print(f"Team {team_db.name} already assigned to {first_name} {last_name} in club {club.name}")
@@ -211,32 +218,32 @@ try:
             {"$set": {
                 "assignedTeams": assignments_data
             }})
-        
+
         # Check update operation result
         if update_result.matched_count == 0:
           print(f"ERROR: No player matched with ID {player_id_str}")
           exit(1)
-        
+
         if update_result.modified_count == 0:
-          print(f"⚠️ WARNING: Player found but no modifications made. Data might be identical.")
+          print("⚠️ WARNING: Player found but no modifications made. Data might be identical.")
           continue
-        
+
         # Verify the update by fetching the player again with the same ID format
         updated_player = db.players.find_one({"_id": player_id_str})
         if updated_player:
           actual_teams_count = len(updated_player.get("assignedTeams", []))
           expected_teams_count = len(assignments_data)
-          
+
           print(f"Update stats: Found={update_result.matched_count}, Modified={update_result.modified_count}")
           print(f"Team counts: Expected={expected_teams_count}, Actual={actual_teams_count}")
-          
+
           if actual_teams_count == expected_teams_count:
             print(f"✅ Successfully updated Player: {first_name} {last_name}")
           else:
             print(f"⚠️ Team count mismatch after update for {first_name} {last_name}")
             print(f"Saved teams count: {actual_teams_count}, Expected: {expected_teams_count}")
         else:
-          print(f"ERROR: Couldn't retrieve player after update")
+          print("ERROR: Couldn't retrieve player after update")
           exit(1)
 
         if not args.importAll:

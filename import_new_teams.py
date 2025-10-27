@@ -1,11 +1,12 @@
 #!/usr/bin/env python
+import argparse
 import csv
 import os
-import certifi
-import argparse
 
+import certifi
 import requests
 from pymongo import MongoClient
+
 from models.clubs import TeamBase
 
 # Get environment variables
@@ -42,9 +43,9 @@ try:
     headers = {
         'Authorization': f'Bearer {token}'
     }
-    
+
     with open(filename, encoding='utf-8') as f:
-        reader = csv.DictReader(f, 
+        reader = csv.DictReader(f,
                              delimiter=';',
                              quotechar='"',
                              doublequote=True,

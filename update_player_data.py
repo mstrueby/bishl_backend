@@ -1,10 +1,10 @@
 
 #!/usr/bin/env python
+import argparse
 import os
+
 import certifi
 from pymongo import MongoClient
-import argparse
-from datetime import datetime
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Update player data in matches.')
@@ -45,7 +45,7 @@ async def update_player_info():
         "away.roster.$[elem].player.firstName": args.first_name,
         "away.roster.$[elem].player.lastName": args.last_name
     }
-    
+
     if args.new_player_id:
         update_fields.update({
             "home.roster.$[elem].player.playerId": args.new_player_id,
@@ -65,7 +65,7 @@ async def update_player_info():
         },
         array_filters=[{"elem.player.playerId": args.player_id}]
     )
-    
+
     # Update player info in scores
     scores_update = {
         "home.scores.$[score].goalPlayer.firstName": args.first_name,
@@ -77,7 +77,7 @@ async def update_player_info():
         "away.scores.$[score].assistPlayer.firstName": args.first_name,
         "away.scores.$[score].assistPlayer.lastName": args.last_name
     }
-    
+
     if args.new_player_id:
         scores_update.update({
             "home.scores.$[score].goalPlayer.playerId": args.new_player_id,
@@ -115,7 +115,7 @@ async def update_player_info():
         "away.penalties.$[penalty].penaltyPlayer.firstName": args.first_name,
         "away.penalties.$[penalty].penaltyPlayer.lastName": args.last_name
     }
-    
+
     if args.new_player_id:
         penalties_update.update({
             "home.penalties.$[penalty].penaltyPlayer.playerId": args.new_player_id,
@@ -135,7 +135,7 @@ async def update_player_info():
         array_filters=[{"penalty.penaltyPlayer.playerId": args.player_id}]
     )
 
-    print(f"\nUpdate Summary:")
+    print("\nUpdate Summary:")
     print(f"Modified {roster_result.modified_count} roster entries")
     print(f"Modified {scores_result.modified_count} score entries")
     print(f"Modified {penalties_result.modified_count} penalty entries")

@@ -1,24 +1,23 @@
 from enum import Enum
-from typing import Optional, List
-from pydantic import EmailStr, Field, BaseModel, field_validator, ConfigDict
-from pydantic_core import core_schema
-from email_validator import validate_email, EmailNotValidError
+
 from bson import ObjectId
+from email_validator import EmailNotValidError, validate_email
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic_core import core_schema
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -69,16 +68,16 @@ class RefereeLevel(str, Enum):
 class Club(BaseModel):
   clubId: str = Field(...)
   clubName: str = Field(...)
-  logoUrl: Optional[str] = None
+  logoUrl: str | None = None
 
 
 class Referee(BaseModel):
   level: RefereeLevel = Field(default=RefereeLevel.NA)
-  passNo: Optional[str] = None
-  ishdLevel: Optional[int] = None
+  passNo: str | None = None
+  ishdLevel: int | None = None
   active: bool = True
-  club: Optional[Club] = None
-  points: Optional[int] = 0
+  club: Club | None = None
+  points: int | None = 0
 
 
 class UserBase(MongoBaseModel):
@@ -86,9 +85,9 @@ class UserBase(MongoBaseModel):
   password: str = Field(...)
   firstName: str = Field(...)
   lastName: str = Field(...)
-  club: Optional[Club] = None
-  roles: Optional[List[Role]] = Field(default_factory=list)
-  referee: Optional[Referee] = None
+  club: Club | None = None
+  roles: list[Role] | None = Field(default_factory=list)
+  referee: Referee | None = None
 
   @field_validator('email')
   @classmethod
@@ -101,13 +100,13 @@ class UserBase(MongoBaseModel):
 
 
 class UserUpdate(MongoBaseModel):
-  email: Optional[str] = None
-  password: Optional[str] = None
-  firstName: Optional[str] = None
-  lastName: Optional[str] = None
-  club: Optional[Club] = None
-  roles: Optional[List[Role]] = Field(default_factory=list)
-  referee: Optional[Referee] = None
+  email: str | None = None
+  password: str | None = None
+  firstName: str | None = None
+  lastName: str | None = None
+  club: Club | None = None
+  roles: list[Role] | None = Field(default_factory=list)
+  referee: Referee | None = None
   """
   @validator('email')
   def email_is_valid(cls, v):
@@ -129,6 +128,6 @@ class CurrentUser(MongoBaseModel):
   email: EmailStr = Field(...)
   firstName: str = Field(...)
   lastName: str = Field(...)
-  club: Optional[Club] = None
-  roles: Optional[List[Role]] = Field(default_factory=list)
-  referee: Optional[Referee] = None
+  club: Club | None = None
+  roles: list[Role] | None = Field(default_factory=list)
+  referee: Referee | None = None

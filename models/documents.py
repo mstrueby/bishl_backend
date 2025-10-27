@@ -1,9 +1,10 @@
 
-from bson import ObjectId
-from pydantic import Field, BaseModel, field_validator, HttpUrl, ConfigDict
-from pydantic_core import core_schema
-from typing import Optional
 from datetime import datetime
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic_core import core_schema
+
 from utils import prevent_empty_str
 
 
@@ -11,15 +12,14 @@ class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -39,7 +39,7 @@ class MongoBaseModel(BaseModel):
     arbitrary_types_allowed=True,
     json_encoders={ObjectId: str}
   )
-  
+
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
@@ -57,7 +57,7 @@ class User(BaseModel):
 class DocumentBase(MongoBaseModel):
   title: str = Field(...)
   alias: str = Field(...)
-  category: Optional[str] = None
+  category: str | None = None
   url: HttpUrl = Field(...)
   publicId: str = Field(...)
   fileName: str = Field(...)
@@ -67,19 +67,19 @@ class DocumentBase(MongoBaseModel):
 
 
 class DocumentDB(DocumentBase):
-  createDate: Optional[datetime] = None
+  createDate: datetime | None = None
   createUser: User = Field(...)
-  updateDate: Optional[datetime] = None
-  updateUser: Optional[User] = None
+  updateDate: datetime | None = None
+  updateUser: User | None = None
 
 
 class DocumentUpdate(MongoBaseModel):
-  title: Optional[str] = None
-  alias: Optional[str] = None
-  category: Optional[str] = None
-  url: Optional[HttpUrl] = None
-  publicId: Optional[str] = None
-  filename: Optional[str] = None
-  fileType: Optional[str] = None
-  fileSizeByte: Optional[int] = None
-  published: Optional[bool] = None
+  title: str | None = None
+  alias: str | None = None
+  category: str | None = None
+  url: HttpUrl | None = None
+  publicId: str | None = None
+  filename: str | None = None
+  fileType: str | None = None
+  fileSizeByte: int | None = None
+  published: bool | None = None

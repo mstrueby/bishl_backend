@@ -6,9 +6,11 @@ Run this manually after deploying the refactored stats service.
 """
 import asyncio
 import os
-from motor.motor_asyncio import AsyncIOMotorClient
-from services.stats_service import StatsService
+
 import certifi
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from services.stats_service import StatsService
 
 DB_URL = os.environ["DB_URL"]
 DB_NAME = os.environ["DB_NAME"]
@@ -24,9 +26,9 @@ DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
 async def validate_match_stats():
     """Validate match stats calculation with different scenarios"""
     print("\n=== VALIDATING MATCH STATS ===")
-    
+
     stats_service = StatsService()
-    
+
     test_cases = [
         # (match_status, finish_type, home_score, away_score, description)
         ("FINISHED", "REGULAR", 3, 1, "Regular time home win"),
@@ -39,7 +41,7 @@ async def validate_match_stats():
         ("SCHEDULED", "REGULAR", 0, 0, "Scheduled match (no stats)"),
         ("FORFEITED", "REGULAR", 5, 0, "Forfeited match"),
     ]
-    
+
     # Mock standings settings
     standings_settings = {
         "pointsWinReg": 3,
@@ -50,31 +52,31 @@ async def validate_match_stats():
         "pointsWinShootout": 2,
         "pointsLossShootout": 1
     }
-    
+
     for match_status, finish_type, home_score, away_score, description in test_cases:
         stats = stats_service.calculate_match_stats(
             match_status, finish_type, standings_settings, home_score, away_score
         )
-        
+
         print(f"\n✓ {description}")
         print(f"  Status: {match_status}, Finish: {finish_type}, Score: {home_score}-{away_score}")
         print(f"  Home: {stats['home']}")
         print(f"  Away: {stats['away']}")
-        
+
         # Basic validation
         if match_status in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
             assert stats['home']['gamePlayed'] == 1, "Home should have 1 game played"
             assert stats['away']['gamePlayed'] == 1, "Away should have 1 game played"
         else:
             assert stats['home']['gamePlayed'] == 0, "Scheduled match should have 0 games"
-    
+
     print("\n✓✓✓ All match stats validations passed!")
 
 
 async def validate_standings_calculation():
     """Validate standings aggregation with real data"""
     print("\n=== VALIDATING STANDINGS CALCULATION ===")
-    
+
     try:
         client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
         mongodb = client[DB_NAME]
@@ -82,32 +84,32 @@ async def validate_standings_calculation():
     except Exception as e:
         print(f"✗ Failed to connect to database: {str(e)}")
         return
-    
+
     # Find a round with createStandings=true
     tournament = await mongodb['tournaments'].find_one({
         'seasons.rounds.createStandings': True
     })
-    
+
     if not tournament:
         print("⊘ No rounds with createStandings found, skipping standings validation")
         client.close()
         return
-    
+
     for season in tournament.get('seasons', []):
         for round_data in season.get('rounds', []):
             if round_data.get('createStandings'):
                 t_alias = tournament['alias']
                 s_alias = season['alias']
                 r_alias = round_data['alias']
-                
+
                 print(f"\n→ Testing round: {t_alias}/{s_alias}/{r_alias}")
-                
+
                 # Get current standings
                 old_standings = round_data.get('standings', {})
-                
+
                 # Recalculate standings
                 await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
-                
+
                 # Fetch updated standings
                 updated_tournament = await mongodb['tournaments'].find_one({'alias': t_alias})
                 new_standings = {}
@@ -116,16 +118,16 @@ async def validate_standings_calculation():
                         for r in s.get('rounds', []):
                             if r['alias'] == r_alias:
                                 new_standings = r.get('standings', {})
-                
+
                 # Compare team counts
                 print(f"  Old standings: {len(old_standings)} teams")
                 print(f"  New standings: {len(new_standings)} teams")
-                
+
                 if len(old_standings) == len(new_standings):
                     print("  ✓ Team count matches")
                 else:
-                    print(f"  ⚠ WARNING: Team count mismatch!")
-                
+                    print("  ⚠ WARNING: Team count mismatch!")
+
                 # Compare a sample team's points
                 if old_standings and new_standings:
                     sample_team = list(old_standings.keys())[0]
@@ -139,11 +141,11 @@ async def validate_standings_calculation():
                             print("    ✓ Points match")
                         else:
                             print("    ⚠ WARNING: Points mismatch!")
-                
+
                 # Only test first round to keep it quick
                 break
         break
-    
+
     client.close()
     print("\n✓✓✓ Standings validation complete!")
 
@@ -151,7 +153,7 @@ async def validate_standings_calculation():
 async def validate_roster_stats():
     """Validate roster stats calculation with real data"""
     print("\n=== VALIDATING ROSTER STATS ===")
-    
+
     try:
         client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
         mongodb = client[DB_NAME]
@@ -159,7 +161,7 @@ async def validate_roster_stats():
     except Exception as e:
         print(f"✗ Failed to connect to database: {str(e)}")
         return
-    
+
     # Use specific test match if provided, otherwise find one with rosters
     if TEST_MATCH_ID:
         match = await mongodb['matches'].find_one({'_id': TEST_MATCH_ID})
@@ -175,54 +177,54 @@ async def validate_roster_stats():
                 {'away.roster.0': {'$exists': True}}
             ]
         })
-    
+
     if not match:
         print("⊘ No finished matches with rosters found, skipping roster validation")
         client.close()
         return
-    
+
     match_id = match['_id']
     print(f"\n→ Testing match: {match_id}")
     print(f"  {match['home']['fullName']} vs {match['away']['fullName']}")
-    
+
     # Check if match has roster data
     has_home_roster = len(match.get('home', {}).get('roster', [])) > 0
     has_away_roster = len(match.get('away', {}).get('roster', [])) > 0
     print(f"  Home roster: {len(match.get('home', {}).get('roster', []))} players")
     print(f"  Away roster: {len(match.get('away', {}).get('roster', []))} players")
-    
+
     if not has_home_roster and not has_away_roster:
         print("  ⚠ WARNING: Match has no roster data - test won't be meaningful")
         if not TEST_MATCH_ID:
             print("  Skipping this match...")
             client.close()
             return
-    
+
     for team_flag in ['home', 'away']:
         print(f"\n  Testing {team_flag} team:")
-        
+
         # Get old roster stats
         old_roster = match.get(team_flag, {}).get('roster', [])
         old_total_goals = sum(p.get('goals', 0) for p in old_roster)
         old_total_assists = sum(p.get('assists', 0) for p in old_roster)
-        
+
         # Recalculate using direct DB access (avoid API calls during validation)
         await stats_service.calculate_roster_stats(match_id, team_flag, use_db_direct=True)
-        
+
         # Get new roster stats
         updated_match = await mongodb['matches'].find_one({'_id': match_id})
         new_roster = updated_match.get(team_flag, {}).get('roster', [])
         new_total_goals = sum(p.get('goals', 0) for p in new_roster)
         new_total_assists = sum(p.get('assists', 0) for p in new_roster)
-        
+
         print(f"    Old total goals: {old_total_goals}, assists: {old_total_assists}")
         print(f"    New total goals: {new_total_goals}, assists: {new_total_assists}")
-        
+
         if old_total_goals == new_total_goals and old_total_assists == new_total_assists:
-            print(f"    ✓ Roster stats match")
+            print("    ✓ Roster stats match")
         else:
-            print(f"    ⚠ WARNING: Roster stats mismatch!")
-    
+            print("    ⚠ WARNING: Roster stats mismatch!")
+
     client.close()
     print("\n✓✓✓ Roster stats validation complete!")
 
@@ -244,13 +246,13 @@ async def main():
     if TEST_MATCH_ID:
         print(f"🎯 Testing specific match: {TEST_MATCH_ID}")
     print("=" * 60)
-    
+
     try:
         await validate_match_stats()
         await validate_standings_calculation()
         await validate_roster_stats()
         await performance_comparison()
-        
+
         print("\n" + "=" * 60)
         print("VALIDATION COMPLETE")
         print("=" * 60)

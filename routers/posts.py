@@ -1,26 +1,33 @@
-from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, Depends, status, Query
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
 import json
-
-from pydantic import HttpUrl
-from models.posts import PostBase, PostDB, PostUpdate, Revision, User
-from models.responses import PaginatedResponse
-from typing import List, Optional
-from utils import configure_cloudinary, my_jsonable_encoder
-from services.pagination import PaginationHelper
-from authentication import AuthHandler, TokenPayload
+import os
 from datetime import datetime
+
 import cloudinary
 import cloudinary.uploader
-import os
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
+from fastapi import (
+  APIRouter,
+  Depends,
+  File,
+  Form,
+  HTTPException,
+  Query,
+  Request,
+  UploadFile,
+  status,
 )
-from logging_config import logger
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
+from pydantic import HttpUrl
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import (
+  AuthorizationException,
+  ResourceNotFoundException,
+)
+from models.posts import PostBase, PostDB, PostUpdate, Revision, User
+from models.responses import PaginatedResponse
+from services.pagination import PaginationHelper
+from utils import configure_cloudinary, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
@@ -69,8 +76,8 @@ async def delete_from_cloudinary(image_url: str):
             response_model=PaginatedResponse[PostDB])
 async def get_posts(
     request: Request,
-    featured: Optional[bool] = None,
-    published: Optional[bool] = None,
+    featured: bool | None = None,
+    published: bool | None = None,
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(25, ge=1, le=100, description="Items per page")
 ) -> JSONResponse:
@@ -80,7 +87,7 @@ async def get_posts(
     query["featured"] = featured
   if published is not None:
     query["published"] = published
-  
+
   items, total_count = await PaginationHelper.paginate_query(
       collection=mongodb["posts"],
       query=query,
@@ -88,7 +95,7 @@ async def get_posts(
       page_size=page_size,
       sort=[("updateDate", -1)]
   )
-  
+
   paginated_result = PaginationHelper.create_response(
       items=[PostDB(**post) for post in items],
       page=page,
@@ -96,7 +103,7 @@ async def get_posts(
       total_count=total_count,
       message=f"Retrieved {len(items)} posts"
   )
-  
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(paginated_result))
 
@@ -129,8 +136,8 @@ async def create_post(
     published: bool = Form(False),
     featured: bool = Form(False),
     deleted: bool = Form(False),
-    publishDateFrom: Optional[datetime] = Form(None),
-    publishDateTo: Optional[datetime] = Form(None),
+    publishDateFrom: datetime | None = Form(None),
+    publishDateTo: datetime | None = Form(None),
     legacyId: int = Form(None),
     image: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
@@ -216,17 +223,17 @@ async def create_post(
 async def update_post(
     request: Request,
     id: str,
-    title: Optional[str] = Form(None),
-    alias: Optional[str] = Form(None),
-    content: Optional[str] = Form(None),
-    author: Optional[str] = Form(None),
-    published: Optional[bool] = Form(None),
-    featured: Optional[bool] = Form(None),
-    deleted: Optional[bool] = Form(None),
-    publishDateFrom: Optional[datetime] = Form(None),
-    publishDateTo: Optional[datetime] = Form(None),
-    image: Optional[UploadFile] = File(None),
-    imageUrl: Optional[HttpUrl] = Form(None),
+    title: str | None = Form(None),
+    alias: str | None = Form(None),
+    content: str | None = Form(None),
+    author: str | None = Form(None),
+    published: bool | None = Form(None),
+    featured: bool | None = Form(None),
+    deleted: bool | None = Form(None),
+    publishDateFrom: datetime | None = Form(None),
+    publishDateTo: datetime | None = Form(None),
+    image: UploadFile | None = File(None),
+    imageUrl: HttpUrl | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
   # Handle alias uniqueness if alias is being updated

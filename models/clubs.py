@@ -1,22 +1,21 @@
+
 from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, EmailStr, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
-from typing import Optional, List
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -36,7 +35,7 @@ class MongoBaseModel(BaseModel):
     arbitrary_types_allowed=True,
     json_encoders={ObjectId: str}
   )
-  
+
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
@@ -61,12 +60,12 @@ class TeamBase(MongoBaseModel):
   tinyName: str = Field(...)
   ageGroup: str = Field(...)
   teamNumber: int = Field(...)
-  teamPartnership: List[TeamPartnerships] = Field(default_factory=list)
-  active: Optional[bool] = False
-  external: Optional[bool] = False
-  logoUrl: Optional[HttpUrl] = None
-  ishdId: Optional[str] = None
-  legacyId: Optional[int] = None
+  teamPartnership: list[TeamPartnerships] = Field(default_factory=list)
+  active: bool | None = False
+  external: bool | None = False
+  logoUrl: HttpUrl | None = None
+  ishdId: str | None = None
+  legacyId: int | None = None
 
   @field_validator('ishdId', mode='before')
   @classmethod
@@ -102,19 +101,19 @@ class TeamDB(TeamBase):
 
 
 class TeamUpdate(MongoBaseModel):
-  name: Optional[str] = None
-  alias: Optional[str] = None
-  fullName: Optional[str] = None  
-  shortName: Optional[str] = None
-  tinyName: Optional[str] = None
-  ageGroup: Optional[str] = None
-  teamNumber: Optional[int] = None
-  teamPartnership: Optional[List[TeamPartnerships]] = None
-  active: Optional[bool] = False
-  external: Optional[bool] = False
-  logoUrl: Optional[HttpUrl] = None
-  ishdId: Optional[str] = None
-  legacyId: Optional[int] = None
+  name: str | None = None
+  alias: str | None = None
+  fullName: str | None = None
+  shortName: str | None = None
+  tinyName: str | None = None
+  ageGroup: str | None = None
+  teamNumber: int | None = None
+  teamPartnership: list[TeamPartnerships] | None = None
+  active: bool | None = False
+  external: bool | None = False
+  logoUrl: HttpUrl | None = None
+  ishdId: str | None = None
+  legacyId: int | None = None
 
   @field_validator('ishdId', mode='before')
   @classmethod
@@ -146,20 +145,20 @@ class TeamUpdate(MongoBaseModel):
 class ClubBase(MongoBaseModel):
   name: str = Field(...)
   alias: str = Field(...)
-  addressName: Optional[str] = None
-  street: Optional[str] = None
-  zipCode: Optional[str] = None
-  city: Optional[str] = None
+  addressName: str | None = None
+  street: str | None = None
+  zipCode: str | None = None
+  city: str | None = None
   country: str = Field(...)
-  email: Optional[EmailStr] = None
-  yearOfFoundation: Optional[int] = None
-  description: Optional[str] = None
-  website: Optional[HttpUrl] = None
-  ishdId: Optional[int] = None
-  active: Optional[bool] = False
-  teams: Optional[List[TeamBase]] = Field(default_factory=list)
-  legacyId: Optional[int] = None
-  logoUrl: Optional[HttpUrl] = None
+  email: EmailStr | None = None
+  yearOfFoundation: int | None = None
+  description: str | None = None
+  website: HttpUrl | None = None
+  ishdId: int | None = None
+  active: bool | None = False
+  teams: list[TeamBase] | None = Field(default_factory=list)
+  legacyId: int | None = None
+  logoUrl: HttpUrl | None = None
 
   @field_validator('email',
              'website',
@@ -185,21 +184,21 @@ class ClubDB(ClubBase):
 
 
 class ClubUpdate(MongoBaseModel):
-  name: Optional[str] = None
-  alias: Optional[str] = None
-  addressName: Optional[str] = None
-  street: Optional[str] = None
-  zipCode: Optional[str] = None
-  city: Optional[str] = None
-  country: Optional[str] = None
-  email: Optional[EmailStr] = None
-  yearOfFoundation: Optional[int] = None
-  description: Optional[str] = None
-  website: Optional[HttpUrl] = None
-  ishdId: Optional[int] = None
-  active: Optional[bool] = None
-  legacyId: Optional[int] = None
-  logoUrl: Optional[str] = None
+  name: str | None = None
+  alias: str | None = None
+  addressName: str | None = None
+  street: str | None = None
+  zipCode: str | None = None
+  city: str | None = None
+  country: str | None = None
+  email: EmailStr | None = None
+  yearOfFoundation: int | None = None
+  description: str | None = None
+  website: HttpUrl | None = None
+  ishdId: int | None = None
+  active: bool | None = None
+  legacyId: int | None = None
+  logoUrl: str | None = None
 
   @field_validator('email', 'website', 'logoUrl', mode='before')
   @classmethod

@@ -2,10 +2,10 @@
 #!/usr/bin/env python
 
 import os
-import requests
-from datetime import datetime
-from pymongo import MongoClient
+
 import certifi
+import requests
+from pymongo import MongoClient
 
 # Get environment variables
 BASE_URL = os.environ['BE_API_URL']
@@ -28,7 +28,7 @@ def update_rounds():
     if login_response.status_code != 200:
         print("Error logging in")
         return
-    
+
     token = login_response.json()["token"]
     headers = {
         'Authorization': f'Bearer {token}',
@@ -37,25 +37,25 @@ def update_rounds():
 
     # Get all tournaments
     tournaments = tournaments_collection.find({})
-    
+
     for tournament in tournaments:
         t_alias = tournament.get('alias')
-        
+
         # Check each season in the tournament
         for season in tournament.get('seasons', []):
             if season.get('alias') == '2024':  # Only process 2024 season
                 s_alias = season.get('alias')
-                
+
                 # Process each round in the season
                 for round in season.get('rounds', []):
                     r_alias = round.get('alias')
-                    
+
                     print(f"Updating round: {t_alias}/{s_alias}/{r_alias}")
-                    
+
                     # Call patch endpoint for the round
                     patch_url = f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round['_id']}"
                     response = requests.patch(patch_url, json={}, headers=headers)
-                    
+
                     if response.status_code in [200, 304]:
                         print(f"Successfully updated round {r_alias}")
                     else:

@@ -1,20 +1,19 @@
-from typing import List
+
 from bson import ObjectId
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
+
 from authentication import AuthHandler, TokenPayload
-from utils import (validate_match_time,
-                   populate_event_player_fields)
-from services.stats_service import StatsService
 from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    StatsCalculationException
+  DatabaseOperationException,
+  ResourceNotFoundException,
+  ValidationException,
 )
 from logging_config import logger
+from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
+from services.stats_service import StatsService
+from utils import populate_event_player_fields, validate_match_time
 
 router = APIRouter()
 auth = AuthHandler()
@@ -80,7 +79,7 @@ async def get_penalty_object(mongodb, match_id: str, team_flag: str,
 # get penalty sheet of a team
 @router.get("/",
             response_description="Get penalty sheet",
-            response_model=List[PenaltiesDB])
+            response_model=list[PenaltiesDB])
 async def get_penalty_sheet(
     request: Request,
     match_id: str = Path(..., description="The ID of the match"),
@@ -211,7 +210,7 @@ async def create_penalty(
 
     # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS penalties
     logger.info(
-        f"Penalty added with incremental updates",
+        "Penalty added with incremental updates",
         extra={"match_id": match_id, "player_id": penalty_player_id, "minutes": penalty.penaltyMinutes}
     )
 
@@ -435,7 +434,7 @@ async def delete_one_penalty(
 
     # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS penalties
     logger.info(
-        f"Penalty deleted with incremental updates",
+        "Penalty deleted with incremental updates",
         extra={"match_id": match_id, "player_id": penalty_player_id, "minutes": penalty_minutes}
     )
 

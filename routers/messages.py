@@ -1,18 +1,13 @@
 # filename: routers/messages.py
 
-from typing import List
-from fastapi import APIRouter, Request, status, HTTPException, Path, Body, Depends
-from fastapi.responses import JSONResponse, Response
-from models.messages import MessageBase, MessageDB, MessageUpdate
-from fastapi.encoders import jsonable_encoder
-from authentication import AuthHandler, TokenPayload
 from datetime import datetime
-from exceptions import (
-    ResourceNotFoundException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
+
+from authentication import AuthHandler, TokenPayload
+from models.messages import MessageBase, MessageDB
 
 router = APIRouter()
 auth = AuthHandler()
@@ -58,7 +53,7 @@ async def send_message(
 # Retrieve messages for a user - Inbox
 @router.get('/',
             response_description="List messages for a user",
-            response_model=List[MessageDB])
+            response_model=list[MessageDB])
 async def get_messages(
     request: Request,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
@@ -112,7 +107,7 @@ async def delete_message(
 # Retrieve chat with a specific user
 @router.get('/chats/{other_user_id}',
             response_description="Get chat with a specific user",
-            response_model=List[MessageDB])
+            response_model=list[MessageDB])
 async def get_chat_with_user(
     request: Request,
     other_user_id: str = Path(..., description="The ID of the other user"),
@@ -146,7 +141,7 @@ async def get_chat_with_user(
 # Retrieve all users that the logged-in user has chatted with
 @router.get('/chats',
             response_description="Get users chatted with",
-            response_model=List[dict])
+            response_model=list[dict])
 async def get_chatted_users(
     request: Request,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),

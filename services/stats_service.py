@@ -1,19 +1,19 @@
+import os
 import time
-from typing import Dict, List, Optional
 from functools import wraps
-import httpx
-import aiohttp
-from datetime import datetime
 
+import aiohttp
+import httpx
+
+from config import settings
 from exceptions.custom_exceptions import (
-    ResourceNotFoundException,
     DatabaseOperationException,
+    ResourceNotFoundException,
     StatsCalculationException,
-    ValidationException
+    ValidationException,
 )
 from logging_config import logger
 from services.performance_monitor import monitor_query
-from config import settings
 
 BASE_URL = settings.BE_API_URL
 
@@ -107,7 +107,7 @@ class StatsService:
                     operation="fetch_standings_settings",
                     message=f"Failed to fetch standings settings: {str(e)}",
                     details={"tournament_alias": tournament_alias, "season_alias": season_alias}
-                )
+                ) from e
 
     def calculate_match_stats(
         self,
@@ -116,7 +116,7 @@ class StatsService:
         standings_setting: dict,
         home_score: int = 0,
         away_score: int = 0
-    ) -> Dict[str, Dict]:
+    ) -> dict[str, dict]:
         """
         Calculate match statistics (points, wins, losses) for both teams.
 
@@ -320,7 +320,7 @@ class StatsService:
                     "season_alias": s_alias,
                     "round_alias": r_alias
                 }
-            )
+            ) from e
 
     @log_performance
     async def aggregate_matchday_standings(self, t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> None:
@@ -423,7 +423,7 @@ class StatsService:
                     "round_alias": r_alias,
                     "matchday_alias": md_alias
                 }
-            )
+            ) from e
 
     # ==================== HELPER METHODS ====================
 
@@ -453,7 +453,7 @@ class StatsService:
                                     return matchday.get("createStandings", False)
         return False
 
-    def _calculate_standings(self, matches: List[dict]) -> dict:
+    def _calculate_standings(self, matches: list[dict]) -> dict:
         """
         Calculate standings from a list of matches.
 
@@ -639,7 +639,7 @@ class StatsService:
             # Update roster with calculated stats
             updated_roster = self._apply_stats_to_roster(roster, player_stats)
 
-            logger.debug(f"Updated roster with stats", extra={"num_players_updated": len([p for p in player_stats.values() if any(v > 0 for v in p.values())]), "total_players": len(player_stats)})
+            logger.debug("Updated roster with stats", extra={"num_players_updated": len([p for p in player_stats.values() if any(v > 0 for v in p.values())]), "total_players": len(player_stats)})
             logger.debug(f"Player stats summary: {player_stats}")
 
             # Save updated roster to database
@@ -661,7 +661,7 @@ class StatsService:
                 calculation_type="roster",
                 message=str(e),
                 details={"match_id": match_id, "team_flag": team_flag}
-            )
+            ) from e
 
     @monitor_query("fetch_match_data_direct")
     async def _fetch_match_data_from_db(self, match_id: str, team_flag: str) -> tuple:
@@ -690,7 +690,7 @@ class StatsService:
         return roster, scoreboard, penaltysheet
 
     @monitor_query("fetch_roster_api")
-    async def _fetch_roster(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
+    async def _fetch_roster(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> list[dict]:
         """Fetch roster for a team from the API"""
         response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
         if response.status_code != 200:
@@ -702,7 +702,7 @@ class StatsService:
         return response.json()
 
     @monitor_query("fetch_scoreboard_api")
-    async def _fetch_scoreboard(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
+    async def _fetch_scoreboard(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> list[dict]:
         """Fetch scoreboard for a team from the API"""
         response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/scores/")
         if response.status_code != 200:
@@ -714,7 +714,7 @@ class StatsService:
         return response.json()
 
     @monitor_query("fetch_penaltysheet_api")
-    async def _fetch_penaltysheet(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
+    async def _fetch_penaltysheet(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> list[dict]:
         """Fetch penaltysheet for a team from the API"""
         response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/penalties/")
         if response.status_code != 200:
@@ -725,7 +725,7 @@ class StatsService:
             )
         return response.json()
 
-    def _initialize_roster_player_stats(self, roster: List[dict]) -> dict:
+    def _initialize_roster_player_stats(self, roster: list[dict]) -> dict:
         """
         Initialize stats dictionary for all players in roster.
 
@@ -747,7 +747,7 @@ class StatsService:
                 }
         return player_stats
 
-    def _calculate_scoring_stats(self, scoreboard: List[dict], player_stats: dict) -> None:
+    def _calculate_scoring_stats(self, scoreboard: list[dict], player_stats: dict) -> None:
         """
         Calculate goals and assists from scoreboard.
         Updates player_stats dictionary in place.
@@ -778,7 +778,7 @@ class StatsService:
                 player_stats[assist_player_id]['assists'] += 1
                 player_stats[assist_player_id]['points'] += 1
 
-    def _calculate_penalty_stats(self, penaltysheet: List[dict], player_stats: dict) -> None:
+    def _calculate_penalty_stats(self, penaltysheet: list[dict], player_stats: dict) -> None:
         """
         Calculate penalty minutes from penaltysheet.
         Updates player_stats dictionary in place.
@@ -796,7 +796,7 @@ class StatsService:
                     }
                 player_stats[pen_player_id]['penaltyMinutes'] += penalty.get('penaltyMinutes', 0)
 
-    def _apply_stats_to_roster(self, roster: List[dict], player_stats: dict) -> List[dict]:
+    def _apply_stats_to_roster(self, roster: list[dict], player_stats: dict) -> list[dict]:
         """
         Apply calculated stats to roster entries.
 
@@ -814,7 +814,7 @@ class StatsService:
         return roster
 
     @monitor_query("save_roster_to_db")
-    async def _save_roster_to_db(self, match_id: str, team_flag: str, roster: List[dict]) -> None:
+    async def _save_roster_to_db(self, match_id: str, team_flag: str, roster: list[dict]) -> None:
         """
         Save updated roster to the database.
 
@@ -845,12 +845,12 @@ class StatsService:
                     operation="save_roster",
                     message=f"Could not update roster in mongoDB: {str(e)}",
                     details={"match_id": match_id, "team_flag": team_flag}
-                )
+                ) from e
 
     # ==================== PLAYER CARD STATISTICS ====================
 
     @log_performance
-    async def calculate_player_card_stats(self, player_ids: List[str], t_alias: str, s_alias: str,
+    async def calculate_player_card_stats(self, player_ids: list[str], t_alias: str, s_alias: str,
                                          r_alias: str, md_alias: str, token_payload=None):
         """
         Calculate and update player statistics for a given tournament/season/round/matchday.
@@ -897,7 +897,7 @@ class StatsService:
                     resource_type="Round",
                     resource_id=f"{t_alias}/{s_alias}/{r_alias}",
                     details={"http_status_code": e.response.status_code}
-                )
+                ) from e
             except httpx.RequestError as e:
                 logger.error(f"Network error fetching round information: {str(e)}", extra={
                     "tournament_alias": t_alias,
@@ -909,7 +909,7 @@ class StatsService:
                     operation="fetch_round_info",
                     message=f"Network error fetching round info: {str(e)}",
                     details={"tournament_alias": t_alias, "season_alias": s_alias, "round_alias": r_alias}
-                )
+                ) from e
 
 
         # Process round statistics
@@ -955,7 +955,7 @@ class StatsService:
         if matches:
             await self._process_called_teams_assignments(player_ids, matches, t_alias, s_alias, token_payload)
 
-    async def _update_player_card_stats(self, flag: str, matches: List[dict], player_ids: List[str],
+    async def _update_player_card_stats(self, flag: str, matches: list[dict], player_ids: list[str],
                                        player_card_stats: dict, t_alias: str, s_alias: str,
                                        r_alias: str, md_alias: str) -> None:
         """Main function to update player card statistics."""
@@ -973,7 +973,7 @@ class StatsService:
         # Save statistics to database
         await self._save_player_stats_to_db(player_card_stats, t_alias, s_alias, r_alias, md_alias, flag)
 
-    def _process_roster_for_team(self, matches: List[dict], team_flag: str, player_ids: List[str],
+    def _process_roster_for_team(self, matches: list[dict], team_flag: str, player_ids: list[str],
                                 player_card_stats: dict, flag: str) -> None:
         """Process roster data for a specific team (home/away) across all matches."""
         for match in matches:
@@ -1091,7 +1091,7 @@ class StatsService:
                         operation="save_player_stats",
                         message=f"Failed to update stats for player {player_id}: {str(e)}",
                         details={"player_id": player_id}
-                    )
+                    ) from e
 
 
     def _should_update_stat(self, existing_stat: dict, new_stats: dict,
@@ -1104,7 +1104,7 @@ class StatsService:
                 existing_stat.get('team', {}).get('fullName') == new_stats['team']['fullName'] and
                 (existing_stat.get('matchday', {}).get('alias') == md_alias if flag == 'MATCHDAY' else True))
 
-    async def _process_called_teams_assignments(self, player_ids: List[str], matches: List[dict],
+    async def _process_called_teams_assignments(self, player_ids: list[str], matches: list[dict],
                                                t_alias: str, s_alias: str, token_payload) -> None:
         """Check calledMatches for affected players and update assignedTeams if needed."""
         base_url = os.environ.get('BE_API_URL', '')
@@ -1131,7 +1131,7 @@ class StatsService:
             headers = {"Authorization": f"Bearer {auth_token}"}
         except Exception as e:
             logger.error(f"Failed to encode authentication token: {str(e)}")
-            raise DatabaseOperationException(operation="encode_auth_token", message=f"Failed to encode auth token: {str(e)}")
+            raise DatabaseOperationException(operation="encode_auth_token", message=f"Failed to encode auth token: {str(e)}") from e
 
 
         for player_id in player_ids:
@@ -1152,7 +1152,7 @@ class StatsService:
                 logger.exception(f"Error processing called matches for player {player_id}", extra={"player_id": player_id, "error": str(e)})
                 # Continue to next player even if one fails
 
-    def _find_called_teams(self, player_id: str, matches: List[dict]) -> set:
+    def _find_called_teams(self, player_id: str, matches: list[dict]) -> set:
         """Find all teams this player was called for across matches."""
         teams_to_check = set()
 
@@ -1248,14 +1248,14 @@ class StatsService:
                 operation="update_player_assignments",
                 message=f"HTTP error updating assignments for player {player_id}: {str(e)}",
                 details={"player_id": player_id, "team_name": team_name, "http_status_code": e.response.status_code}
-            )
+            ) from e
         except httpx.RequestError as e:
             logger.error(f"Network error updating assignments for player {player_id}: {str(e)}", extra={"player_id": player_id, "team_name": team_name, "error": str(e)})
             raise DatabaseOperationException(
                 operation="update_player_assignments",
                 message=f"Network error updating assignments for player {player_id}: {str(e)}",
                 details={"player_id": player_id, "team_name": team_name}
-            )
+            ) from e
 
 
     def _create_team_assignment(self, team_info: tuple) -> dict:
