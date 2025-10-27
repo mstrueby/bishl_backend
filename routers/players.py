@@ -931,7 +931,7 @@ async def verify_ishd_data(
     ISHD_API_USER = os.environ.get("ISHD_API_USER")
     ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
 
-    verification_results = {
+    verification_results: dict[str, list[Any]] = {
         "missing_in_ishd": [],
         "missing_in_db": [],
         "team_mismatches": [],
@@ -993,7 +993,7 @@ async def verify_ishd_data(
     connector = aiohttp.TCPConnector(ssl=ssl_context)
 
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        ishd_players = {}
+        ishd_players: dict[str, list[dict[str, Any]]] = {}
 
         for team_info in ishd_teams:
             club_ishd_id_str = urllib.parse.quote(str(team_info["club_ishd_id"]))
