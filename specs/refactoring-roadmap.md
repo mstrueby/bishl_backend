@@ -189,39 +189,29 @@ faker = "^20.0.0"
 
 ---
 
-### 8. Environment Configuration Cleanup
+### 8. Environment Configuration Cleanup ✅ COMPLETE
 **Effort:** Low | **Impact:** Medium | **Risk if ignored:** Low
 
-**Problem:**
-- Environment variables scattered throughout code
-- No validation at startup
-- DEBUG_LEVEL as int directly accessed
+**Status:** ✅ **COMPLETED**
 
-**Current Code Location:**
-- `utils.py` line 7-8
-- Various router files
+**What was done:**
+- ✅ Created `config.py` with Pydantic Settings and full validation
+- ✅ Documented all environment variables with descriptions and defaults
+- ✅ Added validators for debug_level, CORS origins, JWT expiration
+- ✅ Updated `main.py` to use settings for DB connection and CORS
+- ✅ Updated `authentication.py` to use settings for JWT configuration
+- ✅ Updated `utils.py` to use settings for DEBUG_LEVEL
+- ✅ Created `.env.example` documenting all required variables
+- ✅ Added convenience methods: `is_production()`, `get_db_url()`, `get_db_name()`
 
-**Actions:**
-- Create `config.py` with Pydantic Settings
-- Validate all env vars at startup
-- Type-safe configuration access
-- Document all required env vars
+**Files Created/Modified:**
+- `config.py` (new - centralized configuration)
+- `.env.example` (new - documentation)
+- `main.py` (updated to use settings)
+- `authentication.py` (updated to use settings)
+- `utils.py` (updated to use settings)
 
-**Estimated Time:** 4-6 hours
-
-**Example:**
-```python
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    db_url: str
-    db_name: str
-    be_api_url: str
-    debug_level: int = 0
-    
-    class Config:
-        env_file = ".env"
-```
+**Estimated Time:** 4-6 hours ✅
 
 ---
 
@@ -265,20 +255,26 @@ class Settings(BaseSettings):
 
 ## Low Priority (Nice to Have)
 
-### 11. Database Query Optimization
+### 11. Database Query Optimization ⏸️ PARTIALLY COMPLETE
 **Effort:** Medium | **Impact:** Medium | **Risk if ignored:** Low
 
-**Problem:**
-- No indexes documented
-- Potential N+1 queries in stats calculation
-- No query performance monitoring
+**Status:** ⏸️ **PARTIALLY COMPLETED - POSTPONED**
 
-**Actions:**
-- Add MongoDB indexes for common queries
-- Use aggregation pipeline for complex queries
-- Add query performance logging
+**What was done:**
+- ✅ Created `scripts/create_indexes.py` with comprehensive index strategy
+- ✅ Documented all index purposes in `specs/database-optimization-plan.md`
+- ✅ Created `services/performance_monitor.py` for query monitoring
+- ✅ Tested index creation on dev database
+- ⚠️ Identified player alias duplicates preventing unique index
 
-**Estimated Time:** 8-12 hours
+**Remaining work (postponed):**
+- [ ] Fix player alias duplicates in production
+- [ ] Apply indexes to production database
+- [ ] Refactor N+1 queries to use aggregation pipelines
+- [ ] Verify index usage with explain() queries
+- [ ] Implement query performance monitoring in production
+
+**Estimated Time for completion:** 4-6 hours
 
 ---
 
