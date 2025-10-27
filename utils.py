@@ -53,7 +53,9 @@ def parse_datetime(datetime_str):
 def parse_time_to_seconds(time_str: str | None) -> int:
     if not time_str:
         return 0
-    minutes, seconds = map(int, time_str.split(":"))
+    parts = time_str.split(":")
+    minutes: int = int(parts[0])
+    seconds: int = int(parts[1])
     return minutes * 60 + seconds
 
 
