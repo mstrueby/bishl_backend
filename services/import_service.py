@@ -10,10 +10,12 @@ Provides common functionality for all data import operations:
 
 import os
 from collections.abc import Callable
+from typing import Any
 
 import certifi
 import requests
 from pymongo import MongoClient
+from pymongo.database import Database
 
 from config import settings
 from logging_config import logger
@@ -31,7 +33,7 @@ class ImportService:
         """
         self.use_production = use_production
         self.client: MongoClient | None = None
-        self.db = None
+        self.db: Database[Any] | None = None
         self.token: str | None = None
         self.headers: dict[str, str] | None = None
 
