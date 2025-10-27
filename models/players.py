@@ -269,15 +269,15 @@ class IshdLogPlayer(BaseModel):
 class IshdLogTeam(BaseModel):
     teamIshdId: str = Field(...)
     url: str = Field(...)
-    players: list[IshdLogPlayer] | None = None
+    players: list[IshdLogPlayer] = Field(default_factory=list)
 
 
 class IshdLogClub(BaseModel):
     clubName: str = Field(...)
     ishdId: int = Field(...)
-    teams: list[IshdLogTeam] | None = None
+    teams: list[IshdLogTeam] = Field(default_factory=list)
 
 
 class IshdLogBase(MongoBaseModel):
     processDate: datetime = Field(...)
-    clubs: list[IshdLogClub] | None = None
+    clubs: list[IshdLogClub] = Field(default_factory=list)
