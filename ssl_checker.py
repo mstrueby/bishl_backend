@@ -34,15 +34,15 @@ def check_ssl_certificate(url):
         # Check expiration
         not_after_str = cert.get("notAfter")
         not_before_str = cert.get("notBefore")
-        
+
         if not not_after_str or not isinstance(not_after_str, str):
             print("❌ Invalid certificate expiration date")
             return False
-            
+
         if not not_before_str or not isinstance(not_before_str, str):
             print("❌ Invalid certificate start date")
             return False
-            
+
         not_after = datetime.datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z")
         not_before = datetime.datetime.strptime(not_before_str, "%b %d %H:%M:%S %Y %Z")
 
