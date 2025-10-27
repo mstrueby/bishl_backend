@@ -212,7 +212,7 @@ def import_penalties():
     with open("data/data_penalties.csv", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         matches = []
-        for i, row in enumerate(reader):
+        for _i, row in enumerate(reader):
             # if i >= 7:
             #  break
             match_id = int(row["match_id"])
