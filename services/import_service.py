@@ -1,4 +1,3 @@
-
 """
 Centralized Import Service
 
@@ -26,7 +25,7 @@ class ImportService:
     def __init__(self, use_production: bool = False):
         """
         Initialize import service
-        
+
         Args:
             use_production: If True, use production database and API
         """
@@ -38,15 +37,17 @@ class ImportService:
 
         # Set environment-specific URLs
         if use_production:
-            self.db_url = os.environ['DB_URL_PROD']
-            self.db_name = 'bishl'
-            self.base_url = os.environ.get('BE_API_URL_PROD', settings.be_api_url)
+            self.db_url = os.environ["DB_URL_PROD"]
+            self.db_name = "bishl"
+            self.base_url = os.environ.get("BE_API_URL_PROD", settings.be_api_url)
         else:
-            self.db_url = os.environ['DB_URL']
-            self.db_name = 'bishl_dev'
-            self.base_url = os.environ.get('BE_API_URL', settings.be_api_url)
+            self.db_url = os.environ["DB_URL"]
+            self.db_name = "bishl_dev"
+            self.base_url = os.environ.get("BE_API_URL", settings.be_api_url)
 
-        logger.info(f"Import Service initialized for {'PRODUCTION' if use_production else 'DEVELOPMENT'}")
+        logger.info(
+            f"Import Service initialized for {'PRODUCTION' if use_production else 'DEVELOPMENT'}"
+        )
         logger.info(f"Database: {self.db_name}")
         logger.info(f"API URL: {self.base_url}")
 
@@ -63,14 +64,14 @@ class ImportService:
     def authenticate(self) -> bool:
         """
         Authenticate with API and get token
-        
+
         Returns:
             True if authentication successful, False otherwise
         """
         login_url = f"{self.base_url}/users/login"
         login_data = {
-            "email": os.environ['SYS_ADMIN_EMAIL'],
-            "password": os.environ['SYS_ADMIN_PASSWORD']
+            "email": os.environ["SYS_ADMIN_EMAIL"],
+            "password": os.environ["SYS_ADMIN_PASSWORD"],
         }
 
         try:
@@ -82,8 +83,8 @@ class ImportService:
 
             self.token = response.json()["token"]
             self.headers = {
-                'Authorization': f'Bearer {self.token}',
-                'Content-Type': 'application/json'
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json",
             }
             logger.info("Authentication successful")
             return True
@@ -99,19 +100,16 @@ class ImportService:
         return self.db[collection_name]
 
     def import_with_rollback(
-        self,
-        import_func: Callable,
-        collection_name: str,
-        backup_before: bool = True
+        self, import_func: Callable, collection_name: str, backup_before: bool = True
     ) -> tuple[bool, str]:
         """
         Execute import function with automatic rollback on failure
-        
+
         Args:
             import_func: Function to execute (should return success boolean and message)
             collection_name: Name of collection being modified
             backup_before: Whether to backup collection before import
-            
+
         Returns:
             Tuple of (success: bool, message: str)
         """
@@ -186,7 +184,9 @@ class ImportProgress:
         percentage = (self.current / self.total * 100) if self.total > 0 else 0
 
         if message:
-            logger.info(f"{self.description}: {self.current}/{self.total} ({percentage:.1f}%) - {message}")
+            logger.info(
+                f"{self.description}: {self.current}/{self.total} ({percentage:.1f}%) - {message}"
+            )
         elif self.current % max(1, self.total // 10) == 0:  # Log every 10%
             logger.info(f"{self.description}: {self.current}/{self.total} ({percentage:.1f}%)")
 

@@ -26,7 +26,7 @@ from routers.penalties import router as penalties_router
 from routers.players import router as players_router
 from routers.posts import router as posts_router
 
-#import uvicorn
+# import uvicorn
 from routers.root import router as root_router
 from routers.roster import router as roster_router
 from routers.rounds import router as rounds_router
@@ -86,64 +86,38 @@ All errors return a standardized format with correlation IDs for debugging:
 }
 ```
     """,
-    version_info={
-        "version": "1.0.0",
-        "build": "production",
-        "last_updated": "2025-01-22"
-    },
-    contact={
-        "name": "BISHL Development Team",
-        "url": "https://bishl.be",
-        "email": "tech@bishl.be"
-    },
+    version_info={"version": "1.0.0", "build": "production", "last_updated": "2025-01-22"},
+    contact={"name": "BISHL Development Team", "url": "https://bishl.be", "email": "tech@bishl.be"},
     license_info={
         "name": "Proprietary",
     },
     openapi_tags=[
         {
             "name": "matches",
-            "description": "Operations for managing matches, including creation, updates, scoring, and statistics"
+            "description": "Operations for managing matches, including creation, updates, scoring, and statistics",
         },
-        {
-            "name": "players",
-            "description": "Player management, statistics, and roster operations"
-        },
+        {"name": "players", "description": "Player management, statistics, and roster operations"},
         {
             "name": "tournaments",
-            "description": "Tournament, season, round, and matchday organization"
+            "description": "Tournament, season, round, and matchday organization",
         },
-        {
-            "name": "clubs",
-            "description": "Club and team management"
-        },
+        {"name": "clubs", "description": "Club and team management"},
         {
             "name": "users",
-            "description": "User authentication, registration, and referee management"
+            "description": "User authentication, registration, and referee management",
         },
-        {
-            "name": "assignments",
-            "description": "Referee assignment and scheduling"
-        },
-        {
-            "name": "posts",
-            "description": "News posts and announcements"
-        },
-        {
-            "name": "documents",
-            "description": "Document management and downloads"
-        },
-        {
-            "name": "venues",
-            "description": "Venue and location management"
-        }
-    ]
+        {"name": "assignments", "description": "Referee assignment and scheduling"},
+        {"name": "posts", "description": "News posts and announcements"},
+        {"name": "documents", "description": "Document management and downloads"},
+        {"name": "venues", "description": "Venue and location management"},
+    ],
 )
 app.add_middleware(
-  CORSMiddleware,
-  allow_origins=settings.CORS_ORIGINS,
-  allow_credentials=True,
-  allow_methods=["*"],
-  allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -160,7 +134,7 @@ async def bishl_exception_handler(request: Request, exc: BISHLException):
             "correlation_id": correlation_id,
             "timestamp": datetime.utcnow().isoformat(),
             "path": request.url.path,
-            "details": exc.details
+            "details": exc.details,
         }
     }
 
@@ -171,14 +145,11 @@ async def bishl_exception_handler(request: Request, exc: BISHLException):
             "correlation_id": correlation_id,
             "status_code": exc.status_code,
             "path": request.url.path,
-            "details": exc.details
-        }
+            "details": exc.details,
+        },
     )
 
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=error_response
-    )
+    return JSONResponse(status_code=exc.status_code, content=error_response)
 
 
 @app.exception_handler(HTTPException)
@@ -192,7 +163,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "status_code": exc.status_code,
             "correlation_id": correlation_id,
             "timestamp": datetime.utcnow().isoformat(),
-            "path": request.url.path
+            "path": request.url.path,
         }
     }
 
@@ -201,14 +172,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         extra={
             "correlation_id": correlation_id,
             "status_code": exc.status_code,
-            "path": request.url.path
-        }
+            "path": request.url.path,
+        },
     )
 
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=error_response
-    )
+    return JSONResponse(status_code=exc.status_code, content=error_response)
 
 
 @app.exception_handler(Exception)
@@ -222,8 +190,8 @@ async def general_exception_handler(request: Request, exc: Exception):
         extra={
             "correlation_id": correlation_id,
             "path": request.url.path,
-            "traceback": traceback.format_exc()
-        }
+            "traceback": traceback.format_exc(),
+        },
     )
 
     error_response = {
@@ -232,24 +200,21 @@ async def general_exception_handler(request: Request, exc: Exception):
             "status_code": 500,
             "correlation_id": correlation_id,
             "timestamp": datetime.utcnow().isoformat(),
-            "path": request.url.path
+            "path": request.url.path,
         }
     }
 
-    return JSONResponse(
-        status_code=500,
-        content=error_response
-    )
+    return JSONResponse(status_code=500, content=error_response)
 
 
 @app.on_event("startup")
 async def startup_db_client():
-  logger.info("Starting BISHL API server...")
-  logger.info(f"Connecting to MongoDB: {settings.DB_NAME}")
-  app.state.client = AsyncIOMotorClient(settings.DB_URL, tlsCAFile=certifi.where())
-  app.state.mongodb_client = app.state.client  # Keep backward compatibility
-  app.state.mongodb = app.state.client[settings.DB_NAME]
-  logger.info("MongoDB connection established")
+    logger.info("Starting BISHL API server...")
+    logger.info(f"Connecting to MongoDB: {settings.DB_NAME}")
+    app.state.client = AsyncIOMotorClient(settings.DB_URL, tlsCAFile=certifi.where())
+    app.state.mongodb_client = app.state.client  # Keep backward compatibility
+    app.state.mongodb = app.state.client[settings.DB_NAME]
+    logger.info("MongoDB connection established")
 
 
 @app.on_event("shutdown")
@@ -257,6 +222,7 @@ async def shutdown_db_client():
     logger.info("Shutting down BISHL API server...")
     app.state.client.close()
     logger.info("MongoDB connection closed")
+
 
 app.include_router(root_router, prefix="", tags=["root"])
 app.include_router(configs_router, prefix="/configs", tags=["configs"])
@@ -266,42 +232,33 @@ app.include_router(messages_router, prefix="/messages", tags=["messages"])
 
 app.include_router(venues_router, prefix="/venues", tags=["venues"])
 app.include_router(clubs_router, prefix="/clubs", tags=["clubs"])
-app.include_router(teams_router,
-                   prefix="/clubs/{club_alias}/teams",
-                   tags=["teams"])
-app.include_router(tournaments_router,
-                   prefix="/tournaments",
-                   tags=["tournaments"])
+app.include_router(teams_router, prefix="/clubs/{club_alias}/teams", tags=["teams"])
+app.include_router(tournaments_router, prefix="/tournaments", tags=["tournaments"])
 
-app.include_router(seasons_router,
-                   prefix="/tournaments/{tournament_alias}/seasons",
-                   tags=["seasons"])
 app.include_router(
-  rounds_router,
-  prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds",
-  tags=["rounds"])
+    seasons_router, prefix="/tournaments/{tournament_alias}/seasons", tags=["seasons"]
+)
 app.include_router(
-  matchdays_router,
-  prefix=
-  "/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays",
-  tags=["matchdays"])
+    rounds_router,
+    prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds",
+    tags=["rounds"],
+)
+app.include_router(
+    matchdays_router,
+    prefix="/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays",
+    tags=["matchdays"],
+)
 
 app.include_router(matches_router, prefix="/matches", tags=["matches"])
-app.include_router(assignments_router,
-                   prefix="/assignments",
-                   tags=["assignments"])
-app.include_router(roster_router,
-                   prefix="/matches/{match_id}/{team_flag}/roster",
-                   tags=["roster"])
-app.include_router(scores_router,
-                   prefix="/matches/{match_id}/{team_flag}/scores",
-                   tags=["scores"])
-app.include_router(penalties_router,
-                   prefix="/matches/{match_id}/{team_flag}/penalties",
-                   tags=["penalties"])
+app.include_router(assignments_router, prefix="/assignments", tags=["assignments"])
+app.include_router(roster_router, prefix="/matches/{match_id}/{team_flag}/roster", tags=["roster"])
+app.include_router(scores_router, prefix="/matches/{match_id}/{team_flag}/scores", tags=["scores"])
+app.include_router(
+    penalties_router, prefix="/matches/{match_id}/{team_flag}/penalties", tags=["penalties"]
+)
 app.include_router(posts_router, prefix="/posts", tags=["posts"])
 app.include_router(documents_router, prefix="/documents", tags=["documents"])
 app.include_router(players_router, prefix="/players", tags=["players"])
 
-#if __name__ == "__main__":
+# if __name__ == "__main__":
 #    uvicorn.run("main:app", reload=True)

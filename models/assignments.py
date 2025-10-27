@@ -1,4 +1,3 @@
-
 from datetime import datetime
 from enum import Enum
 
@@ -12,94 +11,81 @@ from utils import prevent_empty_str
 
 class PyObjectId(ObjectId):
 
-  @classmethod
-  def __get_pydantic_core_schema__(cls, source_type, handler):
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
 
-    def validate_object_id(value: str) -> ObjectId:
-      if isinstance(value, ObjectId):
-        return value
-      if not ObjectId.is_valid(value):
-        raise ValueError("Invalid ObjectId")
-      return ObjectId(value)
+        def validate_object_id(value: str) -> ObjectId:
+            if isinstance(value, ObjectId):
+                return value
+            if not ObjectId.is_valid(value):
+                raise ValueError("Invalid ObjectId")
+            return ObjectId(value)
 
-    return core_schema.with_info_plain_validator_function(
-      validate_object_id,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x),
-        return_schema=core_schema.str_schema()
-      )
-    )
+        return core_schema.with_info_plain_validator_function(
+            validate_object_id,
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda x: str(x), return_schema=core_schema.str_schema()
+            ),
+        )
 
-  @classmethod
-  def __get_pydantic_json_schema__(cls, schema, handler):
-    return {'type': 'string', 'format': 'objectid'}
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema, handler):
+        return {"type": "string", "format": "objectid"}
 
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(
-    populate_by_name=True,
-    arbitrary_types_allowed=True
-  )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
-  id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
 class Status(str, Enum):
-  requested = "REQUESTED"
-  unavailable = "UNAVAILABLE"
-  assigned = "ASSIGNED"
-  accepted = "ACCEPTED"
+    requested = "REQUESTED"
+    unavailable = "UNAVAILABLE"
+    assigned = "ASSIGNED"
+    accepted = "ACCEPTED"
 
 
 class StatusHistory(BaseModel):
-  status: Status = Field(...)
-  updateDate: datetime = Field(...)
-  updatedBy: str | None = None
-  updatedByName: str | None = None
+    status: Status = Field(...)
+    updateDate: datetime = Field(...)
+    updatedBy: str | None = None
+    updatedByName: str | None = None
 
 
 class Referee(BaseModel):
-  userId: str = Field(...)
-  firstName: str = Field(...)
-  lastName: str = Field(...)
-  clubId: str | None = None
-  clubName: str | None = None
-  logoUrl: str | None = None
-  points: int = 0
-  level: RefereeLevel | None = RefereeLevel.NA
+    userId: str = Field(...)
+    firstName: str = Field(...)
+    lastName: str = Field(...)
+    clubId: str | None = None
+    clubName: str | None = None
+    logoUrl: str | None = None
+    points: int = 0
+    level: RefereeLevel | None = RefereeLevel.NA
 
 
 class AssignmentBase(MongoBaseModel):
-  matchId: str = Field(...)
-  status: Status = Field(...)
-  userId: str | None = None
-  refAdmin: bool = False
-  position: int | None = Field(None,
-                                  description='Possible values are 1 and 2',
-                                  ge=1,
-                                  le=2)
+    matchId: str = Field(...)
+    status: Status = Field(...)
+    userId: str | None = None
+    refAdmin: bool = False
+    position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
 
 
 class AssignmentDB(MongoBaseModel):
-  matchId: str = Field(...)
-  status: Status = Field(...)
-  referee: Referee = Field(...)
-  position: int | None = Field(None,
-                                  description='Possible values are 1 and 2',
-                                  ge=1,
-                                  le=2)
-  statusHistory: list[StatusHistory] | None = Field(default_factory=list)
+    matchId: str = Field(...)
+    status: Status = Field(...)
+    referee: Referee = Field(...)
+    position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
+    statusHistory: list[StatusHistory] | None = Field(default_factory=list)
 
 
 class AssignmentUpdate(MongoBaseModel):
-  status: Status | None = None
-  refAdmin: bool | None = False
-  position: int | None = Field(None,
-                                  description='Possible values are 1 and 2',
-                                  ge=1,
-                                  le=2)
+    status: Status | None = None
+    refAdmin: bool | None = False
+    position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
 
-  @field_validator('status', mode='before')
-  @classmethod
-  def validate_null_strings(cls, v, info):
-    return prevent_empty_str(v, info.field_name)
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_null_strings(cls, v, info):
+        return prevent_empty_str(v, info.field_name)

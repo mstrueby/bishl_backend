@@ -1,4 +1,3 @@
-
 import datetime
 import socket
 import ssl
@@ -28,8 +27,8 @@ def check_ssl_certificate(url):
         print(f"Serial Number: {cert['serialNumber']}")
 
         # Check expiration
-        not_after = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
-        not_before = datetime.datetime.strptime(cert['notBefore'], '%b %d %H:%M:%S %Y %Z')
+        not_after = datetime.datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
+        not_before = datetime.datetime.strptime(cert["notBefore"], "%b %d %H:%M:%S %Y %Z")
 
         print(f"Valid from: {not_before}")
         print(f"Valid until: {not_after}")
@@ -56,6 +55,7 @@ def check_ssl_certificate(url):
         print(f"❌ Error: {e}")
         return False
 
+
 def check_ssl_with_requests(url):
     """Check SSL certificate using requests library"""
     import requests
@@ -72,6 +72,7 @@ def check_ssl_with_requests(url):
     except requests.exceptions.RequestException as e:
         print(f"❌ Request failed: {e}")
         return False
+
 
 if __name__ == "__main__":
     # Test with ISHD API

@@ -50,7 +50,7 @@ async def validate_match_stats():
         "pointsWinOvertime": 2,
         "pointsLossOvertime": 1,
         "pointsWinShootout": 2,
-        "pointsLossShootout": 1
+        "pointsLossShootout": 1,
     }
 
     for match_status, finish_type, home_score, away_score, description in test_cases:
@@ -64,11 +64,11 @@ async def validate_match_stats():
         print(f"  Away: {stats['away']}")
 
         # Basic validation
-        if match_status in ['FINISHED', 'INPROGRESS', 'FORFEITED']:
-            assert stats['home']['gamePlayed'] == 1, "Home should have 1 game played"
-            assert stats['away']['gamePlayed'] == 1, "Away should have 1 game played"
+        if match_status in ["FINISHED", "INPROGRESS", "FORFEITED"]:
+            assert stats["home"]["gamePlayed"] == 1, "Home should have 1 game played"
+            assert stats["away"]["gamePlayed"] == 1, "Away should have 1 game played"
         else:
-            assert stats['home']['gamePlayed'] == 0, "Scheduled match should have 0 games"
+            assert stats["home"]["gamePlayed"] == 0, "Scheduled match should have 0 games"
 
     print("\n✓✓✓ All match stats validations passed!")
 
@@ -86,38 +86,36 @@ async def validate_standings_calculation():
         return
 
     # Find a round with createStandings=true
-    tournament = await mongodb['tournaments'].find_one({
-        'seasons.rounds.createStandings': True
-    })
+    tournament = await mongodb["tournaments"].find_one({"seasons.rounds.createStandings": True})
 
     if not tournament:
         print("⊘ No rounds with createStandings found, skipping standings validation")
         client.close()
         return
 
-    for season in tournament.get('seasons', []):
-        for round_data in season.get('rounds', []):
-            if round_data.get('createStandings'):
-                t_alias = tournament['alias']
-                s_alias = season['alias']
-                r_alias = round_data['alias']
+    for season in tournament.get("seasons", []):
+        for round_data in season.get("rounds", []):
+            if round_data.get("createStandings"):
+                t_alias = tournament["alias"]
+                s_alias = season["alias"]
+                r_alias = round_data["alias"]
 
                 print(f"\n→ Testing round: {t_alias}/{s_alias}/{r_alias}")
 
                 # Get current standings
-                old_standings = round_data.get('standings', {})
+                old_standings = round_data.get("standings", {})
 
                 # Recalculate standings
                 await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
 
                 # Fetch updated standings
-                updated_tournament = await mongodb['tournaments'].find_one({'alias': t_alias})
+                updated_tournament = await mongodb["tournaments"].find_one({"alias": t_alias})
                 new_standings = {}
-                for s in updated_tournament.get('seasons', []):
-                    if s['alias'] == s_alias:
-                        for r in s.get('rounds', []):
-                            if r['alias'] == r_alias:
-                                new_standings = r.get('standings', {})
+                for s in updated_tournament.get("seasons", []):
+                    if s["alias"] == s_alias:
+                        for r in s.get("rounds", []):
+                            if r["alias"] == r_alias:
+                                new_standings = r.get("standings", {})
 
                 # Compare team counts
                 print(f"  Old standings: {len(old_standings)} teams")
@@ -132,8 +130,8 @@ async def validate_standings_calculation():
                 if old_standings and new_standings:
                     sample_team = list(old_standings.keys())[0]
                     if sample_team in new_standings:
-                        old_points = old_standings[sample_team].get('points', 0)
-                        new_points = new_standings[sample_team].get('points', 0)
+                        old_points = old_standings[sample_team].get("points", 0)
+                        new_points = new_standings[sample_team].get("points", 0)
                         print(f"  Sample team '{sample_team}':")
                         print(f"    Old points: {old_points}")
                         print(f"    New points: {new_points}")
@@ -164,32 +162,31 @@ async def validate_roster_stats():
 
     # Use specific test match if provided, otherwise find one with rosters
     if TEST_MATCH_ID:
-        match = await mongodb['matches'].find_one({'_id': TEST_MATCH_ID})
+        match = await mongodb["matches"].find_one({"_id": TEST_MATCH_ID})
         if not match:
             print(f"✗ Test match {TEST_MATCH_ID} not found")
             client.close()
             return
     else:
-        match = await mongodb['matches'].find_one({
-            'matchStatus.key': 'FINISHED',
-            '$or': [
-                {'home.roster.0': {'$exists': True}},
-                {'away.roster.0': {'$exists': True}}
-            ]
-        })
+        match = await mongodb["matches"].find_one(
+            {
+                "matchStatus.key": "FINISHED",
+                "$or": [{"home.roster.0": {"$exists": True}}, {"away.roster.0": {"$exists": True}}],
+            }
+        )
 
     if not match:
         print("⊘ No finished matches with rosters found, skipping roster validation")
         client.close()
         return
 
-    match_id = match['_id']
+    match_id = match["_id"]
     print(f"\n→ Testing match: {match_id}")
     print(f"  {match['home']['fullName']} vs {match['away']['fullName']}")
 
     # Check if match has roster data
-    has_home_roster = len(match.get('home', {}).get('roster', [])) > 0
-    has_away_roster = len(match.get('away', {}).get('roster', [])) > 0
+    has_home_roster = len(match.get("home", {}).get("roster", [])) > 0
+    has_away_roster = len(match.get("away", {}).get("roster", [])) > 0
     print(f"  Home roster: {len(match.get('home', {}).get('roster', []))} players")
     print(f"  Away roster: {len(match.get('away', {}).get('roster', []))} players")
 
@@ -200,22 +197,22 @@ async def validate_roster_stats():
             client.close()
             return
 
-    for team_flag in ['home', 'away']:
+    for team_flag in ["home", "away"]:
         print(f"\n  Testing {team_flag} team:")
 
         # Get old roster stats
-        old_roster = match.get(team_flag, {}).get('roster', [])
-        old_total_goals = sum(p.get('goals', 0) for p in old_roster)
-        old_total_assists = sum(p.get('assists', 0) for p in old_roster)
+        old_roster = match.get(team_flag, {}).get("roster", [])
+        old_total_goals = sum(p.get("goals", 0) for p in old_roster)
+        old_total_assists = sum(p.get("assists", 0) for p in old_roster)
 
         # Recalculate using direct DB access (avoid API calls during validation)
         await stats_service.calculate_roster_stats(match_id, team_flag, use_db_direct=True)
 
         # Get new roster stats
-        updated_match = await mongodb['matches'].find_one({'_id': match_id})
-        new_roster = updated_match.get(team_flag, {}).get('roster', [])
-        new_total_goals = sum(p.get('goals', 0) for p in new_roster)
-        new_total_assists = sum(p.get('assists', 0) for p in new_roster)
+        updated_match = await mongodb["matches"].find_one({"_id": match_id})
+        new_roster = updated_match.get(team_flag, {}).get("roster", [])
+        new_total_goals = sum(p.get("goals", 0) for p in new_roster)
+        new_total_assists = sum(p.get("assists", 0) for p in new_roster)
 
         print(f"    Old total goals: {old_total_goals}, assists: {old_total_assists}")
         print(f"    New total goals: {new_total_goals}, assists: {new_total_assists}")
@@ -264,6 +261,7 @@ async def main():
     except Exception as e:
         print(f"\n✗ Validation failed with error: {str(e)}")
         import traceback
+
         traceback.print_exc()
 
 

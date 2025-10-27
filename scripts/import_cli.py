@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 """
 Unified Import CLI
@@ -7,7 +6,7 @@ Centralized command-line interface for all data import operations.
 
 Usage:
     python scripts/import_cli.py <entity> [options]
-    
+
 Entities:
     players           Import players from CSV
     tournaments       Import tournaments
@@ -16,7 +15,7 @@ Entities:
     team-assignments  Import team assignments
     hobby-players     Import hobby players
     referees          Import referees
-    
+
 Options:
     --prod            Use production database
     --file PATH       Path to CSV file (default: data/data_<entity>.csv)
@@ -54,57 +53,45 @@ class ImportCLI:
 
         # Map entity names to their import handlers
         self.handlers: dict[str, Callable] = {
-            'players': self.import_players,
-            'tournaments': self.import_tournaments,
-            'schedule': self.import_schedule,
-            'teams': self.import_teams,
-            'team-assignments': self.import_team_assignments,
-            'hobby-players': self.import_hobby_players,
-            'referees': self.import_referees,
+            "players": self.import_players,
+            "tournaments": self.import_tournaments,
+            "schedule": self.import_schedule,
+            "teams": self.import_teams,
+            "team-assignments": self.import_team_assignments,
+            "hobby-players": self.import_hobby_players,
+            "referees": self.import_referees,
         }
 
     def setup_parser(self) -> argparse.ArgumentParser:
         """Create argument parser"""
         parser = argparse.ArgumentParser(
-            description='Unified import CLI for BISHL data',
+            description="Unified import CLI for BISHL data",
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog=__doc__
+            epilog=__doc__,
         )
 
         parser.add_argument(
-            'entity',
-            choices=list(self.handlers.keys()),
-            help='Entity type to import'
+            "entity", choices=list(self.handlers.keys()), help="Entity type to import"
+        )
+
+        parser.add_argument("--prod", action="store_true", help="Use production database and API")
+
+        parser.add_argument(
+            "--file", type=str, help="Path to CSV file (default: data/data_<entity>.csv)"
         )
 
         parser.add_argument(
-            '--prod',
-            action='store_true',
-            help='Use production database and API'
+            "--delete-all", action="store_true", help="Delete all existing records before import"
         )
 
         parser.add_argument(
-            '--file',
-            type=str,
-            help='Path to CSV file (default: data/data_<entity>.csv)'
+            "--import-all", action="store_true", help="Import all records without confirmation"
         )
 
         parser.add_argument(
-            '--delete-all',
-            action='store_true',
-            help='Delete all existing records before import'
-        )
-
-        parser.add_argument(
-            '--import-all',
-            action='store_true',
-            help='Import all records without confirmation'
-        )
-
-        parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Show what would be imported without making changes'
+            "--dry-run",
+            action="store_true",
+            help="Show what would be imported without making changes",
         )
 
         return parser
@@ -116,22 +103,22 @@ class ImportCLI:
 
         # Map entity names to default file names
         file_map = {
-            'players': 'data_players.csv',
-            'tournaments': 'data_tournaments.csv',
-            'schedule': 'data_schedule_2025.csv',
-            'teams': 'data_new_teams.csv',
-            'team-assignments': 'data_new_team_assignments.csv',
-            'hobby-players': 'data_hobby_players.csv',
-            'referees': 'data_referees.csv',
+            "players": "data_players.csv",
+            "tournaments": "data_tournaments.csv",
+            "schedule": "data_schedule_2025.csv",
+            "teams": "data_new_teams.csv",
+            "team-assignments": "data_new_team_assignments.csv",
+            "hobby-players": "data_hobby_players.csv",
+            "referees": "data_referees.csv",
         }
 
-        filename = file_map.get(entity, f'data_{entity}.csv')
-        return f'data/{filename}'
+        filename = file_map.get(entity, f"data_{entity}.csv")
+        return f"data/{filename}"
 
-    def read_csv(self, filepath: str, delimiter: str = ',') -> list[dict[str, Any]]:
+    def read_csv(self, filepath: str, delimiter: str = ",") -> list[dict[str, Any]]:
         """Read CSV file and return list of dictionaries"""
         try:
-            with open(filepath, encoding='utf-8') as f:
+            with open(filepath, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=delimiter)
                 data = list(reader)
                 logger.info(f"Read {len(data)} rows from {filepath}")
@@ -149,7 +136,7 @@ class ImportCLI:
             return True
 
         response = input(f"{message} (y/N): ").strip().lower()
-        return response == 'y'
+        return response == "y"
 
     # Import handlers (placeholders - to be implemented based on existing scripts)
 
@@ -157,8 +144,8 @@ class ImportCLI:
         """Import players"""
         logger.info("Starting players import...")
 
-        csv_path = self.get_csv_path('players')
-        collection = self.service.get_collection('players')
+        csv_path = self.get_csv_path("players")
+        collection = self.service.get_collection("players")
 
         if self.args.delete_all:
             if self.confirm_action("Delete all existing players?"):
@@ -258,8 +245,8 @@ class ImportCLI:
                 else:
                     success, message = service.import_with_rollback(
                         handler,
-                        collection_name=self.args.entity.replace('-', '_'),
-                        backup_before=True
+                        collection_name=self.args.entity.replace("-", "_"),
+                        backup_before=True,
                     )
 
                 if success:

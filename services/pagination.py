@@ -1,4 +1,3 @@
-
 """
 Pagination utilities for API responses.
 
@@ -11,11 +10,12 @@ from typing import Any, TypeVar
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pydantic import BaseModel, Field
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class PaginationMetadata(BaseModel):
     """Metadata about pagination state"""
+
     page: int = Field(..., description="Current page number (1-indexed)")
     page_size: int = Field(..., description="Number of items per page")
     total_items: int = Field(..., description="Total number of items across all pages")
@@ -33,18 +33,18 @@ class PaginationHelper:
         query: dict,
         page: int,
         page_size: int,
-        sort: list[tuple[str, int]] | None = None
+        sort: list[tuple[str, int]] | None = None,
     ) -> tuple[list[dict], int]:
         """
         Paginate a MongoDB query.
-        
+
         Args:
             collection: MongoDB collection to query
             query: MongoDB query filter
             page: Page number (1-indexed)
             page_size: Number of items per page
             sort: Optional list of (field, direction) tuples for sorting
-            
+
         Returns:
             Tuple of (items, total_count)
         """
@@ -69,18 +69,18 @@ class PaginationHelper:
         page: int,
         page_size: int,
         total_count: int,
-        message: str = "Items retrieved successfully"
+        message: str = "Items retrieved successfully",
     ) -> dict:
         """
         Create a standardized paginated response.
-        
+
         Args:
             items: List of items for current page
             page: Current page number
             page_size: Items per page
             total_count: Total number of items
             message: Success message
-            
+
         Returns:
             Dictionary with standardized pagination response format
         """
@@ -95,7 +95,7 @@ class PaginationHelper:
                 "total_items": total_count,
                 "total_pages": total_pages,
                 "has_next": page < total_pages,
-                "has_prev": page > 1
+                "has_prev": page > 1,
             },
-            "message": message
+            "message": message,
         }

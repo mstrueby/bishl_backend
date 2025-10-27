@@ -1,4 +1,3 @@
-
 from datetime import datetime
 
 from bson import ObjectId
@@ -10,68 +9,65 @@ from utils import prevent_empty_str
 
 class PyObjectId(ObjectId):
 
-  @classmethod
-  def __get_pydantic_core_schema__(cls, source_type, handler):
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
 
-    def validate_object_id(value: str) -> ObjectId:
-      if isinstance(value, ObjectId):
-        return value
-      if not ObjectId.is_valid(value):
-        raise ValueError("Invalid ObjectId")
-      return ObjectId(value)
+        def validate_object_id(value: str) -> ObjectId:
+            if isinstance(value, ObjectId):
+                return value
+            if not ObjectId.is_valid(value):
+                raise ValueError("Invalid ObjectId")
+            return ObjectId(value)
 
-    return core_schema.with_info_plain_validator_function(
-      validate_object_id,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x),
-        return_schema=core_schema.str_schema()
-      )
-    )
+        return core_schema.with_info_plain_validator_function(
+            validate_object_id,
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda x: str(x), return_schema=core_schema.str_schema()
+            ),
+        )
 
-  @classmethod
-  def __get_pydantic_json_schema__(cls, schema, handler):
-    return {'type': 'string', 'format': 'objectid'}
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema, handler):
+        return {"type": "string", "format": "objectid"}
 
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(
-    populate_by_name=True,
-    arbitrary_types_allowed=True,
-    json_encoders={ObjectId: str}
-  )
+    model_config = ConfigDict(
+        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
+    )
 
-  id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
 class User(BaseModel):
-  userId: str = Field(...)
-  firstName: str = Field(...)
-  lastName: str = Field(...)
+    userId: str = Field(...)
+    firstName: str = Field(...)
+    lastName: str = Field(...)
 
-  @field_validator('userId', 'firstName', 'lastName', mode='before')
-  @classmethod
-  def validate_null_strings(cls, v, info):
-    return prevent_empty_str(v, info.field_name)
+    @field_validator("userId", "firstName", "lastName", mode="before")
+    @classmethod
+    def validate_null_strings(cls, v, info):
+        return prevent_empty_str(v, info.field_name)
 
 
 # Messages
 class MessageBase(MongoBaseModel):
-  receiverId: str = Field(...)
-  content: str = Field(...)
-  timestamp: datetime = Field(default_factory=lambda: datetime.now())
-  read: bool = False
+    receiverId: str = Field(...)
+    content: str = Field(...)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now())
+    read: bool = False
 
 
 class MessageDB(MongoBaseModel):
-  sender: User = Field(...)
-  receiver: User = Field(...)
-  content: str = Field(...)
-  timestamp: datetime = Field(...)
-  read: bool = False
+    sender: User = Field(...)
+    receiver: User = Field(...)
+    content: str = Field(...)
+    timestamp: datetime = Field(...)
+    read: bool = False
 
 
 class MessageUpdate(MongoBaseModel):
-  #senderId: Optional[str] = "DEFAULT"
-  #receiverId: Optional[str] = "DEFAULT"
-  #content: Optional[str] = "DEFAULT"
-  read: bool | None = True
+    # senderId: Optional[str] = "DEFAULT"
+    # receiverId: Optional[str] = "DEFAULT"
+    # content: Optional[str] = "DEFAULT"
+    read: bool | None = True

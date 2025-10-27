@@ -1,4 +1,3 @@
-
 """
 Standard Response Models
 
@@ -10,7 +9,7 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class PaginationMetadata(BaseModel):
@@ -34,7 +33,7 @@ class PaginationMetadata(BaseModel):
             total_items=total_items,
             total_pages=total_pages,
             has_next=page < total_pages,
-            has_prev=page > 1
+            has_prev=page > 1,
         )
 
 
@@ -50,7 +49,7 @@ class StandardResponse(BaseModel, Generic[T]):
             "example": {
                 "success": True,
                 "data": {"id": "123", "name": "Example"},
-                "message": "Resource retrieved successfully"
+                "message": "Resource retrieved successfully",
             }
         }
 
@@ -67,19 +66,16 @@ class PaginatedResponse(BaseModel, Generic[T]):
         json_schema_extra = {
             "example": {
                 "success": True,
-                "data": [
-                    {"id": "1", "name": "Item 1"},
-                    {"id": "2", "name": "Item 2"}
-                ],
+                "data": [{"id": "1", "name": "Item 1"}, {"id": "2", "name": "Item 2"}],
                 "pagination": {
                     "page": 1,
                     "page_size": 10,
                     "total_items": 25,
                     "total_pages": 3,
                     "has_next": True,
-                    "has_prev": False
+                    "has_prev": False,
                 },
-                "message": "Resources retrieved successfully"
+                "message": "Resources retrieved successfully",
             }
         }
 
@@ -96,7 +92,7 @@ class DeleteResponse(BaseModel):
             "example": {
                 "success": True,
                 "deleted_count": 1,
-                "message": "Resource deleted successfully"
+                "message": "Resource deleted successfully",
             }
         }
 
@@ -118,9 +114,7 @@ class BulkOperationResponse(BaseModel):
                 "processed_count": 10,
                 "success_count": 9,
                 "error_count": 1,
-                "errors": [
-                    {"item_id": "5", "error": "Validation failed"}
-                ],
-                "message": "Bulk operation completed with some errors"
+                "errors": [{"item_id": "5", "error": "Validation failed"}],
+                "message": "Bulk operation completed with some errors",
             }
         }
