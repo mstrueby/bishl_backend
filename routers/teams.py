@@ -149,9 +149,9 @@ async def create_team(
     except json.JSONDecodeError as e:
         raise HTTPException(
             status_code=400, detail=f"Invalid JSON format for teamPartnership: {str(e)}"
-        )
+        ) from e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid teamPartnership format: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid teamPartnership format: {str(e)}") from e
 
     # create team object
     team = TeamBase(
@@ -259,9 +259,9 @@ async def update_team(
     except json.JSONDecodeError as e:
         raise HTTPException(
             status_code=400, detail=f"Invalid JSON format for teamPartnership: {str(e)}"
-        )
+        ) from e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid teamPartnership format: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid teamPartnership format: {str(e)}") from e
 
     # Create team update object
     team_data = TeamUpdate(

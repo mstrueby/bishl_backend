@@ -48,7 +48,7 @@ async def delete_from_cloudinary(image_url: str):
             print("Result:", result)
             return result
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # list all venues
@@ -150,12 +150,12 @@ async def create_venue(
             )
         else:
             raise HTTPException(status_code=500, detail="Failed to create venue")
-    except DuplicateKeyError:
+    except DuplicateKeyError as e:
         raise HTTPException(
             status_code=400, detail=f"Venue {venue_data.get('name', 'Unknown')} already exists."
-        )
+        ) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Update venue
