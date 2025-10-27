@@ -310,10 +310,8 @@ async def patch_one_penalty(
             await stats_service.calculate_roster_stats(match_id, team_flag)
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
     else:
-        if DEBUG_LEVEL > 0:
-            print("No update data")
         return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
     updated_penalty = await get_penalty_object(mongodb, match_id, team_flag, penalty_id)
