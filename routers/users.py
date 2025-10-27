@@ -258,7 +258,7 @@ async def update_user(
 
         raise HTTPException(status_code=status.HTTP_304_NOT_MODIFIED, detail="User not modified")
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e from e
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 @router.get(
@@ -467,4 +467,4 @@ async def reset_password(request: Request, payload: dict = Body(...)) -> JSONRes
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token"
-        ) from e from e
+        ) from e
