@@ -86,10 +86,10 @@ class TeamBase(MongoBaseModel):
 
 
 @field_validator("teamNumber", mode="before")
-@classmethod
 def int_must_be_positive(cls, v):
     if v < 1 or v is None:
         raise ValueError("Field must be positive")
+    return v
 
 
 class TeamDB(TeamBase):
