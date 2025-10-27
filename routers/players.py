@@ -111,6 +111,7 @@ async def get_paginated_players(
         "strength": 1,  # Base characters and diacritics are considered primary differences
     }
 
+    query: dict[str, Any]
     if club_alias or team_alias or q or active is not None:
         query = {"$and": []}
         if club_alias:
@@ -184,7 +185,7 @@ async def get_paginated_players(
         if DEBUG_LEVEL > 10:
             print("query", query)
     else:
-        query: dict[str, Any] = {}
+        query = {}
 
     total = await mongodb["players"].count_documents(query)
     players = (
@@ -1056,7 +1057,7 @@ async def verify_ishd_data(
                         {"teamId": assignment["teamId"], "teamName": assignment["teamName"]}
                     )
 
-                verification_results["missing_in_db"].append(  # type: ignore[arg-type]
+                verification_results["missing_in_db"].append(
                     {
                         "firstName": player_name[0],
                         "lastName": player_name[1],
@@ -1159,7 +1160,7 @@ async def verify_ishd_data(
                         {"teamId": assignment["teamId"], "teamName": assignment["teamName"]}
                     )
 
-                verification_results["missing_in_ishd"].append(  # type: ignore[arg-type]
+                verification_results["missing_in_ishd"].append(
                     {
                         "player": {
                             "firstName": db_data["player"]["firstName"],
