@@ -143,5 +143,43 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
+[[workflows.workflow]]
+name = "Build & Quality Check"
+author = 19449957
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "ruff check --fix ."
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "black ."
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "mypy ."
+
+[[workflows.workflow]]
+name = "Full Build"
+author = 19449957
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "poetry install"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "ruff check --fix ."
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "black ."
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "mypy ."
+
 [agent]
 expertMode = true
