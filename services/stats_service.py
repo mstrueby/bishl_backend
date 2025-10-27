@@ -1054,12 +1054,12 @@ class StatsService:
                     .to_list(length=None)
                 )
 
-                player_card_stats: dict[str, dict[str, Any]] = {}
+                matchday_player_stats: dict[str, dict[str, Any]] = {}
                 await self._update_player_card_stats(
                     "MATCHDAY",
                     matchday_matches,
                     player_ids,
-                    player_card_stats,
+                    matchday_player_stats,
                     t_alias,
                     s_alias,
                     r_alias,
@@ -1068,7 +1068,7 @@ class StatsService:
 
                 logger.debug(
                     "Matchday player card stats calculated",
-                    extra={"player_card_stats": player_card_stats},
+                    extra={"player_card_stats": matchday_player_stats},
                 )
 
                 # Update matches for called teams processing if not already done for the round
@@ -1436,11 +1436,15 @@ class StatsService:
     def _team_already_assigned(self, player_data: dict, team_id: str) -> bool:
         """Check if team is already in player's assignedTeams."""
         assigned_teams: list = player_data.get("assignedTeams", [])
+        if not assigned_teams:
+            return False
         for club in assigned_teams:
             teams: list = club.get("teams", [])
+            if not teams:
+                continue
             for team in teams:
                 team_id_value: str | None = team.get("teamId")
-                if team_id_value == team_id:
+                if team_id_value is not None and team_id_value == team_id:
                     return True
         return False
 
