@@ -18,6 +18,29 @@ from exceptions import (
     AuthorizationException
 )
 from logging_config import logger
+from models.players import (
+    PlayerBase,
+    PlayerDB,
+    PlayerUpdate,
+    AssignedTeamsInput,
+    AssignedTeams,
+    AssignedClubs,
+    SourceEnum,
+    PositionEnum,
+    SexEnum,
+    IshdLogBase,
+    IshdLogClub,
+    IshdLogTeam,
+    IshdLogPlayer,
+    IshdActionEnum
+)
+import cloudinary
+import cloudinary.uploader
+import os
+import base64
+import aiohttp
+import urllib.parse
+from datetime import datetime
 
 
 router = APIRouter()
@@ -66,7 +89,7 @@ async def delete_from_cloudinary(image_url: str):
 
 
 # Helper function to search players
-@monitor_query
+@monitor_query("get_paginated_players")
 async def get_paginated_players(mongodb,
                                 q,
                                 page,
