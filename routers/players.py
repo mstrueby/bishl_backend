@@ -183,7 +183,7 @@ async def get_paginated_players(
         if DEBUG_LEVEL > 10:
             print("query", query)
     else:
-        query = {}
+        query: dict[str, any] = {}
 
     total = await mongodb["players"].count_documents(query)
     players = (
