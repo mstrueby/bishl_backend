@@ -9,14 +9,17 @@ from fastapi import (
     Form,
     File,
     UploadFile,
+    Query,
 )
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.clubs import ClubBase, ClubDB, ClubUpdate
+from models.responses import PaginatedResponse
+from utils import configure_cloudinary
+from utils.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
 from pydantic import EmailStr, HttpUrl
-from utils import configure_cloudinary
 from exceptions import (
     ResourceNotFoundException,
     DatabaseOperationException,
@@ -64,24 +67,36 @@ async def delete_from_cloudinary(logo_url: str):
 # list all clubs
 @router.get("/",
             response_description="List all clubs",
-            response_model=List[ClubDB])
+            response_model=PaginatedResponse[ClubDB])
 async def list_clubs(
     request: Request,
-    active: Optional[bool] = None,  # Added active parameter
-    page: int = 1,
+    active: Optional[bool] = None,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=100, description="Items per page")
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
-  #RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
-  RESULTS_PER_PAGE = 100
-  skip = (page - 1) * RESULTS_PER_PAGE
   query = {}
-  if active is not None:  # Filter by active if provided
+  if active is not None:
     query["active"] = active
-  full_query = await mongodb["clubs"].find(query).sort(
-      "name", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(length=None)
-  clubs = [ClubDB(**raw_club) for raw_club in full_query]
+  
+  items, total_count = await PaginationHelper.paginate_query(
+      collection=mongodb["clubs"],
+      query=query,
+      page=page,
+      page_size=page_size,
+      sort=[("name", 1)]
+  )
+  
+  paginated_result = PaginationHelper.create_response(
+      items=[ClubDB(**club) for club in items],
+      page=page,
+      page_size=page_size,
+      total_count=total_count,
+      message=f"Retrieved {len(items)} clubs"
+  )
+  
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(clubs))
+                      content=jsonable_encoder(paginated_result))
 
 
 # get club by Alias

@@ -1,8 +1,10 @@
 from typing import List
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
+from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
+from models.responses import PaginatedResponse
+from utils.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from services.performance_monitor import monitor_query
 from pymongo.errors import DuplicateKeyError
@@ -20,17 +22,35 @@ auth = AuthHandler()
 # get all tournaments
 @router.get("/",
             response_description="List all tournaments",
-            response_model=List[TournamentDB])
-async def get_tournaments(request: Request) -> JSONResponse:
+            response_model=PaginatedResponse[TournamentDB])
+async def get_tournaments(
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=100, description="Items per page")
+) -> JSONResponse:
     mongodb = request.app.state.mongodb
     exclusion_projection = {"seasons.rounds": 0}
     query = {}
-    full_query = await mongodb["tournaments"].find(
-        query, projection=exclusion_projection).sort("name",
-                                                     1).to_list(length=None)
-    tournaments = [TournamentDB(**tournament) for tournament in full_query]
+    
+    items, total_count = await PaginationHelper.paginate_query(
+        collection=mongodb["tournaments"],
+        query=query,
+        page=page,
+        page_size=page_size,
+        sort=[("name", 1)],
+        projection=exclusion_projection
+    )
+    
+    paginated_result = PaginationHelper.create_response(
+        items=[TournamentDB(**tournament) for tournament in items],
+        page=page,
+        page_size=page_size,
+        total_count=total_count,
+        message=f"Retrieved {len(items)} tournaments"
+    )
+    
     return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(tournaments))
+                        content=jsonable_encoder(paginated_result))
 
 
 # get one tournament by Alias

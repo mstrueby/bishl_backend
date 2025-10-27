@@ -1,12 +1,14 @@
-from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, Depends, status
+from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Request, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
 
 from pydantic import HttpUrl
 from models.posts import PostBase, PostDB, PostUpdate, Revision, User
+from models.responses import PaginatedResponse
 from typing import List, Optional
 from utils import configure_cloudinary, my_jsonable_encoder
+from utils.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
 import cloudinary
@@ -64,22 +66,39 @@ async def delete_from_cloudinary(image_url: str):
 # list all posts
 @router.get("/",
             response_description="List all posts",
-            response_model=List[PostDB])
-async def get_posts(request: Request,
-                    featured: Optional[bool] = None,
-                    published: Optional[bool] = None,
-                    limit: int = 25) -> JSONResponse:
+            response_model=PaginatedResponse[PostDB])
+async def get_posts(
+    request: Request,
+    featured: Optional[bool] = None,
+    published: Optional[bool] = None,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(25, ge=1, le=100, description="Items per page")
+) -> JSONResponse:
   mongodb = request.app.state.mongodb
   query = {"deleted": False}
   if featured is not None:
     query["featured"] = featured
   if published is not None:
     query["published"] = published
-  posts = await mongodb["posts"].find(query).sort([("updateDate", -1)]
-                                                  ).to_list(limit)
-  result = [PostDB(**raw_post) for raw_post in posts]
+  
+  items, total_count = await PaginationHelper.paginate_query(
+      collection=mongodb["posts"],
+      query=query,
+      page=page,
+      page_size=page_size,
+      sort=[("updateDate", -1)]
+  )
+  
+  paginated_result = PaginationHelper.create_response(
+      items=[PostDB(**post) for post in items],
+      page=page,
+      page_size=page_size,
+      total_count=total_count,
+      message=f"Retrieved {len(items)} posts"
+  )
+  
   return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(result))
+                      content=jsonable_encoder(paginated_result))
 
 # get post by alias
 @router.get("/{alias}",

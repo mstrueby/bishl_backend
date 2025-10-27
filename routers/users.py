@@ -1,6 +1,6 @@
 # filename routers/users.py
 from typing import List, Optional
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Form
+from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Form, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import os
@@ -9,6 +9,8 @@ import json
 from models.assignments import AssignmentDB
 from models.users import Role, Club, UserBase, LoginBase, CurrentUser, UserUpdate
 from models.matches import MatchDB
+from models.responses import PaginatedResponse
+from utils.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from datetime import date
 from mail_service import send_email
@@ -319,9 +321,12 @@ async def get_assignments(
 
 @router.get("/referees",
             response_description="Get all referees",
-            response_model=List[CurrentUser])
+            response_model=PaginatedResponse[CurrentUser])
 async def get_all_referees(
-    request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=100, description="Items per page"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
@@ -330,29 +335,34 @@ async def get_all_referees(
                             detail="Not authorized")
 
     current_season = os.environ['CURRENT_SEASON']
-    referees_cursor = mongodb["users"].find({"roles": "REFEREE"})
-    referees = await referees_cursor.to_list(length=None)
-
-    # Get all matches for current season
-    matches = await mongodb["matches"].find({
-        "season.alias": current_season,
-        "$or": [
-            {"referee1": {"$exists": True}},
-            {"referee2": {"$exists": True}}
-        ]
-    }).to_list(length=None)
+    
+    # Use pagination helper
+    items, total_count = await PaginationHelper.paginate_query(
+        collection=mongodb["users"],
+        query={"roles": "REFEREE"},
+        page=page,
+        page_size=page_size,
+        sort=[("lastName", 1), ("firstName", 1)]
+    )
 
     # Update referee points for each referee
-    for referee in referees:
+    for referee in items:
         total_points = await calculate_referee_points(mongodb, referee["_id"])
         if not referee.get("referee"):
             referee["referee"] = {"points": total_points}
         else:
             referee["referee"]["points"] = total_points
 
-    response = [CurrentUser(**referee) for referee in referees]
+    paginated_result = PaginationHelper.create_response(
+        items=[CurrentUser(**referee) for referee in items],
+        page=page,
+        page_size=page_size,
+        total_count=total_count,
+        message=f"Retrieved {len(items)} referees"
+    )
+    
     return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(response))
+                        content=jsonable_encoder(paginated_result))
 
 # get one user
 @router.get("/{user_id}",
