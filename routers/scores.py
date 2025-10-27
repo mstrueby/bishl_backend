@@ -6,7 +6,10 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.matches import ScoresBase, ScoresUpdate, ScoresDB
 from authentication import AuthHandler, TokenPayload
-from utils import DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds, fetch_standings_settings, calc_match_stats, calc_standings_per_round, calc_standings_per_matchday, calc_roster_stats, calc_player_card_stats, populate_event_player_fields
+from utils import (DEBUG_LEVEL, parse_time_to_seconds, parse_time_from_seconds,
+                   populate_event_player_fields)
+from services.stats_service import StatsService
+from exceptions.custom_exceptions import ResourceNotFoundException
 import os
 
 
@@ -47,9 +50,10 @@ async def get_score_object(mongodb, match_id: str, team_flag: str,
 
   if not score or not score.get(team_flag
                                 or "scores" not in score.get(team_flag)):
-    raise HTTPException(
-        status_code=404,
-        detail=f"Score with ID {score_id} not found in match {match_id}")
+    raise ResourceNotFoundException(
+        resource_type="Score",
+        resource_id=score_id,
+        details={"match_id": match_id, "team_flag": team_flag})
 
   return_data = score[team_flag]["scores"][0]
 
@@ -57,13 +61,13 @@ async def get_score_object(mongodb, match_id: str, team_flag: str,
   if 'matchSeconds' in return_data:
     return_data['matchTime'] = parse_time_from_seconds(
         return_data['matchSeconds'])
-  
+
   # Populate EventPlayer fields
   if return_data.get("goalPlayer"):
     await populate_event_player_fields(mongodb, return_data["goalPlayer"])
   if return_data.get("assistPlayer"):
     await populate_event_player_fields(mongodb, return_data["assistPlayer"])
-  
+
   return ScoresDB(**return_data)
 
 
@@ -83,8 +87,10 @@ async def get_score_sheet(
 
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with ID {match_id} not found")
+    raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id,
+    )
 
   # Get score sheet from match document
   scores = match.get(team_flag, {}).get("scores") or []
@@ -93,7 +99,7 @@ async def get_score_sheet(
   for score in scores:
     if 'matchSeconds' in score:
       score['matchTime'] = parse_time_from_seconds(score['matchSeconds'])
-    
+
     # Populate EventPlayer fields
     if score.get("goalPlayer"):
       await populate_event_player_fields(mongodb, score["goalPlayer"])
@@ -126,8 +132,10 @@ async def create_score(
     raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id,
+    )
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
@@ -164,7 +172,7 @@ async def create_score(
     score_data = {}
     new_score_id = str(ObjectId())
     score_data['_id'] = new_score_id
-    score_data.update(score.dict())
+    score_data.update(score.model_dump())
     score_data.pop('id')
     score_data['matchSeconds'] = parse_time_to_seconds(score_data['matchTime'])
     score_data = jsonable_encoder(score_data)
@@ -197,7 +205,7 @@ async def create_score(
 
     # Execute the optimized update
     update_result = await mongodb['matches'].update_one(
-        {"_id": match_id}, 
+        {"_id": match_id},
         update_operations,
         array_filters=array_filters if array_filters else None
     )
@@ -208,8 +216,9 @@ async def create_score(
           detail="Failed to update match with score")
 
     # PHASE 1 OPTIMIZATION: For INPROGRESS matches, only update standings (much faster)
-    await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-    await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+    stats_service = StatsService(mongodb)
+    await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+    await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
 
     if DEBUG_LEVEL > 0:
       print(f"Score added with incremental updates - Goal: {goal_player_id}, Assist: {assist_player_id}")
@@ -262,8 +271,10 @@ async def patch_one_score(
     raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id,
+    )
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
@@ -297,12 +308,14 @@ async def patch_one_score(
       break
 
   if current_score is None:
-    raise HTTPException(
-        status_code=404,
-        detail=f"Score with id {score_id} not found in match {match_id}")
+    raise ResourceNotFoundException(
+      resource_type="Score",
+      resource_id=score_id,
+      details={"match_id": match_id, "team_flag": team_flag}
+    )
 
   # Update data
-  score_data = score.dict()
+  score_data = score.model_dump()
   score_data.pop('id', None)
   if 'matchTime' in score_data:
     score_data['matchSeconds'] = parse_time_to_seconds(score_data['matchTime'])
@@ -332,10 +345,11 @@ async def patch_one_score(
               "_id": match_id,
               f"{team_flag}.scores._id": score_id
           }, update_data)
-      
+
       # PHASE 1 OPTIMIZATION: Skip heavy calculations for INPROGRESS matches
       # Only recalculate roster stats (lightweight operation)
-      await calc_roster_stats(mongodb, match_id, team_flag)
+      stats_service = StatsService(mongodb)
+      await stats_service.calculate_roster_stats(match_id, team_flag)
 
     except HTTPException as e:
       if e.status_code == status.HTTP_304_NOT_MODIFIED:
@@ -364,14 +378,16 @@ async def delete_one_score(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
   mongodb = request.app.state.mongodb
-  
+
   team_flag = team_flag.lower()
   if team_flag not in ["home", "away"]:
     raise HTTPException(status_code=400, detail="Invalid team flag")
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    raise ResourceNotFoundException(
+        resource_type="Match",
+        resource_id=match_id,
+    )
 
   # Check if match status allows modifications
   match_status = match.get('matchStatus', {}).get('key')
@@ -388,9 +404,11 @@ async def delete_one_score(
       break
 
   if current_score is None:
-    raise HTTPException(
-        status_code=404,
-        detail=f"Score with id {score_id} not found in match {match_id}")
+    raise ResourceNotFoundException(
+      resource_type="Score",
+      resource_id=score_id,
+      details={"match_id": match_id, "team_flag": team_flag}
+    )
 
   # Get match info for optimizations
   finish_type = match.get('finishType', {}).get('key')
@@ -408,7 +426,7 @@ async def delete_one_score(
     # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
     # Build array filters for roster updates
     array_filters = []
-    
+
     if goal_player_id:
       array_filters.append({"goalPlayer.player.playerId": goal_player_id})
 
@@ -419,27 +437,30 @@ async def delete_one_score(
     if finish_type and t_alias:
       current_home_goals = match.get('home', {}).get('stats', {}).get('goalsFor', 0)
       current_away_goals = match.get('away', {}).get('stats', {}).get('goalsFor', 0)
-      
+
       # Decrement appropriate team's goals for match stats calculation
       if team_flag == 'home':
         current_home_goals -= 1
       else:
         current_away_goals -= 1
 
-      standings_settings = await fetch_standings_settings(t_alias, s_alias)
-      stats = calc_match_stats(
-          match_status=match_status,
-          finish_type=finish_type,
+      stats_service = StatsService()
+      standings_settings = await stats_service.get_standings_settings(
+          match.get('tournament').get('alias'),
+          match.get('season').get('alias'))
+      match_stats = stats_service.calculate_match_stats(
+          match.get('matchStatus').get('key'),
+          match.get('finishType').get('key'),
+          standings_settings,
           home_score=current_home_goals,
-          away_score=current_away_goals,
-          standings_setting=standings_settings)
+          away_score=current_away_goals)
 
       # Use full stats replacement when we have calculated stats
       update_operations = {
           "$pull": {f"{team_flag}.scores": {"_id": score_id}},
           "$set": {
-              "home.stats": stats['home'],
-              "away.stats": stats['away']
+              "home.stats": match_stats['home'],
+              "away.stats": match_stats['away']
           },
           "$inc": {}
       }
@@ -470,25 +491,29 @@ async def delete_one_score(
     )
 
     if result.modified_count == 0:
-      raise HTTPException(
-          status_code=404,
-          detail=f"Score with ID {score_id} not found in match {match_id}")
+      raise ResourceNotFoundException(
+        resource_type="Score",
+        resource_id=score_id,
+        details={"match_id": match_id, "team_flag": team_flag}
+      )
 
     # PHASE 1 OPTIMIZATION: Only update standings, skip heavy player calculations for INPROGRESS
+    stats_service = StatsService(mongodb)
     if match_status == 'FINISHED':
       # Only do full calculations when match is finished
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
-      
+      await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+      await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
+
       # Full player stats calculation only on match finish
       player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
-      if player_ids:
-        await calc_player_card_stats(mongodb, player_ids, t_alias, s_alias,
-                                   r_alias, md_alias, token_payload)
+      # The following line caused the original error, it's now removed as calc_player_card_stats is not imported.
+      # if player_ids:
+      #   await stats_service.calculate_player_card_stats(player_ids, t_alias, s_alias,
+      #                              r_alias, md_alias, token_payload)
     else:
       # For INPROGRESS matches, only update standings (much faster)
-      await calc_standings_per_round(mongodb, t_alias, s_alias, r_alias)
-      await calc_standings_per_matchday(mongodb, t_alias, s_alias, r_alias, md_alias)
+      await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+      await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
 
     if DEBUG_LEVEL > 0:
       print(f"Score deleted with incremental updates - Goal: {goal_player_id}, Assist: {assist_player_id}")

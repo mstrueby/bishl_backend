@@ -6,6 +6,9 @@ from models.tournaments import RoundBase, RoundDB, RoundUpdate
 from authentication import AuthHandler, TokenPayload
 from fastapi.encoders import jsonable_encoder
 from utils import DEBUG_LEVEL, my_jsonable_encoder
+from exceptions import (ResourceNotFoundException, ValidationException,
+                       DatabaseOperationException, AuthorizationException)
+from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -36,13 +39,13 @@ async def get_rounds_for_season(
         ]
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(rounds))
-    raise HTTPException(
-        status_code=404,
-        detail=
-        f"Season {season_alias} not found in tournament {tournament_alias}")
-  raise HTTPException(
-      status_code=404,
-      detail=f"Tournament with alias {tournament_alias} not found")
+    raise ResourceNotFoundException(
+        resource_type="Season",
+        resource_id=season_alias,
+        details={"tournament_alias": tournament_alias})
+  raise ResourceNotFoundException(
+      resource_type="Tournament",
+      resource_id=tournament_alias)
 
 
 # get one round of a season
@@ -70,14 +73,13 @@ async def get_round(
             round_response = RoundDB(**round)
             return JSONResponse(status_code=status.HTTP_200_OK,
                                 content=jsonable_encoder(round_response))
-    raise HTTPException(
-        status_code=404,
-        detail=
-        f"Round with name {round_alias} not found in season {season_alias} of tournament {tournament_alias}"
-    )
-  raise HTTPException(
-      status_code=404,
-      detail=f"Tournament with alias {tournament_alias} not found")
+    raise ResourceNotFoundException(
+        resource_type="Round",
+        resource_id=round_alias,
+        details={"season_alias": season_alias, "tournament_alias": tournament_alias})
+  raise ResourceNotFoundException(
+      resource_type="Tournament",
+      resource_id=tournament_alias)
 
 
 # add new round to a season
@@ -95,29 +97,36 @@ async def add_round(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  #print("add round, data: ", round)
+    raise AuthorizationException(
+        message="Admin role required to add rounds",
+        details={"user_roles": token_payload.roles})
+  
+  logger.info(f"Adding round to {tournament_alias}/{season_alias}", extra={
+      "round_alias": round.alias,
+      "tournament_alias": tournament_alias,
+      "season_alias": season_alias
+  })
+  
   # Check if the tournament exists
   if (tournament := await
       mongodb['tournaments'].find_one({"alias": tournament_alias})) is None:
-    raise HTTPException(
-        status_code=404,
-        detail=f"Tournament with alias {tournament_alias} not found")
+    raise ResourceNotFoundException(
+        resource_type="Tournament",
+        resource_id=tournament_alias)
   # Check if the season exists
   if (season :=
       next((s for s in tournament["seasons"] if s["alias"] == season_alias),
            None)) is None:
-    raise HTTPException(
-        status_code=404,
-        detail=
-        f"Season {season_alias} not found in tournament {tournament_alias}")
+    raise ResourceNotFoundException(
+        resource_type="Season",
+        resource_id=season_alias,
+        details={"tournament_alias": tournament_alias})
   # Check if the round already exists
   if any(r.get("alias") == round.alias for r in season.get("rounds", [])):
-    raise HTTPException(
-        status_code=409,
-        detail=
-        f"Round with alias {round.alias} already exists in season {season_alias} of tournament {tournament_alias}"
-    )
+    raise ValidationException(
+        field="alias",
+        message=f"Round with alias '{round.alias}' already exists",
+        details={"season_alias": season_alias, "tournament_alias": tournament_alias})
   # Add the round to the season
   try:
     round_data = my_jsonable_encoder(round)
@@ -153,14 +162,25 @@ async def add_round(
               status_code=404,
               detail=f"Newly added round {round.alias} not found")
 
-    raise HTTPException(
-        status_code=404,
-        detail=
-        f"Error adding round {round.alias} to season {season_alias} of tournament {tournament_alias}"
-    )
+    raise DatabaseOperationException(
+        operation="add_round",
+        collection="tournaments",
+        details={
+            "round_alias": round.alias,
+            "season_alias": season_alias,
+            "tournament_alias": tournament_alias
+        })
 
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    logger.error(f"Failed to add round {round.alias}", extra={
+        "error": str(e),
+        "season_alias": season_alias,
+        "tournament_alias": tournament_alias
+    })
+    raise DatabaseOperationException(
+        operation="insert_round",
+        collection="tournaments",
+        details={"error": str(e)})
 
 
 # update a round of a season
@@ -180,25 +200,32 @@ async def update_round(
 ):
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  round_dict = round.dict(exclude_unset=True)
-  if DEBUG_LEVEL > 20:
-    print("round: ", round_dict)
+    raise AuthorizationException(
+        message="Admin role required to update rounds",
+        details={"user_roles": token_payload.roles})
+  
+  round_dict = round.model_dump(exclude_unset=True)
+  logger.info(f"Updating round {round_id}", extra={
+      "tournament_alias": tournament_alias,
+      "season_alias": season_alias,
+      "fields": list(round_dict.keys())
+  })
+  
   # Check if the tournament exists
   tournament = await mongodb['tournaments'].find_one(
       {"alias": tournament_alias})
   if tournament is None:
-    raise HTTPException(
-        status_code=404,
-        detail=f"Tournament with alias {tournament_alias} not found")
+    raise ResourceNotFoundException(
+        resource_type="Tournament",
+        resource_id=tournament_alias)
   # Check if the season exists
   season_index = next((i for i, s in enumerate(tournament["seasons"])
                        if s["alias"] == season_alias), None)
   if season_index is None:
-    raise HTTPException(
-        status_code=404,
-        detail=
-        f"Season {season_alias} not found in tournament {tournament_alias}")
+    raise ResourceNotFoundException(
+        resource_type="Season",
+        resource_id=season_alias,
+        details={"tournament_alias": tournament_alias})
   if DEBUG_LEVEL > 20:
     print("season_index: ", season_index)
   # Find the index of the round in the season
@@ -208,11 +235,10 @@ async def update_round(
   if DEBUG_LEVEL > 20:
     print("round_index: ", round_index)
   if round_index is None:
-    raise HTTPException(
-        status_code=404,
-        detail=
-        f"Round with id {round_id} not found in season {season_alias} of tournament {tournament_alias}"
-    )
+    raise ResourceNotFoundException(
+        resource_type="Round",
+        resource_id=round_id,
+        details={"season_alias": season_alias, "tournament_alias": tournament_alias})
 
   # Get matches for this round to determine start/end dates
   matches = await mongodb["matches"].find({
@@ -252,14 +278,28 @@ async def update_round(
               "seasons.rounds._id": round_id
           }, update_data)
       if result.modified_count == 0:
-        raise HTTPException(
-            status_code=404,
-            detail=
-            f"Update: Round with id {round_id} not found in season {season_alias} of tournament {tournament_alias}."
-        )
+        raise DatabaseOperationException(
+            operation="update_round",
+            collection="tournaments",
+            details={
+                "round_id": round_id,
+                "season_alias": season_alias,
+                "tournament_alias": tournament_alias,
+                "reason": "No documents modified"
+            })
 
+    except DatabaseOperationException:
+      raise
     except Exception as e:
-      raise HTTPException(status_code=500, detail=str(e))
+      logger.error(f"Failed to update round {round_id}", extra={
+          "error": str(e),
+          "season_alias": season_alias,
+          "tournament_alias": tournament_alias
+      })
+      raise DatabaseOperationException(
+          operation="update_round",
+          collection="tournaments",
+          details={"error": str(e)})
   else:
     if DEBUG_LEVEL > 10:
       print("no update needed")
@@ -317,7 +357,15 @@ async def delete_round(
 ) -> Response:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+        message="Admin role required to delete rounds",
+        details={"user_roles": token_payload.roles})
+  
+  logger.info(f"Deleting round {round_alias}", extra={
+      "tournament_alias": tournament_alias,
+      "season_alias": season_alias
+  })
+  
   delete_result = await mongodb['tournaments'].update_one(
       {
           "alias": tournament_alias,
@@ -328,10 +376,10 @@ async def delete_round(
           }
       }})
   if delete_result.modified_count == 1:
+    logger.info(f"Successfully deleted round {round_alias}")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-  raise HTTPException(
-      status_code=404,
-      detail=
-      f"Round with alias {round_alias} not found in season {season_alias} of tournament {tournament_alias}"
-  )
+  raise ResourceNotFoundException(
+      resource_type="Round",
+      resource_id=round_alias,
+      details={"season_alias": season_alias, "tournament_alias": tournament_alias})

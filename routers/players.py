@@ -7,16 +7,17 @@ from typing import List, Optional, Dict
 from bson.objectid import ObjectId
 from fastapi import UploadFile
 from pydantic import HttpUrl, BaseModel
+from typing import Optional
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
-from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, SexEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
-from datetime import datetime, timezone
-import os
-import urllib.parse
-import aiohttp
-import base64
-import cloudinary
-import cloudinary.uploader
+from services.performance_monitor import monitor_query
+from exceptions import (
+    ResourceNotFoundException,
+    ValidationException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 
 
 router = APIRouter()
@@ -40,10 +41,12 @@ async def handle_image_upload(image: UploadFile, playerId) -> str:
                 'crop': 'thumb',
                 'gravity': 'face'
             }])
-        print(f"Player image uploaded to Cloudinary: {result['public_id']}")
+        logger.info(f"Player image uploaded to Cloudinary: {result['public_id']}")
         return result["secure_url"]
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="No image uploaded.")
+    raise ValidationException(
+        field="image",
+        message="No image file provided for upload"
+    )
 
 
 async def delete_from_cloudinary(image_url: str):
@@ -51,14 +54,19 @@ async def delete_from_cloudinary(image_url: str):
         try:
             public_id = image_url.rsplit('/', 1)[-1].split('.')[0]
             result = cloudinary.uploader.destroy(f"players/{public_id}")
-            print("Document deleted from Cloudinary:", f"players/{public_id}")
-            print("Result:", result)
+            logger.info(f"Document deleted from Cloudinary: players/{public_id}")
+            logger.debug(f"Cloudinary deletion result: {result}")
             return result
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise ExternalServiceException(
+                service="Cloudinary",
+                operation="delete_image",
+                details={"public_id": f"players/{public_id}", "error": str(e)}
+            )
 
 
 # Helper function to search players
+@monitor_query
 async def get_paginated_players(mongodb,
                                 q,
                                 page,
@@ -197,9 +205,12 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
     assigned_teams_list = []
     try:
         assigned_teams_list = json.loads(assignedTeams)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400,
-                            detail="Invalid JSON for assignedTeams")
+    except json.JSONDecodeError as e:
+        raise ValidationException(
+            field="assignedTeams",
+            message="Invalid JSON format for team assignments",
+            details={"error": str(e)}
+        )
 
     print(f"assigned_teams_list: {assigned_teams_list}")
     # Validate and convert to the proper Pydantic models
@@ -213,19 +224,20 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
         club_exists = await mongodb["clubs"].find_one(
             {"_id": club_to_assign.clubId})
         if not club_exists:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Club with id {club_to_assign.clubId} does not exist.")
+            raise ResourceNotFoundException(
+                resource_type="Club",
+                resource_id=club_to_assign.clubId
+            )
         teams = []
         for team_to_assign in club_to_assign.teams:
             print("team_to_assign:", club_exists['name'], '/', team_to_assign)
             team = next((team for team in club_exists['teams']
                          if team['_id'] == team_to_assign.teamId), None)
             if not team:
-                raise HTTPException(
-                    status_code=400,
-                    detail=
-                    f"Team with id {team_to_assign.teamId} does not exist in club {club_to_assign.clubId}."
+                raise ResourceNotFoundException(
+                    resource_type="Team",
+                    resource_id=team_to_assign.teamId,
+                    details={"club_id": club_to_assign.clubId, "club_name": club_exists['name']}
                 )
             else:
                 teams.append({
@@ -274,14 +286,14 @@ async def process_ishd_data(
 ):
     mongodb = request.app.state.mongodb
     #if "ADMIN" not in token_payload.roles:
-    #  raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    #  raise AuthorizationException("Admin role required for ISHD data processing")
 
     log_lines = []
     # If mode is 'test', delete all documents in 'players'
     if mode == "test" and run == 1:
         await mongodb['players'].delete_many({})
         log_line = "Deleted all documents in players."
-        print(log_line)
+        logger.warning(log_line)
         log_lines.append(log_line)
 
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
@@ -400,13 +412,13 @@ async def process_ishd_data(
   """
 
     timeout = aiohttp.ClientTimeout(total=60)
-    
+
     # Create SSL context with certificate verification
     import ssl
     ssl_context = ssl.create_default_context()
     # ssl_context.check_hostname = False  # Uncomment if hostname verification fails
     # ssl_context.verify_mode = ssl.CERT_NONE  # Uncomment to disable SSL verification entirely
-    
+
     connector = aiohttp.TCPConnector(ssl=ssl_context, limit=10, limit_per_host=5)
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         # loop through team API URLs
@@ -485,14 +497,19 @@ async def process_ishd_data(
                                     error_detail = await response.text()
                                 except:
                                     error_detail = "Unable to parse error response"
-                            
+
                             # Check for SSL-related errors
                             if response.status in [525, 526, 530]:
                                 error_detail = f"SSL/TLS error - Status {response.status}. The server may have SSL certificate issues."
-                            
-                            raise HTTPException(
-                                status_code=response.status,
-                                detail=f"Error fetching data from {api_url}. Status: {response.status}. Detail: {error_detail}"
+
+                            raise ExternalServiceException(
+                                service_name="ISHD_API",
+                                message=f"Failed to fetch team data (status {response.status})",
+                                details={
+                                    "url": api_url,
+                                    "status_code": response.status,
+                                    "error_detail": error_detail
+                                }
                             )
                 if data:
                     # loop through players array
@@ -626,11 +643,14 @@ async def process_ishd_data(
                                             log_lines.append(log_line)
                                             ishd_log_player.action = IshdActionEnum.ADD_TEAM
                                         else:
-                                            raise (HTTPException(
-                                                status_code=status.
-                                                HTTP_500_INTERNAL_SERVER_ERROR,
-                                                detail=
-                                                "Failed to update player."))
+                                            raise DatabaseOperationException(
+                                                operation="update_one",
+                                                collection="players",
+                                                details={
+                                                    "player_id": existing_player['_id'],
+                                                    "reason": "Failed to update team assignment"
+                                                }
+                                            )
                                     break
                             if not club_assignment_exists:
                                 # club assignment does not exist
@@ -661,27 +681,30 @@ async def process_ishd_data(
                                     ishd_log_player.action = IshdActionEnum.ADD_CLUB
 
                                 else:
-                                    raise (HTTPException(
-                                        status_code=status.
-                                        HTTP_500_INTERNAL_SERVER_ERROR,
-                                        detail="Failed to update player."))
+                                    raise DatabaseOperationException(
+                                        operation="update_one",
+                                        collection="players",
+                                        details={
+                                            "player_id": existing_player['_id'],
+                                            "reason": "Failed to add club assignment"
+                                        }
+                                    )
 
                         else:
                             # NEW PLAYER
                             # FIRST: construct Player object w/o assignedTeams
-                            new_player = PlayerBase(
-                                firstName=player['first_name'],
-                                lastName=player['last_name'],
-                                birthdate=datetime.strptime(
-                                    player['date_of_birth'], '%Y-%m-%d'),
-                                displayFirstName=player['first_name'],
-                                displayLastName=player['last_name'],
-                                nationality=player['nationality']
-                                if 'nationality' in player else None,
-                                assignedTeams=[assigned_club],
-                                fullFaceReq=True if player.get('full_face_req')
-                                == 'true' else False,
-                                source=SourceEnum.ISHD)
+                            new_player = PlayerBase(firstName=firstName,
+                                                    lastName=lastName,
+                                                    birthdate=datetime.strptime(
+                                                        player['date_of_birth'], '%Y-%m-%d'),
+                                                    displayFirstName=player['first_name'],
+                                                    displayLastName=player['last_name'],
+                                                    nationality=player['nationality']
+                                                    if 'nationality' in player else None,
+                                                    assignedTeams=[assigned_club],
+                                                    fullFaceReq=True if player.get('full_face_req')
+                                                    == 'true' else False,
+                                                    source=SourceEnum.ISHD)
                             new_player_dict = my_jsonable_encoder(new_player)
                             new_player_dict['birthdate'] = datetime.strptime(
                                 player['date_of_birth'], '%Y-%m-%d')
@@ -707,10 +730,14 @@ async def process_ishd_data(
                                 ishd_log_player.action = IshdActionEnum.ADD_PLAYER
 
                             else:
-                                raise (HTTPException(
-                                    status_code=status.
-                                    HTTP_500_INTERNAL_SERVER_ERROR,
-                                    detail="Failed to insert player."))
+                                raise DatabaseOperationException(
+                                    operation="insert_one",
+                                    collection="players",
+                                    details={
+                                        "player_name": f"{new_player_dict.get('firstName')} {new_player_dict.get('lastName')}",
+                                        "reason": "Insert operation did not return inserted_id"
+                                    }
+                                )
 
                         if ishd_log_player.action is not None:
                             ishd_log_team.players.append(ishd_log_player)
@@ -850,10 +877,14 @@ async def process_ishd_data(
                                         print('--- No club assignment removed')
 
                                 else:
-                                    raise (HTTPException(
-                                        status_code=status.
-                                        HTTP_500_INTERNAL_SERVER_ERROR,
-                                        detail="Failed to remove player."))
+                                    raise DatabaseOperationException(
+                                        operation="update_one",
+                                        collection="players",
+                                        details={
+                                            "player_id": player['_id'],
+                                            "reason": "Failed to remove player from team"
+                                        }
+                                    )
                             else:
                                 if mode == "test":
                                     print(
@@ -886,8 +917,11 @@ async def process_ishd_data(
         print(log_line)
         log_lines.append(log_line)
     else:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Failed to insert ISHD log.")
+        raise DatabaseOperationException(
+            operation="insert_one",
+            collection="ishdLogs",
+            details={"reason": "Insert operation did not return inserted_id"}
+        )
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -910,7 +944,7 @@ async def verify_ishd_data(
 ):
     mongodb = request.app.state.mongodb
     #if "ADMIN" not in token_payload.roles:
-    #    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    #    raise AuthorizationException("Admin role required for ISHD verification")
 
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
     ISHD_API_USER = os.environ.get("ISHD_API_USER")
@@ -984,7 +1018,7 @@ async def verify_ishd_data(
     ssl_context = ssl.create_default_context()
     timeout = aiohttp.ClientTimeout(total=60)
     connector = aiohttp.TCPConnector(ssl=ssl_context)
-    
+
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         ishd_players = {}
 
@@ -1008,10 +1042,14 @@ async def verify_ishd_data(
                             error_detail = await response.json()
                         except json.JSONDecodeError:
                             error_detail = await response.text()
-                        raise HTTPException(
-                            status_code=response.status,
-                            detail=
-                            f"Error fetching data from {api_url}. Status: {response.status}. Detail: {error_detail}"
+                        raise ExternalServiceException(
+                            service_name="ISHD_API",
+                            message=f"Failed to verify team data (status {response.status})",
+                            details={
+                                "url": api_url,
+                                "status_code": response.status,
+                                "error_detail": error_detail
+                            }
                         )
                     data = await response.json()
 
@@ -1207,12 +1245,17 @@ async def get_players_for_club(
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
                for role in ["ADMIN", "CLUB_ADMIN", "LEAGUE_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin, Club Admin, or League Admin role required",
+            details={"user_roles": token_payload.roles}
+        )
     # get club
     club = await mongodb["clubs"].find_one({"alias": club_alias})
     if not club:
-        raise HTTPException(status_code=404,
-                            detail=f"Club with alias {club_alias} not found")
+        raise ResourceNotFoundException(
+            resource_type="Club",
+            resource_id=club_alias
+        )
     result = await get_paginated_players(mongodb, q, page, club_alias, None, sortby, all, active)
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(result))
@@ -1235,15 +1278,20 @@ async def get_players_for_team(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    print(token_payload.roles)
+    logger.debug(f"User roles: {token_payload.roles}")
     if not any(role in token_payload.roles
                for role in ["ADMIN", "CLUB_ADMIN", "LEAGUE_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin, Club Admin, or League Admin role required",
+            details={"user_roles": token_payload.roles}
+        )
     # get club
     club = await mongodb["clubs"].find_one({"alias": club_alias})
     if not club:
-        raise HTTPException(status_code=404,
-                            detail=f"Club with alias {club_alias} not found")
+        raise ResourceNotFoundException(
+            resource_type="Club",
+            resource_id=club_alias
+        )
     # get team
     team = None
     for t in club.get("teams", []):
@@ -1251,10 +1299,11 @@ async def get_players_for_team(
             team = t
             break
     if not team:
-        raise HTTPException(
-            status_code=404,
-            detail=
-            f"Team with alias {team_alias} not found in club {club_alias}")
+        raise ResourceNotFoundException(
+            resource_type="Team",
+            resource_id=team_alias,
+            details={"club_alias": club_alias}
+        )
     result = await get_paginated_players(mongodb, q, page, club_alias,
                                          team_alias, sortby, all, active)
     return JSONResponse(status_code=status.HTTP_200_OK,
@@ -1284,7 +1333,10 @@ async def get_players(
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
                for role in ["ADMIN", "LEAGUE_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin or League Admin role required",
+            details={"user_roles": token_payload.roles}
+        )
 
     result = await get_paginated_players(mongodb, q, page, None, None, sortby, all, active)
     return JSONResponse(status_code=status.HTTP_200_OK,
@@ -1304,8 +1356,10 @@ async def get_player(
     mongodb = request.app.state.mongodb
     player = await mongodb["players"].find_one({"_id": id})
     if player is None:
-        raise HTTPException(status_code=404,
-                            detail=f"Player with id {id} not found")
+        raise ResourceNotFoundException(
+            resource_type="Player",
+            resource_id=id
+        )
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(PlayerDB(**player)))
 
@@ -1337,7 +1391,10 @@ async def create_player(
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
                for role in ["ADMIN", "PLAYER_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin or Player Admin role required",
+            details={"user_roles": token_payload.roles}
+        )
 
     player_exists = await mongodb["players"].find_one({
         "firstName": firstName,
@@ -1345,10 +1402,14 @@ async def create_player(
         "birthdate": birthdate
     })
     if player_exists:
-        raise HTTPException(
-            status_code=400,
-            detail=
-            f"Player with name {firstName} {lastName} and birthdate {birthdate.strftime('%d.%m.%Y')} already exists."
+        raise ValidationException(
+            field="player",
+            message=f"Player with name {firstName} {lastName} and birthdate {birthdate.strftime('%d.%m.%Y')} already exists",
+            details={
+                "firstName": firstName,
+                "lastName": lastName,
+                "birthdate": birthdate.strftime('%d.%m.%Y')
+            }
         )
 
     if assignedTeams:
@@ -1382,20 +1443,30 @@ async def create_player(
         player['imageUrl'] = await handle_image_upload(image, player_id)
 
     try:
-        print("insert player:", player)
+        logger.info(f"Creating new player: {firstName} {lastName} ({birthdate.strftime('%Y-%m-%d')})")
         new_player = await mongodb["players"].insert_one(player)
         created_player = await mongodb["players"].find_one({"_id": player_id})
         if created_player:
+            logger.info(f"Player created successfully: {player_id}")
             return JSONResponse(status_code=status.HTTP_201_CREATED,
                                 content=jsonable_encoder(
                                     PlayerDB(**created_player)))
         else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create player.")
+            raise DatabaseOperationException(
+                operation="insert_one",
+                collection="players",
+                details={
+                    "player_id": player_id,
+                    "reason": "Player not found after insertion"
+                }
+            )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=str(e))
+        logger.error(f"Error creating player: {str(e)}")
+        raise DatabaseOperationException(
+            operation="insert_one",
+            collection="players",
+            details={"error": str(e)}
+        )
 
 
 # UPDATE PLAYER
@@ -1426,11 +1497,16 @@ async def update_player(request: Request,
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles
                for role in ["ADMIN", "CLUB_ADMIN", "PLAYER_ADMIN"]):
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin, Club Admin, or Player Admin role required",
+            details={"user_roles": token_payload.roles}
+        )
     existing_player = await mongodb["players"].find_one({"_id": id})
     if not existing_player:
-        raise HTTPException(status_code=404,
-                            detail=f"Player with id {id} not found")
+        raise ResourceNotFoundException(
+            resource_type="Player",
+            resource_id=id
+        )
 
     current_first_name = firstName or existing_player.get("firstName")
     current_last_name = lastName or existing_player.get("lastName")
@@ -1444,10 +1520,14 @@ async def update_player(request: Request,
         }  # Checking for a different _id
     })
     if player_exists:
-        raise HTTPException(
-            status_code=400,
-            detail=
-            f"Player with name {current_first_name} {current_last_name} and birthdate {current_birthdate.strftime('%d.%m.%Y')} already exists."
+        raise ValidationException(
+            field="player",
+            message=f"Player with name {current_first_name} {current_last_name} and birthdate {current_birthdate.strftime('%d.%m.%Y')} already exists",
+            details={
+                "firstName": current_first_name,
+                "lastName": current_last_name,
+                "birthdate": current_birthdate.strftime('%d.%m.%Y')
+            }
         )
 
     if assignedTeams:
@@ -1468,7 +1548,7 @@ async def update_player(request: Request,
                                managedByISHD=managedByISHD,
                                imageVisible=imageVisible,
                                source=source,
-                               sex=sex).dict(exclude_none=True)
+                               sex=sex).model_dump(exclude_none=True)
 
     player_data.pop('id', None)
     if image:
@@ -1501,14 +1581,25 @@ async def update_player(request: Request,
             {"_id": id}, {"$set": player_to_update}, upsert=False)
         if update_result.modified_count == 1:
             updated_player = await mongodb["players"].find_one({"_id": id})
+            logger.info(f"Player updated successfully: {id}")
             return JSONResponse(status_code=status.HTTP_200_OK,
                                 content=jsonable_encoder(
                                     PlayerDB(**updated_player)))
-        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            content="Failed to update player.")
+        raise DatabaseOperationException(
+            operation="update_one",
+            collection="players",
+            details={
+                "player_id": id,
+                "reason": "Update operation did not modify any documents"
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=str(e))
+        logger.error(f"Error updating player {id}: {str(e)}")
+        raise DatabaseOperationException(
+            operation="update_one",
+            collection="players",
+            details={"player_id": id, "error": str(e)}
+        )
 
 
 # DELETE PLAYER
@@ -1520,14 +1611,22 @@ async def delete_player(
     token_payload: TokenPayload = Depends(auth.auth_wrapper)) -> Response:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin role required",
+            details={"user_roles": token_payload.roles}
+        )
     existing_player = await mongodb["players"].find_one({"_id": id})
     if not existing_player:
-        raise HTTPException(status_code=404,
-                            detail=f"Player with id {id} not found")
+        raise ResourceNotFoundException(
+            resource_type="Player",
+            resource_id=id
+        )
     delete_result = await mongodb["players"].delete_one({"_id": id})
     if delete_result.deleted_count == 1:
         await delete_from_cloudinary(existing_player['imageUrl'])
+        logger.info(f"Player deleted successfully: {id}")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    raise HTTPException(status_code=404,
-                        detail=f"Player with ID {id} not found.")
+    raise ResourceNotFoundException(
+        resource_type="Player",
+        resource_id=id
+    )

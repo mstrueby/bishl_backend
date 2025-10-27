@@ -17,6 +17,12 @@ from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
 from pydantic import EmailStr, HttpUrl
 from utils import configure_cloudinary
+from exceptions import (
+    ResourceNotFoundException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 import cloudinary
 import cloudinary.uploader
 
@@ -87,8 +93,11 @@ async def get_club(alias: str, request: Request) -> JSONResponse:
   if (club := await mongodb["clubs"].find_one({"alias": alias})) is not None:
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content=jsonable_encoder(ClubDB(**club)))
-  raise HTTPException(status_code=404,
-                      detail=f"Club with alias {alias} not found")
+  raise ResourceNotFoundException(
+    resource_type="Club",
+    resource_id=alias,
+    details={"query_field": "alias"}
+  )
 
 # get club by ID
 @router.get("/id/{id}",
@@ -99,8 +108,11 @@ async def get_club_by_id(id: str, request: Request) -> JSONResponse:
     if (club := await mongodb["clubs"].find_one({"_id": id})) is not None:
         return JSONResponse(status_code=status.HTTP_200_OK,
                           content=jsonable_encoder(ClubDB(**club)))
-    raise HTTPException(status_code=404,
-                       detail=f"Club with id {id} not found")
+    raise ResourceNotFoundException(
+      resource_type="Club",
+      resource_id=id,
+      details={"query_field": "_id"}
+    )
 
 # create new club
 @router.post("/", response_description="Add new club", response_model=ClubDB)
@@ -124,7 +136,10 @@ async def create_club(
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+      message="Admin role required to create clubs",
+      details={"user_role": token_payload.roles}
+    )
 
   club = ClubBase(
       name=name,
@@ -148,22 +163,33 @@ async def create_club(
 
   # insert club
   try:
-    print("club_data: ", club_data)
+    logger.info(f"Creating new club: {name} ({alias})")
     new_club = await mongodb["clubs"].insert_one(club_data)
     created_club = await mongodb["clubs"].find_one(
         {"_id": new_club.inserted_id})
     if created_club:
+      logger.info(f"Club created successfully: {name}")
       return JSONResponse(status_code=status.HTTP_201_CREATED,
                           content=jsonable_encoder(ClubDB(**created_club)))
     else:
-      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                          detail="Failed to create club")
+      raise DatabaseOperationException(
+        operation="insert",
+        collection="clubs",
+        details={"club_name": name, "reason": "Insert acknowledged but club not found"}
+      )
   except DuplicateKeyError:
-    raise HTTPException(status_code=400,
-                        detail=f"Club {club_data['name']} already exists.")
+    raise DatabaseOperationException(
+      operation="insert",
+      collection="clubs",
+      details={"club_name": name, "reason": "Duplicate key - club already exists"}
+    )
   except Exception as e:
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=str(e))
+    logger.error(f"Unexpected error creating club {name}: {str(e)}")
+    raise DatabaseOperationException(
+      operation="insert",
+      collection="clubs",
+      details={"club_name": name, "error": str(e)}
+    )
 
 
 # Update club
@@ -192,13 +218,18 @@ async def update_club(
 ):
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+      message="Admin role required to update clubs",
+      details={"user_role": token_payload.roles}
+    )
 
   # retrieve existing club
   existing_club = await mongodb["clubs"].find_one({"_id": id})
   if not existing_club:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Club with id {id} not found")
+    raise ResourceNotFoundException(
+      resource_type="Club",
+      resource_id=id
+    )
 
   club_data = ClubUpdate(name=name,
                          alias=alias,
@@ -212,7 +243,7 @@ async def update_club(
                          description=description,
                          website=website,
                          ishdId=ishdId,
-                         active=active).dict(exclude_none=True)
+                         active=active).model_dump(exclude_none=True)
   club_data.pop('id', None)
 
   # handle image upload
@@ -221,39 +252,47 @@ async def update_club(
                                                     existing_club['alias'])
   elif logoUrl:
     club_data['logoUrl'] = logoUrl
-  elif existing_club['logoUrl']:
+  elif existing_club.get('logoUrl'):
     await delete_from_cloudinary(existing_club['logoUrl'])
     club_data['logoUrl'] = None
-
-  print("club_data: ", club_data)
 
   #Exclude unchanged data
   club_to_update = {
       k: v
       for k, v in club_data.items() if v != existing_club.get(k, None)
   }
-  print("club_to__update", club_to_update)
   if not club_to_update:
-    print("No changes to update")
+    logger.info(f"No changes to update for club {id}")
     return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
   # update club
   try:
+    logger.info(f"Updating club {existing_club.get('name', id)}")
     update_result = await mongodb["clubs"].update_one({"_id": id},
                                                       {"$set": club_to_update})
     if update_result.modified_count == 1:
       updated_club = await mongodb["clubs"].find_one({"_id": id})
+      logger.info(f"Club updated successfully: {existing_club.get('name', id)}")
       return JSONResponse(status_code=status.HTTP_200_OK,
                           content=jsonable_encoder(ClubDB(**updated_club)))
-    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        content="Failed to update club")
+    raise DatabaseOperationException(
+      operation="update",
+      collection="clubs",
+      details={"club_id": id, "modified_count": update_result.modified_count}
+    )
   except DuplicateKeyError:
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=f"Club {club_data.get('name', '')} already exists.")
+    raise DatabaseOperationException(
+      operation="update",
+      collection="clubs",
+      details={"club_id": id, "reason": "Duplicate key - club name already exists"}
+    )
   except Exception as e:
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=str(e))
+    logger.error(f"Unexpected error updating club {id}: {str(e)}")
+    raise DatabaseOperationException(
+      operation="update",
+      collection="clubs",
+      details={"club_id": id, "error": str(e)}
+    )
 
 
 # Delete club
@@ -265,14 +304,26 @@ async def delete_club(
 ) -> Response:
   mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    raise AuthorizationException(
+      message="Admin role required to delete clubs",
+      details={"user_role": token_payload.roles}
+    )
   existing_club = await mongodb["clubs"].find_one({"_id": id})
   if not existing_club:
-    raise HTTPException(status_code=404,
-                        detail=f"Club with id {id} not found")
+    raise ResourceNotFoundException(
+      resource_type="Club",
+      resource_id=id
+    )
+  
+  logger.info(f"Deleting club: {existing_club.get('name', id)}")
   result = await mongodb['clubs'].delete_one({"_id": id})
   if result.deleted_count == 1:
-    await delete_from_cloudinary(existing_club['logoUrl'])
+    if existing_club.get('logoUrl'):
+      await delete_from_cloudinary(existing_club['logoUrl'])
+    logger.info(f"Club deleted successfully: {existing_club.get('name', id)}")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-  raise HTTPException(status_code=404,
-                      detail=f"Club with id {id} not found")
+  raise DatabaseOperationException(
+    operation="delete",
+    collection="clubs",
+    details={"club_id": id, "deleted_count": result.deleted_count}
+  )

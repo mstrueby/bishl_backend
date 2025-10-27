@@ -1,11 +1,17 @@
-# filename: routers/tournaments.py
 from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
 from authentication import AuthHandler, TokenPayload
+from services.performance_monitor import monitor_query
 from pymongo.errors import DuplicateKeyError
+from exceptions import (
+    ResourceNotFoundException,
+    DatabaseOperationException,
+    AuthorizationException
+)
+from logging_config import logger
 
 router = APIRouter()
 auth = AuthHandler()
@@ -15,6 +21,7 @@ auth = AuthHandler()
 @router.get("/",
             response_description="List all tournaments",
             response_model=List[TournamentDB])
+@monitor_query("tournaments", "get_tournaments")
 async def get_tournaments(request: Request) -> JSONResponse:
     mongodb = request.app.state.mongodb
     exclusion_projection = {"seasons.rounds": 0}
@@ -22,17 +29,16 @@ async def get_tournaments(request: Request) -> JSONResponse:
     full_query = await mongodb["tournaments"].find(
         query, projection=exclusion_projection).sort("name",
                                                      1).to_list(length=None)
-    if (tournaments :=
-        [TournamentDB(**tournament) for tournament in full_query]) is not None:
-        return JSONResponse(status_code=status.HTTP_200_OK,
-                            content=jsonable_encoder(tournaments))
-    raise HTTPException(status_code=404, detail="No tournaments found")
+    tournaments = [TournamentDB(**tournament) for tournament in full_query]
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(tournaments))
 
 
 # get one tournament by Alias
 @router.get("/{tournament_alias}",
             response_description="Get a single tournament",
             response_model=TournamentDB)
+@monitor_query("tournaments", "get_tournament")
 async def get_tournament(
     request: Request,
     tournament_alias: str,
@@ -45,15 +51,18 @@ async def get_tournament(
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(
                                 TournamentDB(**tournament)))
-    raise HTTPException(
-        status_code=404,
-        detail=f"Tournament with alias {tournament_alias} not found")
+    raise ResourceNotFoundException(
+        resource_type="Tournament",
+        resource_id=tournament_alias,
+        details={"query_field": "alias"}
+    )
 
 
 # create new tournament
 @router.post("/",
              response_description="Add new tournament",
              response_model=TournamentDB)
+@monitor_query("tournaments", "create_tournament")
 async def create_tournament(
     request: Request,
     tournament: TournamentBase = Body(...),
@@ -61,25 +70,29 @@ async def create_tournament(
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
-    # print("tournament: ", tournament)
+        raise AuthorizationException(
+            message="Admin role required to create tournaments",
+            details={"user_role": token_payload.roles}
+        )
     tournament_data = jsonable_encoder(tournament)
 
     # DB processing
     try:
+        logger.info(f"Creating new tournament: {tournament_data.get('name', 'unknown')}")
         new_tournament = await mongodb["tournaments"].insert_one(
             tournament_data)
         exclusioin_projection = {"seasons.rounds": 0}
         created_tournament = await mongodb["tournaments"].find_one(
             {"_id": new_tournament.inserted_id}, exclusioin_projection)
+        logger.info(f"Tournament created successfully: {tournament_data.get('name', 'unknown')}")
         return JSONResponse(status_code=status.HTTP_201_CREATED,
                             content=jsonable_encoder(
                                 TournamentDB(**created_tournament)))
     except DuplicateKeyError:
-        raise HTTPException(
-            status_code=400,
-            detail=
-            f"Tournament {tournament_data.get('name', 'unknown')} already exists."
+        raise DatabaseOperationException(
+            operation="insert",
+            collection="tournaments",
+            details={"tournament_name": tournament_data.get('name', 'unknown'), "reason": "Duplicate key"}
         )
 
 
@@ -87,6 +100,7 @@ async def create_tournament(
 @router.patch("/{tournament_id}",
               response_description="Update tournament",
               response_model=TournamentDB)
+@monitor_query("tournaments", "update_tournament")
 async def update_tournament(request: Request,
                             tournament_id: str,
                             tournament: TournamentUpdate = Body(...),
@@ -94,18 +108,20 @@ async def update_tournament(request: Request,
                                 auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
-    print("tournament pre exclude: ", tournament)
-    tournament_dict = tournament.dict(exclude_unset=True)
+        raise AuthorizationException(
+            message="Admin role required to update tournaments",
+            details={"user_role": token_payload.roles}
+        )
+    tournament_dict = tournament.model_dump(exclude_unset=True)
     tournament_dict.pop("id", None)
-    #print("tournament: ", tournament)
 
     existing_tournament = await mongodb['tournaments'].find_one(
         {"_id": tournament_id})
     if existing_tournament is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Tournament with id {tournament_id} not found")
+        raise ResourceNotFoundException(
+            resource_type="Tournament",
+            resource_id=tournament_id
+        )
     # Exclude unchanged data
     tournament_to_update = {
         k: v
@@ -113,43 +129,51 @@ async def update_tournament(request: Request,
     }
     if tournament_to_update:
         try:
-            print("to update: ", tournament_to_update)
+            logger.info(f"Updating tournament: {existing_tournament.get('name', tournament_id)}")
             update_result = await mongodb['tournaments'].update_one(
                 {"_id": tournament_id}, {"$set": tournament_to_update})
             if update_result.modified_count == 0:
-                raise HTTPException(
-                    status_code=404,
-                    detail=
-                    f"Update: Tournament with id {tournament_id} not found")
+                raise DatabaseOperationException(
+                    operation="update",
+                    collection="tournaments",
+                    details={"tournament_id": tournament_id, "modified_count": 0}
+                )
         except DuplicateKeyError:
-            raise HTTPException(
-                status_code=400,
-                detail=
-                f"Tournament {tournament_dict.get('name', '')} already exists."
+            raise DatabaseOperationException(
+                operation="update",
+                collection="tournaments",
+                details={"tournament_id": tournament_id, "reason": "Duplicate key"}
             )
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"An unexpected error occurred: {str(e)}")
+            logger.error(f"Unexpected error updating tournament {tournament_id}: {str(e)}")
+            raise DatabaseOperationException(
+                operation="update",
+                collection="tournaments",
+                details={"tournament_id": tournament_id, "error": str(e)}
+            )
     else:
-        print("No update needed")
+        logger.info(f"No changes to update for tournament {tournament_id}")
         return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
     exclusion_projection = {"seasons.rounds": 0}
     updated_tournament = await mongodb['tournaments'].find_one(
         {"_id": tournament_id}, exclusion_projection)
     if updated_tournament is not None:
+        logger.info(f"Tournament updated successfully: {updated_tournament.get('name', tournament_id)}")
         tournament_respomse = TournamentDB(**updated_tournament)
         return JSONResponse(status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(tournament_respomse))
     else:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Fetch: Tournament with id {tournament_id} not found")
+        raise ResourceNotFoundException(
+            resource_type="Tournament",
+            resource_id=tournament_id,
+            details={"context": "After update"}
+        )
 
 
 # delete tournament
 @router.delete("/{tournament_alias}", response_description="Delete tournament")
+@monitor_query("tournaments", "delete_tournament")
 async def delete_tournament(
     request: Request,
     tournament_alias: str,
@@ -157,11 +181,19 @@ async def delete_tournament(
 ) -> Response:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
-        raise HTTPException(status_code=403, detail="Nicht authorisiert")
+        raise AuthorizationException(
+            message="Admin role required to delete tournaments",
+            details={"user_role": token_payload.roles}
+        )
+
+    logger.info(f"Deleting tournament with alias: {tournament_alias}")
     result = await mongodb['tournaments'].delete_one(
         {"alias": tournament_alias})
     if result.deleted_count == 1:
+        logger.info(f"Tournament deleted successfully: {tournament_alias}")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    raise HTTPException(
-        status_code=404,
-        detail=f"Tournament with alias {tournament_alias} not found")
+    raise ResourceNotFoundException(
+        resource_type="Tournament",
+        resource_id=tournament_alias,
+        details={"query_field": "alias"}
+    )

@@ -10,7 +10,7 @@ conf = ConnectionConfig(
     MAIL_PORT=int(os.environ.get("MAIL_PORT", 587)),
     MAIL_SERVER=os.environ["MAIL_SERVER"],
     MAIL_STARTTLS=os.environ.get("MAIL_TLS", "True").lower() == "true",
-    MAIL_SSL_TLS=os.environ.get("MAIL_SSL_TLS", "True").lower() == "true",
+    MAIL_SSL_TLS=os.environ.get("MAIL_SSL_TLS", "False").lower() == "true",
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True
 )
