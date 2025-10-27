@@ -12,7 +12,7 @@ modules = ["python-3.12"]
 # Specifies which nix channel to use when building the environment.
 [nix]
 channel = "stable-22_11"
-packages = ["cacert", "libxcrypt"]
+packages = ["cacert", "cargo", "libiconv", "libxcrypt", "rustc"]
 
 # The command to start the interpreter.
 #[interpreter]
