@@ -76,8 +76,8 @@ async def delete_from_cloudinary(image_url: str):
             return result
         except Exception as e:
             raise ExternalServiceException(
-                service="Cloudinary",
-                operation="delete_image",
+                service_name="Cloudinary",
+                message="Failed to delete image",
                 details={"public_id": f"players/{public_id}", "error": str(e)},
             ) from e
 
