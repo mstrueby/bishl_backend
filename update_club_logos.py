@@ -1,9 +1,9 @@
 #!/usr/bin/env python
+import argparse
 import os
+
 import certifi
 from pymongo import MongoClient
-import argparse
-from datetime import datetime
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Update club logo URLs in user documents.')

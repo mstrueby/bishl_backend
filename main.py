@@ -1,39 +1,41 @@
 #!/usr/bin/env python
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import HTTPException
-from motor.motor_asyncio import AsyncIOMotorClient
+import traceback
 import uuid
 from datetime import datetime
-import traceback
+
+import certifi
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from config import settings
 
 # Import custom exceptions and logging
 from exceptions import BISHLException
 from logging_config import logger
-from config import settings
+from routers.assignments import router as assignments_router
+from routers.clubs import router as clubs_router
+from routers.configs import router as configs_router
+from routers.documents import router as documents_router
+from routers.matchdays import router as matchdays_router
+from routers.matches import router as matches_router
+from routers.messages import router as messages_router
+from routers.penalties import router as penalties_router
+from routers.players import router as players_router
+from routers.posts import router as posts_router
 
 #import uvicorn
 from routers.root import router as root_router
-from routers.configs import router as configs_router
-from routers.venues import router as venues_router
-from routers.clubs import router as clubs_router
+from routers.roster import router as roster_router
+from routers.rounds import router as rounds_router
+from routers.scores import router as scores_router
+from routers.seasons import router as seasons_router
 from routers.teams import router as teams_router
 from routers.tournaments import router as tournaments_router
-from routers.seasons import router as seasons_router
-from routers.rounds import router as rounds_router
-from routers.matchdays import router as matchdays_router
 from routers.users import router as users_router
-from routers.matches import router as matches_router
-from routers.roster import router as roster_router
-from routers.scores import router as scores_router
-from routers.penalties import router as penalties_router
-from routers.messages import router as messages_router
-from routers.assignments import router as assignments_router
-from routers.posts import router as posts_router
-from routers.documents import router as documents_router
-from routers.players import router as players_router
-from fastapi.middleware.cors import CORSMiddleware
-import certifi
+from routers.venues import router as venues_router
 
 app = FastAPI(
     title="BISHL API",

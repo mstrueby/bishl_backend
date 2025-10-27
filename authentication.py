@@ -1,13 +1,14 @@
-import jwt
-from typing import Optional
-from fastapi import HTTPException, Security
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from passlib.context import CryptContext
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, InvalidHash
 from datetime import datetime, timedelta
-from exceptions import AuthenticationException
+
+import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHash, VerifyMismatchError
+from fastapi import Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from passlib.context import CryptContext
+
 from config import settings
+from exceptions import AuthenticationException
 
 
 class AuthHandler:
@@ -31,13 +32,13 @@ class AuthHandler:
         return self.argon2_hasher.verify(hashed_password, plain_password)
       except (VerifyMismatchError, InvalidHash):
         return False
-    
+
     # Fallback to bcrypt (legacy passwords)
     try:
       return self.pwd_content_legacy.verify(plain_password, hashed_password)
     except:
       return False
-  
+
   def needs_rehash(self, hashed_password):
     """Check if password needs to be upgraded from bcrypt to argon2"""
     return not hashed_password.startswith('$argon2')
@@ -115,7 +116,7 @@ class AuthHandler:
         message="Invalid refresh token",
         details={"reason": "invalid_refresh_token"}
       )
-  
+
   def encode_reset_token(self, user):
     payload = {
         "exp": datetime.now() + timedelta(hours=1),  # Token expires in 1 hour
@@ -153,10 +154,10 @@ class TokenPayload:
   def __init__(self,
                sub: str,
                roles: list,
-               firstName: Optional[str] = None,
-               lastName: Optional[str] = None,
-               clubId: Optional[str] = None,
-               clubName: Optional[str] = None):
+               firstName: str | None = None,
+               lastName: str | None = None,
+               clubId: str | None = None,
+               clubName: str | None = None):
     self.sub = sub
     self.roles = roles
     self.firstName = firstName

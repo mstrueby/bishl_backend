@@ -1,24 +1,21 @@
 # filename: routers/assignments.py
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, Path, Query
+import os
+from datetime import datetime
+from enum import Enum
+
+import httpx
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from typing import Optional
+
 from authentication import AuthHandler, TokenPayload
-import os
+from exceptions import (
+    AuthorizationException,
+    ResourceNotFoundException,
+)
+from mail_service import send_email
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory
 from utils import get_sys_ref_tool_token
-import httpx
-from enum import Enum
-from datetime import datetime
-from mail_service import send_email
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
-
 
 router = APIRouter()
 auth = AuthHandler()
@@ -118,7 +115,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
                                     detail=error_msg)
 
             # After successfully sending the message, also send an email
-            try:                
+            try:
                 # Get referee's email by making a request to users endpoint
                 user_url = f"{BASE_URL}/users/{receiver_id}"
                 user_response = await client.get(user_url, headers=headers)
@@ -162,7 +159,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
 async def get_assignments_by_match(
     request: Request,
     match_id: str = Path(..., description="Match ID"),
-    assignmentStatus: Optional[list[AllStatuses]] = Query(None),
+    assignmentStatus: list[AllStatuses] | None = Query(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper)):
     mongodb = request.app.state.mongodb
     if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):

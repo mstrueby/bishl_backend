@@ -1,13 +1,14 @@
 # filename: routers/matchdays.py
-from typing import List
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Path
-from fastapi.responses import JSONResponse, Response
-from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
-from authentication import AuthHandler, TokenPayload
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 from fastapi.encoders import jsonable_encoder
-from utils import DEBUG_LEVEL, parse_datetime, my_jsonable_encoder
-from logging_config import logger
+from fastapi.responses import JSONResponse, Response
+
+from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException
+from logging_config import logger
+from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
+from utils import DEBUG_LEVEL, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
@@ -16,7 +17,7 @@ auth = AuthHandler()
 # get all matchdays of a round
 @router.get('/',
             response_description="List all matchdays for a round",
-            response_model=List[MatchdayDB])
+            response_model=list[MatchdayDB])
 async def get_matchdays_for_round(
     request: Request,
     tournament_alias: str = Path(

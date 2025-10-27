@@ -1,10 +1,9 @@
 #!/usr/bin/env python
+import argparse
 import os
+
 import certifi
 from pymongo import MongoClient
-import argparse
-from datetime import datetime
-from bson import ObjectId
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Merge two players.')
@@ -37,10 +36,10 @@ async def merge_players():
     if not to_player:
         print(f"Target player {args.to_player_id} not found")
         return
-    
+
     first_name = to_player['firstName']
     last_name = to_player['lastName']
-    
+
     # Get source player info
     from_player = db['players'].find_one({"_id": args.from_player_id})
     if not from_player:
@@ -105,7 +104,7 @@ async def merge_players():
     # Merge stats arrays
     from_stats = from_player.get('stats', [])
     to_stats = to_player.get('stats', [])
-    
+
     # Combine and deduplicate stats
     merged_stats = to_stats.copy()
     for from_stat in from_stats:
@@ -136,10 +135,10 @@ async def merge_players():
     # Delete source player
     # delete_result = db['players'].delete_one({"_id": args.from_player_id})
 
-    print(f"\nMerge Summary:")
+    print("\nMerge Summary:")
     print(f"Modified {roster_result.modified_count} roster entries")
     print(f"Modified {scores_result.modified_count} score entries")
-    print(f"Updated player stats")
+    print("Updated player stats")
     #print(f"Deleted source player: {delete_result.deleted_count == 1}")
 
 if __name__ == "__main__":

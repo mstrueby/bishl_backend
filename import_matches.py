@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 
+import argparse
 import csv
+import glob
 import json
 import os
-import glob
+
+import certifi
 import requests
 from pymongo import MongoClient
-import certifi
-from fastapi.encoders import jsonable_encoder
-import argparse
-from models.matches import MatchDB
 
 filename = "data/data_tournaments.csv"
 BASE_URL = os.environ['BE_API_URL']

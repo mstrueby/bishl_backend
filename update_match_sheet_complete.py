@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-import os
-from pymongo import MongoClient
-from motor.motor_asyncio import AsyncIOMotorClient
-import asyncio
-import certifi
 import argparse
+import asyncio
+import os
+
+import certifi
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Update matchSheetComplete based on scores vs goals comparison.')
@@ -39,7 +39,7 @@ async def update_match_sheet_complete():
     print(f"Connecting to database: {DB_NAME}")
     client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
     db = client[DB_NAME]
-    
+
     try:
         # Build query filter
         query_filter = {"matchStatus.key": "FINISHED"}
@@ -48,40 +48,40 @@ async def update_match_sheet_complete():
             print(f"Fetching FINISHED matches for season: {args.season}...")
         else:
             print("Fetching all FINISHED matches...")
-        
+
         # Get matches based on filter
         matches = await db["matches"].find(query_filter).to_list(None)
-        
+
         updated_count = 0
         total_count = len(matches)
-        
+
         print(f"Processing {total_count} matches...")
-        
+
         for match in matches:
             match_id = match["_id"]
-            
+
             # Get home team data
             home_team = match.get("home", {})
             home_scores = home_team.get("scores", [])
             home_stats = home_team.get("stats", {})
             home_goals_for = home_stats.get("goalsFor", 0)
-            
+
             # Get away team data
             away_team = match.get("away", {})
             away_scores = away_team.get("scores", [])
             away_stats = away_team.get("stats", {})
             away_goals_for = away_stats.get("goalsFor", 0)
-            
+
             # Compare scores length with goalsFor
             home_scores_count = len(home_scores) if home_scores else 0
             away_scores_count = len(away_scores) if away_scores else 0
-            
+
             # Check if match sheet is complete
-            is_complete = (home_scores_count == home_goals_for and 
+            is_complete = (home_scores_count == home_goals_for and
                           away_scores_count == away_goals_for)
-            
+
             current_complete = match.get("matchSheetComplete", False)
-            
+
             # Only update if the value has changed
             if is_complete != current_complete:
                 await db["matches"].update_one(
@@ -89,15 +89,15 @@ async def update_match_sheet_complete():
                     {"$set": {"matchSheetComplete": is_complete}}
                 )
                 updated_count += 1
-                
+
                 print(f"Match {match_id}: Updated matchSheetComplete to {is_complete}")
                 print(f"  Home: {home_scores_count} scores vs {home_goals_for} goals")
                 print(f"  Away: {away_scores_count} scores vs {away_goals_for} goals")
             else:
                 print(f"Match {match_id}: No change needed (already {current_complete})")
-        
+
         print(f"\nCompleted! Updated {updated_count} out of {total_count} matches.")
-        
+
     except Exception as e:
         print(f"Error: {str(e)}")
     finally:

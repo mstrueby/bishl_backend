@@ -1,49 +1,47 @@
-from cloudinary.utils import string
-from fastapi import APIRouter, HTTPException, Form, Request, Body, Depends, status, File, Query
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
-import json
-from typing import List, Optional, Dict
-from bson.objectid import ObjectId
-from fastapi import UploadFile
-from pydantic import HttpUrl, BaseModel
-from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
-from services.pagination import PaginationHelper
-from authentication import AuthHandler, TokenPayload
-from services.performance_monitor import monitor_query
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException,
-    ExternalServiceException
-)
-from logging_config import logger
-from models.players import (
-    PlayerBase,
-    PlayerDB,
-    PlayerUpdate,
-    AssignedTeamsInput,
-    AssignedTeams,
-    AssignedClubs,
-    SourceEnum,
-    PositionEnum,
-    SexEnum,
-    IshdLogBase,
-    IshdLogClub,
-    IshdLogTeam,
-    IshdLogPlayer,
-    IshdActionEnum
-)
-from models.responses import StandardResponse, PaginatedResponse
-import cloudinary
-import cloudinary.uploader
-import os
 import base64
-import aiohttp
+import json
+import os
 import urllib.parse
 from datetime import datetime
 
+import aiohttp
+import cloudinary
+import cloudinary.uploader
+from bson.objectid import ObjectId
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
+from pydantic import HttpUrl
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import (
+    AuthorizationException,
+    DatabaseOperationException,
+    ExternalServiceException,
+    ResourceNotFoundException,
+    ValidationException,
+)
+from logging_config import logger
+from models.players import (
+    AssignedClubs,
+    AssignedTeams,
+    AssignedTeamsInput,
+    IshdActionEnum,
+    IshdLogBase,
+    IshdLogClub,
+    IshdLogPlayer,
+    IshdLogTeam,
+    PlayerBase,
+    PlayerDB,
+    PlayerUpdate,
+    PositionEnum,
+    SexEnum,
+    SourceEnum,
+)
+from models.responses import PaginatedResponse
+from services.pagination import PaginationHelper
+from services.performance_monitor import monitor_query
+from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
@@ -305,7 +303,7 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
     include_in_schema=False)
 async def process_ishd_data(
     request: Request,
-    mode: Optional[str] = None,
+    mode: str | None = None,
     run: int = 1,
     #token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
@@ -386,7 +384,7 @@ async def process_ishd_data(
 
     headers = {
         "Authorization":
-        f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
+        f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode()).decode('utf-8')}",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
@@ -493,7 +491,7 @@ async def process_ishd_data(
                         log_line = f"Processing team {club.club_name} / {team['ishdId']} / {test_file}"
                         #print(log_line)
                         log_lines.append(log_line)
-                        with open(test_file, 'r') as file:
+                        with open(test_file) as file:
                             data = json.load(file)
                             print("data", data)
                     else:
@@ -964,7 +962,7 @@ async def process_ishd_data(
             include_in_schema=False)
 async def verify_ishd_data(
     request: Request,
-    mode: Optional[str] =None,
+    mode: str | None =None,
     #token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
@@ -1010,7 +1008,7 @@ async def verify_ishd_data(
 
     headers = {
         "Authorization":
-        f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode('utf-8')).decode('utf-8')}",
+        f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode()).decode('utf-8')}",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
@@ -1056,7 +1054,7 @@ async def verify_ishd_data(
             if mode == "test":
                 test_file = f"ishd_test1_{club_ishd_id_str}_{team_info['team_alias']}.json"
                 if os.path.exists(test_file):
-                    with open(test_file, 'r') as file:
+                    with open(test_file) as file:
                         data = json.load(file)
                 else:
                     continue
@@ -1262,10 +1260,10 @@ async def get_players_for_club(
     club_alias: str,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    q: Optional[str] = Query(None, description="Search by name"),
+    q: str | None = Query(None, description="Search by name"),
     sortby: str = "firstName",
     all: bool = False,
-    active: Optional[bool] = None,
+    active: bool | None = None,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1307,10 +1305,10 @@ async def get_players_for_team(
     team_alias: str,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    q: Optional[str] = Query(None, description="Search by name"),
+    q: str | None = Query(None, description="Search by name"),
     sortby: str = "firstName",
     all: bool = False,
-    active: Optional[bool] = None,
+    active: bool | None = None,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1367,7 +1365,7 @@ async def get_players(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     sortby: str = "firstName",
     all: bool = False,
-    active: Optional[bool] = None,
+    active: bool | None = None,
     token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1553,22 +1551,22 @@ async def create_player(
               response_model=PlayerDB)
 async def update_player(request: Request,
                         id: str,
-                        firstName: Optional[str] = Form(None),
-                        lastName: Optional[str] = Form(None),
-                        birthdate: Optional[datetime] = Form(None),
-                        displayFirstName: Optional[str] = Form(None),
-                        displayLastName: Optional[str] = Form(None),
-                        nationality: Optional[str] = Form(None),
-                        position: Optional[PositionEnum] = Form(None),
-                        assignedTeams: Optional[str] = Form(None),
-                        stats: Optional[str] = Form(None),
-                        fullFaceReq: Optional[bool] = Form(None),
-                        managedByISHD: Optional[bool] = Form(None),
-                        source: Optional[SourceEnum] = Form(None),
-                        sex: Optional[SexEnum] = Form(None),
-                        image: Optional[UploadFile] = File(None),
-                        imageUrl: Optional[HttpUrl] = Form(None),
-                        imageVisible: Optional[bool] = Form(None),
+                        firstName: str | None = Form(None),
+                        lastName: str | None = Form(None),
+                        birthdate: datetime | None = Form(None),
+                        displayFirstName: str | None = Form(None),
+                        displayLastName: str | None = Form(None),
+                        nationality: str | None = Form(None),
+                        position: PositionEnum | None = Form(None),
+                        assignedTeams: str | None = Form(None),
+                        stats: str | None = Form(None),
+                        fullFaceReq: bool | None = Form(None),
+                        managedByISHD: bool | None = Form(None),
+                        source: SourceEnum | None = Form(None),
+                        sex: SexEnum | None = Form(None),
+                        image: UploadFile | None = File(None),
+                        imageUrl: HttpUrl | None = Form(None),
+                        imageVisible: bool | None = Form(None),
                         token_payload: TokenPayload = Depends(
                             auth.auth_wrapper)):
     mongodb = request.app.state.mongodb

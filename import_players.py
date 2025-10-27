@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
+import argparse
 import csv
 import json
 import os
+from datetime import datetime
+
+import certifi
 import requests
 from pymongo import MongoClient
-import certifi
-from datetime import datetime
-import argparse
 
 filename = "data/data_players.csv"
 BASE_URL = os.environ['BE_API_URL']

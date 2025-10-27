@@ -1,10 +1,11 @@
 #!/usr/bin/env python
+import argparse
+import json
 import os
+from datetime import datetime
+
 import certifi
 from pymongo import MongoClient
-from datetime import datetime
-import json
-import argparse
 
 parser = argparse.ArgumentParser(description='Backup MongoDB collections')
 parser.add_argument('--prod', action='store_true', help='Backup production database')
@@ -35,19 +36,19 @@ print(f"Starting backup for {DB_NAME}...")
 for collection_name in collections:
     print(f"Backing up {collection_name}...")
     collection = db[collection_name]
-    
+
     # Export to JSON
     documents = list(collection.find())
-    
+
     # Convert ObjectId to string for JSON serialization
     for doc in documents:
         if '_id' in doc:
             doc['_id'] = str(doc['_id'])
-    
+
     backup_file = f"{backup_dir}/{collection_name}.json"
     with open(backup_file, 'w') as f:
         json.dump(documents, f, indent=2, default=str)
-    
+
     print(f"  → Saved {len(documents)} documents to {backup_file}")
 
 print(f"\nBackup completed successfully in {backup_dir}")

@@ -1,18 +1,17 @@
-from datetime import datetime
-from fastapi import HTTPException
-from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
-from bson import ObjectId
-from typing import List, Callable
+import asyncio
 import re
-import os
+from datetime import datetime
+
 import aiohttp
-import httpx
 import cloudinary
 import cloudinary.uploader
-import asyncio
-from logging_config import logger
+import httpx
+from fastapi import HTTPException
+from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
+
 from config import settings
+from logging_config import logger
 
 BASE_URL = settings.BE_API_URL
 DEBUG_LEVEL = settings.DEBUG_LEVEL
@@ -204,7 +203,7 @@ async def calculate_roster_stats(match_id: str, team_flag: str, db) -> dict:
   return asyncio.run(stats_service.calculate_roster_stats(match_id, team_flag))
 
 
-async def calculate_player_card_stats(player_ids: List[str], t_alias: str,
+async def calculate_player_card_stats(player_ids: list[str], t_alias: str,
                                       s_alias: str, r_alias: str,
                                       md_alias: str, token_payload=None) -> None:
   """

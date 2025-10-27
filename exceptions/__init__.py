@@ -1,14 +1,14 @@
 
 # Exceptions package
 from .custom_exceptions import (
-    BISHLException,
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    StatsCalculationException,
     AuthenticationException,
     AuthorizationException,
-    ExternalServiceException
+    BISHLException,
+    DatabaseOperationException,
+    ExternalServiceException,
+    ResourceNotFoundException,
+    StatsCalculationException,
+    ValidationException,
 )
 
 __all__ = [

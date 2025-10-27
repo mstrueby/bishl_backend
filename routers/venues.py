@@ -1,22 +1,16 @@
-import os
-from typing import List, Optional
-from fastapi import APIRouter, Request, UploadFile, status, HTTPException, Depends, Form
+from datetime import datetime
+
+import cloudinary
+import cloudinary.uploader
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from pydantic import HttpUrl
-from models.venues import VenueBase, VenueDB, VenueUpdate
-from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
-import cloudinary
-import cloudinary.uploader
-from datetime import datetime
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import AuthorizationException, ResourceNotFoundException
+from models.venues import VenueBase, VenueDB, VenueUpdate
 
 router = APIRouter()
 auth = AuthHandler()
@@ -58,10 +52,10 @@ async def delete_from_cloudinary(image_url: str):
 # list all venues
 @router.get("/",
             response_description="List all venues",
-            response_model=List[VenueDB])
+            response_model=list[VenueDB])
 async def list_venues(
     request: Request,
-    active: Optional[bool] = None,
+    active: bool | None = None,
     page: int = 1,
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
@@ -108,11 +102,11 @@ async def create_venue(
     latitude: str = Form(...),
     longitude: str = Form(...),
     image: UploadFile = Form(None),
-    description: Optional[str] = Form(None),
+    description: str | None = Form(None),
     active: bool = Form(False),
-    usageApprovalId: Optional[str] = Form(None),
-    usageApprovalValidTo: Optional[datetime] = Form(None),
-    legacyId: Optional[int] = Form(None),
+    usageApprovalId: str | None = Form(None),
+    usageApprovalValidTo: datetime | None = Form(None),
+    legacyId: int | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
   mongodb = request.app.state.mongodb
@@ -167,21 +161,21 @@ async def create_venue(
 async def update_venue(
     request: Request,
     id: str,
-    name: Optional[str] = Form(None),
-    alias: Optional[str] = Form(None),
-    shortName: Optional[str] = Form(None),
-    street: Optional[str] = Form(None),
-    zipCode: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
-    country: Optional[str] = Form(None),
-    latitude: Optional[str] = Form(None),
-    longitude: Optional[str] = Form(None),
-    image: Optional[UploadFile] = Form(None),
-    imageUrl: Optional[HttpUrl] = Form(None),
-    description: Optional[str] = Form(None),
-    active: Optional[bool] = Form(None),
-    usageApprovalId: Optional[str] = Form(None),
-    usageApprovalValidTo: Optional[datetime] = Form(None),
+    name: str | None = Form(None),
+    alias: str | None = Form(None),
+    shortName: str | None = Form(None),
+    street: str | None = Form(None),
+    zipCode: str | None = Form(None),
+    city: str | None = Form(None),
+    country: str | None = Form(None),
+    latitude: str | None = Form(None),
+    longitude: str | None = Form(None),
+    image: UploadFile | None = Form(None),
+    imageUrl: HttpUrl | None = Form(None),
+    description: str | None = Form(None),
+    active: bool | None = Form(None),
+    usageApprovalId: str | None = Form(None),
+    usageApprovalValidTo: datetime | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb

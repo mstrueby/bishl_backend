@@ -1,13 +1,20 @@
 #!/usr/bin/env python
+import argparse
 import csv
 import os
+from datetime import datetime
+
 import certifi
-import argparse
 import requests
 from pymongo import MongoClient
-from models.players import AssignedTeams, AssignedClubs, PlayerDB, AssignedTeamsInput, TeamInput, SourceEnum
+
 from models.clubs import ClubDB, TeamDB
-from datetime import datetime
+from models.players import (
+  AssignedClubs,
+  AssignedTeams,
+  PlayerDB,
+  SourceEnum,
+)
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Manage teams.')
@@ -239,7 +246,7 @@ try:
 
         if update_result.modified_count == 0:
           print(
-              f"⚠️ WARNING: Player found but no modifications made. Data might be identical."
+              "⚠️ WARNING: Player found but no modifications made. Data might be identical."
           )
           continue
 
@@ -266,7 +273,7 @@ try:
                 f"Saved teams count: {actual_teams_count}, Expected: {expected_teams_count}"
             )
         else:
-          print(f"ERROR: Couldn't retrieve player after update")
+          print("ERROR: Couldn't retrieve player after update")
           exit(1)
 
         if not args.importAll:

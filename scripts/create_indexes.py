@@ -15,12 +15,14 @@ from pathlib import Path
 # Add parent directory to Python path to allow importing from root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from motor.motor_asyncio import AsyncIOMotorClient
+import argparse
 import asyncio
 import os
-import argparse
-from logging_config import logger
+
+from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import OperationFailure
+
+from logging_config import logger
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Create MongoDB indexes.')
@@ -42,12 +44,12 @@ print("DB_NAME:", DB_NAME)
 
 async def create_indexes():
     """Create all necessary indexes for optimal query performance"""
-    
+
     client = AsyncIOMotorClient(DB_URL)
     db = client[DB_NAME]
-    
+
     logger.info(f"Starting index creation for database: {DB_NAME}...")
-    
+
     async def create_index_safe(collection, keys, **kwargs):
         """Helper to create index and skip if already exists"""
         index_name = kwargs.get('name', 'unnamed')
@@ -71,7 +73,7 @@ async def create_indexes():
             else:
                 logger.error(f"  ✗ Failed to create index {index_name}: {error_str}")
                 raise
-    
+
     try:
         # Matches indexes
         logger.info("Creating matches collection indexes...")
@@ -80,98 +82,98 @@ async def create_indexes():
             ("season.alias", 1),
             ("round.alias", 1)
         ], name="tournament_season_round_idx", background=True)
-        
+
         await create_index_safe(db.matches, [
             ("tournament.alias", 1),
             ("season.alias", 1),
             ("matchday.alias", 1)
         ], name="tournament_season_matchday_idx", background=True)
-        
+
         await create_index_safe(db.matches,
-            [("status", 1), ("startDate", 1)], 
+            [("status", 1), ("startDate", 1)],
             name="status_startdate_idx",
             background=True
         )
-        
+
         await create_index_safe(db.matches,
-            [("home.teamId", 1)], 
+            [("home.teamId", 1)],
             name="home_team_idx",
             background=True
         )
-        
+
         await create_index_safe(db.matches,
-            [("away.teamId", 1)], 
+            [("away.teamId", 1)],
             name="away_team_idx",
             background=True
         )
-        
+
         # Players indexes
         logger.info("Creating players collection indexes...")
         await create_index_safe(db.players,
-            [("alias", 1)], 
-            unique=True, 
+            [("alias", 1)],
+            unique=True,
             name="alias_unique_idx",
             background=True
         )
-        
+
         await create_index_safe(db.players, [
             ("lastName", 1),
             ("firstName", 1),
             ("yearOfBirth", 1)
         ], name="player_lookup_idx", background=True)
-        
+
         await create_index_safe(db.players,
-            [("assignedClubs.clubId", 1)], 
+            [("assignedClubs.clubId", 1)],
             name="assigned_clubs_idx",
             background=True
         )
-        
+
         # Tournaments indexes
         logger.info("Creating tournaments collection indexes...")
         await create_index_safe(db.tournaments,
-            [("alias", 1)], 
-            unique=True, 
+            [("alias", 1)],
+            unique=True,
             name="tournament_alias_unique_idx",
             background=True
         )
-        
+
         # Users indexes
         logger.info("Creating users collection indexes...")
         await create_index_safe(db.users,
-            [("email", 1)], 
-            unique=True, 
+            [("email", 1)],
+            unique=True,
             name="email_unique_idx",
             background=True
         )
-        
+
         await create_index_safe(db.users,
-            [("club.clubId", 1)], 
+            [("club.clubId", 1)],
             name="club_idx",
             background=True
         )
-        
+
         # Assignments indexes
         logger.info("Creating assignments collection indexes...")
         await create_index_safe(db.assignments,
-            [("matchId", 1)], 
+            [("matchId", 1)],
             name="match_idx",
             background=True
         )
-        
+
         await create_index_safe(db.assignments,
-            [("userId", 1)], 
+            [("userId", 1)],
             name="user_idx",
             background=True
         )
-        
+
         await create_index_safe(db.assignments,
-            [("status", 1)], 
+            [("status", 1)],
             name="status_idx",
             background=True
         )
-        
+
         logger.info("Index creation completed successfully")
-        
+
         # List all indexes for verification
         logger.info("\nVerifying created indexes:")
         for collection_name in ["matches", "players", "tournaments", "users", "assignments"]:
@@ -179,7 +181,7 @@ async def create_indexes():
             logger.info(f"\n{collection_name} indexes:")
             for idx_name, idx_info in indexes.items():
                 logger.info(f"  - {idx_name}: {idx_info.get('key', [])}")
-        
+
     except Exception as e:
         logger.error(f"Error creating indexes: {str(e)}")
         raise

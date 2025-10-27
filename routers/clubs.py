@@ -1,33 +1,28 @@
-import os
-from typing import List, Optional
+import cloudinary
+import cloudinary.uploader
 from fastapi import (
-    APIRouter,
-    Request,
-    status,
-    HTTPException,
-    Depends,
-    Form,
-    File,
-    UploadFile,
-    Query,
+  APIRouter,
+  Depends,
+  File,
+  Form,
+  HTTPException,
+  Query,
+  Request,
+  UploadFile,
+  status,
 )
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
+from pydantic import EmailStr, HttpUrl
+from pymongo.errors import DuplicateKeyError
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import AuthorizationException, DatabaseOperationException, ResourceNotFoundException
+from logging_config import logger
 from models.clubs import ClubBase, ClubDB, ClubUpdate
 from models.responses import PaginatedResponse
-from utils import configure_cloudinary
 from services.pagination import PaginationHelper
-from authentication import AuthHandler, TokenPayload
-from pymongo.errors import DuplicateKeyError
-from pydantic import EmailStr, HttpUrl
-from exceptions import (
-    ResourceNotFoundException,
-    DatabaseOperationException,
-    AuthorizationException
-)
-from logging_config import logger
-import cloudinary
-import cloudinary.uploader
+from utils import configure_cloudinary
 
 router = APIRouter()
 auth = AuthHandler()
@@ -70,7 +65,7 @@ async def delete_from_cloudinary(logo_url: str):
             response_model=PaginatedResponse[ClubDB])
 async def list_clubs(
     request: Request,
-    active: Optional[bool] = None,
+    active: bool | None = None,
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(100, ge=1, le=100, description="Items per page")
 ) -> JSONResponse:
@@ -78,7 +73,7 @@ async def list_clubs(
   query = {}
   if active is not None:
     query["active"] = active
-  
+
   items, total_count = await PaginationHelper.paginate_query(
       collection=mongodb["clubs"],
       query=query,
@@ -86,7 +81,7 @@ async def list_clubs(
       page_size=page_size,
       sort=[("name", 1)]
   )
-  
+
   paginated_result = PaginationHelper.create_response(
       items=[ClubDB(**club) for club in items],
       page=page,
@@ -94,7 +89,7 @@ async def list_clubs(
       total_count=total_count,
       message=f"Retrieved {len(items)} clubs"
   )
-  
+
   return JSONResponse(status_code=status.HTTP_200_OK,
                       content=jsonable_encoder(paginated_result))
 
@@ -214,21 +209,21 @@ async def create_club(
 async def update_club(
     request: Request,
     id: str,
-    name: Optional[str] = Form(None),
-    alias: Optional[str] = Form(None),
-    addressName: Optional[str] = Form(None),
-    street: Optional[str] = Form(None),
-    zipCode: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
-    country: Optional[str] = Form(None),
-    email: Optional[EmailStr] = Form(None),
-    yearOfFoundation: Optional[int] = Form(None),
-    description: Optional[str] = Form(None),
-    website: Optional[HttpUrl] = Form(None),
-    ishdId: Optional[int] = Form(None),
-    active: Optional[bool] = Form(None),
-    logo: Optional[UploadFile] = File(None),
-    logoUrl: Optional[HttpUrl] = Form(None),
+    name: str | None = Form(None),
+    alias: str | None = Form(None),
+    addressName: str | None = Form(None),
+    street: str | None = Form(None),
+    zipCode: str | None = Form(None),
+    city: str | None = Form(None),
+    country: str | None = Form(None),
+    email: EmailStr | None = Form(None),
+    yearOfFoundation: int | None = Form(None),
+    description: str | None = Form(None),
+    website: HttpUrl | None = Form(None),
+    ishdId: int | None = Form(None),
+    active: bool | None = Form(None),
+    logo: UploadFile | None = File(None),
+    logoUrl: HttpUrl | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
   mongodb = request.app.state.mongodb
@@ -329,7 +324,7 @@ async def delete_club(
       resource_type="Club",
       resource_id=id
     )
-  
+
   logger.info(f"Deleting club: {existing_club.get('name', id)}")
   result = await mongodb['clubs'].delete_one({"_id": id})
   if result.deleted_count == 1:

@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-import os
+import argparse
 import csv
+import os
+
 import certifi
 from pymongo import MongoClient
-from datetime import datetime
-import argparse
-from bson.objectid import ObjectId
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Update matchday owners in tournaments collection.')
@@ -50,21 +49,21 @@ total_matchdays = 0
 
 for tournament in tournaments:
     print(f"Processing tournament: {tournament['name']}")
-    
+
     # Find the 2025 season
     for season_idx, season in enumerate(tournament.get('seasons', [])):
         if season.get('alias') == '2025':
             print(f"  Processing season 2025 in {tournament['name']}")
-            
+
             # Process all rounds in the season
             for round_idx, round_data in enumerate(season.get('rounds', [])):
                 print(f"    Processing round: {round_data.get('name', 'unknown')}")
-                
+
                 # Process all matchdays in the round
                 for matchday_idx, matchday in enumerate(round_data.get('matchdays', [])):
                     total_matchdays += 1
                     matchday_alias = matchday.get('alias')
-                    
+
                     if matchday_alias in matchday_owners:
                         owner = matchday_owners[matchday_alias]
                         owner_obj = {
@@ -72,14 +71,14 @@ for tournament in tournaments:
                             'clubName': owner['clubName'],
                             'clubAlias': owner['clubAlias']
                         }
-                        
+
                         # Update the matchday with the owner
                         update_path = f"seasons.{season_idx}.rounds.{round_idx}.matchdays.{matchday_idx}.owner"
                         result = db['tournaments'].update_one(
                             {"_id": tournament['_id']},
                             {"$set": {update_path: owner_obj}}
                         )
-                        
+
                         if result.modified_count > 0:
                             updated_count += 1
                             print(f"      ✅ Updated owner for matchday: {matchday.get('name', 'unknown')} ({matchday_alias}) to {owner['clubName']}")
@@ -90,5 +89,5 @@ for tournament in tournaments:
         if not args.importAll:
             print("--importAll flag not set, exiting.")
             exit()
-            
+
 print(f"\nSummary: Updated {updated_count} of {total_matchdays} matchdays")

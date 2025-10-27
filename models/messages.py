@@ -1,25 +1,25 @@
 
-from bson import ObjectId
-from pydantic import Field, BaseModel, field_validator, ConfigDict
-from pydantic_core import core_schema
-from typing import Optional
-from utils import prevent_empty_str
 from datetime import datetime
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import core_schema
+
+from utils import prevent_empty_str
 
 
 class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    from pydantic_core import core_schema
-    
+
     def validate_object_id(value: str) -> ObjectId:
       if isinstance(value, ObjectId):
         return value
       if not ObjectId.is_valid(value):
         raise ValueError("Invalid ObjectId")
       return ObjectId(value)
-    
+
     return core_schema.with_info_plain_validator_function(
       validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
@@ -39,7 +39,7 @@ class MongoBaseModel(BaseModel):
     arbitrary_types_allowed=True,
     json_encoders={ObjectId: str}
   )
-  
+
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
@@ -74,4 +74,4 @@ class MessageUpdate(MongoBaseModel):
   #senderId: Optional[str] = "DEFAULT"
   #receiverId: Optional[str] = "DEFAULT"
   #content: Optional[str] = "DEFAULT"
-  read: Optional[bool] = True
+  read: bool | None = True

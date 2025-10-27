@@ -1,23 +1,29 @@
 # filename: routers/teams.py
-from typing import List, Optional
-from urllib.parse import _NetlocResultMixinBytes
-from fastapi import APIRouter, Request, Body, UploadFile, status, HTTPException, Path, Depends, Form, File
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
 import json
-from models.clubs import TeamBase, TeamDB, TeamPartnerships, TeamUpdate
-from authentication import AuthHandler, TokenPayload
-from pydantic import HttpUrl
-from utils import configure_cloudinary
+
 import cloudinary
 import cloudinary.uploader
-from exceptions import (
-    ResourceNotFoundException,
-    ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
+from fastapi import (
+  APIRouter,
+  Depends,
+  File,
+  Form,
+  HTTPException,
+  Path,
+  Request,
+  UploadFile,
+  status,
 )
-from logging_config import logger
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
+from pydantic import HttpUrl
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import (
+  ResourceNotFoundException,
+)
+from models.clubs import TeamBase, TeamDB, TeamPartnerships, TeamUpdate
+from utils import configure_cloudinary
 
 router = APIRouter()
 auth = AuthHandler()
@@ -56,7 +62,7 @@ async def delete_from_cloudinary(logo_url: str):
 # list all teams of one club
 @router.get("/",
             response_description="List all teams of one club",
-            response_model=List[TeamDB])
+            response_model=list[TeamDB])
 async def list_teams_of_one_club(
     request: Request,
     club_alias: str = Path(..., description="Club alias to list teams"),
@@ -122,20 +128,20 @@ async def create_team(
     teamPartnership: str = Form(None),
     active: bool = Form(False),
     external: bool = Form(False),
-    ishdId: Optional[str] = Form(None),
-    legacyId: Optional[int] = Form(None),
+    ishdId: str | None = Form(None),
+    legacyId: int | None = Form(None),
     logo: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
-    
+
     # check if club exists
     if (club := await mongodb["clubs"].find_one({"alias": club_alias})) is None:
         raise HTTPException(status_code=404,
                           detail=f"Club with alias {club_alias} not found")
-    
+
     # check if team already exists
     if any(t.get("alias") == alias for t in club.get("teams", [])):
         raise HTTPException(
@@ -215,20 +221,20 @@ async def update_team(
     request: Request,
     team_id: str,
     club_alias: str = Path(..., description="Club alias to update team for"),
-    name: Optional[str] = Form(None),
-    alias: Optional[str] = Form(None),
-    shortName: Optional[str] = Form(None),
-    tinyName: Optional[str] = Form(None),
-    fullName: Optional[str] = Form(None),
-    ageGroup: Optional[str] = Form(None),
-    teamNumber: Optional[int] = Form(None),
-    teamPartnership: Optional[str] = Form(None),
-    active: Optional[bool] = Form(None),
-    external: Optional[bool] = Form(None),
-    ishdId: Optional[str] = Form(None),
-    legacyId: Optional[int] = Form(None),
-    logo: Optional[UploadFile] = File(None),
-    logoUrl: Optional[HttpUrl] = Form(None),
+    name: str | None = Form(None),
+    alias: str | None = Form(None),
+    shortName: str | None = Form(None),
+    tinyName: str | None = Form(None),
+    fullName: str | None = Form(None),
+    ageGroup: str | None = Form(None),
+    teamNumber: int | None = Form(None),
+    teamPartnership: str | None = Form(None),
+    active: bool | None = Form(None),
+    external: bool | None = Form(None),
+    ishdId: str | None = Form(None),
+    legacyId: int | None = Form(None),
+    logo: UploadFile | None = File(None),
+    logoUrl: HttpUrl | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
     mongodb = request.app.state.mongodb
@@ -277,7 +283,7 @@ async def update_team(
         legacyId=legacyId
     ).model_dump(exclude_none=True)
     team_data.pop('id', None)
-   
+
     # handle image upload
     if logo:
         team_data['logoUrl'] = await handle_logo_upload(logo,
@@ -343,7 +349,7 @@ async def delete_team(
     team_alias: str = Path(..., description="Team alias to delete"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
-  mongodb = request.app.state.mongodb    
+  mongodb = request.app.state.mongodb
   if "ADMIN" not in token_payload.roles:
     raise HTTPException(status_code=403, detail="Nicht authorisiert")
   delete_result = await mongodb["clubs"].update_one(

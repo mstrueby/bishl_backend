@@ -1,17 +1,25 @@
 #!/usr/bin/env python
+import argparse
 import csv
 import json
 import os
-import glob
-from bson.codec_options import TypeRegistry
-import requests
-from pymongo import MongoClient
-import certifi
-from fastapi.encoders import jsonable_encoder
-import argparse
-from models.matches import MatchDB, MatchBase, MatchTournament, MatchSeason, MatchRound, MatchMatchday, MatchVenue, MatchTeam
-from models.tournaments import RoundDB, MatchdayBase, MatchdayType
 from datetime import datetime
+
+import certifi
+import requests
+from fastapi.encoders import jsonable_encoder
+from pymongo import MongoClient
+
+from models.matches import (
+    MatchBase,
+    MatchMatchday,
+    MatchRound,
+    MatchSeason,
+    MatchTeam,
+    MatchTournament,
+    MatchVenue,
+)
+from models.tournaments import MatchdayBase, RoundDB
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Manage matches.')
@@ -66,7 +74,7 @@ headers = {
 
 # import matches
 with open(filename, encoding='utf-8') as f:
-  reader = csv.DictReader(f, 
+  reader = csv.DictReader(f,
                          delimiter=';',
                          quotechar='"',
                          doublequote=True,
@@ -141,7 +149,7 @@ with open(filename, encoding='utf-8') as f:
     else:
         print("Error: matchday data is not a valid dictionary with string keys")
         exit()
-  
+
     # Create venue object from row data
     venue_data = row.get('venue')
     if isinstance(venue_data, str):
@@ -195,7 +203,7 @@ with open(filename, encoding='utf-8') as f:
         print(f"Error: round does not exist {t_alias} / {s_alias} / {r_alias}")
         exit()
     round_data = RoundDB(**round_response.json())
-    
+
     # Check if matchday exists in round_data
     if not round_data.matchdays or not any(md.alias == md_alias for md in round_data.matchdays):
         print(f"Creating new matchday {md_alias} for {t_alias} / {s_alias} / {r_alias}...")
