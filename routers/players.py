@@ -1055,7 +1055,7 @@ async def verify_ishd_data(
                         {"teamId": assignment["teamId"], "teamName": assignment["teamName"]}
                     )
 
-                verification_results["missing_in_db"].append(
+                verification_results["missing_in_db"].append(  # type: ignore[arg-type]
                     {
                         "firstName": player_name[0],
                         "lastName": player_name[1],
@@ -1158,7 +1158,7 @@ async def verify_ishd_data(
                         {"teamId": assignment["teamId"], "teamName": assignment["teamName"]}
                     )
 
-                verification_results["missing_in_ishd"].append(
+                verification_results["missing_in_ishd"].append(  # type: ignore[arg-type]
                     {
                         "player": {
                             "firstName": db_data["player"]["firstName"],
