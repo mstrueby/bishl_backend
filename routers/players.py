@@ -3,6 +3,7 @@ import json
 import os
 import urllib.parse
 from datetime import datetime
+from typing import Any
 
 import aiohttp
 import cloudinary
@@ -183,7 +184,7 @@ async def get_paginated_players(
         if DEBUG_LEVEL > 10:
             print("query", query)
     else:
-        query: dict[str, any] = {}
+        query: dict[str, Any] = {}
 
     total = await mongodb["players"].count_documents(query)
     players = (
@@ -1293,9 +1294,9 @@ async def get_players(
         )
 
     # Use PaginationHelper to create the query
-    query = {}
+    search_query: dict[str, Any] = {}
     if search:
-        query["$or"] = [
+        search_query["$or"] = [
             {"firstName": {"$regex": search, "$options": "i"}},
             {"lastName": {"$regex": search, "$options": "i"}},
             {"displayFirstName": {"$regex": search, "$options": "i"}},
@@ -1304,18 +1305,18 @@ async def get_players(
     if active is not None:
         # This part needs to be adapted if 'active' is a field within 'assignedTeams.teams'
         # For now, assuming 'active' is a top-level field for filtering players
-        query["active"] = active  # This line might need adjustment based on how 'active' is used
+        search_query["active"] = active  # This line might need adjustment based on how 'active' is used
 
     # Add club and team filtering if necessary (e.g., if passed as query parameters)
     # if club_alias:
-    #     query["assignedTeams.clubAlias"] = club_alias
+    #     search_query["assignedTeams.clubAlias"] = club_alias
     # if team_alias:
-    #     query["assignedTeams.teams.teamAlias"] = team_alias
+    #     search_query["assignedTeams.teams.teamAlias"] = team_alias
 
     # Use PaginationHelper to paginate the query
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["players"],
-        query=query,
+        query=search_query,
         page=page,
         page_size=page_size if not all else 0,  # Use 0 for page_size if 'all' is true to fetch all
         sort=[(sortby, 1)],  # Default sort order
