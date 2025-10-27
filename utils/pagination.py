@@ -1,4 +1,3 @@
-
 """
 Pagination Helper Utilities
 
@@ -11,7 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 
 from models.responses import PaginatedResponse, PaginationMetadata
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class PaginationHelper:
@@ -21,12 +20,12 @@ class PaginationHelper:
     def validate_params(page: int = 1, page_size: int = 10, max_page_size: int = 100):
         """
         Validate and normalize pagination parameters
-        
+
         Args:
             page: Page number (1-indexed)
             page_size: Number of items per page
             max_page_size: Maximum allowed page size
-            
+
         Returns:
             Tuple of (page, page_size)
         """
@@ -50,11 +49,11 @@ class PaginationHelper:
         page: int = 1,
         page_size: int = 10,
         sort: list = None,
-        projection: dict = None
+        projection: dict = None,
     ) -> tuple[list[dict], int]:
         """
         Execute a paginated query on a MongoDB collection
-        
+
         Args:
             collection: MongoDB collection to query
             query: MongoDB query filter
@@ -62,7 +61,7 @@ class PaginationHelper:
             page_size: Number of items per page
             sort: MongoDB sort specification
             projection: MongoDB projection specification
-            
+
         Returns:
             Tuple of (items, total_count)
         """
@@ -90,30 +89,21 @@ class PaginationHelper:
 
     @staticmethod
     def create_response(
-        items: list[T],
-        page: int,
-        page_size: int,
-        total_count: int,
-        message: str = None
+        items: list[T], page: int, page_size: int, total_count: int, message: str = None
     ) -> PaginatedResponse[T]:
         """
         Create a standardized paginated response
-        
+
         Args:
             items: List of items for current page
             page: Current page number
             page_size: Items per page
             total_count: Total number of items
             message: Optional success message
-            
+
         Returns:
             PaginatedResponse object
         """
         pagination = PaginationMetadata.from_query(page, page_size, total_count)
 
-        return PaginatedResponse(
-            success=True,
-            data=items,
-            pagination=pagination,
-            message=message
-        )
+        return PaginatedResponse(success=True, data=items, pagination=pagination, message=message)

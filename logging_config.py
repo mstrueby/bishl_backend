@@ -1,4 +1,3 @@
-
 """
 Logging Configuration for BISHL Backend
 
@@ -13,7 +12,7 @@ import sys
 
 from loguru import logger
 
-DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
+DEBUG_LEVEL = int(os.environ.get("DEBUG_LEVEL", 0))
 
 # Remove default handler
 logger.remove()
@@ -23,7 +22,7 @@ logger.add(
     sys.stdout,
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
     level="DEBUG" if DEBUG_LEVEL > 0 else "INFO",
-    colorize=True
+    colorize=True,
 )
 
 # Create logs directory if it doesn't exist
@@ -36,7 +35,7 @@ logger.add(
     level="ERROR",
     rotation="10 MB",
     retention="30 days",
-    compression="zip"
+    compression="zip",
 )
 
 # Add file handler for all logs (if debug mode)
@@ -47,8 +46,8 @@ if DEBUG_LEVEL > 0:
         level="DEBUG",
         rotation="50 MB",
         retention="7 days",
-        compression="zip"
+        compression="zip",
     )
 
 # Export configured logger
-__all__ = ['logger']
+__all__ = ["logger"]

@@ -20,12 +20,19 @@ async def find_test_matches():
     print("\n🔍 Finding suitable test matches...\n")
 
     # Find finished matches with rosters, scores, and penalties
-    matches = await mongodb['matches'].find({
-        'matchStatus.key': 'FINISHED',
-        'home.roster.0': {'$exists': True},
-        'away.roster.0': {'$exists': True},
-        'home.scores.0': {'$exists': True}  # Has at least one goal
-    }).limit(10).to_list(length=10)
+    matches = (
+        await mongodb["matches"]
+        .find(
+            {
+                "matchStatus.key": "FINISHED",
+                "home.roster.0": {"$exists": True},
+                "away.roster.0": {"$exists": True},
+                "home.scores.0": {"$exists": True},  # Has at least one goal
+            }
+        )
+        .limit(10)
+        .to_list(length=10)
+    )
 
     if not matches:
         print("❌ No suitable matches found")
@@ -36,18 +43,18 @@ async def find_test_matches():
     print("-" * 100)
 
     for i, match in enumerate(matches, 1):
-        home_roster = len(match.get('home', {}).get('roster', []))
-        away_roster = len(match.get('away', {}).get('roster', []))
-        home_scores = len(match.get('home', {}).get('scores', []))
-        away_scores = len(match.get('away', {}).get('scores', []))
-        home_penalties = len(match.get('home', {}).get('penalties', []))
-        away_penalties = len(match.get('away', {}).get('penalties', []))
+        home_roster = len(match.get("home", {}).get("roster", []))
+        away_roster = len(match.get("away", {}).get("roster", []))
+        home_scores = len(match.get("home", {}).get("scores", []))
+        away_scores = len(match.get("away", {}).get("scores", []))
+        home_penalties = len(match.get("home", {}).get("penalties", []))
+        away_penalties = len(match.get("away", {}).get("penalties", []))
 
         # Calculate total stats in roster
-        home_goals = sum(p.get('goals', 0) for p in match.get('home', {}).get('roster', []))
-        away_goals = sum(p.get('goals', 0) for p in match.get('away', {}).get('roster', []))
-        home_pims = sum(p.get('penaltyMinutes', 0) for p in match.get('home', {}).get('roster', []))
-        away_pims = sum(p.get('penaltyMinutes', 0) for p in match.get('away', {}).get('roster', []))
+        home_goals = sum(p.get("goals", 0) for p in match.get("home", {}).get("roster", []))
+        away_goals = sum(p.get("goals", 0) for p in match.get("away", {}).get("roster", []))
+        home_pims = sum(p.get("penaltyMinutes", 0) for p in match.get("home", {}).get("roster", []))
+        away_pims = sum(p.get("penaltyMinutes", 0) for p in match.get("away", {}).get("roster", []))
 
         print(f"{i}. Match ID: {match['_id']}")
         print(f"   {match['home']['fullName']} vs {match['away']['fullName']}")
@@ -56,7 +63,9 @@ async def find_test_matches():
         print(f"   Rosters: Home={home_roster}, Away={away_roster}")
         print(f"   Scores: Home={home_scores}, Away={away_scores}")
         print(f"   Penalties: Home={home_penalties}, Away={away_penalties}")
-        print(f"   Current roster stats: Home G={home_goals} PIM={home_pims}, Away G={away_goals} PIM={away_pims}")
+        print(
+            f"   Current roster stats: Home G={home_goals} PIM={home_pims}, Away G={away_goals} PIM={away_pims}"
+        )
         print()
 
     print("-" * 100)

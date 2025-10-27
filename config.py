@@ -1,4 +1,3 @@
-
 """
 Centralized Configuration Management
 
@@ -15,7 +14,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """
     Application settings loaded from environment variables (Replit Secrets).
-    
+
     To use in your code:
         from config import settings
         db_url = settings.get_db_url()
@@ -40,18 +39,22 @@ class Settings(BaseSettings):
 
     # Application Settings
     DEBUG_LEVEL: int = Field(default=0, description="Debug verbosity level (0-3)")
-    ENVIRONMENT: str = Field(default="development", description="Environment: development, staging, production")
+    ENVIRONMENT: str = Field(
+        default="development", description="Environment: development, staging, production"
+    )
 
     # CORS Configuration
-    CORS_ORIGINS: str = Field(default="*", description="Comma-separated list of allowed CORS origins")
+    CORS_ORIGINS: str = Field(
+        default="*", description="Comma-separated list of allowed CORS origins"
+    )
 
-    @validator('DEBUG_LEVEL')
+    @validator("DEBUG_LEVEL")
     def validate_debug_level(cls, v):
         if v not in [0, 1, 2, 3]:
             raise ValueError("DEBUG_LEVEL must be 0, 1, 2, or 3")
         return v
 
-    @validator('CORS_ORIGINS')
+    @validator("CORS_ORIGINS")
     def parse_cors_origins(cls, v):
         """Parse comma-separated CORS origins into a list"""
         if v == "*":

@@ -8,6 +8,7 @@ class ConfigValue(BaseModel):
     value: str | int | float  # Adjust types as needed
     sortOrder: int
 
+
 class Config(BaseModel):
     key: str
     name: str

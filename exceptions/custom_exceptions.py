@@ -1,10 +1,10 @@
-
 """
 Custom Exception Classes for BISHL Backend
 
 Provides a hierarchy of exceptions for better error handling and consistent error responses.
 All custom exceptions inherit from BISHLException which includes status codes and details.
 """
+
 
 class BISHLException(Exception):
     """Base exception for all BISHL errors"""
@@ -31,12 +31,12 @@ class ResourceNotFoundException(BISHLException):
             resource_type: Type of resource (e.g., 'Match', 'Player', 'Tournament')
             resource_id: ID of the missing resource
             details: Additional context
-        
+
         Example:
             raise ResourceNotFoundException('Match', match_id, {'team_flag': 'home'})
         """
         message = f"{resource_type} with ID '{resource_id}' not found"
-        extra_details = {'resource_type': resource_type, 'resource_id': resource_id}
+        extra_details = {"resource_type": resource_type, "resource_id": resource_id}
         if details:
             extra_details.update(details)
         super().__init__(message, status_code=404, details=extra_details)
@@ -51,12 +51,12 @@ class ValidationException(BISHLException):
             field: Name of the field that failed validation
             message: Description of the validation error
             details: Additional context
-        
+
         Example:
             raise ValidationException('email', 'Invalid email format', {'value': user_input})
         """
         full_message = f"Validation error on field '{field}': {message}"
-        extra_details = {'field': field}
+        extra_details = {"field": field}
         if details:
             extra_details.update(details)
         super().__init__(full_message, status_code=400, details=extra_details)
@@ -71,12 +71,12 @@ class DatabaseOperationException(BISHLException):
             operation: Type of operation (e.g., 'insert', 'update', 'delete', 'find')
             collection: Name of the collection
             details: Additional context (e.g., query, error message)
-        
+
         Example:
             raise DatabaseOperationException('update', 'matches', {'match_id': match_id, 'error': str(e)})
         """
         message = f"Database operation '{operation}' failed on collection '{collection}'"
-        extra_details = {'operation': operation, 'collection': collection}
+        extra_details = {"operation": operation, "collection": collection}
         if details:
             extra_details.update(details)
         super().__init__(message, status_code=500, details=extra_details)
@@ -91,12 +91,12 @@ class StatsCalculationException(BISHLException):
             calculation_type: Type of stats being calculated (e.g., 'roster', 'standings', 'match')
             message: Description of the calculation error
             details: Additional context
-        
+
         Example:
             raise StatsCalculationException('roster', 'Missing penalty data', {'match_id': match_id})
         """
         full_message = f"Stats calculation failed for '{calculation_type}': {message}"
-        extra_details = {'calculation_type': calculation_type}
+        extra_details = {"calculation_type": calculation_type}
         if details:
             extra_details.update(details)
         super().__init__(full_message, status_code=500, details=extra_details)
@@ -110,7 +110,7 @@ class AuthenticationException(BISHLException):
         Args:
             message: Description of the authentication error
             details: Additional context
-        
+
         Example:
             raise AuthenticationException('Invalid credentials')
         """
@@ -125,7 +125,7 @@ class AuthorizationException(BISHLException):
         Args:
             message: Description of the authorization error
             details: Additional context (e.g., required role, user role)
-        
+
         Example:
             raise AuthorizationException('Admin role required', {'user_role': 'USER', 'required_role': 'ADMIN'})
         """
@@ -141,12 +141,12 @@ class ExternalServiceException(BISHLException):
             service_name: Name of the external service
             message: Description of the error
             details: Additional context (e.g., status code, response)
-        
+
         Example:
             raise ExternalServiceException('BE_API', 'Failed to fetch penalty sheet', {'status_code': 500})
         """
         full_message = f"External service '{service_name}' error: {message}"
-        extra_details = {'service_name': service_name}
+        extra_details = {"service_name": service_name}
         if details:
             extra_details.update(details)
         super().__init__(full_message, status_code=502, details=extra_details)

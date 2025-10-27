@@ -19,7 +19,7 @@ from utils import get_sys_ref_tool_token
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = os.environ['BE_API_URL']
+BASE_URL = os.environ["BE_API_URL"]
 
 
 class AllStatuses(Enum):
@@ -29,69 +29,85 @@ class AllStatuses(Enum):
     ASSIGNED = "ASSIGNED"
     ACCEPTED = "ACCEPTED"
 
-async def add_status_history_entry(db, assignment_id, new_status, updated_by=None, updated_by_name=None, session=None):
+
+async def add_status_history_entry(
+    db, assignment_id, new_status, updated_by=None, updated_by_name=None, session=None
+):
     """Add a new entry to the status history of an assignment"""
     status_entry = StatusHistory(
         status=new_status,
         updateDate=datetime.now().replace(microsecond=0),
         updatedBy=updated_by,
-        updatedByName=updated_by_name
+        updatedByName=updated_by_name,
     )
 
     await db["assignments"].update_one(
         {"_id": assignment_id},
         {"$push": {"statusHistory": jsonable_encoder(status_entry)}},
-        session=session
+        session=session,
     )
 
 
-async def insert_assignment(db, match_id, referee, status, position=None, updated_by=None, updated_by_name=None, session=None):
+async def insert_assignment(
+    db,
+    match_id,
+    referee,
+    status,
+    position=None,
+    updated_by=None,
+    updated_by_name=None,
+    session=None,
+):
     # Create initial status history entry
-    initial_status_history = [StatusHistory(
-        status=status,
-        updateDate=datetime.now().replace(microsecond=0),
-        updatedBy=updated_by,
-        updatedByName=updated_by_name
-    )]
+    initial_status_history = [
+        StatusHistory(
+            status=status,
+            updateDate=datetime.now().replace(microsecond=0),
+            updatedBy=updated_by,
+            updatedByName=updated_by_name,
+        )
+    ]
 
-    assignment = AssignmentDB(matchId=match_id,
-                              referee=referee,
-                              status=status,
-                              position=position,
-                              statusHistory=initial_status_history)
-    #print(assignment)
+    assignment = AssignmentDB(
+        matchId=match_id,
+        referee=referee,
+        status=status,
+        position=position,
+        statusHistory=initial_status_history,
+    )
+    # print(assignment)
     insert_response = await db["assignments"].insert_one(
-        jsonable_encoder(assignment), session=session)
-    return await db["assignments"].find_one(
-        {"_id": insert_response.inserted_id}, session=session)
+        jsonable_encoder(assignment), session=session
+    )
+    return await db["assignments"].find_one({"_id": insert_response.inserted_id}, session=session)
 
 
 async def set_referee_in_match(db, match_id, referee, position, session=None):
-    await db['matches'].update_one({'_id': match_id}, {
-        '$set': {
-            f'referee{position}': {
-                'userId': referee['userId'],
-                'firstName': referee['firstName'],
-                'lastName': referee['lastName'],
-                'clubId': referee['clubId'],
-                'clubName': referee['clubName'],
-                'logoUrl': referee['logoUrl'],
+    await db["matches"].update_one(
+        {"_id": match_id},
+        {
+            "$set": {
+                f"referee{position}": {
+                    "userId": referee["userId"],
+                    "firstName": referee["firstName"],
+                    "lastName": referee["lastName"],
+                    "clubId": referee["clubId"],
+                    "clubName": referee["clubName"],
+                    "logoUrl": referee["logoUrl"],
+                }
             }
-        }
-    }, session=session)
-
-
-async def send_message_to_referee(match, receiver_id, content, footer = None):
-    token = await get_sys_ref_tool_token(
-        email=os.environ['SYS_REF_TOOL_EMAIL'],
-        password=os.environ['SYS_REF_TOOL_PASSWORD']
+        },
+        session=session,
     )
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json'
-    }
-    weekdays_german = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-    weekday_abbr = weekdays_german[match['startDate'].weekday()]
+
+
+async def send_message_to_referee(match, receiver_id, content, footer=None):
+    token = await get_sys_ref_tool_token(
+        email=os.environ["SYS_REF_TOOL_EMAIL"], password=os.environ["SYS_REF_TOOL_PASSWORD"]
+    )
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    weekdays_german = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+    weekday_abbr = weekdays_german[match["startDate"].weekday()]
     match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{weekday_abbr}, {match['startDate'].strftime('%d.%m.%Y')}, {match['startDate'].strftime('%H:%M')} Uhr\n{match['venue']['name']}"
     if content is None:
         content = f"something happened to you for match:\n\n{match_text}"
@@ -101,9 +117,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
     url = f"{BASE_URL}/messages/"
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(url,
-                                         json=message_data,
-                                         headers=headers)
+            response = await client.post(url, json=message_data, headers=headers)
             if response.status_code != 201:
                 error_msg = "Failed to send message"
                 try:
@@ -111,8 +125,7 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
                     error_msg += f": {error_detail}"
                 except (KeyError, TypeError) as e:
                     error_msg += f" (Status code: {response.status_code}, Content: {response.content}, Error: {str(e)})"
-                raise HTTPException(status_code=response.status_code,
-                                    detail=error_msg)
+                raise HTTPException(status_code=response.status_code, detail=error_msg)
 
             # After successfully sending the message, also send an email
             try:
@@ -131,11 +144,11 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
                         {f'<p>{footer}</p>' if footer else ''}
                         """
 
-                        if os.environ.get('ENV') == 'production':
+                        if os.environ.get("ENV") == "production":
                             await send_email(
                                 subject=email_subject,
                                 recipients=[referee_email],
-                                body=email_content
+                                body=email_content,
                             )
                             print(f"Email sent to referee {receiver_id} at {referee_email}")
                         else:
@@ -149,46 +162,36 @@ async def send_message_to_referee(match, receiver_id, content, footer = None):
                 print(f"Failed to send email to referee {receiver_id}: {str(e)}")
 
         except httpx.RequestError as e:
-            raise HTTPException(status_code=500,
-                                detail=f"Request failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
 
 
 # GET all assigments for ONE match ======
-@router.get("/matches/{match_id}",
-            response_description="List all assignments of a specific match")
+@router.get("/matches/{match_id}", response_description="List all assignments of a specific match")
 async def get_assignments_by_match(
     request: Request,
     match_id: str = Path(..., description="Match ID"),
     assignmentStatus: list[AllStatuses] | None = Query(None),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)):
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+):
     mongodb = request.app.state.mongodb
-    if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
+    if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(
-            message="Admin or Ref Admin role required",
-            details={"user_roles": token_payload.roles}
+            message="Admin or Ref Admin role required", details={"user_roles": token_payload.roles}
         )
 
     match = await mongodb["matches"].find_one({"_id": match_id})
     if not match:
-        raise ResourceNotFoundException(
-            resource_type="Match",
-            resource_id=match_id
-        )
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
 
     # Get all users with role REFEREE
-    referees = await mongodb["users"].find({
-        "roles": "REFEREE"
-    }, {
-        "password": 0
-    }).to_list(length=None)
+    referees = (
+        await mongodb["users"].find({"roles": "REFEREE"}, {"password": 0}).to_list(length=None)
+    )
 
     # Get all assignments for the match with optional status filter
     query = {"matchId": match_id}
     assignments = await mongodb["assignments"].find(query).to_list(length=None)
-    assignment_dict = {
-        assignment["referee"]["userId"]: assignment
-        for assignment in assignments
-    }
+    assignment_dict = {assignment["referee"]["userId"]: assignment for assignment in assignments}
 
     # Prepare the status of each referee
     assignment_list = []
@@ -215,76 +218,71 @@ async def get_assignments_by_match(
         }
         assignment_obj["_id"] = ref_status.get("_id", None)
         assignment_obj["matchId"] = match_id
-        assignment_obj["status"] = ref_status[
-            "status"] if ref_status != "AVAILABLE" else "AVAILABLE"
+        assignment_obj["status"] = (
+            ref_status["status"] if ref_status != "AVAILABLE" else "AVAILABLE"
+        )
         assignment_obj["referee"] = ref_obj
-        assignment_obj["position"] = ref_status.get(
-            "position", None) if isinstance(ref_status, dict) else None
+        assignment_obj["position"] = (
+            ref_status.get("position", None) if isinstance(ref_status, dict) else None
+        )
         assignment_list.append(assignment_obj)
 
     # Filter the list by status
     if assignmentStatus:
         assignment_list = [
-            assignment for assignment in assignment_list
+            assignment
+            for assignment in assignment_list
             if assignment["status"] in [status.value for status in assignmentStatus]
         ]
 
-    assignment_list.sort(
-        key=lambda x: (x['referee']['firstName'], x['referee']['lastName']))
+    assignment_list.sort(key=lambda x: (x["referee"]["firstName"], x["referee"]["lastName"]))
 
-
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(assignment_list))
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(assignment_list))
 
 
 # GET all assignments of ONE user ======
-@router.get("/users/{user_id}",
-            response_description="List all assignments of a specific user",
-            response_model=AssignmentDB)
+@router.get(
+    "/users/{user_id}",
+    response_description="List all assignments of a specific user",
+    response_model=AssignmentDB,
+)
 async def get_assignments_by_user(
-        request: Request,
-        user_id: str = Path(..., description="User ID"),
-        token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    request: Request,
+    user_id: str = Path(..., description="User ID"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    if not (user_id == token_payload.sub or any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles)):
+    if not (
+        user_id == token_payload.sub
+        or any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles)
+    ):
         raise AuthorizationException(
             message="Not authorized to view assignments for other users",
-            details={"requested_user": user_id, "requester": token_payload.sub}
+            details={"requested_user": user_id, "requester": token_payload.sub},
         )
 
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
-        raise ResourceNotFoundException(
-            resource_type="User",
-            resource_id=user_id
-        )
+        raise ResourceNotFoundException(resource_type="User", resource_id=user_id)
     # Get all assignments for the user
-    assignments = await mongodb["assignments"].find({
-        "referee.userId": user_id
-    }).to_list(length=None)
+    assignments = (
+        await mongodb["assignments"].find({"referee.userId": user_id}).to_list(length=None)
+    )
 
-    assignments_list = [
-        AssignmentDB(**assignment) for assignment in assignments
-    ]
-    return JSONResponse(content=jsonable_encoder(assignments_list),
-                        status_code=200)
+    assignments_list = [AssignmentDB(**assignment) for assignment in assignments]
+    return JSONResponse(content=jsonable_encoder(assignments_list), status_code=200)
 
 
 # POST =====================================================================
-@router.post("/",
-             response_model=AssignmentDB,
-             response_description="create an initial assignment")
+@router.post("/", response_model=AssignmentDB, response_description="create an initial assignment")
 async def create_assignment(
     request: Request,
     assignment_data: AssignmentBase = Body(...),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
-               for role in token_payload.roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized")
+    if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     match_id = assignment_data.matchId
     user_id = token_payload.sub
@@ -294,8 +292,9 @@ async def create_assignment(
     # check if match exists
     match = await mongodb["matches"].find_one({"_id": match_id})
     if not match:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Match with id {match_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Match with id {match_id} not found"
+        )
 
     if ref_admin:
         # REF_ADMIN mode ------------------------------------------------------------
@@ -304,46 +303,52 @@ async def create_assignment(
         if not ref_id:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="User ID for referee is required")
+                detail="User ID for referee is required",
+            )
         # check if really ref_admin or admin
-        if ref_admin and 'REF_ADMIN' not in token_payload.roles and 'ADMIN' not in token_payload.roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="Not authorized to be referee admin")
+        if (
+            ref_admin
+            and "REF_ADMIN" not in token_payload.roles
+            and "ADMIN" not in token_payload.roles
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to be referee admin"
+            )
         # check if assignment already exists for match_id and referee.userId = ref_id
-        if await mongodb["assignments"].find_one({
-                "matchId": match_id,
-                "referee.userId": ref_id
-        }):
+        if await mongodb["assignments"].find_one({"matchId": match_id, "referee.userId": ref_id}):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=
-                f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}"
+                detail=f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}",
             )
         # check if referee exists
         ref_user = await mongodb["users"].find_one({"_id": ref_id})
         if not ref_user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"User with id {ref_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {ref_id} not found"
+            )
         # check if any role in ref_user is REFEREE
-        if 'REFEREE' not in ref_user.get('roles', []):
+        if "REFEREE" not in ref_user.get("roles", []):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with id {ref_id} is not a referee")
+                detail=f"User with id {ref_id} is not a referee",
+            )
         # check proper status
         if assignment_data.status != Status.assigned:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Invalid status. Only 'ASSIGNED' is allowed")
+                detail="Invalid status. Only 'ASSIGNED' is allowed",
+            )
         # Check if position is set in the assignment data
         if not assignment_data.position:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Position must be set for this assignment")
+                detail="Position must be set for this assignment",
+            )
 
-        club_info = ref_user.get('referee', {}).get('club', {})
-        club_id = club_info.get('clubId')
-        club_name = club_info.get('clubName')
-        club_logo = club_info.get('logoUrl')
+        club_info = ref_user.get("referee", {}).get("club", {})
+        club_id = club_info.get("clubId")
+        club_name = club_info.get("clubName")
+        club_logo = club_info.get("logoUrl")
 
         referee = {}
         referee["userId"] = assignment_data.userId
@@ -352,51 +357,55 @@ async def create_assignment(
         referee["clubId"] = club_id
         referee["clubName"] = club_name
         referee["logoUrl"] = club_logo
-        referee["points"] = ref_user.get('referee', {}).get('points', 0)
-        referee["level"] = ref_user.get('referee', {}).get('level', 'n/a')
+        referee["points"] = ref_user.get("referee", {}).get("points", 0)
+        referee["level"] = ref_user.get("referee", {}).get("level", "n/a")
 
         # Use transaction to ensure assignment and match are updated together
         async with await request.app.state.client.start_session() as session:
             async with session.start_transaction():
                 try:
                     # Create assignment within transaction
-                    new_assignment = await insert_assignment(mongodb, match_id, referee,
-                                                             assignment_data.status,
-                                                             assignment_data.position,
-                                                             token_payload.sub,
-                                                             f"{token_payload.firstName} {token_payload.lastName}",
-                                                             session=session)
+                    new_assignment = await insert_assignment(
+                        mongodb,
+                        match_id,
+                        referee,
+                        assignment_data.status,
+                        assignment_data.position,
+                        token_payload.sub,
+                        f"{token_payload.firstName} {token_payload.lastName}",
+                        session=session,
+                    )
 
                     # Update match document within same transaction
-                    await set_referee_in_match(mongodb, match_id, referee,
-                                               assignment_data.position,
-                                               session=session)
+                    await set_referee_in_match(
+                        mongodb, match_id, referee, assignment_data.position, session=session
+                    )
 
                     # Transaction commits automatically on success
                 except Exception as e:
                     # Transaction aborts automatically on exception
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to create assignment: {str(e)}"
+                        detail=f"Failed to create assignment: {str(e)}",
                     )
 
         # Send notification after transaction commits
         await send_message_to_referee(
             match=match,
             receiver_id=referee["userId"],
-            content=
-            f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
-            footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast."
+            content=f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+            footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast.",
         )
 
         if new_assignment:
-            return JSONResponse(status_code=status.HTTP_201_CREATED,
-                                content=jsonable_encoder(
-                                    AssignmentDB(**new_assignment)))
+            return JSONResponse(
+                status_code=status.HTTP_201_CREATED,
+                content=jsonable_encoder(AssignmentDB(**new_assignment)),
+            )
         else:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Assignment not created")
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Assignment not created"
+            )
 
     else:
         # REFEREE mode -------------------------------------------------------------
@@ -411,99 +420,101 @@ async def create_assignment(
         print("ref_id", ref_id)
         # get referee
         ref_user = await mongodb["users"].find_one({"_id": ref_id})
-        if not ref_user or 'REFEREE' not in ref_user.get('roles', []):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"Referee with id {ref_id} not found or not a referee")
+        if not ref_user or "REFEREE" not in ref_user.get("roles", []):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Referee with id {ref_id} not found or not a referee",
+            )
         print("ref_user", ref_user)
 
         # check if assignment already exists for match_id and referee.userId = ref_id
-        if await mongodb["assignments"].find_one({
-                "matchId": match_id,
-                "referee.userId": ref_id
-        }):
+        if await mongodb["assignments"].find_one({"matchId": match_id, "referee.userId": ref_id}):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=
-                f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}"
+                detail=f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}",
             )
         # check proper status
-        if assignment_data.status not in [
-                Status.requested, Status.unavailable
-        ]:
+        if assignment_data.status not in [Status.requested, Status.unavailable]:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Invalid assignment status")
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid assignment status"
+            )
 
         print("ref_id", ref_id)
         referee = {}
         referee["userId"] = ref_id
         referee["firstName"] = ref_user["firstName"]
         referee["lastName"] = ref_user["lastName"]
-        referee["clubId"] = ref_user.get('referee', {}).get('club', {}).get('clubId')
-        referee["clubName"] = ref_user.get('referee', {}).get('club', {}).get('clubName')
-        referee["logoUrl"] = ref_user.get('referee', {}).get('club', {}).get('logoUrl')
-        referee["points"] = ref_user.get('referee', {}).get('points', 0)
-        referee["level"] = ref_user.get('referee', {}).get('level', 'n/a')
+        referee["clubId"] = ref_user.get("referee", {}).get("club", {}).get("clubId")
+        referee["clubName"] = ref_user.get("referee", {}).get("club", {}).get("clubName")
+        referee["logoUrl"] = ref_user.get("referee", {}).get("club", {}).get("logoUrl")
+        referee["points"] = ref_user.get("referee", {}).get("points", 0)
+        referee["level"] = ref_user.get("referee", {}).get("level", "n/a")
 
-        new_assignment = await insert_assignment(mongodb, match_id, referee,
-                                                 assignment_data.status,
-                                                 None,
-                                                 ref_id,
-                                                 f"{ref_user['firstName']} {ref_user['lastName']}")
+        new_assignment = await insert_assignment(
+            mongodb,
+            match_id,
+            referee,
+            assignment_data.status,
+            None,
+            ref_id,
+            f"{ref_user['firstName']} {ref_user['lastName']}",
+        )
 
         if new_assignment:
-            return JSONResponse(status_code=status.HTTP_201_CREATED,
-                                content=jsonable_encoder(
-                                    AssignmentDB(**new_assignment)))
+            return JSONResponse(
+                status_code=status.HTTP_201_CREATED,
+                content=jsonable_encoder(AssignmentDB(**new_assignment)),
+            )
         else:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Assignment not created")
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Assignment not created"
+            )
 
 
 # PATCH =====================================================================
-@router.patch("/{assignment_id}",
-              response_description="Update an assignment",
-              response_model=AssignmentDB)
+@router.patch(
+    "/{assignment_id}", response_description="Update an assignment", response_model=AssignmentDB
+)
 async def update_assignment(
     request: Request,
     assignment_id: str = Path(..., description="Assignment ID"),
     assignment_data: AssignmentUpdate = Body(...),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)):
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+):
     mongodb = request.app.state.mongodb
-    if not any(role in ['ADMIN', 'REFEREE', 'REF_ADMIN']
-               for role in token_payload.roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized")
+    if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     user_id = token_payload.sub
     ref_admin = assignment_data.refAdmin
 
     # check if really ref_admin
-    if ref_admin and 'REF_ADMIN' not in token_payload.roles and 'ADMIN' not in token_payload.roles:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized to be ref_admin")
+    if ref_admin and "REF_ADMIN" not in token_payload.roles and "ADMIN" not in token_payload.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to be ref_admin"
+        )
 
     # get assignment from db
     assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
     if not assignment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Assignment with id {assignment_id} not found")
+            detail=f"Assignment with id {assignment_id} not found",
+        )
     match_id = assignment["matchId"]
 
     # check if match exists
     match = await mongodb["matches"].find_one({"_id": match_id})
     if not match:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Match with id {match_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Match with id {match_id} not found"
+        )
 
     # check if match equals match_id of assignement
     if assignment["matchId"] != match_id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=
-            f"Assignment {assignment_id} does not belong to match with id {match_id}"
+            detail=f"Assignment {assignment_id} does not belong to match with id {match_id}",
         )
 
     if ref_admin:
@@ -520,188 +531,211 @@ async def update_assignment(
             if not assignment_data.position:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=
-                    f"Position must be set for status {assignment_data.status}"
+                    detail=f"Position must be set for status {assignment_data.status}",
                 )
-        #print("update_data", update_data)
-        if 'status' not in update_data:
-            #print("no update")
+        # print("update_data", update_data)
+        if "status" not in update_data:
+            # print("no update")
             return Response(status_code=status.HTTP_304_NOT_MODIFIED)
-        elif update_data.get("status") and (
-                assignment['status'] == Status.requested
-                and update_data["status"] == Status.assigned) or (
-                    assignment['status'] == Status.assigned
-                    and update_data["status"] == Status.unavailable) or (
-                        assignment['status'] == Status.accepted
-                        and update_data["status"] == Status.unavailable):
-            #print("do update")
-            if 'ref_admin' in update_data:
-                del update_data['ref_admin']
+        elif (
+            update_data.get("status")
+            and (
+                assignment["status"] == Status.requested
+                and update_data["status"] == Status.assigned
+            )
+            or (
+                assignment["status"] == Status.assigned
+                and update_data["status"] == Status.unavailable
+            )
+            or (
+                assignment["status"] == Status.accepted
+                and update_data["status"] == Status.unavailable
+            )
+        ):
+            # print("do update")
+            if "ref_admin" in update_data:
+                del update_data["ref_admin"]
 
             # Use transaction for assignment and match updates
             async with await request.app.state.client.start_session() as session:
                 async with session.start_transaction():
                     try:
-                        if update_data['status'] not in [Status.assigned, Status.accepted]:
+                        if update_data["status"] not in [Status.assigned, Status.accepted]:
                             # Ref wurde aus Ansetzung entfernt
                             result = await mongodb["assignments"].update_one(
-                                {"_id": assignment_id}, {
-                                    "$set": update_data,
-                                    "$unset": {
-                                        "position": ""
-                                    }
-                                }, session=session)
+                                {"_id": assignment_id},
+                                {"$set": update_data, "$unset": {"position": ""}},
+                                session=session,
+                            )
                             # Add status history entry
                             await add_status_history_entry(
-                                mongodb, assignment_id, update_data['status'],
-                                token_payload.sub, f"{token_payload.firstName} {token_payload.lastName}",
-                                session=session
+                                mongodb,
+                                assignment_id,
+                                update_data["status"],
+                                token_payload.sub,
+                                f"{token_payload.firstName} {token_payload.lastName}",
+                                session=session,
                             )
                             # Update match and remove referee
-                            await mongodb['matches'].update_one(
-                                {'_id': match_id},
-                                {'$set': {
-                                    f'referee{assignment["position"]}': None
-                                }}, session=session)
+                            await mongodb["matches"].update_one(
+                                {"_id": match_id},
+                                {"$set": {f'referee{assignment["position"]}': None}},
+                                session=session,
+                            )
                         else:
                             result = await mongodb["assignments"].update_one(
-                                {"_id": assignment_id}, {"$set": update_data}, session=session)
+                                {"_id": assignment_id}, {"$set": update_data}, session=session
+                            )
                             # Add status history entry
                             await add_status_history_entry(
-                                mongodb, assignment_id, update_data['status'],
-                                token_payload.sub, f"{token_payload.firstName} {token_payload.lastName}",
-                                session=session
+                                mongodb,
+                                assignment_id,
+                                update_data["status"],
+                                token_payload.sub,
+                                f"{token_payload.firstName} {token_payload.lastName}",
+                                session=session,
                             )
-                            if update_data['status'] in [Status.assigned, Status.accepted]:
-                                await set_referee_in_match(mongodb, match_id,
-                                                           assignment['referee'],
-                                                           assignment_data.position,
-                                                           session=session)
+                            if update_data["status"] in [Status.assigned, Status.accepted]:
+                                await set_referee_in_match(
+                                    mongodb,
+                                    match_id,
+                                    assignment["referee"],
+                                    assignment_data.position,
+                                    session=session,
+                                )
                         # Transaction commits automatically on success
                     except Exception as e:
                         # Transaction aborts automatically on exception
                         raise HTTPException(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Failed to update assignment: {str(e)}"
+                            detail=f"Failed to update assignment: {str(e)}",
                         )
 
             # Send notifications after transaction commits
-            if update_data['status'] not in [Status.assigned, Status.accepted]:
+            if update_data["status"] not in [Status.assigned, Status.accepted]:
                 await send_message_to_referee(
                     match=match,
                     receiver_id=ref_id,
-                    content=
-                    f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
+                    content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
                 )
-            elif update_data['status'] in [Status.assigned, Status.accepted]:
+            elif update_data["status"] in [Status.assigned, Status.accepted]:
                 await send_message_to_referee(
                     match=match,
                     receiver_id=ref_id,
-                    content=
-                    f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
-                    footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast."
+                    content=f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+                    footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast.",
                 )
-            #print("update_data before update", update_data)
+            # print("update_data before update", update_data)
             if result.modified_count == 1:
-                updated_assignment = await mongodb["assignments"].find_one(
-                    {"_id": assignment_id})
-                return JSONResponse(status_code=status.HTTP_200_OK,
-                                    content=jsonable_encoder(
-                                        AssignmentDB(**updated_assignment)))
+                updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content=jsonable_encoder(AssignmentDB(**updated_assignment)),
+                )
 
         else:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=
-                f"Invalid assignment status: {assignment['status']} --> {update_data['status']}"
+                detail=f"Invalid assignment status: {assignment['status']} --> {update_data['status']}",
             )
     else:
         # REFEREE mode -------------------------------------------------------------
         print("REFEREE mode")
 
-        if assignment['referee']['userId'] != user_id:
+        if assignment["referee"]["userId"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to update assignment of other referee")
+                detail="Not authorized to update assignment of other referee",
+            )
         update_data = assignment_data.model_dump(exclude_unset=True)
         # exclude unchanged data
         for key, value in assignment.items():
             if key in update_data and value == update_data[key]:
                 update_data.pop(key)
-        #print("update_data", update_data)
+        # print("update_data", update_data)
         if not update_data:
             print("no update")
             return Response(status_code=status.HTTP_304_NOT_MODIFIED)
-        elif update_data.get("status") and (
-                assignment['status'] == Status.unavailable
-                and update_data["status"] == Status.requested) or (
-                    assignment['status'] == Status.requested
-                    and update_data["status"] == Status.unavailable) or (
-                        assignment['status'] == Status.assigned
-                        and update_data["status"] == Status.accepted):
-            #print("do update")
+        elif (
+            update_data.get("status")
+            and (
+                assignment["status"] == Status.unavailable
+                and update_data["status"] == Status.requested
+            )
+            or (
+                assignment["status"] == Status.requested
+                and update_data["status"] == Status.unavailable
+            )
+            or (
+                assignment["status"] == Status.assigned and update_data["status"] == Status.accepted
+            )
+        ):
+            # print("do update")
             result = await mongodb["assignments"].update_one(
-                {"_id": assignment_id}, {"$set": update_data})
+                {"_id": assignment_id}, {"$set": update_data}
+            )
             # Add status history entry
             await add_status_history_entry(
-                mongodb, assignment_id, update_data['status'],
-                user_id, f"{assignment['referee']['firstName']} {assignment['referee']['lastName']}"
+                mongodb,
+                assignment_id,
+                update_data["status"],
+                user_id,
+                f"{assignment['referee']['firstName']} {assignment['referee']['lastName']}",
             )
 
             if result.modified_count == 1:
-                updated_assignment = await mongodb["assignments"].find_one(
-                    {"_id": assignment_id})
-                return JSONResponse(status_code=status.HTTP_200_OK,
-                                    content=jsonable_encoder(
-                                        AssignmentDB(**updated_assignment)))
+                updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content=jsonable_encoder(AssignmentDB(**updated_assignment)),
+                )
 
         else:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=
-                f"Invalid assignment status: {assignment['status']} --> {update_data['status']}"
+                detail=f"Invalid assignment status: {assignment['status']} --> {update_data['status']}",
             )
 
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Can not update assignment")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Can not update assignment"
+    )
+
 
 # GET matches starting in 14 days with no referees ======
-@router.get("/unassigned-in-14-days",
-            response_description="Get matches starting in 14 days with no referees and notify club admins")
+@router.get(
+    "/unassigned-in-14-days",
+    response_description="Get matches starting in 14 days with no referees and notify club admins",
+)
 async def get_unassigned_matches_in_14_days(
     request: Request,
     send_emails: bool = Query(False, description="Whether to send notification emails"),
-    #token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    # token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
-    #if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
+    # if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
     #    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
     #                        detail="Not authorized")
 
     # Calculate date exactly 14 days from now
     from datetime import datetime, timedelta
-    target_date = datetime.now() + timedelta(days=14 if os.environ.get('ENV') == 'production' else 14)
+
+    target_date = datetime.now() + timedelta(
+        days=14 if os.environ.get("ENV") == "production" else 14
+    )
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
     # Find matches starting exactly in 14 days with no referees assigned
-    matches_cursor = mongodb["matches"].find({
-        "startDate": {
-            "$gte": start_of_day,
-            "$lte": end_of_day
-        },
-        "$and": [
-            {"$or": [
-                {"referee1": {"$exists": False}},
-                {"referee1": None}
-            ]},
-            {"$or": [
-                {"referee2": {"$exists": False}},
-                {"referee2": None}
-            ]},
-            {"tournament.alias": {"$nin": ["bambini", "mini"]}}
-        ]
-    })
+    matches_cursor = mongodb["matches"].find(
+        {
+            "startDate": {"$gte": start_of_day, "$lte": end_of_day},
+            "$and": [
+                {"$or": [{"referee1": {"$exists": False}}, {"referee1": None}]},
+                {"$or": [{"referee2": {"$exists": False}}, {"referee2": None}]},
+                {"tournament.alias": {"$nin": ["bambini", "mini"]}},
+            ],
+        }
+    )
 
     matches = await matches_cursor.to_list(length=None)
 
@@ -712,8 +746,8 @@ async def get_unassigned_matches_in_14_days(
                 "message": "No unassigned matches found for 14 days from now",
                 "matches": [],
                 "emails_sent": 0,
-                "target_date": target_date.strftime('%Y-%m-%d')
-            }
+                "target_date": target_date.strftime("%Y-%m-%d"),
+            },
         )
 
     emails_sent = 0
@@ -725,31 +759,29 @@ async def get_unassigned_matches_in_14_days(
             # Get matchday owner by calling the API endpoint
             matchday_owner = None
             try:
-                tournament_alias = match.get('tournament', {}).get('alias')
-                season_alias = match.get('season', {}).get('alias')
-                round_alias = match.get('round', {}).get('alias')
-                matchday_alias = match.get('matchday', {}).get('alias')
+                tournament_alias = match.get("tournament", {}).get("alias")
+                season_alias = match.get("season", {}).get("alias")
+                round_alias = match.get("round", {}).get("alias")
+                matchday_alias = match.get("matchday", {}).get("alias")
 
                 if all([tournament_alias, season_alias, round_alias, matchday_alias]):
-                    headers = {
-                        'Content-Type': 'application/json'
-                    }
+                    headers = {"Content-Type": "application/json"}
 
                     matchday_url = f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_alias}"
                     async with httpx.AsyncClient() as client:
                         matchday_response = await client.get(matchday_url, headers=headers)
                         if matchday_response.status_code == 200:
                             matchday_data = matchday_response.json()
-                            matchday_owner = matchday_data.get('owner')
+                            matchday_owner = matchday_data.get("owner")
             except Exception as e:
                 print(f"Failed to fetch matchday owner for match {match.get('_id')}: {str(e)}")
 
-            if matchday_owner and matchday_owner.get('clubId'):
+            if matchday_owner and matchday_owner.get("clubId"):
                 # Group by matchday owner club
-                club_id = matchday_owner.get('clubId')
+                club_id = matchday_owner.get("clubId")
             else:
                 # Group by home club if no matchday owner
-                club_id = match.get('home', {}).get('clubId')
+                club_id = match.get("home", {}).get("clubId")
 
             if club_id:
                 if club_id not in matches_by_club:
@@ -760,10 +792,11 @@ async def get_unassigned_matches_in_14_days(
         for club_id, club_matches in matches_by_club.items():
             try:
                 # Find users with CLUB_ADMIN role for this club
-                club_admins = await mongodb["users"].find({
-                    "roles": "CLUB_ADMIN",
-                    "club.clubId": club_id
-                }).to_list(length=None)
+                club_admins = (
+                    await mongodb["users"]
+                    .find({"roles": "CLUB_ADMIN", "club.clubId": club_id})
+                    .to_list(length=None)
+                )
 
                 if not club_admins:
                     print(f"No club admins found for club {club_id}")
@@ -775,51 +808,57 @@ async def get_unassigned_matches_in_14_days(
                 # Fetch matchday owner info for email subject
                 matchday_owner = None
                 try:
-                    tournament_alias = first_match.get('tournament', {}).get('alias')
-                    season_alias = first_match.get('season', {}).get('alias')
-                    round_alias = first_match.get('round', {}).get('alias')
-                    matchday_alias = first_match.get('matchday', {}).get('alias')
+                    tournament_alias = first_match.get("tournament", {}).get("alias")
+                    season_alias = first_match.get("season", {}).get("alias")
+                    round_alias = first_match.get("round", {}).get("alias")
+                    matchday_alias = first_match.get("matchday", {}).get("alias")
 
                     if all([tournament_alias, season_alias, round_alias, matchday_alias]):
-                        headers = {
-                            'Content-Type': 'application/json'
-                        }
+                        headers = {"Content-Type": "application/json"}
 
                         matchday_url = f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_alias}"
                         async with httpx.AsyncClient() as client:
                             matchday_response = await client.get(matchday_url, headers=headers)
                             if matchday_response.status_code == 200:
                                 matchday_data = matchday_response.json()
-                                matchday_owner = matchday_data.get('owner')
+                                matchday_owner = matchday_data.get("owner")
                 except Exception as e:
                     print(f"Failed to fetch matchday owner for email: {str(e)}")
 
-                if matchday_owner and matchday_owner.get('clubId'):
+                if matchday_owner and matchday_owner.get("clubId"):
                     # Use matchday owner club info
-                    club_name = matchday_owner.get('clubName', 'Unknown Club')
+                    club_name = matchday_owner.get("clubName", "Unknown Club")
                 else:
                     # Use home club info
-                    club_name = first_match.get('home', {}).get('clubName', 'Unknown Club')
+                    club_name = first_match.get("home", {}).get("clubName", "Unknown Club")
 
                 # Determine if this is a matchday owner or home club
-                is_matchday_owner = matchday_owner and matchday_owner.get('clubId') == club_id
+                is_matchday_owner = matchday_owner and matchday_owner.get("clubId") == club_id
 
                 # Prepare email content
                 email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
 
                 match_details = ""
                 for match in club_matches:
-                    tournament_name = match.get('tournament', {}).get('name', 'Unknown Tournament')
-                    home_team = match.get('home', {}).get('fullName', 'Unknown Team')
-                    away_team = match.get('away', {}).get('fullName', 'Unknown Team')
-                    start_date = match.get('startDate')
-                    venue_name = match.get('venue', {}).get('name', 'Unknown Venue')
+                    tournament_name = match.get("tournament", {}).get("name", "Unknown Tournament")
+                    home_team = match.get("home", {}).get("fullName", "Unknown Team")
+                    away_team = match.get("away", {}).get("fullName", "Unknown Team")
+                    start_date = match.get("startDate")
+                    venue_name = match.get("venue", {}).get("name", "Unknown Venue")
 
                     if start_date:
-                        weekdays_german = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
+                        weekdays_german = [
+                            "Montag",
+                            "Dienstag",
+                            "Mittwoch",
+                            "Donnerstag",
+                            "Freitag",
+                            "Samstag",
+                            "Sonntag",
+                        ]
                         weekday = weekdays_german[start_date.weekday()]
-                        formatted_date = start_date.strftime('%d.%m.%Y')
-                        formatted_time = start_date.strftime('%H:%M')
+                        formatted_date = start_date.strftime("%d.%m.%Y")
+                        formatted_time = start_date.strftime("%H:%M")
 
                         match_details += f"""
                         <tr>
@@ -888,23 +927,25 @@ async def get_unassigned_matches_in_14_days(
                     """
 
                 # Send email to all club admins
-                admin_emails = [admin.get('email') for admin in club_admins if admin.get('email')]
-                ligenleitung_email = os.environ.get('LIGENLEITUNG_EMAIL')
+                admin_emails = [admin.get("email") for admin in club_admins if admin.get("email")]
+                ligenleitung_email = os.environ.get("LIGENLEITUNG_EMAIL")
 
-                if admin_emails and os.environ.get('ENV') == 'production':
+                if admin_emails and os.environ.get("ENV") == "production":
                     # Add LIGENLEITUNG_EMAIL to CC when club admin emails are available
                     cc_emails = [ligenleitung_email] if ligenleitung_email else []
                     await send_email(
                         subject=email_subject,
                         recipients=admin_emails,
                         cc=cc_emails,
-                        body=email_content
+                        body=email_content,
                     )
                     emails_sent += len(admin_emails)
-                    print(f"Email sent to {len(admin_emails)} club admins for {club_name} with CC to {cc_emails}")
-                elif admin_emails and os.environ.get('ENV') == 'development':
+                    print(
+                        f"Email sent to {len(admin_emails)} club admins for {club_name} with CC to {cc_emails}"
+                    )
+                elif admin_emails and os.environ.get("ENV") == "development":
                     # In development, send to admin user instead
-                    admin_user_email = os.environ.get('ADMIN_USER')
+                    admin_user_email = os.environ.get("ADMIN_USER")
                     if admin_user_email:
                         cc_emails = []
                         # Modify email content to indicate it's a test email
@@ -920,25 +961,29 @@ async def get_unassigned_matches_in_14_days(
                             subject=f"[TEST] {email_subject}",
                             recipients=[admin_user_email],
                             cc=cc_emails,
-                            body=test_email_content
+                            body=test_email_content,
                         )
                         emails_sent += 1
-                        print(f"Test email sent to admin user {admin_user_email} for {club_name} (would go to {len(admin_emails)} admins in production) with CC to {cc_emails}")
+                        print(
+                            f"Test email sent to admin user {admin_user_email} for {club_name} (would go to {len(admin_emails)} admins in production) with CC to {cc_emails}"
+                        )
                     else:
                         print(f"ADMIN_USER not set in environment, email not sent for {club_name}")
                 elif ligenleitung_email:
                     # No club admin emails available, send only to LIGENLEITUNG_EMAIL
-                    if os.environ.get('ENV') == 'production':
+                    if os.environ.get("ENV") == "production":
                         await send_email(
                             subject=email_subject,
                             recipients=[ligenleitung_email],
-                            body=email_content
+                            body=email_content,
                         )
                         emails_sent += 1
-                        print(f"Email sent to LIGENLEITUNG_EMAIL for {club_name} (no club admin emails available)")
+                        print(
+                            f"Email sent to LIGENLEITUNG_EMAIL for {club_name} (no club admin emails available)"
+                        )
                     else:
                         # In development, send to admin user instead
-                        admin_user_email = os.environ.get('ADMIN_USER')
+                        admin_user_email = os.environ.get("ADMIN_USER")
                         if admin_user_email:
                             test_email_content = f"""
                             <h2>BISHL - Schiedsrichter-Einteilung erforderlich (TEST EMAIL)</h2>
@@ -950,14 +995,20 @@ async def get_unassigned_matches_in_14_days(
                             await send_email(
                                 subject=f"[TEST] {email_subject}",
                                 recipients=[admin_user_email],
-                                body=test_email_content
+                                body=test_email_content,
                             )
                             emails_sent += 1
-                            print(f"Test email sent to admin user {admin_user_email} for {club_name} (would go to LIGENLEITUNG_EMAIL in production)")
+                            print(
+                                f"Test email sent to admin user {admin_user_email} for {club_name} (would go to LIGENLEITUNG_EMAIL in production)"
+                            )
                         else:
-                            print(f"ADMIN_USER not set in environment, email not sent for {club_name}")
+                            print(
+                                f"ADMIN_USER not set in environment, email not sent for {club_name}"
+                            )
                 else:
-                    print(f"No email addresses found for club admins of {club_name} and LIGENLEITUNG_EMAIL not set")
+                    print(
+                        f"No email addresses found for club admins of {club_name} and LIGENLEITUNG_EMAIL not set"
+                    )
 
             except Exception as e:
                 print(f"Failed to send email for club {club_id}: {str(e)}")
@@ -973,7 +1024,7 @@ async def get_unassigned_matches_in_14_days(
             "startDate": match.get("startDate"),
             "venue": match.get("venue", {}),
             "referee1": match.get("referee1"),
-            "referee2": match.get("referee2")
+            "referee2": match.get("referee2"),
         }
         match_list.append(match_info)
 
@@ -983,36 +1034,36 @@ async def get_unassigned_matches_in_14_days(
             "message": f"Found {len(matches)} unassigned matches in 14 days",
             "matches": jsonable_encoder(match_list),
             "emails_sent": emails_sent,
-            "target_date": target_date.strftime('%Y-%m-%d')
-        }
+            "target_date": target_date.strftime("%Y-%m-%d"),
+        },
     )
 
 
 # delete assignment
-@router.delete("/{id}",
-               response_description="Delete an assignment")
+@router.delete("/{id}", response_description="Delete an assignment")
 async def delete_assignment(
     request: Request,
     id: str = Path(..., description="Assignment ID"),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
-    if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized")
+    if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     # check if assignment exists
     assignment = await mongodb["assignments"].find_one({"_id": id})
     if not assignment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Assignment with id {id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Assignment with id {id} not found"
+        )
     match_id = assignment["matchId"]
     ref_id = assignment["referee"]["userId"]
 
     # check if match exists
     match = await mongodb["matches"].find_one({"_id": match_id})
     if not match:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Match with id {match_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Match with id {match_id} not found"
+        )
 
     # Use transaction to delete assignment and update match together
     async with await request.app.state.client.start_session() as session:
@@ -1022,28 +1073,29 @@ async def delete_assignment(
                 result = await mongodb["assignments"].delete_one({"_id": id}, session=session)
                 if result.deleted_count == 1:
                     # Update match and remove referee
-                    await mongodb['matches'].update_one(
-                        {'_id': match_id},
-                        {'$set': {
-                            f'referee{assignment["position"]}': None
-                        }}, session=session)
+                    await mongodb["matches"].update_one(
+                        {"_id": match_id},
+                        {"$set": {f'referee{assignment["position"]}': None}},
+                        session=session,
+                    )
                     # Transaction commits automatically on success
                 else:
-                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                        detail=f"Assignment with id {id} not found")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Assignment with id {id} not found",
+                    )
             except HTTPException:
                 raise
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to delete assignment: {str(e)}"
+                    detail=f"Failed to delete assignment: {str(e)}",
                 )
 
     # Send notification after transaction commits
     await send_message_to_referee(
         match=match,
         receiver_id=ref_id,
-        content=
-        f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:"
+        content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

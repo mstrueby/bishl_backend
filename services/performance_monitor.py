@@ -1,4 +1,3 @@
-
 """
 Database Query Performance Monitor
 
@@ -22,11 +21,11 @@ class QueryPerformanceMonitor:
     def monitor_query(operation_name: str, slow_threshold: float | None = None):
         """
         Decorator to monitor database query performance
-        
+
         Args:
             operation_name: Descriptive name of the operation being monitored
             slow_threshold: Override default slow query threshold in seconds
-        
+
         Usage:
             @monitor_query("fetch_match_standings")
             async def fetch_standings(t_alias, s_alias):
@@ -50,16 +49,16 @@ class QueryPerformanceMonitor:
                                 "operation": operation_name,
                                 "duration_seconds": round(elapsed, 3),
                                 "function": func.__name__,
-                                "threshold": threshold
-                            }
+                                "threshold": threshold,
+                            },
                         )
                     else:
                         logger.debug(
                             f"Query completed: {operation_name}",
                             extra={
                                 "operation": operation_name,
-                                "duration_seconds": round(elapsed, 3)
-                            }
+                                "duration_seconds": round(elapsed, 3),
+                            },
                         )
 
                     return result
@@ -70,18 +69,20 @@ class QueryPerformanceMonitor:
                         extra={
                             "operation": operation_name,
                             "duration_seconds": round(elapsed, 3),
-                            "error": str(e)
-                        }
+                            "error": str(e),
+                        },
                     )
                     raise
+
             return wrapper
+
         return decorator
 
     @staticmethod
     def log_query_plan(collection_name: str, filter_dict: dict, explanation: dict):
         """
         Log MongoDB query execution plan for analysis
-        
+
         Args:
             collection_name: Name of the collection being queried
             filter_dict: The query filter used
@@ -93,9 +94,10 @@ class QueryPerformanceMonitor:
                 "collection": collection_name,
                 "filter": str(filter_dict),
                 "execution_stats": explanation.get("executionStats", {}),
-                "winning_plan": explanation.get("queryPlanner", {}).get("winningPlan", {})
-            }
+                "winning_plan": explanation.get("queryPlanner", {}).get("winningPlan", {}),
+            },
         )
+
 
 # Convenience function for direct usage
 monitor_query = QueryPerformanceMonitor.monitor_query

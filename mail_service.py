@@ -1,4 +1,3 @@
-
 import os
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
@@ -13,17 +12,14 @@ conf = ConnectionConfig(
     MAIL_STARTTLS=os.environ.get("MAIL_TLS", "True").lower() == "true",
     MAIL_SSL_TLS=os.environ.get("MAIL_SSL_TLS", "False").lower() == "true",
     USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
+    VALIDATE_CERTS=True,
 )
 
 fastmail = FastMail(conf)
 
+
 async def send_email(subject: str, recipients: list, body: str, cc: list = None):
     message = MessageSchema(
-        subject=subject,
-        recipients=recipients,
-        cc=cc or [],
-        body=body,
-        subtype=MessageType.html
+        subject=subject, recipients=recipients, cc=cc or [], body=body, subtype=MessageType.html
     )
     await fastmail.send_message(message)

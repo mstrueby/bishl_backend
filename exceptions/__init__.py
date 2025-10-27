@@ -1,4 +1,3 @@
-
 # Exceptions package
 from .custom_exceptions import (
     AuthenticationException,
@@ -12,12 +11,12 @@ from .custom_exceptions import (
 )
 
 __all__ = [
-    'BISHLException',
-    'ResourceNotFoundException',
-    'ValidationException',
-    'DatabaseOperationException',
-    'StatsCalculationException',
-    'AuthenticationException',
-    'AuthorizationException',
-    'ExternalServiceException'
+    "BISHLException",
+    "ResourceNotFoundException",
+    "ValidationException",
+    "DatabaseOperationException",
+    "StatsCalculationException",
+    "AuthenticationException",
+    "AuthorizationException",
+    "ExternalServiceException",
 ]

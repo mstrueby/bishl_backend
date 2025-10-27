@@ -7,33 +7,36 @@ import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # Set up argument parser
-parser = argparse.ArgumentParser(description='Update matchSheetComplete based on scores vs goals comparison.')
-parser.add_argument('--prod', action='store_true', help='Update production database.')
-parser.add_argument('--season', type=str, help='Filter matches by season alias (e.g., 2024-25)')
+parser = argparse.ArgumentParser(
+    description="Update matchSheetComplete based on scores vs goals comparison."
+)
+parser.add_argument("--prod", action="store_true", help="Update production database.")
+parser.add_argument("--season", type=str, help="Filter matches by season alias (e.g., 2024-25)")
 args = parser.parse_args()
 
 # Get environment variables and setup database connection
 if args.prod:
-    BASE_URL = os.environ['BE_API_URL_PROD']
-    DB_URL = os.environ['DB_URL_PROD']
-    DB_NAME = 'bishl'
+    BASE_URL = os.environ["BE_API_URL_PROD"]
+    DB_URL = os.environ["DB_URL_PROD"]
+    DB_NAME = "bishl"
 else:
-    BASE_URL = os.environ['BE_API_URL']
-    DB_URL = os.environ['DB_URL']
-    DB_NAME = 'bishl_dev'
+    BASE_URL = os.environ["BE_API_URL"]
+    DB_URL = os.environ["DB_URL"]
+    DB_NAME = "bishl_dev"
 
 
 # Connect to the MongoDB collection
-#client = MongoClient(DB_URL, tlsCAFile=certifi.where())
-#db = client[DB_NAME]
-#db_collection = db['matches']
+# client = MongoClient(DB_URL, tlsCAFile=certifi.where())
+# db = client[DB_NAME]
+# db_collection = db['matches']
 
 print("BASE_URL: ", BASE_URL)
 print("DB_NAME", DB_NAME)
 
+
 async def update_match_sheet_complete():
     """
-    Loop through all matches and compare length of scores with stats.goalsFor 
+    Loop through all matches and compare length of scores with stats.goalsFor
     for home and away teams. If they match, set matchSheetComplete = True.
     """
     print(f"Connecting to database: {DB_NAME}")
@@ -77,16 +80,16 @@ async def update_match_sheet_complete():
             away_scores_count = len(away_scores) if away_scores else 0
 
             # Check if match sheet is complete
-            is_complete = (home_scores_count == home_goals_for and
-                          away_scores_count == away_goals_for)
+            is_complete = (
+                home_scores_count == home_goals_for and away_scores_count == away_goals_for
+            )
 
             current_complete = match.get("matchSheetComplete", False)
 
             # Only update if the value has changed
             if is_complete != current_complete:
                 await db["matches"].update_one(
-                    {"_id": match_id},
-                    {"$set": {"matchSheetComplete": is_complete}}
+                    {"_id": match_id}, {"$set": {"matchSheetComplete": is_complete}}
                 )
                 updated_count += 1
 
@@ -102,6 +105,7 @@ async def update_match_sheet_complete():
         print(f"Error: {str(e)}")
     finally:
         client.close()
+
 
 if __name__ == "__main__":
     asyncio.run(update_match_sheet_complete())
