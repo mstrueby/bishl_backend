@@ -50,7 +50,7 @@ def parse_datetime(datetime_str):
     return datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S") if datetime_str else None
 
 
-def parse_time_to_seconds(time_str):
+def parse_time_to_seconds(time_str: str | None) -> int:
     if not time_str:
         return 0
     minutes, seconds = map(int, time_str.split(":"))
@@ -75,7 +75,7 @@ def flatten_dict(d, parent_key="", sep="."):
 
 
 def my_jsonable_encoder(obj):
-    result = {}
+    result: dict = {}
     for field_name, val in obj.__dict__.items():
         # print(field_name, "/", val, "/", dict)
         if field_name == "id":
@@ -83,7 +83,8 @@ def my_jsonable_encoder(obj):
             result["_id"] = str(val)
             continue
         if isinstance(val, datetime):
-            result[field_name] = val
+            # Use jsonable_encoder to properly serialize datetime
+            result[field_name] = jsonable_encoder(val)
             continue
         if isinstance(val, BaseModel) and val:
             # Recursively encode nested collections
@@ -129,20 +130,28 @@ def validate_match_time(v, field_name: str):
 
 # calc_match_stats has been moved to services.stats_service.StatsService.calculate_match_stats()
 # This function is deprecated - import StatsService directly instead
-async def calculate_match_stats(match_id: str, team_flag: str, db) -> dict:
+def calculate_match_stats(
+    match_status: str,
+    finish_type: str,
+    standings_setting: dict,
+    home_score: int = 0,
+    away_score: int = 0,
+) -> dict[str, dict]:
     """
     DEPRECATED: Use StatsService.calculate_match_stats() instead
     This wrapper maintains backward compatibility
     """
     logger.warning(
         "Deprecated function called - use StatsService instead",
-        extra={"function": "calculate_match_stats", "match_id": match_id, "team_flag": team_flag},
+        extra={"function": "calculate_match_stats"},
     )
 
     from services.stats_service import StatsService
 
-    stats_service = StatsService(db)
-    return asyncio.run(stats_service.calculate_match_stats(match_id, team_flag))
+    stats_service = StatsService()
+    return stats_service.calculate_match_stats(
+        match_status, finish_type, standings_setting, home_score, away_score
+    )
 
 
 # calc_standings_per_round has been moved to services.stats_service.StatsService.aggregate_round_standings()
