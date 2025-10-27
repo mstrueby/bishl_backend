@@ -682,8 +682,8 @@ async def process_ishd_data(
                             # NEW PLAYER
                             # FIRST: construct Player object w/o assignedTeams
                             new_player = PlayerBase(
-                                firstName=player['first_name'],
-                                lastName=player['last_name'],
+                                firstName=player["first_name"],
+                                lastName=player["last_name"],
                                 birthdate=datetime.strptime(player["date_of_birth"], "%Y-%m-%d"),
                                 displayFirstName=player["first_name"],
                                 displayLastName=player["last_name"],
