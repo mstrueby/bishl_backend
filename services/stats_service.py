@@ -1438,14 +1438,18 @@ class StatsService:
         assigned_teams: list = player_data.get("assignedTeams", [])
         if not assigned_teams:
             return False
+
+        team_id_str: str = str(team_id)
+
         for club in assigned_teams:
             teams: list = club.get("teams", [])
             if not teams:
                 continue
             for team in teams:
-                team_id_value: str | None = team.get("teamId")
-                if team_id_value is not None and str(team_id_value) == str(team_id):
+                current_team_id = team.get("teamId")
+                if current_team_id is not None and str(current_team_id) == team_id_str:
                     return True
+
         return False
 
     async def _add_called_team_assignment(
