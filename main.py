@@ -35,7 +35,107 @@ from routers.players import router as players_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
-app = FastAPI()
+app = FastAPI(
+    title="BISHL API",
+    version="1.0.0",
+    description="""
+## Belgian Ice and Street Hockey League API
+
+This API provides comprehensive management for ice and street hockey leagues in Belgium.
+
+### Key Features
+
+* **Match Management** - Create, update, and track matches with real-time scoring
+* **Player Statistics** - Track player performance, cards, and goals
+* **Tournament Organization** - Manage tournaments, seasons, rounds, and matchdays
+* **Referee Assignment** - Assign and manage referee schedules
+* **Club & Team Management** - Organize clubs, teams, and rosters
+* **Authentication** - Secure JWT-based authentication with refresh tokens
+
+### Authentication
+
+Most endpoints require authentication. Include the access token in the Authorization header:
+
+```
+Authorization: Bearer <your_access_token>
+```
+
+Access tokens expire after 15 minutes. Use the `/users/refresh` endpoint to get a new token.
+
+### Pagination
+
+List endpoints support pagination with query parameters:
+- `page` (default: 1) - Page number
+- `page_size` (default: 10-20, max: 100) - Items per page
+
+### Error Handling
+
+All errors return a standardized format with correlation IDs for debugging:
+
+```json
+{
+  "error": {
+    "message": "Resource not found",
+    "status_code": 404,
+    "correlation_id": "uuid",
+    "timestamp": "ISO-8601",
+    "path": "/api/endpoint"
+  }
+}
+```
+    """,
+    version_info={
+        "version": "1.0.0",
+        "build": "production",
+        "last_updated": "2025-01-22"
+    },
+    contact={
+        "name": "BISHL Development Team",
+        "url": "https://bishl.be",
+        "email": "tech@bishl.be"
+    },
+    license_info={
+        "name": "Proprietary",
+    },
+    openapi_tags=[
+        {
+            "name": "matches",
+            "description": "Operations for managing matches, including creation, updates, scoring, and statistics"
+        },
+        {
+            "name": "players",
+            "description": "Player management, statistics, and roster operations"
+        },
+        {
+            "name": "tournaments",
+            "description": "Tournament, season, round, and matchday organization"
+        },
+        {
+            "name": "clubs",
+            "description": "Club and team management"
+        },
+        {
+            "name": "users",
+            "description": "User authentication, registration, and referee management"
+        },
+        {
+            "name": "assignments",
+            "description": "Referee assignment and scheduling"
+        },
+        {
+            "name": "posts",
+            "description": "News posts and announcements"
+        },
+        {
+            "name": "documents",
+            "description": "Document management and downloads"
+        },
+        {
+            "name": "venues",
+            "description": "Venue and location management"
+        }
+    ]
+)
 app.add_middleware(
   CORSMiddleware,
   allow_origins=settings.CORS_ORIGINS,
@@ -50,7 +150,7 @@ app.add_middleware(
 async def bishl_exception_handler(request: Request, exc: BISHLException):
     """Handle all BISHL custom exceptions"""
     correlation_id = str(uuid.uuid4())
-    
+
     error_response = {
         "error": {
             "message": exc.message,
@@ -61,7 +161,7 @@ async def bishl_exception_handler(request: Request, exc: BISHLException):
             "details": exc.details
         }
     }
-    
+
     # Log the error with correlation ID
     logger.error(
         f"[{correlation_id}] {exc.__class__.__name__}: {exc.message}",
@@ -72,7 +172,7 @@ async def bishl_exception_handler(request: Request, exc: BISHLException):
             "details": exc.details
         }
     )
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content=error_response
@@ -83,7 +183,7 @@ async def bishl_exception_handler(request: Request, exc: BISHLException):
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle FastAPI HTTPExceptions with consistent format"""
     correlation_id = str(uuid.uuid4())
-    
+
     error_response = {
         "error": {
             "message": exc.detail,
@@ -93,7 +193,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "path": request.url.path
         }
     }
-    
+
     logger.error(
         f"[{correlation_id}] HTTPException: {exc.detail}",
         extra={
@@ -102,7 +202,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "path": request.url.path
         }
     )
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content=error_response
@@ -113,7 +213,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def general_exception_handler(request: Request, exc: Exception):
     """Catch-all handler for unexpected exceptions"""
     correlation_id = str(uuid.uuid4())
-    
+
     # Log full traceback for unexpected errors
     logger.error(
         f"[{correlation_id}] Unhandled exception: {str(exc)}",
@@ -123,7 +223,7 @@ async def general_exception_handler(request: Request, exc: Exception):
             "traceback": traceback.format_exc()
         }
     )
-    
+
     error_response = {
         "error": {
             "message": "An unexpected error occurred",
@@ -133,7 +233,7 @@ async def general_exception_handler(request: Request, exc: Exception):
             "path": request.url.path
         }
     }
-    
+
     return JSONResponse(
         status_code=500,
         content=error_response

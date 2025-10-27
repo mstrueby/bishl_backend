@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, Response
 from models.clubs import ClubBase, ClubDB, ClubUpdate
 from models.responses import PaginatedResponse
 from utils import configure_cloudinary
-from utils.pagination import PaginationHelper
+from services.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from pymongo.errors import DuplicateKeyError
 from pydantic import EmailStr, HttpUrl

@@ -8,7 +8,7 @@ from models.posts import PostBase, PostDB, PostUpdate, Revision, User
 from models.responses import PaginatedResponse
 from typing import List, Optional
 from utils import configure_cloudinary, my_jsonable_encoder
-from utils.pagination import PaginationHelper
+from services.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from datetime import datetime
 import cloudinary

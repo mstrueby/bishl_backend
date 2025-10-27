@@ -10,7 +10,7 @@ from models.assignments import AssignmentDB
 from models.users import Role, Club, UserBase, LoginBase, CurrentUser, UserUpdate
 from models.matches import MatchDB
 from models.responses import PaginatedResponse
-from utils.pagination import PaginationHelper
+from services.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from datetime import date
 from mail_service import send_email

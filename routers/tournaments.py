@@ -4,7 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
 from models.responses import PaginatedResponse
-from utils.pagination import PaginationHelper
+from services.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from services.performance_monitor import monitor_query
 from pymongo.errors import DuplicateKeyError

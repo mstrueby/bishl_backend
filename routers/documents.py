@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form, D
 from fastapi.responses import JSONResponse, Response
 from fastapi.encoders import jsonable_encoder
 from utils import configure_cloudinary, my_jsonable_encoder
-from utils.pagination import PaginationHelper
+from services.pagination import PaginationHelper
 from typing import List, Optional
 import cloudinary
 import cloudinary.uploader

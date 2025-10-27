@@ -6,7 +6,7 @@ from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, Mat
 from models.responses import StandardResponse, PaginatedResponse
 from authentication import AuthHandler, TokenPayload
 from utils import validate_match_time, parse_datetime
-from utils.pagination import PaginationHelper
+from services.pagination import PaginationHelper
 from services.stats_service import StatsService
 from services.performance_monitor import monitor_query
 from exceptions import (ResourceNotFoundException, ValidationException,
