@@ -1,4 +1,3 @@
-
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from pydantic import SecretStr
 
