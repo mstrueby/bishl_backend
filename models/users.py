@@ -92,7 +92,7 @@ class UserBase(MongoBaseModel):
         try:
             validate_email(v)
         except EmailNotValidError as e:
-            raise ValueError(e)
+            raise ValueError(e) from e
         return v
 
 
