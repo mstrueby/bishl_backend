@@ -12,7 +12,7 @@ from exceptions import (
 from logging_config import logger
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from services.stats_service import StatsService
-from utils import populate_event_player_fields, parse_time_from_seconds, parse_time_to_seconds
+from utils import parse_time_from_seconds, parse_time_to_seconds, populate_event_player_fields
 
 router = APIRouter()
 auth = AuthHandler()
