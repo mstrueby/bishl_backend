@@ -134,7 +134,7 @@ class StatsService:
         Returns:
             Dictionary with 'home' and 'away' keys containing stats for each team
         """
-        stats = {"home": {}, "away": {}}
+        stats: dict[str, dict[str, int]] = {"home": {}, "away": {}}
 
         logger.debug(
             "Calculating stats",
