@@ -6,50 +6,100 @@ Run this to create all necessary indexes for optimal query performance.
 Should be run once after deployment and whenever index strategy changes.
 
 Usage:
-    python scripts/create_indexes.py
+    python scripts/create_indexes.py [--prod]
 """
+
+import sys
+from pathlib import Path
+
+# Add parent directory to Python path to allow importing from root
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 import os
+import argparse
 from logging_config import logger
+from pymongo.errors import OperationFailure
+
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Create MongoDB indexes.')
+parser.add_argument('--prod',
+                    action='store_true',
+                    help='Create indexes in production database.')
+args = parser.parse_args()
+
+# Get environment variables based on --prod flag
+if args.prod:
+    DB_URL = os.environ['DB_URL_PROD']
+    DB_NAME = 'bishl'
+else:
+    DB_URL = os.environ['DB_URL']
+    DB_NAME = 'bishl_dev'
+
+print("DB_URL:", DB_URL)
+print("DB_NAME:", DB_NAME)
 
 async def create_indexes():
     """Create all necessary indexes for optimal query performance"""
     
-    client = AsyncIOMotorClient(os.environ['DB_URL'])
-    db = client[os.environ['DB_NAME']]
+    client = AsyncIOMotorClient(DB_URL)
+    db = client[DB_NAME]
     
-    logger.info("Starting index creation...")
+    logger.info(f"Starting index creation for database: {DB_NAME}...")
+    
+    async def create_index_safe(collection, keys, **kwargs):
+        """Helper to create index and skip if already exists"""
+        index_name = kwargs.get('name', 'unnamed')
+        is_unique = kwargs.get('unique', False)
+        try:
+            await collection.create_index(keys, **kwargs)
+            logger.info(f"  ✓ Created index: {index_name}")
+        except OperationFailure as e:
+            error_str = str(e)
+            if "already exists" in error_str or "IndexOptionsConflict" in error_str:
+                logger.info(f"  ↷ Index already exists: {index_name}")
+            elif "duplicate key" in error_str or "dup key" in error_str:
+                if is_unique:
+                    logger.warning(
+                        f"  ⚠ Cannot create unique index {index_name}: duplicate values exist in collection. "
+                        f"Clean up duplicates first before creating this unique index."
+                    )
+                else:
+                    logger.error(f"  ✗ Failed to create index {index_name}: {error_str}")
+                    raise
+            else:
+                logger.error(f"  ✗ Failed to create index {index_name}: {error_str}")
+                raise
     
     try:
         # Matches indexes
         logger.info("Creating matches collection indexes...")
-        await db.matches.create_index([
+        await create_index_safe(db.matches, [
             ("tournament.alias", 1),
             ("season.alias", 1),
             ("round.alias", 1)
         ], name="tournament_season_round_idx", background=True)
         
-        await db.matches.create_index([
+        await create_index_safe(db.matches, [
             ("tournament.alias", 1),
             ("season.alias", 1),
             ("matchday.alias", 1)
         ], name="tournament_season_matchday_idx", background=True)
         
-        await db.matches.create_index(
+        await create_index_safe(db.matches,
             [("status", 1), ("startDate", 1)], 
             name="status_startdate_idx",
             background=True
         )
         
-        await db.matches.create_index(
+        await create_index_safe(db.matches,
             [("home.teamId", 1)], 
             name="home_team_idx",
             background=True
         )
         
-        await db.matches.create_index(
+        await create_index_safe(db.matches,
             [("away.teamId", 1)], 
             name="away_team_idx",
             background=True
@@ -57,20 +107,20 @@ async def create_indexes():
         
         # Players indexes
         logger.info("Creating players collection indexes...")
-        await db.players.create_index(
+        await create_index_safe(db.players,
             [("alias", 1)], 
             unique=True, 
             name="alias_unique_idx",
             background=True
         )
         
-        await db.players.create_index([
+        await create_index_safe(db.players, [
             ("lastName", 1),
             ("firstName", 1),
             ("yearOfBirth", 1)
         ], name="player_lookup_idx", background=True)
         
-        await db.players.create_index(
+        await create_index_safe(db.players,
             [("assignedClubs.clubId", 1)], 
             name="assigned_clubs_idx",
             background=True
@@ -78,7 +128,7 @@ async def create_indexes():
         
         # Tournaments indexes
         logger.info("Creating tournaments collection indexes...")
-        await db.tournaments.create_index(
+        await create_index_safe(db.tournaments,
             [("alias", 1)], 
             unique=True, 
             name="tournament_alias_unique_idx",
@@ -87,14 +137,14 @@ async def create_indexes():
         
         # Users indexes
         logger.info("Creating users collection indexes...")
-        await db.users.create_index(
+        await create_index_safe(db.users,
             [("email", 1)], 
             unique=True, 
             name="email_unique_idx",
             background=True
         )
         
-        await db.users.create_index(
+        await create_index_safe(db.users,
             [("club.clubId", 1)], 
             name="club_idx",
             background=True
@@ -102,19 +152,19 @@ async def create_indexes():
         
         # Assignments indexes
         logger.info("Creating assignments collection indexes...")
-        await db.assignments.create_index(
+        await create_index_safe(db.assignments,
             [("matchId", 1)], 
             name="match_idx",
             background=True
         )
         
-        await db.assignments.create_index(
+        await create_index_safe(db.assignments,
             [("userId", 1)], 
             name="user_idx",
             background=True
         )
         
-        await db.assignments.create_index(
+        await create_index_safe(db.assignments,
             [("status", 1)], 
             name="status_idx",
             background=True

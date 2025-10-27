@@ -8,6 +8,7 @@
 - [ ] `.env` variables documented (if new ones added)
 - [ ] Database migrations tested (if applicable)
 - [ ] API documentation updated (if endpoints changed)
+- [ ] Database indexes created/verified: `python scripts/create_indexes.py --prod`
 
 ## Backup (Before Merge)
 

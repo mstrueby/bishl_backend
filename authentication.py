@@ -1,5 +1,4 @@
 import jwt
-import os
 from typing import Optional
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -8,6 +7,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHash
 from datetime import datetime, timedelta
 from exceptions import AuthenticationException
+from config import settings
 
 
 class AuthHandler:
@@ -16,7 +16,8 @@ class AuthHandler:
   pwd_content_legacy = CryptContext(schemes=["bcrypt"], deprecated="auto")
   # New argon2 hasher
   argon2_hasher = PasswordHasher()
-  secret = os.environ.get("SECRET_KEY")
+  secret = settings.SECRET_KEY
+  refresh_secret = settings.SECRET_KEY + "_refresh"  # Separate secret for refresh tokens
 
   def get_password_hash(self, password):
     """Hash password using argon2 (new standard)"""
@@ -42,10 +43,10 @@ class AuthHandler:
     return not hashed_password.startswith('$argon2')
 
   def encode_token(self, user):
+    """Generate short-lived access token (15 minutes)"""
     payload = {
         "exp":
-        datetime.now() +
-        timedelta(days=0, minutes=int(os.environ['API_TIMEOUT_MIN'])),
+        datetime.now() + timedelta(minutes=15),  # Short-lived access token
         "iat":
         datetime.now(),
         "sub":
@@ -59,13 +60,27 @@ class AuthHandler:
         "clubId":
         user["club"]["clubId"] if user["club"] else None,
         "clubName":
-        user["club"]["clubName"] if user["club"] else None
+        user["club"]["clubName"] if user["club"] else None,
+        "type": "access"
     }
     return jwt.encode(payload, self.secret, algorithm="HS256")
 
+  def encode_refresh_token(self, user):
+    """Generate long-lived refresh token (7 days)"""
+    payload = {
+        "exp": datetime.now() + timedelta(days=7),  # Long-lived refresh token
+        "iat": datetime.now(),
+        "sub": user["_id"],
+        "type": "refresh"
+    }
+    return jwt.encode(payload, self.refresh_secret, algorithm="HS256")
+
   def decode_token(self, token):
+    """Decode and validate access token"""
     try:
       payload = jwt.decode(token, self.secret, algorithms=["HS256"])
+      if payload.get("type") != "access":
+        raise jwt.InvalidTokenError("Not an access token")
       return TokenPayload(sub=payload["sub"],
         roles=payload["roles"],
         firstName=payload.get("firstName"),
@@ -81,6 +96,24 @@ class AuthHandler:
       raise AuthenticationException(
         message="Invalid token",
         details={"reason": "invalid_token"}
+      )
+
+  def decode_refresh_token(self, token):
+    """Decode and validate refresh token"""
+    try:
+      payload = jwt.decode(token, self.refresh_secret, algorithms=["HS256"])
+      if payload.get("type") != "refresh":
+        raise jwt.InvalidTokenError("Not a refresh token")
+      return payload["sub"]  # Return only user ID
+    except jwt.ExpiredSignatureError:
+      raise AuthenticationException(
+        message="Refresh token has expired",
+        details={"reason": "expired_refresh_token"}
+      )
+    except jwt.InvalidTokenError:
+      raise AuthenticationException(
+        message="Invalid refresh token",
+        details={"reason": "invalid_refresh_token"}
       )
   
   def encode_reset_token(self, user):

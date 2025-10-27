@@ -1,5 +1,5 @@
 from cloudinary.utils import string
-from fastapi import APIRouter, HTTPException, Form, Request, Body, Depends, status, File
+from fastapi import APIRouter, HTTPException, Form, Request, Body, Depends, status, File, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 import json
@@ -7,15 +7,16 @@ from typing import List, Optional, Dict
 from bson.objectid import ObjectId
 from fastapi import UploadFile
 from pydantic import HttpUrl, BaseModel
-from typing import Optional
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
+from utils.pagination import PaginationHelper
 from authentication import AuthHandler, TokenPayload
 from services.performance_monitor import monitor_query
 from exceptions import (
     ResourceNotFoundException,
     ValidationException,
     DatabaseOperationException,
-    AuthorizationException
+    AuthorizationException,
+    ExternalServiceException
 )
 from logging_config import logger
 from models.players import (
@@ -34,6 +35,7 @@ from models.players import (
     IshdLogPlayer,
     IshdActionEnum
 )
+from models.responses import StandardResponse, PaginatedResponse
 import cloudinary
 import cloudinary.uploader
 import os
@@ -1254,12 +1256,13 @@ async def verify_ishd_data(
 # --------
 @router.get("/clubs/{club_alias}",
             response_description="Get all players for a club",
-            response_model=List[PlayerDB])
+            response_model=PaginatedResponse[PlayerDB])
 async def get_players_for_club(
     request: Request,
     club_alias: str,
-    page: int = 1,
-    q: Optional[str] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    q: Optional[str] = Query(None, description="Search by name"),
     sortby: str = "firstName",
     all: bool = False,
     active: Optional[bool] = None,
@@ -1280,21 +1283,31 @@ async def get_players_for_club(
             resource_id=club_alias
         )
     result = await get_paginated_players(mongodb, q, page, club_alias, None, sortby, all, active)
+
+    # Use PaginationHelper to create the response
+    paginated_result = PaginationHelper.create_response(
+        items=[PlayerDB(**player) for player in result["results"]],
+        page=result["page"],
+        page_size=RESULTS_PER_PAGE if all else int(os.environ['RESULTS_PER_PAGE']), # Use appropriate page size
+        total_count=result["total"],
+        message=f"Retrieved {len(result['results'])} players for club {club_alias}"
+    )
     return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(result))
+                        content=jsonable_encoder(paginated_result))
 
 
 # GET ALL PLAYERS FOR ONE CLUB/TEAM
 # --------
 @router.get("/clubs/{club_alias}/teams/{team_alias}",
             response_description="Get all players for a team",
-            response_model=List[PlayerDB])
+            response_model=PaginatedResponse[PlayerDB])
 async def get_players_for_team(
     request: Request,
     club_alias: str,
     team_alias: str,
-    page: int = 1,
-    q: Optional[str] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    q: Optional[str] = Query(None, description="Search by name"),
     sortby: str = "firstName",
     all: bool = False,
     active: Optional[bool] = None,
@@ -1329,25 +1342,29 @@ async def get_players_for_team(
         )
     result = await get_paginated_players(mongodb, q, page, club_alias,
                                          team_alias, sortby, all, active)
+
+    # Use PaginationHelper to create the response
+    paginated_result = PaginationHelper.create_response(
+        items=[PlayerDB(**player) for player in result["results"]],
+        page=result["page"],
+        page_size=RESULTS_PER_PAGE if all else int(os.environ['RESULTS_PER_PAGE']), # Use appropriate page size
+        total_count=result["total"],
+        message=f"Retrieved {len(result['results'])} players for team {team_alias} in club {club_alias}"
+    )
     return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(result))
+                        content=jsonable_encoder(paginated_result))
 
 
 # GET ALL PLAYERS
 # -------------------
-class PaginatedPlayerResponse(BaseModel):
-    total: int
-    page: int
-    results: List[PlayerDB]
-
-
 @router.get("/",
             response_description="Get all players",
-            response_model=PaginatedPlayerResponse)
+            response_model=PaginatedResponse[PlayerDB])
 async def get_players(
     request: Request,
-    page: int = 1,
-    q: Optional[str] = None,
+    search: str | None = Query(None, description="Search by name"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     sortby: str = "firstName",
     all: bool = False,
     active: Optional[bool] = None,
@@ -1361,9 +1378,44 @@ async def get_players(
             details={"user_roles": token_payload.roles}
         )
 
-    result = await get_paginated_players(mongodb, q, page, None, None, sortby, all, active)
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(result))
+    # Use PaginationHelper to create the query
+    query = {}
+    if search:
+        query["$or"] = [
+            {"firstName": {"$regex": search, "$options": "i"}},
+            {"lastName": {"$regex": search, "$options": "i"}},
+            {"displayFirstName": {"$regex": search, "$options": "i"}},
+            {"displayLastName": {"$regex": search, "$options": "i"}}
+        ]
+    if active is not None:
+        # This part needs to be adapted if 'active' is a field within 'assignedTeams.teams'
+        # For now, assuming 'active' is a top-level field for filtering players
+        query["active"] = active # This line might need adjustment based on how 'active' is used
+
+    # Add club and team filtering if necessary (e.g., if passed as query parameters)
+    # if club_alias:
+    #     query["assignedTeams.clubAlias"] = club_alias
+    # if team_alias:
+    #     query["assignedTeams.teams.teamAlias"] = team_alias
+
+
+    # Use PaginationHelper to paginate the query
+    items, total_count = await PaginationHelper.paginate_query(
+        collection=mongodb["players"],
+        query=query,
+        page=page,
+        page_size=page_size if not all else 0,  # Use 0 for page_size if 'all' is true to fetch all
+        sort=[(sortby, 1)] # Default sort order
+    )
+
+    # Create the paginated response
+    return PaginationHelper.create_response(
+        items=[PlayerDB(**item) for item in items],
+        page=page,
+        page_size=page_size if not all else total_count, # Adjust page_size for 'all' case
+        total_count=total_count,
+        message=f"Retrieved {len(items)} players"
+    )
 
 
 # GET ONE PLAYER

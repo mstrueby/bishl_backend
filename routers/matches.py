@@ -1,14 +1,15 @@
-# filename: routers/matches.py
-from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
+from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
 from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
+from models.responses import StandardResponse, PaginatedResponse
 from authentication import AuthHandler, TokenPayload
 from utils import validate_match_time, parse_datetime
+from utils.pagination import PaginationHelper
 from services.stats_service import StatsService
 from services.performance_monitor import monitor_query
-from exceptions import (ResourceNotFoundException, ValidationException, 
+from exceptions import (ResourceNotFoundException, ValidationException,
                        DatabaseOperationException, AuthorizationException)
 from logging_config import logger
 import os
@@ -16,6 +17,7 @@ import isodate
 from datetime import datetime, timedelta
 from bson import ObjectId
 import httpx
+
 
 router = APIRouter()
 auth_handler = AuthHandler()
@@ -491,20 +493,18 @@ async def get_rest_of_week_matches(request: Request,
 
 
 # get matches
-@router.get("/",
-            response_model=List[MatchListBase],
-            response_description="List all matches")
-async def list_matches(request: Request,
-                       tournament: Optional[str] = None,
-                       season: Optional[str] = None,
-                       round: Optional[str] = None,
-                       matchday: Optional[str] = None,
-                       date_from: Optional[str] = None,
-                       date_to: Optional[str] = None,
-                       referee: Optional[str] = None,
-                       club: Optional[str] = None,
-                       team: Optional[str] = None,
-                       assigned: Optional[bool] = None) -> JSONResponse:
+@router.get("", response_model=PaginatedResponse[MatchDB])
+async def get_matches(
+    request: Request,
+    t_alias: str | None = None,
+    s_alias: str | None = None,
+    r_alias: str | None = None,
+    md_alias: str | None = None,
+    status: MatchStatus | None = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(10, ge=1, le=100, description="Items per page"),
+    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper)
+) -> JSONResponse:
   mongodb = request.app.state.mongodb
   query = {"season.alias": season if season else os.environ['CURRENT_SEASON']}
   if tournament:
@@ -584,28 +584,46 @@ async def list_matches(request: Request,
     "away.penalties": 0
   }
 
-  matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+  # Use pagination helper
+  items, total_count = await PaginationHelper.paginate_query(
+      collection=request.app.state.mongodb["matches"],
+      query=query,
+      page=page,
+      page_size=page_size,
+      sort=[("startDate", 1)]
+  )
 
   # Convert to MatchListBase objects and parse time fields
   results = []
-  for match in matches:
+  for match in items:
     match = convert_seconds_to_times(match)
     results.append(MatchListBase(**match))
 
-  return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(results))
+  return PaginationHelper.create_response(
+      items=results,
+      page=page,
+      page_size=page_size,
+      total_count=total_count,
+      message=f"Retrieved {len(results)} matches"
+  )
 
 
 # get one match by id
 @router.get("/{match_id}",
-            response_description="Get one match by id",
-            response_model=MatchDB)
-async def get_match(request: Request, match_id: str) -> JSONResponse:
+            response_model=StandardResponse[MatchDB])
+async def get_match(
+    match_id: str,
+    request: Request,
+    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper)
+):
   mongodb = request.app.state.mongodb
   match = await get_match_object(mongodb, match_id)
   # get_match_object already raises ResourceNotFoundException if not found
-  return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(match))
+  return StandardResponse(
+      success=True,
+      data=match,
+      message="Match retrieved successfully"
+  )
 
 
 # create new match
@@ -621,13 +639,13 @@ async def create_match(
       message="Admin role required to create matches",
       details={"user_roles": token_payload.roles, "required_role": "ADMIN"}
     )
-  
+
   logger.info(f"Creating match", extra={
     "tournament": match.tournament.alias if match.tournament else None,
     "season": match.season.alias if match.season else None,
     "user": token_payload.sub
   })
-  
+
   try:
     # get standingsSettings and set points per team
     if (match.tournament is not None and match.season is not None
@@ -682,7 +700,7 @@ async def create_match(
               resource_id=md_alias,
               details={
                 "tournament": t_alias,
-                "season": s_alias, 
+                "season": s_alias,
                 "round": r_alias
               }
           )
@@ -961,7 +979,7 @@ async def update_match(request: Request,
         resource_type="Match",
         resource_id=match_id
       )
-    
+
     logger.info(f"Match updated", extra={
       "match_id": match_id,
       "stats_change": stats_change_detected,
@@ -1066,7 +1084,7 @@ async def delete_match(
       message="Admin role required to delete matches",
       details={"user_roles": token_payload.roles, "required_role": "ADMIN"}
     )
-  
+
   # check and get match
   match = await mongodb["matches"].find_one({"_id": match_id})
   if match is None:
@@ -1107,7 +1125,7 @@ async def delete_match(
         resource_type="Match",
         resource_id=match_id
       )
-    
+
     logger.info(f"Match deleted", extra={
       "match_id": match_id,
       "tournament": t_alias,

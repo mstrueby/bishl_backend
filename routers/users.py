@@ -13,6 +13,9 @@ from authentication import AuthHandler, TokenPayload
 from datetime import date
 from mail_service import send_email
 from exceptions import ResourceNotFoundException, AuthorizationException
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 auth = AuthHandler()
@@ -107,7 +110,7 @@ async def login(
             {"_id": existing_user["_id"]},
             {"$set": {"password": new_hash}}
         )
-        existing_user["password"] = new_hash  # Update for token generation
+        logger.info(f"Upgraded password hash for user {existing_user['email']} from bcrypt to argon2")
 
     # Calculate referee points if user is a referee
     if "REFEREE" in existing_user.get("roles", []):
@@ -119,13 +122,18 @@ async def login(
         else:
             existing_user["referee"]["points"] = total_points
 
-    token = auth.encode_token(existing_user)
+    # Generate access and refresh tokens
+    access_token = auth.encode_token(existing_user)
+    refresh_token = auth.encode_refresh_token(existing_user)
 
     response = CurrentUser(**existing_user)
 
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content={
-                            "token": token,
+                            "access_token": access_token,
+                            "refresh_token": refresh_token,
+                            "token_type": "bearer",
+                            "expires_in": 900,  # 15 minutes in seconds
                             "user": jsonable_encoder(response)
                         })
 
