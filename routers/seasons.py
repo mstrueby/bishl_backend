@@ -59,8 +59,7 @@ async def get_season(
         raise ResourceNotFoundException(
             resource_type="Season",
             resource_id=season_alias,
-            parent_resource_type="Tournament",
-            parent_resource_id=tournament_alias,
+            details={"tournament_alias": tournament_alias},
         )
     raise ResourceNotFoundException(resource_type="Tournament", resource_id=tournament_alias)
 
@@ -109,8 +108,7 @@ async def create_season(
                 raise ResourceNotFoundException(
                     resource_type="Season",
                     resource_id=season.alias,
-                    parent_resource_type="Tournament",
-                    parent_resource_id=tournament_alias,
+                    details={"tournament_alias": tournament_alias},
                 )
         else:
             # This case should ideally not be reached if the tournament exists and modified_count is 0
@@ -154,8 +152,7 @@ async def update_season(
         raise ResourceNotFoundException(
             resource_type="Season",
             resource_id=season_id,
-            parent_resource_type="Tournament",
-            parent_resource_id=tournament_alias,
+            details={"tournament_alias": tournament_alias},
         )
 
     # Prepare the update by excluding unchanged data
@@ -187,8 +184,7 @@ async def update_season(
                     raise ResourceNotFoundException(
                         resource_type="Season",
                         resource_id=season_id,
-                        parent_resource_type="Tournament",
-                        parent_resource_id=tournament_alias,
+                        details={"tournament_alias": tournament_alias},
                     )
                 else:
                     # If season exists but no changes were applied because data was the same
@@ -219,8 +215,7 @@ async def update_season(
         raise ResourceNotFoundException(
             resource_type="Season",
             resource_id=season_id,
-            parent_resource_type="Tournament",
-            parent_resource_id=tournament_alias,
+            details={"tournament_alias": tournament_alias},
         )
 
 
@@ -251,6 +246,5 @@ async def delete_season(
         raise ResourceNotFoundException(
             resource_type="Season",
             resource_id=season_alias,
-            parent_resource_type="Tournament",
-            parent_resource_id=tournament_alias,
+            details={"tournament_alias": tournament_alias},
         )
