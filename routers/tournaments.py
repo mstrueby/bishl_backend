@@ -1,10 +1,10 @@
-# filename: routers/tournaments.py
 from typing import List
 from fastapi import APIRouter, Request, Body, status, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
 from authentication import AuthHandler, TokenPayload
+from services.performance_monitor import monitor_query
 from pymongo.errors import DuplicateKeyError
 from exceptions import (
     ResourceNotFoundException,
@@ -21,6 +21,7 @@ auth = AuthHandler()
 @router.get("/",
             response_description="List all tournaments",
             response_model=List[TournamentDB])
+@monitor_query("tournaments", "get_tournaments")
 async def get_tournaments(request: Request) -> JSONResponse:
     mongodb = request.app.state.mongodb
     exclusion_projection = {"seasons.rounds": 0}
@@ -37,6 +38,7 @@ async def get_tournaments(request: Request) -> JSONResponse:
 @router.get("/{tournament_alias}",
             response_description="Get a single tournament",
             response_model=TournamentDB)
+@monitor_query("tournaments", "get_tournament")
 async def get_tournament(
     request: Request,
     tournament_alias: str,
@@ -60,6 +62,7 @@ async def get_tournament(
 @router.post("/",
              response_description="Add new tournament",
              response_model=TournamentDB)
+@monitor_query("tournaments", "create_tournament")
 async def create_tournament(
     request: Request,
     tournament: TournamentBase = Body(...),
@@ -97,6 +100,7 @@ async def create_tournament(
 @router.patch("/{tournament_id}",
               response_description="Update tournament",
               response_model=TournamentDB)
+@monitor_query("tournaments", "update_tournament")
 async def update_tournament(request: Request,
                             tournament_id: str,
                             tournament: TournamentUpdate = Body(...),
@@ -169,6 +173,7 @@ async def update_tournament(request: Request,
 
 # delete tournament
 @router.delete("/{tournament_alias}", response_description="Delete tournament")
+@monitor_query("tournaments", "delete_tournament")
 async def delete_tournament(
     request: Request,
     tournament_alias: str,
@@ -180,7 +185,7 @@ async def delete_tournament(
             message="Admin role required to delete tournaments",
             details={"user_role": token_payload.roles}
         )
-    
+
     logger.info(f"Deleting tournament with alias: {tournament_alias}")
     result = await mongodb['tournaments'].delete_one(
         {"alias": tournament_alias})

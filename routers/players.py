@@ -9,20 +9,13 @@ from fastapi import UploadFile
 from pydantic import HttpUrl, BaseModel
 from typing import Optional
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
-from models.players import PlayerBase, PlayerDB, PlayerUpdate, AssignedClubs, AssignedTeams, AssignedTeamsInput, PositionEnum, SourceEnum, SexEnum, IshdActionEnum, IshdLogBase, IshdLogPlayer, IshdLogTeam, IshdLogClub
 from authentication import AuthHandler, TokenPayload
-from datetime import datetime, timezone
-import os
-import urllib.parse
-import aiohttp
-import base64
-import cloudinary
-import cloudinary.uploader
+from services.performance_monitor import monitor_query
 from exceptions import (
     ResourceNotFoundException,
     ValidationException,
     DatabaseOperationException,
-    ExternalServiceException
+    AuthorizationException
 )
 from logging_config import logger
 
@@ -73,6 +66,7 @@ async def delete_from_cloudinary(image_url: str):
 
 
 # Helper function to search players
+@monitor_query
 async def get_paginated_players(mongodb,
                                 q,
                                 page,
@@ -418,13 +412,13 @@ async def process_ishd_data(
   """
 
     timeout = aiohttp.ClientTimeout(total=60)
-    
+
     # Create SSL context with certificate verification
     import ssl
     ssl_context = ssl.create_default_context()
     # ssl_context.check_hostname = False  # Uncomment if hostname verification fails
     # ssl_context.verify_mode = ssl.CERT_NONE  # Uncomment to disable SSL verification entirely
-    
+
     connector = aiohttp.TCPConnector(ssl=ssl_context, limit=10, limit_per_host=5)
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         # loop through team API URLs
@@ -503,11 +497,11 @@ async def process_ishd_data(
                                     error_detail = await response.text()
                                 except:
                                     error_detail = "Unable to parse error response"
-                            
+
                             # Check for SSL-related errors
                             if response.status in [525, 526, 530]:
                                 error_detail = f"SSL/TLS error - Status {response.status}. The server may have SSL certificate issues."
-                            
+
                             raise ExternalServiceException(
                                 service_name="ISHD_API",
                                 message=f"Failed to fetch team data (status {response.status})",
@@ -699,19 +693,18 @@ async def process_ishd_data(
                         else:
                             # NEW PLAYER
                             # FIRST: construct Player object w/o assignedTeams
-                            new_player = PlayerBase(
-                                firstName=player['first_name'],
-                                lastName=player['last_name'],
-                                birthdate=datetime.strptime(
-                                    player['date_of_birth'], '%Y-%m-%d'),
-                                displayFirstName=player['first_name'],
-                                displayLastName=player['last_name'],
-                                nationality=player['nationality']
-                                if 'nationality' in player else None,
-                                assignedTeams=[assigned_club],
-                                fullFaceReq=True if player.get('full_face_req')
-                                == 'true' else False,
-                                source=SourceEnum.ISHD)
+                            new_player = PlayerBase(firstName=firstName,
+                                                    lastName=lastName,
+                                                    birthdate=datetime.strptime(
+                                                        player['date_of_birth'], '%Y-%m-%d'),
+                                                    displayFirstName=player['first_name'],
+                                                    displayLastName=player['last_name'],
+                                                    nationality=player['nationality']
+                                                    if 'nationality' in player else None,
+                                                    assignedTeams=[assigned_club],
+                                                    fullFaceReq=True if player.get('full_face_req')
+                                                    == 'true' else False,
+                                                    source=SourceEnum.ISHD)
                             new_player_dict = my_jsonable_encoder(new_player)
                             new_player_dict['birthdate'] = datetime.strptime(
                                 player['date_of_birth'], '%Y-%m-%d')
@@ -1025,7 +1018,7 @@ async def verify_ishd_data(
     ssl_context = ssl.create_default_context()
     timeout = aiohttp.ClientTimeout(total=60)
     connector = aiohttp.TCPConnector(ssl=ssl_context)
-    
+
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         ishd_players = {}
 

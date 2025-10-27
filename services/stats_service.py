@@ -13,6 +13,7 @@ from exceptions.custom_exceptions import (
     ValidationException
 )
 from logging_config import logger
+from services.performance_monitor import monitor_query
 
 BASE_URL = os.environ.get('BE_API_URL', 'http://localhost:8080')
 
@@ -54,6 +55,7 @@ class StatsService:
 
     # ==================== MATCH STATISTICS ====================
 
+    @monitor_query("fetch_standings_settings")
     async def get_standings_settings(self, tournament_alias: str, season_alias: str) -> dict:
         """
         Fetch standings settings for a tournament/season.
@@ -425,6 +427,7 @@ class StatsService:
 
     # ==================== HELPER METHODS ====================
 
+    @monitor_query("check_round_standings_settings")
     async def _check_create_standings_for_round(self, round_filter: dict, s_alias: str, r_alias: str) -> bool:
         """Check if standings should be created for a round"""
         if (tournament := await self.db['tournaments'].find_one(round_filter)) is not None:
@@ -435,6 +438,7 @@ class StatsService:
                             return round_data.get("createStandings", False)
         return False
 
+    @monitor_query("check_matchday_standings_settings")
     async def _check_create_standings_for_matchday(self, md_filter: dict, s_alias: str,
                                                    r_alias: str, md_alias: str) -> bool:
         """Check if standings should be created for a matchday"""
@@ -659,6 +663,7 @@ class StatsService:
                 details={"match_id": match_id, "team_flag": team_flag}
             )
 
+    @monitor_query("fetch_match_data_direct")
     async def _fetch_match_data_from_db(self, match_id: str, team_flag: str) -> tuple:
         """
         Fetch roster, scores, and penalties directly from database.
@@ -684,6 +689,7 @@ class StatsService:
 
         return roster, scoreboard, penaltysheet
 
+    @monitor_query("fetch_roster_api")
     async def _fetch_roster(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
         """Fetch roster for a team from the API"""
         response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
@@ -695,6 +701,7 @@ class StatsService:
             )
         return response.json()
 
+    @monitor_query("fetch_scoreboard_api")
     async def _fetch_scoreboard(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
         """Fetch scoreboard for a team from the API"""
         response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/scores/")
@@ -706,6 +713,7 @@ class StatsService:
             )
         return response.json()
 
+    @monitor_query("fetch_penaltysheet_api")
     async def _fetch_penaltysheet(self, client: httpx.AsyncClient, match_id: str, team_flag: str) -> List[dict]:
         """Fetch penaltysheet for a team from the API"""
         response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/penalties/")
@@ -805,6 +813,7 @@ class StatsService:
                 roster_player.update(player_stats[player_id])
         return roster
 
+    @monitor_query("save_roster_to_db")
     async def _save_roster_to_db(self, match_id: str, team_flag: str, roster: List[dict]) -> None:
         """
         Save updated roster to the database.
@@ -1036,6 +1045,7 @@ class StatsService:
             if roster_player.get('called', False):
                 stats['calledMatches'] += 1
 
+    @monitor_query("save_player_stats_to_db")
     async def _save_player_stats_to_db(self, player_card_stats: dict, t_alias: str, s_alias: str,
                                       r_alias: str, md_alias: str, flag: str) -> None:
         """Save calculated player statistics to the database."""
