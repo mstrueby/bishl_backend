@@ -1,6 +1,7 @@
 import os
 import time
 from functools import wraps
+from typing import Any
 
 import aiohttp
 import httpx
@@ -90,7 +91,7 @@ class StatsService:
                             details={"http_status_code": response.status},
                         )
                     data = await response.json()
-                    settings = data.get("standingsSettings")
+                    settings: dict[str, Any] | None = data.get("standingsSettings")
                     if not settings:
                         raise ResourceNotFoundException(
                             resource_type="StandingsSettings",
@@ -462,7 +463,8 @@ class StatsService:
                 if season.get("alias") == s_alias:
                     for round_data in season.get("rounds", []):
                         if round_data.get("alias") == r_alias:
-                            return round_data.get("createStandings", False)
+                            create_standings: bool = round_data.get("createStandings", False)
+                            return create_standings
         return False
 
     @monitor_query("check_matchday_standings_settings")
@@ -478,7 +480,8 @@ class StatsService:
                         if round_data.get("alias") == r_alias:
                             for matchday in round_data.get("matchdays", []):
                                 if matchday.get("alias") == md_alias:
-                                    return matchday.get("createStandings", False)
+                                    create_standings: bool = matchday.get("createStandings", False)
+                                    return create_standings
         return False
 
     def _calculate_standings(self, matches: list[dict]) -> dict:
@@ -751,7 +754,8 @@ class StatsService:
                     "team_flag": team_flag,
                 },
             )
-        return response.json()
+        roster: list[dict] = response.json()
+        return roster
 
     @monitor_query("fetch_scoreboard_api")
     async def _fetch_scoreboard(
@@ -769,7 +773,8 @@ class StatsService:
                     "team_flag": team_flag,
                 },
             )
-        return response.json()
+        scoreboard: list[dict] = response.json()
+        return scoreboard
 
     @monitor_query("fetch_penaltysheet_api")
     async def _fetch_penaltysheet(
@@ -787,7 +792,8 @@ class StatsService:
                     "team_flag": team_flag,
                 },
             )
-        return response.json()
+        penaltysheet: list[dict] = response.json()
+        return penaltysheet
 
     def _initialize_roster_player_stats(self, roster: list[dict]) -> dict:
         """
