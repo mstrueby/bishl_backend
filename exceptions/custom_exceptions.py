@@ -5,11 +5,15 @@ Provides a hierarchy of exceptions for better error handling and consistent erro
 All custom exceptions inherit from BISHLException which includes status codes and details.
 """
 
+import uuid
+from datetime import datetime
+from typing import Any, Optional
+
 
 class BISHLException(Exception):
     """Base exception for all BISHL errors"""
 
-    def __init__(self, message: str, status_code: int = 500, details: dict = None):
+    def __init__(self, message: str, status_code: int = 500, details: Optional[dict[Any, Any]] = None):
         """
         Args:
             message: Human-readable error message
@@ -25,7 +29,7 @@ class BISHLException(Exception):
 class ResourceNotFoundException(BISHLException):
     """Raised when a requested resource doesn't exist"""
 
-    def __init__(self, resource_type: str, resource_id: str, details: dict = None):
+    def __init__(self, resource_type: str, resource_id: str = "", details: Optional[dict[Any, Any]] = None):
         """
         Args:
             resource_type: Type of resource (e.g., 'Match', 'Player', 'Tournament')
@@ -45,7 +49,7 @@ class ResourceNotFoundException(BISHLException):
 class ValidationException(BISHLException):
     """Raised when input validation fails"""
 
-    def __init__(self, field: str, message: str, details: dict = None):
+    def __init__(self, field: str, message: str, details: Optional[dict[Any, Any]] = None):
         """
         Args:
             field: Name of the field that failed validation
@@ -65,27 +69,34 @@ class ValidationException(BISHLException):
 class DatabaseOperationException(BISHLException):
     """Raised when database operations fail"""
 
-    def __init__(self, operation: str, collection: str, details: dict = None):
+    def __init__(self, operation: str, message: str = "", collection: str = "", details: Optional[dict[Any, Any]] = None):
         """
         Args:
             operation: Type of operation (e.g., 'insert', 'update', 'delete', 'find')
+            message: Description of the database error
             collection: Name of the collection
             details: Additional context (e.g., query, error message)
 
         Example:
             raise DatabaseOperationException('update', 'matches', {'match_id': match_id, 'error': str(e)})
         """
-        message = f"Database operation '{operation}' failed on collection '{collection}'"
-        extra_details = {"operation": operation, "collection": collection}
-        if details:
-            extra_details.update(details)
-        super().__init__(message, status_code=500, details=extra_details)
+        self.operation = operation
+        self.collection = collection
+        self.details = details or {}
+        self.correlation_id = str(uuid.uuid4())
+        self.timestamp = datetime.utcnow().isoformat()
+
+        error_message = message or f"Database operation '{operation}' failed"
+        if collection and not message:
+            error_message += f" on collection '{collection}'"
+
+        super().__init__(error_message)
 
 
 class StatsCalculationException(BISHLException):
     """Raised when stats calculation fails"""
 
-    def __init__(self, calculation_type: str, message: str, details: dict = None):
+    def __init__(self, calculation_type: str, message: str = "", details: Optional[dict[Any, Any]] = None):
         """
         Args:
             calculation_type: Type of stats being calculated (e.g., 'roster', 'standings', 'match')
@@ -105,7 +116,7 @@ class StatsCalculationException(BISHLException):
 class AuthenticationException(BISHLException):
     """Raised when authentication fails"""
 
-    def __init__(self, message: str = "Authentication failed", details: dict = None):
+    def __init__(self, message: str = "Authentication failed", details: Optional[dict[Any, Any]] = None):
         """
         Args:
             message: Description of the authentication error
@@ -120,7 +131,7 @@ class AuthenticationException(BISHLException):
 class AuthorizationException(BISHLException):
     """Raised when user lacks permission for an action"""
 
-    def __init__(self, message: str = "Insufficient permissions", details: dict = None):
+    def __init__(self, message: str = "Insufficient permissions", details: Optional[dict[Any, Any]] = None):
         """
         Args:
             message: Description of the authorization error
@@ -135,7 +146,7 @@ class AuthorizationException(BISHLException):
 class ExternalServiceException(BISHLException):
     """Raised when external service calls fail"""
 
-    def __init__(self, service_name: str, message: str, details: dict = None):
+    def __init__(self, service_name: str, message: str, details: Optional[dict[Any, Any]] = None):
         """
         Args:
             service_name: Name of the external service
