@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 from functools import wraps
@@ -1027,7 +1028,7 @@ class StatsService:
             logger.debug(
                 "Round player card stats calculated", extra={"player_card_stats": player_card_stats}
             )
-        elif logger.isEnabledFor(logger.DEBUG):
+        elif logger.isEnabledFor(logging.DEBUG):
             logger.debug("Round statistics not enabled, skipping.")
 
         # Process matchday statistics
@@ -1068,7 +1069,7 @@ class StatsService:
                 # Update matches for called teams processing if not already done for the round
                 if not matches:
                     matches = matchday_matches
-            elif logger.isEnabledFor(logger.DEBUG):
+            elif logger.isEnabledFor(logging.DEBUG):
                 logger.debug(
                     f"Matchday '{matchday.get('alias')}' statistics not enabled or not the target matchday, skipping."
                 )
