@@ -417,4 +417,4 @@ async def delete_one_penalty(
             operation="delete_penalty",
             collection="matches",
             details={"match_id": match_id, "penalty_id": penalty_id, "error": str(e)},
-        )
+        ) from e

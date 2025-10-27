@@ -500,7 +500,7 @@ async def get_matches(
                 field="date_from/date_to",
                 message=str(e),
                 details={"date_from": date_from, "date_to": date_to},
-            )
+            ) from e
     if DEBUG_LEVEL > 20:
         print("query: ", query)
     # Project only necessary fields, excluding roster, scores, and penalties
@@ -640,7 +640,7 @@ async def create_match(
                         resource_type="Matchday",
                         resource_id=md_alias,
                         details={"tournament": t_alias, "season": s_alias, "round": r_alias},
-                    )
+                    ) from e
                 raise e
 
         if DEBUG_LEVEL > 20:
@@ -669,7 +669,7 @@ async def create_match(
             except ValueError as e:
                 raise ValidationException(
                     field="startDate", message=str(e), details={"value": start_date_str}
-                )
+                ) from e
 
         if DEBUG_LEVEL > 0:
             print("xxx match_data: ", match_data)
