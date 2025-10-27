@@ -309,15 +309,18 @@ with open("data/data_matches.csv", encoding="utf-8") as f:
             row["matchday"] = json.loads(row["matchday"])
         if isinstance(row.get("home"), str):
             row["home"] = json.loads(row["home"])
-        if len(row["home"]["logo"]) == 0:
+        home_data = row["home"]
+        if isinstance(home_data, dict) and len(home_data.get("logo", "")) == 0:
             row["home"] = {"logo": None}
         if isinstance(row.get("away"), str):
             row["away"] = json.loads(row["away"])
-        if len(row["away"]["logo"]) == 0:
+        away_data = row["away"]
+        if isinstance(away_data, dict) and len(away_data.get("logo", "")) == 0:
             row["away"] = {"logo": None}
         if isinstance(row.get("venue"), str):
             row["venue"] = json.loads(row["venue"])
-        if len(row["venue"]["venueId"]) == 0:
+        venue_data = row["venue"]
+        if isinstance(venue_data, dict) and len(venue_data.get("venueId", "")) == 0:
             row["venue"] = {"venueId": None}
         if isinstance(row.get("matchStatus"), str):
             row["matchStatus"] = json.loads(row["matchStatus"])
@@ -327,19 +330,27 @@ with open("data/data_matches.csv", encoding="utf-8") as f:
             row["published"] = row["published"].lower() == "true"
         if isinstance(row.get("matchId"), str):
             row["matchId"] = int(row["matchId"])
-        if "referee1" in row and len(row["referee1"].strip()) > 0:
-            row["referee1"] = json.loads(row["referee1"])
-        else:
-            del row["referee1"]
-        if "referee2" in row and len(row["referee2"].strip()) > 0:
-            row["referee2"] = json.loads(row["referee2"])
-        else:
-            del row["referee2"]
+        if "referee1" in row:
+            ref1 = row["referee1"]
+            if isinstance(ref1, str) and len(ref1.strip()) > 0:
+                row["referee1"] = json.loads(ref1)
+            else:
+                del row["referee1"]
+        if "referee2" in row:
+            ref2 = row["referee2"]
+            if isinstance(ref2, str) and len(ref2.strip()) > 0:
+                row["referee2"] = json.loads(ref2)
+            else:
+                del row["referee2"]
 
-        t_alias = row["tournament"]["alias"]
-        s_alias = row["season"]["alias"]
-        r_alias = row["round"]["alias"]
-        md_alias = row["matchday"]["alias"]
+        tournament_data = row["tournament"]
+        season_data = row["season"]
+        round_data = row["round"]
+        matchday_data = row["matchday"]
+        t_alias = tournament_data["alias"] if isinstance(tournament_data, dict) else ""
+        s_alias = season_data["alias"] if isinstance(season_data, dict) else ""
+        r_alias = round_data["alias"] if isinstance(round_data, dict) else ""
+        md_alias = matchday_data["alias"] if isinstance(matchday_data, dict) else ""
 
         print("row", row)
 
