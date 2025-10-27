@@ -1,4 +1,3 @@
-
 # Deployment Checklist
 
 ## Pre-Deployment (Feature Branch → Main)
@@ -38,10 +37,23 @@
    - Monitor deployment logs
 
 4. **Post-Deployment Verification**
-   - [ ] Check deployment URL is accessible
-   - [ ] Verify critical endpoints respond correctly
-   - [ ] Check logs for errors
-   - [ ] Test one critical user flow
+   - [ ] Health check endpoint responds (GET /)
+   - [ ] Sample API requests work (GET /players?limit=5)
+   - [ ] Authentication flow works (POST /login)
+   - [ ] Database connection stable
+   - [ ] No errors in production logs
+   - [ ] CORS configured correctly
+
+### Error Handling Verification
+
+- [ ] 404 errors return standard format with correlation_id
+- [ ] 401 errors return on expired token with proper message
+- [ ] 403 errors return on insufficient permissions
+- [ ] 500 errors logged with correlation_id and traceback
+- [ ] Error logs written to logs/errors.log
+- [ ] Log rotation working (check file sizes)
+- [ ] All error responses include timestamp and path
+- [ ] No print() statements in error handling code
 
 ## Rollback Procedure
 
