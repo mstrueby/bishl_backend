@@ -19,7 +19,7 @@ conf = ConnectionConfig(
 fastmail = FastMail(conf)
 
 
-async def send_email(subject: str, recipients: list, body: str, cc: list = None):
+async def send_email(subject: str, recipients: list, body: str, cc: list | None = None):
     message = MessageSchema(
         subject=subject, recipients=recipients, cc=cc or [], body=body, subtype=MessageType.html
     )
