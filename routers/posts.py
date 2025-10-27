@@ -69,7 +69,7 @@ async def delete_from_cloudinary(image_url: str):
             print("Result:", result)
             return result
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # list all posts
@@ -207,7 +207,7 @@ async def create_post(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create post"
             )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 # update Post
@@ -326,7 +326,7 @@ async def update_post(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content="Failed to update post"
         )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 # delete post
