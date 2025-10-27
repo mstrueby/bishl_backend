@@ -7,7 +7,6 @@ from typing import List, Optional, Dict
 from bson.objectid import ObjectId
 from fastapi import UploadFile
 from pydantic import HttpUrl, BaseModel
-from typing import Optional
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 from authentication import AuthHandler, TokenPayload
 from services.performance_monitor import monitor_query
@@ -15,7 +14,8 @@ from exceptions import (
     ResourceNotFoundException,
     ValidationException,
     DatabaseOperationException,
-    AuthorizationException
+    AuthorizationException,
+    ExternalServiceException
 )
 from logging_config import logger
 from models.players import (
