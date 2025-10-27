@@ -39,11 +39,11 @@ class ImportService:
         if use_production:
             self.db_url = os.environ["DB_URL_PROD"]
             self.db_name = "bishl"
-            self.base_url = os.environ.get("BE_API_URL_PROD", settings.be_api_url)
+            self.base_url = os.environ.get("BE_API_URL_PROD", settings.BE_API_URL)
         else:
             self.db_url = os.environ["DB_URL"]
             self.db_name = "bishl_dev"
-            self.base_url = os.environ.get("BE_API_URL", settings.be_api_url)
+            self.base_url = os.environ.get("BE_API_URL", settings.BE_API_URL)
 
         logger.info(
             f"Import Service initialized for {'PRODUCTION' if use_production else 'DEVELOPMENT'}"
