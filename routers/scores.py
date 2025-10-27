@@ -160,7 +160,6 @@ async def create_score(
     s_alias = match.get("season", {}).get("alias")
     r_alias = match.get("round", {}).get("alias")
     md_alias = match.get("matchday", {}).get("alias")
-    finish_type = match.get("finishType", {}).get("key")
     goal_player_id = score.goalPlayer.playerId if score.goalPlayer else None
     assist_player_id = score.assistPlayer.playerId if score.assistPlayer else None
 
@@ -325,7 +324,6 @@ async def patch_one_score(
         if score_data.get("assistPlayer")
         else None
     )
-    player_ids = [player_id for player_id in [goal_player_id, assist_player_id] if player_id]
     print("score_data: ", score_data)
 
     update_data = {"$set": {}}
@@ -335,7 +333,7 @@ async def patch_one_score(
     print("update_data: ", update_data)
     if update_data.get("$set"):
         try:
-            result = await mongodb["matches"].update_one(
+            await mongodb["matches"].update_one(
                 {"_id": match_id, f"{team_flag}.scores._id": score_id}, update_data
             )
 
@@ -492,13 +490,6 @@ async def delete_one_score(
             # Only do full calculations when match is finished
             await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
             await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
-
-            # Full player stats calculation only on match finish
-            player_ids = [pid for pid in [goal_player_id, assist_player_id] if pid]
-            # The following line caused the original error, it's now removed as calc_player_card_stats is not imported.
-            # if player_ids:
-            #   await stats_service.calculate_player_card_stats(player_ids, t_alias, s_alias,
-            #                              r_alias, md_alias, token_payload)
         else:
             # For INPROGRESS matches, only update standings (much faster)
             await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)

@@ -144,11 +144,6 @@ async def create_penalty(
             details={"match_id": match_id, "team_flag": team_flag},
         )
 
-    # Get match info for optimizations
-    t_alias = match.get("tournament", {}).get("alias")
-    s_alias = match.get("season", {}).get("alias")
-    r_alias = match.get("round", {}).get("alias")
-    md_alias = match.get("matchday", {}).get("alias")
     penalty_player_id = penalty.penaltyPlayer.playerId
 
     try:
@@ -363,11 +358,6 @@ async def delete_one_penalty(
             details={"match_id": match_id, "team_flag": team_flag},
         )
 
-    # Get match info for optimizations
-    t_alias = match.get("tournament", {}).get("alias")
-    s_alias = match.get("season", {}).get("alias")
-    r_alias = match.get("round", {}).get("alias")
-    md_alias = match.get("matchday", {}).get("alias")
     penalty_player_id = current_penalty.get("penaltyPlayer", {}).get("playerId")
     penalty_minutes = current_penalty.get("penaltyMinutes", 0)
 

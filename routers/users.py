@@ -333,8 +333,6 @@ async def get_all_referees(
     if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    current_season = os.environ["CURRENT_SEASON"]
-
     # Use pagination helper
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["users"],
