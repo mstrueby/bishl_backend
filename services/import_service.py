@@ -178,7 +178,7 @@ class ImportProgress:
         self.total = total
         self.current = 0
         self.description = description
-        self.errors = []
+        self.errors: list[str] = []
 
     def update(self, increment: int = 1, message: str | None = None):
         """Update progress counter"""
