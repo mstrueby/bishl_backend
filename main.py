@@ -39,7 +39,7 @@ app = FastAPI(
     title="BISHL API",
     version="1.0.0",
     description="""
-## Belgian Ice and Street Hockey League API
+## Berlin Inline Skater Hockey League API
 
 This API provides comprehensive management for ice and street hockey leagues in Belgium.
 
