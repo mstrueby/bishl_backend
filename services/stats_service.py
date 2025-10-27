@@ -1437,7 +1437,7 @@ class StatsService:
         """Check if team is already in player's assignedTeams."""
         assigned_teams: list = player_data.get("assignedTeams", [])
         if not assigned_teams:
-            return bool(False)
+            return False
         for club in assigned_teams:
             teams: list = club.get("teams", [])
             if not teams:
@@ -1445,8 +1445,8 @@ class StatsService:
             for team in teams:
                 team_id_value: str | None = team.get("teamId")
                 if team_id_value is not None and str(team_id_value) == str(team_id):
-                    return bool(True)
-        return bool(False)
+                    return True
+        return False
 
     async def _add_called_team_assignment(
         self,
