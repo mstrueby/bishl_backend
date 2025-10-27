@@ -6,11 +6,11 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Database
-    DB_URL: str = Field(..., description="MongoDB connection URL")
-    DB_NAME: str = Field(..., description="MongoDB database name")
+    DB_URL: str = Field(default="", description="MongoDB connection URL")
+    DB_NAME: str = Field(default="bishl_dev", description="MongoDB database name")
 
     # API
-    BE_API_URL: str = Field(..., description="Backend API base URL")
+    BE_API_URL: str = Field(default="", description="Backend API base URL")
 
     # Application Settings
     DEBUG_LEVEL: int = Field(default=0, description="Debug verbosity level (0-2)")
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     )
 
     # JWT Configuration
-    JWT_SECRET: str = Field(..., description="Secret key for JWT token generation")
+    JWT_SECRET: str = Field(default="", description="Secret key for JWT token generation")
     JWT_ALGORITHM: str = Field(default="HS256", description="Algorithm for JWT encoding")
 
     # Mail Configuration
