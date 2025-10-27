@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import HttpUrl
 
 from authentication import AuthHandler, TokenPayload
+from config import settings
 from exceptions import (
     AuthorizationException,
     DatabaseOperationException,
@@ -1209,9 +1210,7 @@ async def get_players_for_club(
     paginated_result = PaginationHelper.create_response(
         items=[PlayerDB(**player) for player in result["results"]],
         page=result["page"],
-        page_size=(
-            RESULTS_PER_PAGE if all else int(os.environ["RESULTS_PER_PAGE"])
-        ),  # Use appropriate page size
+        page_size=settings.RESULTS_PER_PAGE if all else settings.RESULTS_PER_PAGE,
         total_count=result["total"],
         message=f"Retrieved {len(result['results'])} players for club {club_alias}",
     )
@@ -1266,9 +1265,7 @@ async def get_players_for_team(
     paginated_result = PaginationHelper.create_response(
         items=[PlayerDB(**player) for player in result["results"]],
         page=result["page"],
-        page_size=(
-            RESULTS_PER_PAGE if all else int(os.environ["RESULTS_PER_PAGE"])
-        ),  # Use appropriate page size
+        page_size=settings.RESULTS_PER_PAGE if all else settings.RESULTS_PER_PAGE,
         total_count=result["total"],
         message=f"Retrieved {len(result['results'])} players for team {team_alias} in club {club_alias}",
     )
@@ -1428,7 +1425,7 @@ async def create_player(
         logger.info(
             f"Creating new player: {firstName} {lastName} ({birthdate.strftime('%Y-%m-%d')})"
         )
-        new_player = await mongodb["players"].insert_one(player)
+        await mongodb["players"].insert_one(player)
         created_player = await mongodb["players"].find_one({"_id": player_id})
         if created_player:
             logger.info(f"Player created successfully: {player_id}")
