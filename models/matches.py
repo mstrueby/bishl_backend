@@ -13,7 +13,7 @@ class PyObjectId(ObjectId):
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):
 
-        def validate_object_id(value: str) -> ObjectId:
+        def validate_object_id(value: str, _info) -> ObjectId:
             if isinstance(value, ObjectId):
                 return value
             if not ObjectId.is_valid(value):
@@ -110,7 +110,7 @@ class ScoresDB(ScoresBase):
 
 class ScoresUpdate(MongoBaseModel):
     matchTime: str | None = "00:00"
-    goalPlayer: EventPlayer | None = Field(default_factory=dict)
+    goalPlayer: EventPlayer | None = None
     assistPlayer: EventPlayer | None = None
     isPPG: bool | None = False
     isSHG: bool | None = False
@@ -139,8 +139,8 @@ class PenaltiesDB(PenaltiesBase):
 class PenaltiesUpdate(MongoBaseModel):
     matchTimeStart: str | None = "00:00"
     matchTimeEnd: str | None = None
-    penaltyPlayer: EventPlayer | None = Field(default_factory=dict)
-    penaltyCode: dict[str, str] | None = Field(default_factory=dict)
+    penaltyPlayer: EventPlayer | None = None
+    penaltyCode: dict[str, str] | None = None
     penaltyMinutes: int | None = 0
     isGM: bool | None = False
     isMP: bool | None = False
@@ -217,7 +217,7 @@ class MatchTeam(BaseModel):
     staff: list[Staff] | None = Field(default_factory=list)
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
-    stats: MatchStats | None = Field(default_factory=dict)
+    stats: MatchStats | None = Field(default_factory=MatchStats)
 
     @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
@@ -242,7 +242,7 @@ class MatchTeamUpdate(BaseModel):
     staff: list[Staff] | None = Field(default_factory=list)
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
-    stats: MatchStats | None = Field(default_factory=dict)
+    stats: MatchStats | None = None
 
     @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
@@ -349,7 +349,7 @@ class MatchListTeam(BaseModel):
     tinyName: str = Field(...)
     logo: HttpUrl | None = None
     rosterPublished: bool | None = False
-    stats: MatchStats | None = Field(default_factory=dict)
+    stats: MatchStats | None = Field(default_factory=MatchStats)
 
     @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
@@ -387,8 +387,8 @@ class MatchUpdate(MongoBaseModel):
     away: MatchTeamUpdate | None = None
     referee1: Referee | None = None
     referee2: Referee | None = None
-    matchStatus: KeyValue | None = Field(default_factory=dict)
-    finishType: KeyValue | None = Field(default_factory=dict)
+    matchStatus: KeyValue | None = None
+    finishType: KeyValue | None = None
     venue: MatchVenue | None = None
     startDate: datetime | None = None
     published: bool | None = False
