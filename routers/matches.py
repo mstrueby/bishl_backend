@@ -462,7 +462,6 @@ async def get_matches(
     page_size: int = Query(10, ge=1, le=100, description="Items per page"),
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
 ) -> JSONResponse:
-    mongodb = request.app.state.mongodb
     query = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
     if tournament:
         query["tournament.alias"] = tournament
@@ -512,15 +511,6 @@ async def get_matches(
             ) from e
     if DEBUG_LEVEL > 20:
         print("query: ", query)
-    # Project only necessary fields, excluding roster, scores, and penalties
-    projection = {
-        "home.roster": 0,
-        "home.scores": 0,
-        "home.penalties": 0,
-        "away.roster": 0,
-        "away.scores": 0,
-        "away.penalties": 0,
-    }
 
     # Use pagination helper
     items, total_count = await PaginationHelper.paginate_query(
