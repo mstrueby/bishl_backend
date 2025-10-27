@@ -1409,13 +1409,15 @@ async def get_players(
     )
 
     # Create the paginated response
-    return PaginationHelper.create_response(
+    paginated_result = PaginationHelper.create_response(
         items=[PlayerDB(**item) for item in items],
         page=page,
         page_size=page_size if not all else total_count, # Adjust page_size for 'all' case
         total_count=total_count,
         message=f"Retrieved {len(items)} players"
     )
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(paginated_result))
 
 
 # GET ONE PLAYER

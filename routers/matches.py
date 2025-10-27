@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Body, status, HTTPException, Depends, Qu
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import List, Optional
-from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase
+from models.matches import MatchBase, MatchDB, MatchUpdate, MatchTeamUpdate, MatchStats, MatchTeam, MatchListBase, KeyValue
 from models.responses import StandardResponse, PaginatedResponse
 from authentication import AuthHandler, TokenPayload
 from utils import validate_match_time, parse_datetime
@@ -496,11 +496,17 @@ async def get_rest_of_week_matches(request: Request,
 @router.get("", response_model=PaginatedResponse[MatchDB])
 async def get_matches(
     request: Request,
-    t_alias: str | None = None,
-    s_alias: str | None = None,
-    r_alias: str | None = None,
-    md_alias: str | None = None,
-    status: MatchStatus | None = None,
+    tournament: str | None = None,
+    season: str | None = None,
+    round: str | None = None,
+    matchday: str | None = None,
+    status_key: str | None = None,
+    referee: str | None = None,
+    club: str | None = None,
+    team: str | None = None,
+    assigned: bool | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(10, ge=1, le=100, description="Items per page"),
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper)
@@ -513,6 +519,8 @@ async def get_matches(
     query["round.alias"] = round
   if matchday:
     query["matchday.alias"] = matchday
+  if status_key:
+    query["matchStatus.key"] = status_key
   if referee:
     query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
   if club:

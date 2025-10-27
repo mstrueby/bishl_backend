@@ -8,20 +8,26 @@ class PyObjectId(ObjectId):
 
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
+    from pydantic_core import core_schema
+    
+    def validate_object_id(value: str) -> ObjectId:
+      if isinstance(value, ObjectId):
+        return value
+      if not ObjectId.is_valid(value):
+        raise ValueError("Invalid ObjectId")
+      return ObjectId(value)
+    
+    return core_schema.with_info_plain_validator_function(
+      validate_object_id,
       serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x)
+        lambda x: str(x),
+        return_schema=core_schema.str_schema()
       )
     )
 
   @classmethod
-  def validate(cls, v):
-    if isinstance(v, ObjectId):
-      return v
-    if not ObjectId.is_valid(v):
-      raise ValueError("Invalid objectid")
-    return ObjectId(v)
+  def __get_pydantic_json_schema__(cls, schema, handler):
+    return {'type': 'string', 'format': 'objectid'}
 
 
 class MongoBaseModel(BaseModel):
