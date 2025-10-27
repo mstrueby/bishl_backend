@@ -8,7 +8,7 @@ class PyObjectId(ObjectId):
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):
 
-        def validate_object_id(value: str) -> ObjectId:
+        def validate_object_id(value, _info):
             if isinstance(value, ObjectId):
                 return value
             if not ObjectId.is_valid(value):
@@ -65,7 +65,6 @@ class TeamBase(MongoBaseModel):
     legacyId: int | None = None
 
     @field_validator("ishdId", mode="before")
-    @classmethod
     def empty_str_to_none(cls, v):
         return None if v == "" else v
 
@@ -113,7 +112,6 @@ class TeamUpdate(MongoBaseModel):
     legacyId: int | None = None
 
     @field_validator("ishdId", mode="before")
-    @classmethod
     def empty_str_to_none(cls, v):
         return None if v == "" else v
 
@@ -159,7 +157,6 @@ class ClubBase(MongoBaseModel):
     logoUrl: HttpUrl | None = None
 
     @field_validator("email", "website", "yearOfFoundation", "ishdId", "logoUrl", mode="before")
-    @classmethod
     def empty_str_to_none(cls, v):
         return None if v == "" else v
 
@@ -194,7 +191,6 @@ class ClubUpdate(MongoBaseModel):
     logoUrl: str | None = None
 
     @field_validator("email", "website", "logoUrl", mode="before")
-    @classmethod
     def empty_str_to_none(cls, v):
         return None if v == "" else v
 
