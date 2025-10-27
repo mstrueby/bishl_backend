@@ -6,21 +6,40 @@ Run this to create all necessary indexes for optimal query performance.
 Should be run once after deployment and whenever index strategy changes.
 
 Usage:
-    python scripts/create_indexes.py
+    python scripts/create_indexes.py [--prod]
 """
 
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 import os
+import argparse
 from logging_config import logger
+
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Create MongoDB indexes.')
+parser.add_argument('--prod',
+                    action='store_true',
+                    help='Create indexes in production database.')
+args = parser.parse_args()
+
+# Get environment variables based on --prod flag
+if args.prod:
+    DB_URL = os.environ['DB_URL_PROD']
+    DB_NAME = 'bishl'
+else:
+    DB_URL = os.environ['DB_URL']
+    DB_NAME = 'bishl_dev'
+
+print("DB_URL:", DB_URL)
+print("DB_NAME:", DB_NAME)
 
 async def create_indexes():
     """Create all necessary indexes for optimal query performance"""
     
-    client = AsyncIOMotorClient(os.environ['DB_URL'])
-    db = client[os.environ['DB_NAME']]
+    client = AsyncIOMotorClient(DB_URL)
+    db = client[DB_NAME]
     
-    logger.info("Starting index creation...")
+    logger.info(f"Starting index creation for database: {DB_NAME}...")
     
     try:
         # Matches indexes
