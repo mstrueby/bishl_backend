@@ -482,7 +482,7 @@ async def process_ishd_data(
                             except json.JSONDecodeError:
                                 try:
                                     error_detail = await response.text()
-                                except:
+                                except Exception:
                                     error_detail = "Unable to parse error response"
 
                             # Check for SSL-related errors
