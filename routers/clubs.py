@@ -55,7 +55,7 @@ async def delete_from_cloudinary(logo_url: str):
             print("Result:", result)
             return result
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # list all clubs

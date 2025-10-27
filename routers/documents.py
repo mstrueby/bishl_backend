@@ -42,7 +42,7 @@ def upload_to_cloudinary(title: str, file: UploadFile):
         print("Document uploaded to Cloudinary:", result["public_id"])
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Helper function to check file format
@@ -68,7 +68,7 @@ async def delete_from_cloudinary(public_id: str):
         print("Document deleted from Cloudinary:", public_id)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Helper function to check for reserved aliases
@@ -256,9 +256,9 @@ async def upload_document(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Document {document_data['title']} already exists.",
-        )
+        ) from e
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 # Update document
@@ -335,7 +335,7 @@ async def update_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content="Failed to update document"
         )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 # delete document
