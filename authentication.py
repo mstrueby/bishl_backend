@@ -82,14 +82,14 @@ class AuthHandler:
                 clubId=payload.get("clubId"),
                 clubName=payload.get("clubName"),
             )
-        except jwt.ExpiredSignatureError:
+        except jwt.ExpiredSignatureError as e:
             raise AuthenticationException(
                 message="Token has expired", details={"reason": "expired_signature"}
-            )
-        except jwt.InvalidTokenError:
+            ) from e
+        except jwt.InvalidTokenError as e:
             raise AuthenticationException(
                 message="Invalid token", details={"reason": "invalid_token"}
-            )
+            ) from e
 
     def decode_refresh_token(self, token):
         """Decode and validate refresh token"""
@@ -98,14 +98,14 @@ class AuthHandler:
             if payload.get("type") != "refresh":
                 raise jwt.InvalidTokenError("Not a refresh token")
             return payload["sub"]  # Return only user ID
-        except jwt.ExpiredSignatureError:
+        except jwt.ExpiredSignatureError as e:
             raise AuthenticationException(
                 message="Refresh token has expired", details={"reason": "expired_refresh_token"}
-            )
-        except jwt.InvalidTokenError:
+            ) from e
+        except jwt.InvalidTokenError as e:
             raise AuthenticationException(
                 message="Invalid refresh token", details={"reason": "invalid_refresh_token"}
-            )
+            ) from e
 
     def encode_reset_token(self, user):
         payload = {
@@ -122,14 +122,14 @@ class AuthHandler:
             if payload.get("type") != "reset":
                 raise jwt.InvalidTokenError
             return TokenPayload(sub=payload["sub"], roles=[])
-        except jwt.ExpiredSignatureError:
+        except jwt.ExpiredSignatureError as e:
             raise AuthenticationException(
                 message="Reset token has expired", details={"reason": "expired_reset_token"}
-            )
-        except jwt.InvalidTokenError:
+            ) from e
+        except jwt.InvalidTokenError as e:
             raise AuthenticationException(
                 message="Invalid reset token", details={"reason": "invalid_reset_token"}
-            )
+            ) from e
 
     def auth_wrapper(self, auth: HTTPAuthorizationCredentials = Security(security)):
         return self.decode_token(auth.credentials)
