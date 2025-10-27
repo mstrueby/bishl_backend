@@ -13,7 +13,7 @@ class PyObjectId(ObjectId):
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):
 
-        def validate_object_id(value: str) -> ObjectId:
+        def validate_object_id(value: str, _info) -> ObjectId:
             if isinstance(value, ObjectId):
                 return value
             if not ObjectId.is_valid(value):
@@ -118,10 +118,10 @@ class MatchdayBase(MongoBaseModel):
     endDate: datetime | None = None
     createStandings: bool = False
     createStats: bool = False
-    matchSettings: MatchSettings | None = Field(default_factory=dict)
+    matchSettings: MatchSettings | None = None
     published: bool = False
-    standings: dict[str, Standings] | None = Field(default_factory=dict)
-    owner: MatchdayOwner | None = Field(default_factory=dict)
+    standings: dict[str, Standings] | None = None
+    owner: MatchdayOwner | None = None
 
     @field_validator("startDate", "endDate", mode="before")
     @classmethod
@@ -146,10 +146,10 @@ class MatchdayUpdate(MongoBaseModel):
     endDate: datetime | None = None
     createStandings: bool | None = False
     createStats: bool | None = False
-    matchSettings: MatchSettings | None = Field(default_factory=dict)
+    matchSettings: MatchSettings | None = None
     published: bool | None = False
-    standings: dict[str, Standings] | None = Field(default_factory=dict)
-    owner: MatchdayOwner | None = Field(default_factory=dict)
+    standings: dict[str, Standings] | None = None
+    owner: MatchdayOwner | None = None
 
     @field_validator("startDate", "endDate", mode="before")
     @classmethod
@@ -172,7 +172,7 @@ class RoundBase(MongoBaseModel):
     matchdaysSortedBy: dict[str, str] = Field(...)
     startDate: datetime | None = None
     endDate: datetime | None = None
-    matchSettings: MatchSettings | None = Field(default_factory=dict)
+    matchSettings: MatchSettings | None = None
     published: bool = False
     matchdays: list[MatchdayBase] | None = Field(default_factory=list)
     standings: dict[str, Standings] | None = Field(default_factory=dict)
@@ -207,7 +207,7 @@ class RoundUpdate(MongoBaseModel):
     matchdaysSortedBy: dict[str, str] | None = Field(default_factory=dict)
     startDate: datetime | None = None
     endDate: datetime | None = None
-    matchSettings: MatchSettings | None = Field(default_factory=dict)
+    matchSettings: MatchSettings | None = None
     published: bool | None = False
     matchdays: list[MatchdayBase] | None = Field(default_factory=list)
     standings: dict[str, Standings] | None = Field(default_factory=dict)
@@ -231,7 +231,7 @@ class RoundUpdate(MongoBaseModel):
 class SeasonBase(MongoBaseModel):
     name: str = Field(...)
     alias: str = Field(...)
-    standingsSettings: StandingsSettings | None = Field(default_factory=dict)
+    standingsSettings: StandingsSettings | None = None
     published: bool = False
     rounds: list[RoundBase] | None = Field(default_factory=list)
 
@@ -248,7 +248,7 @@ class SeasonDB(SeasonBase):
 class SeasonUpdate(MongoBaseModel):
     name: str | None = "DEFAULT"
     alias: str | None = "DEFAULT"
-    standingsSettings: StandingsSettings | None = Field(default_factory=dict)
+    standingsSettings: StandingsSettings | None = None
     published: bool | None = False
     rounds: list[RoundBase] | None = Field(default_factory=list)
 
