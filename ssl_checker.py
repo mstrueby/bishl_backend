@@ -19,16 +19,32 @@ def check_ssl_certificate(url):
             with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
 
+        # Check that certificate was retrieved
+        if not cert:
+            print("❌ Failed to retrieve certificate")
+            return False
+
         # Check certificate details
         print(f"Certificate for {hostname}:")
-        print(f"Subject: {cert['subject']}")
-        print(f"Issuer: {cert['issuer']}")
-        print(f"Version: {cert['version']}")
-        print(f"Serial Number: {cert['serialNumber']}")
+        print(f"Subject: {cert.get('subject')}")
+        print(f"Issuer: {cert.get('issuer')}")
+        print(f"Version: {cert.get('version')}")
+        print(f"Serial Number: {cert.get('serialNumber')}")
 
         # Check expiration
-        not_after = datetime.datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
-        not_before = datetime.datetime.strptime(cert["notBefore"], "%b %d %H:%M:%S %Y %Z")
+        not_after_str = cert.get("notAfter")
+        not_before_str = cert.get("notBefore")
+        
+        if not not_after_str or not isinstance(not_after_str, str):
+            print("❌ Invalid certificate expiration date")
+            return False
+            
+        if not not_before_str or not isinstance(not_before_str, str):
+            print("❌ Invalid certificate start date")
+            return False
+            
+        not_after = datetime.datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z")
+        not_before = datetime.datetime.strptime(not_before_str, "%b %d %H:%M:%S %Y %Z")
 
         print(f"Valid from: {not_before}")
         print(f"Valid until: {not_after}")
