@@ -51,14 +51,25 @@ async def create_indexes():
     async def create_index_safe(collection, keys, **kwargs):
         """Helper to create index and skip if already exists"""
         index_name = kwargs.get('name', 'unnamed')
+        is_unique = kwargs.get('unique', False)
         try:
             await collection.create_index(keys, **kwargs)
             logger.info(f"  ✓ Created index: {index_name}")
         except OperationFailure as e:
-            if "already exists" in str(e) or "IndexOptionsConflict" in str(e):
+            error_str = str(e)
+            if "already exists" in error_str or "IndexOptionsConflict" in error_str:
                 logger.info(f"  ↷ Index already exists: {index_name}")
+            elif "duplicate key" in error_str or "dup key" in error_str:
+                if is_unique:
+                    logger.warning(
+                        f"  ⚠ Cannot create unique index {index_name}: duplicate values exist in collection. "
+                        f"Clean up duplicates first before creating this unique index."
+                    )
+                else:
+                    logger.error(f"  ✗ Failed to create index {index_name}: {error_str}")
+                    raise
             else:
-                logger.error(f"  ✗ Failed to create index {index_name}: {str(e)}")
+                logger.error(f"  ✗ Failed to create index {index_name}: {error_str}")
                 raise
     
     try:
