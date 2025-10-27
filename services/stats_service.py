@@ -1,4 +1,3 @@
-import os
 import time
 from typing import Dict, List, Optional
 from functools import wraps
@@ -14,8 +13,9 @@ from exceptions.custom_exceptions import (
 )
 from logging_config import logger
 from services.performance_monitor import monitor_query
+from config import settings
 
-BASE_URL = os.environ.get('BE_API_URL', 'http://localhost:8080')
+BASE_URL = settings.BE_API_URL
 
 # Remove the pydantic_patch.py file as requested.
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
@@ -11,6 +10,7 @@ import traceback
 # Import custom exceptions and logging
 from exceptions import BISHLException
 from logging_config import logger
+from config import settings
 
 #import uvicorn
 from routers.root import router as root_router
@@ -35,19 +35,10 @@ from routers.players import router as players_router
 from fastapi.middleware.cors import CORSMiddleware
 import certifi
 
-#from decouple import config
-#DB_URL = config('DB_URL', cast=str)
-#DB_NAME = config('DB_NAME', cast=str)
-
-DB_URL = os.environ["DB_URL"]
-DB_NAME = os.environ["DB_NAME"]
-
-origins = ["*"]
-
 app = FastAPI()
 app.add_middleware(
   CORSMiddleware,
-  allow_origins=origins,
+  allow_origins=settings.CORS_ORIGINS,
   allow_credentials=True,
   allow_methods=["*"],
   allow_headers=["*"],
@@ -152,10 +143,10 @@ async def general_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 async def startup_db_client():
   logger.info("Starting BISHL API server...")
-  logger.info(f"Connecting to MongoDB: {DB_NAME}")
-  app.state.client = AsyncIOMotorClient(DB_URL, tlsCAFile=certifi.where())
+  logger.info(f"Connecting to MongoDB: {settings.DB_NAME}")
+  app.state.client = AsyncIOMotorClient(settings.DB_URL, tlsCAFile=certifi.where())
   app.state.mongodb_client = app.state.client  # Keep backward compatibility
-  app.state.mongodb = app.state.client[DB_NAME]
+  app.state.mongodb = app.state.client[settings.DB_NAME]
   logger.info("MongoDB connection established")
 
 

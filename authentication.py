@@ -1,5 +1,4 @@
 import jwt
-import os
 from typing import Optional
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -8,6 +7,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHash
 from datetime import datetime, timedelta
 from exceptions import AuthenticationException
+from config import settings
 
 
 class AuthHandler:
@@ -16,7 +16,7 @@ class AuthHandler:
   pwd_content_legacy = CryptContext(schemes=["bcrypt"], deprecated="auto")
   # New argon2 hasher
   argon2_hasher = PasswordHasher()
-  secret = os.environ.get("SECRET_KEY")
+  secret = settings.SECRET_KEY
 
   def get_password_hash(self, password):
     """Hash password using argon2 (new standard)"""
@@ -45,7 +45,7 @@ class AuthHandler:
     payload = {
         "exp":
         datetime.now() +
-        timedelta(days=0, minutes=int(os.environ['API_TIMEOUT_MIN'])),
+        timedelta(days=0, minutes=settings.API_TIMEOUT_MIN),
         "iat":
         datetime.now(),
         "sub":

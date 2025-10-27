@@ -12,9 +12,10 @@ import cloudinary
 import cloudinary.uploader
 import asyncio
 from logging_config import logger
+from config import settings
 
-BASE_URL = os.environ['BE_API_URL']
-DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
+BASE_URL = settings.BE_API_URL
+DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 
 async def populate_event_player_fields(mongodb, event_player_dict):
@@ -36,9 +37,9 @@ def to_camel(string: str) -> str:
 
 def configure_cloudinary():
   cloudinary.config(
-      cloud_name=os.environ["CLDY_CLOUD_NAME"],
-      api_key=os.environ["CLDY_API_KEY"],
-      api_secret=os.environ["CLDY_API_SECRET"],
+      cloud_name=settings.CLDY_CLOUD_NAME,
+      api_key=settings.CLDY_API_KEY,
+      api_secret=settings.CLDY_API_SECRET,
   )
 
 
@@ -172,7 +173,7 @@ async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str,
 
 
 async def get_sys_ref_tool_token(email: str, password: str):
-  login_url = f"{os.environ['BE_API_URL']}/users/login"
+  login_url = f"{settings.BE_API_URL}/users/login"
   login_data = {
       "email": email,
       "password": password
