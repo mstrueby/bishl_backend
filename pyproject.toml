@@ -107,14 +107,31 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
-module = [
-    "passlib.*",
-    "motor.*",
-    "pymongo.*",
-    "cloudinary.*",
-    "isodate.*",
-    "bson.*",
-]
+module = "passlib.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "motor.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pymongo.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "cloudinary.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "isodate.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "bson.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "requests.*"
 ignore_missing_imports = true
 
 pyjwt = "^2.9.0"
