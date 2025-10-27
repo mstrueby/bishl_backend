@@ -59,10 +59,10 @@ def parse_time_to_seconds(time_str: str | None) -> int:
     return minutes * 60 + seconds
 
 
-def parse_time_from_seconds(seconds):
-    minutes = seconds // 60
-    seconds = seconds % 60
-    return f"{minutes:02d}:{seconds:02d}"
+def parse_time_from_seconds(seconds: int) -> str:
+    minutes: int = seconds // 60
+    remaining_seconds: int = seconds % 60
+    return f"{minutes:02d}:{remaining_seconds:02d}"
 
 
 def flatten_dict(d, parent_key="", sep="."):
