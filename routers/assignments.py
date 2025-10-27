@@ -369,12 +369,12 @@ async def create_assignment(
                                                              token_payload.sub,
                                                              f"{token_payload.firstName} {token_payload.lastName}",
                                                              session=session)
-                    
+
                     # Update match document within same transaction
                     await set_referee_in_match(mongodb, match_id, referee,
                                                assignment_data.position,
                                                session=session)
-                    
+
                     # Transaction commits automatically on success
                 except Exception as e:
                     # Transaction aborts automatically on exception
@@ -540,7 +540,7 @@ async def update_assignment(
             #print("do update")
             if 'ref_admin' in update_data:
                 del update_data['ref_admin']
-            
+
             # Use transaction for assignment and match updates
             async with await request.app.state.client.start_session() as session:
                 async with session.start_transaction():
@@ -587,7 +587,7 @@ async def update_assignment(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Failed to update assignment: {str(e)}"
                         )
-            
+
             # Send notifications after transaction commits
             if update_data['status'] not in [Status.assigned, Status.accepted]:
                 await send_message_to_referee(
@@ -806,7 +806,7 @@ async def get_unassigned_matches_in_14_days(
 
                 # Determine if this is a matchday owner or home club
                 is_matchday_owner = matchday_owner and matchday_owner.get('clubId') == club_id
-                
+
                 # Prepare email content
                 email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
 
@@ -1041,7 +1041,7 @@ async def delete_assignment(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to delete assignment: {str(e)}"
                 )
-    
+
     # Send notification after transaction commits
     await send_message_to_referee(
         match=match,

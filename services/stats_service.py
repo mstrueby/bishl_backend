@@ -4,6 +4,7 @@ from functools import wraps
 import httpx
 import aiohttp
 from datetime import datetime
+import os
 
 from exceptions.custom_exceptions import (
     ResourceNotFoundException,
@@ -107,7 +108,7 @@ class StatsService:
                     operation="fetch_standings_settings",
                     message=f"Failed to fetch standings settings: {str(e)}",
                     details={"tournament_alias": tournament_alias, "season_alias": season_alias}
-                )
+                ) from e
 
     def calculate_match_stats(
         self,
@@ -320,7 +321,7 @@ class StatsService:
                     "season_alias": s_alias,
                     "round_alias": r_alias
                 }
-            )
+            ) from e
 
     @log_performance
     async def aggregate_matchday_standings(self, t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> None:
@@ -423,7 +424,7 @@ class StatsService:
                     "round_alias": r_alias,
                     "matchday_alias": md_alias
                 }
-            )
+            ) from e
 
     # ==================== HELPER METHODS ====================
 
@@ -661,7 +662,7 @@ class StatsService:
                 calculation_type="roster",
                 message=str(e),
                 details={"match_id": match_id, "team_flag": team_flag}
-            )
+            ) from e
 
     @monitor_query("fetch_match_data_direct")
     async def _fetch_match_data_from_db(self, match_id: str, team_flag: str) -> tuple:
@@ -845,7 +846,7 @@ class StatsService:
                     operation="save_roster",
                     message=f"Could not update roster in mongoDB: {str(e)}",
                     details={"match_id": match_id, "team_flag": team_flag}
-                )
+                ) from e
 
     # ==================== PLAYER CARD STATISTICS ====================
 
@@ -897,7 +898,7 @@ class StatsService:
                     resource_type="Round",
                     resource_id=f"{t_alias}/{s_alias}/{r_alias}",
                     details={"http_status_code": e.response.status_code}
-                )
+                ) from e
             except httpx.RequestError as e:
                 logger.error(f"Network error fetching round information: {str(e)}", extra={
                     "tournament_alias": t_alias,
@@ -909,7 +910,7 @@ class StatsService:
                     operation="fetch_round_info",
                     message=f"Network error fetching round info: {str(e)}",
                     details={"tournament_alias": t_alias, "season_alias": s_alias, "round_alias": r_alias}
-                )
+                ) from e
 
 
         # Process round statistics
@@ -1091,7 +1092,7 @@ class StatsService:
                         operation="save_player_stats",
                         message=f"Failed to update stats for player {player_id}: {str(e)}",
                         details={"player_id": player_id}
-                    )
+                    ) from e
 
 
     def _should_update_stat(self, existing_stat: dict, new_stats: dict,
@@ -1131,7 +1132,7 @@ class StatsService:
             headers = {"Authorization": f"Bearer {auth_token}"}
         except Exception as e:
             logger.error(f"Failed to encode authentication token: {str(e)}")
-            raise DatabaseOperationException(operation="encode_auth_token", message=f"Failed to encode auth token: {str(e)}")
+            raise DatabaseOperationException(operation="encode_auth_token", message=f"Failed to encode auth token: {str(e)}") from e
 
 
         for player_id in player_ids:
@@ -1248,14 +1249,14 @@ class StatsService:
                 operation="update_player_assignments",
                 message=f"HTTP error updating assignments for player {player_id}: {str(e)}",
                 details={"player_id": player_id, "team_name": team_name, "http_status_code": e.response.status_code}
-            )
+            ) from e
         except httpx.RequestError as e:
             logger.error(f"Network error updating assignments for player {player_id}: {str(e)}", extra={"player_id": player_id, "team_name": team_name, "error": str(e)})
             raise DatabaseOperationException(
                 operation="update_player_assignments",
                 message=f"Network error updating assignments for player {player_id}: {str(e)}",
                 details={"player_id": player_id, "team_name": team_name}
-            )
+            ) from e
 
 
     def _create_team_assignment(self, team_info: tuple) -> dict:

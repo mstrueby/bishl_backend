@@ -753,7 +753,7 @@ async def create_match(
         operation="insert_one",
         collection="matches",
         details={"error": str(e)}
-      )
+      ) from e
 
     logger.info(f"Match created successfully", extra={
       "match_id": result.inserted_id,
@@ -812,7 +812,7 @@ async def create_match(
                         content=jsonable_encoder(new_match))
 
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ------ update match
@@ -1038,22 +1038,14 @@ async def update_match(request: Request,
       await stats_service.calculate_roster_stats(match_id, 'away')
 
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail=str(e)) from e
 
   updated_match = await get_match_object(mongodb, match_id)
 
-  # PHASE 1 OPTIMIZATION: Only update standings if stats changed, skip all heavy player calculations
-  if stats_change_detected and t_alias and s_alias and r_alias:
-    stats_service = StatsService(mongodb)
-    await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
-  if stats_change_detected and t_alias and s_alias and r_alias and md_alias:
-    stats_service = StatsService(mongodb)
-    await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
-
-  # PHASE 1 OPTIMIZATION: Only calculate player card stats when both conditions are met:
-  # 1. Stats-affecting changes detected AND 2. Match is/becomes FINISHED
-  if (stats_change_detected and 'FINISHED' in {new_match_status, current_match_status} and
-      t_alias and s_alias and r_alias and md_alias):
+  # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
+  # Player stats will be calculated when match status changes to FINISHED
+  if stats_change_detected and 'FINISHED' in {new_match_status, current_match_status} and \
+      t_alias and s_alias and r_alias and md_alias:
     home_players = [
         player.get('player', {}).get('playerId') for player in existing_match.get('home', {}).get('roster', [])
         if player.get('player', {}).get('playerId')
@@ -1177,4 +1169,4 @@ async def delete_match(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail=str(e)) from e

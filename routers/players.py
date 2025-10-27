@@ -87,7 +87,7 @@ async def delete_from_cloudinary(image_url: str):
                 service="Cloudinary",
                 operation="delete_image",
                 details={"public_id": f"players/{public_id}", "error": str(e)}
-            )
+            ) from e
 
 
 # Helper function to search players
