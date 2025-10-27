@@ -9,6 +9,12 @@ Usage:
     python scripts/create_indexes.py [--prod]
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to Python path to allow importing from root
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 import os
