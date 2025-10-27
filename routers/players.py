@@ -1305,7 +1305,9 @@ async def get_players(
     if active is not None:
         # This part needs to be adapted if 'active' is a field within 'assignedTeams.teams'
         # For now, assuming 'active' is a top-level field for filtering players
-        search_query["active"] = active  # This line might need adjustment based on how 'active' is used
+        search_query["active"] = (
+            active  # This line might need adjustment based on how 'active' is used
+        )
 
     # Add club and team filtering if necessary (e.g., if passed as query parameters)
     # if club_alias:
