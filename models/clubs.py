@@ -117,7 +117,7 @@ class TeamUpdate(MongoBaseModel):
     def empty_str_to_none(cls, v):
         return None if v == "" else v
 
-    """  
+    """
 
   @validator('name',
              'alias',
