@@ -280,7 +280,7 @@ async def update_club(
         logger.error(f"Unexpected error updating club {id}: {str(e)}")
         raise DatabaseOperationException(
             operation="update", collection="clubs", details={"club_id": id, "error": str(e)}
-        )
+        ) from e
 
 
 # Delete club
