@@ -162,7 +162,7 @@ async def send_message_to_referee(match, receiver_id, content, footer=None):
                 print(f"Failed to send email to referee {receiver_id}: {str(e)}")
 
         except httpx.RequestError as e:
-            raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}") from e
 
 
 # GET all assigments for ONE match ======
