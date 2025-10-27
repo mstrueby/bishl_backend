@@ -126,9 +126,7 @@ async def merge_players():
             merged_stats.append(from_stat)
 
     # Update target player with merged stats
-    player_result = db["players"].update_one(
-        {"_id": args.to_player_id}, {"$set": {"stats": merged_stats}}
-    )
+    db["players"].update_one({"_id": args.to_player_id}, {"$set": {"stats": merged_stats}})
 
     # Delete source player
     # delete_result = db['players'].delete_one({"_id": args.from_player_id})
