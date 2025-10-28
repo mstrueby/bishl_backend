@@ -111,8 +111,10 @@ async def get_paginated_players(
         "strength": 1,  # Base characters and diacritics are considered primary differences
     }
 
+    query: dict[str, Any] = {}
+    
     if club_alias or team_alias or q or active is not None:
-        query: dict[str, Any] = {"$and": []}
+        query = {"$and": []}
         if club_alias:
             query["$and"].append({"assignedTeams.clubAlias": club_alias})
             if team_alias:
@@ -183,8 +185,6 @@ async def get_paginated_players(
                 )
         if DEBUG_LEVEL > 10:
             print("query", query)
-    else:
-        query: dict[str, Any] = {}
 
     total = await mongodb["players"].count_documents(query)
     players = (
