@@ -95,7 +95,7 @@ async def get_paginated_players(
     get_all=False,
     active=None,
 ):
-    RESULTS_PER_PAGE = 0 if get_all else int(os.environ["RESULTS_PER_PAGE"])
+    RESULTS_PER_PAGE = 0 if get_all else settings.RESULTS_PER_PAGE
     skip = 0 if get_all else (page - 1) * RESULTS_PER_PAGE
     sort_field = {
         "firstName": "firstName",
