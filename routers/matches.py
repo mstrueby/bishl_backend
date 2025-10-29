@@ -360,7 +360,9 @@ async def get_rest_of_week_matches(
     end_of_week = today + timedelta(days=days_until_sunday)
 
     # Build base query
-    base_query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
+    base_query: dict[str, Any] = {
+        "season.alias": season if season else os.environ["CURRENT_SEASON"]
+    }
 
     if tournament:
         base_query["tournament.alias"] = tournament
