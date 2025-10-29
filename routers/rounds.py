@@ -1,4 +1,5 @@
 # filename: routers/rounds.py
+from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -279,7 +280,7 @@ async def update_round(
             round_dict["endDate"] = max(start_dates)
 
     # Prepare the update by excluding unchanged data
-    update_data = {"$set": {}}
+    update_data: dict[str, dict[str, Any]] = {"$set": {}}
     for field in round_dict:
         if field != "_id" and round_dict[field] != tournament["seasons"][season_index]["rounds"][
             round_index

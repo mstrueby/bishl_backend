@@ -1,5 +1,6 @@
 # filename: routers/teams.py
 import json
+from typing import Any
 
 import cloudinary
 import cloudinary.uploader
@@ -42,7 +43,7 @@ async def handle_logo_upload(logo: UploadFile, alias: str) -> str:
             height=200,
         )
         print(f"Logo uploaded to Cloudinary: {result['public_id']}")
-        return result["secure_url"]
+        return str(result["secure_url"])
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No logo uploaded.")
 
 
@@ -299,7 +300,7 @@ async def update_team(
     team_enc = jsonable_encoder(team_data)
 
     # prepare the update by excluding unchanged data
-    update_data = {"$set": {}}
+    update_data: dict[str, dict[str, Any]] = {"$set": {}}
     for field in team_enc:
         if field != "_id" and team_enc[field] != club["teams"][team_index].get(field):
             update_data["$set"][f"teams.{team_index}.{field}"] = team_enc[field]
