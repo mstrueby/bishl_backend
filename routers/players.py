@@ -63,7 +63,7 @@ async def handle_image_upload(image: UploadFile, playerId) -> str:
             transformation=[{"width": 300, "height": 300, "crop": "thumb", "gravity": "face"}],
         )
         logger.info(f"Player image uploaded to Cloudinary: {result['public_id']}")
-        return result["secure_url"]
+        return str(result["secure_url"])
     raise ValidationException(field="image", message="No image file provided for upload")
 
 
@@ -111,7 +111,8 @@ async def get_paginated_players(
         "strength": 1,  # Base characters and diacritics are considered primary differences
     }
 
-    query: dict[str, Any]
+    query: dict[str, Any] = {}
+
     if club_alias or team_alias or q or active is not None:
         query = {"$and": []}
         if club_alias:
@@ -184,8 +185,6 @@ async def get_paginated_players(
                 )
         if DEBUG_LEVEL > 10:
             print("query", query)
-    else:
-        query = {}
 
     total = await mongodb["players"].count_documents(query)
     players = (
