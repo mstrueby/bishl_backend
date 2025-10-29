@@ -1,5 +1,6 @@
 # filename: routers/scores.py
 import os
+from typing import Any
 
 from bson import ObjectId
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
@@ -318,7 +319,7 @@ async def patch_one_score(
     score_data = jsonable_encoder(score_data)
     print("score_data: ", score_data)
 
-    update_data = {"$set": {}}
+    update_data: dict[str, dict[str, Any]] = {"$set": {}}
     for key, value in score_data.items():
         update_data["$set"][f"{team_flag}.scores.$.{key}"] = value
 
