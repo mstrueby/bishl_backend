@@ -41,7 +41,7 @@ async def handle_logo_upload(logo: UploadFile, alias: str) -> str:
             height=200,
         )
         print(f"Logo uploaded to Cloudinary: {result['public_id']}")
-        return result["secure_url"]
+        return str(result["secure_url"])
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No logo uploaded.")
 
 
