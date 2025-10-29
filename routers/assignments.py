@@ -754,7 +754,7 @@ async def get_unassigned_matches_in_14_days(
 
     if send_emails:
         # Group matches by club - either matchday owner or home club
-        matches_by_club = {}
+        matches_by_club: dict[str, list[Any]] = {}
         for match in matches:
             # Get matchday owner by calling the API endpoint
             matchday_owner = None
