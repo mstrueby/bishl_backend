@@ -85,7 +85,7 @@ def check_reserved_aliases(alias: str):
 @router.get("/categories", response_description="Get list of all categories")
 async def get_categories(request: Request) -> list[str]:
     mongodb = request.app.state.mongodb
-    categories = await mongodb["documents"].distinct("category")
+    categories: list[str] = await mongodb["documents"].distinct("category")
     categories.sort()
     return categories
 
