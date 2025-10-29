@@ -30,11 +30,11 @@ class PaginationHelper:
     @staticmethod
     async def paginate_query(
         collection: AsyncIOMotorCollection,
-        query: dict,
+        query: dict[str, Any],
         page: int,
         page_size: int,
         sort: list[tuple[str, int]] | None = None,
-    ) -> tuple[list[dict], int]:
+    ) -> tuple[list[dict[str, Any]], int]:
         """
         Paginate a MongoDB query.
 
