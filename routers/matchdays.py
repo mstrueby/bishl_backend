@@ -290,7 +290,7 @@ async def update_matchday(
 
     # update matchday
     # prepare
-    update_data = {"$set": {}}
+    update_data: dict[str, dict[str, Any]] = {"$set": {}}
     for field in matchday_dict:
         if field != "_id" and matchday_dict[field] != tournament["seasons"][season_index]["rounds"][
             round_index
