@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 import cloudinary
 import cloudinary.uploader
@@ -85,7 +86,7 @@ def check_reserved_aliases(alias: str):
 @router.get("/categories", response_description="Get list of all categories")
 async def get_categories(request: Request) -> list[str]:
     mongodb = request.app.state.mongodb
-    categories = await mongodb["documents"].distinct("category")
+    categories: list[str] = await mongodb["documents"].distinct("category")
     categories.sort()
     return categories
 
@@ -158,7 +159,7 @@ async def get_documents(
     page_size: int = Query(100, ge=1, le=100, description="Items per page"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    query = {"published": published} if published is not None else {}
+    query: dict[str, Any] = {"published": published} if published is not None else {}
 
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["documents"],
