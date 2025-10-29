@@ -158,7 +158,7 @@ async def get_documents(
     page_size: int = Query(100, ge=1, le=100, description="Items per page"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    query = {"published": published} if published is not None else {}
+    query: dict[str, Any] = {"published": published} if published is not None else {}
 
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["documents"],
