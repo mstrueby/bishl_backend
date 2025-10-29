@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+from typing import Any
 
 import httpx
 import isodate
@@ -166,7 +167,7 @@ async def get_todays_matches(
     start_of_day = datetime.combine(today, datetime.min.time())
     end_of_day = datetime.combine(today, datetime.max.time())
 
-    query = {
+    query: dict[str, Any] = {
         "season.alias": season if season else os.environ["CURRENT_SEASON"],
         "startDate": {"$gte": start_of_day, "$lte": end_of_day},
     }
@@ -247,7 +248,7 @@ async def get_upcoming_matches(
     tomorrow_start = datetime.combine(today.date() + timedelta(days=1), datetime.min.time())
 
     # Build base query to find minimum start date
-    base_query = {
+    base_query: dict[str, Any] = {
         "season.alias": season if season else os.environ["CURRENT_SEASON"],
         "startDate": {"$gte": tomorrow_start},
     }
@@ -359,7 +360,7 @@ async def get_rest_of_week_matches(
     end_of_week = today + timedelta(days=days_until_sunday)
 
     # Build base query
-    base_query = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
+    base_query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
 
     if tournament:
         base_query["tournament.alias"] = tournament
@@ -462,7 +463,7 @@ async def get_matches(
     page_size: int = Query(10, ge=1, le=100, description="Items per page"),
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
 ) -> JSONResponse:
-    query = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
+    query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
     if tournament:
         query["tournament.alias"] = tournament
     if round:
