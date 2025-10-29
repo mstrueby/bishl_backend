@@ -105,7 +105,7 @@ async def get_documents_by_category(
     page_size: int = Query(100, ge=1, le=100, description="Items per page"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    query = {"category": {"$regex": rf"^{category}$", "$options": "i"}}
+    query: dict[str, Any] = {"category": {"$regex": rf"^{category}$", "$options": "i"}}
     if published is not None:
         query["published"] = published
 
