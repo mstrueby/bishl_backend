@@ -911,7 +911,7 @@ async def update_match(
                 if value != existing.get(key):
                     match_to_update[full_key] = value
 
-    match_to_update = {}
+    match_to_update: dict[str, Any] = {}
     check_nested_fields(match_data, existing_match)
     if DEBUG_LEVEL > 10:
         print("match_to_update: ", match_to_update)
