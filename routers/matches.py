@@ -530,12 +530,16 @@ async def get_matches(
         match = convert_seconds_to_times(match)
         results.append(MatchListBase(**match))
 
-    return PaginationHelper.create_response(
+    paginated_response = PaginationHelper.create_response(
         items=results,
         page=page,
         page_size=page_size,
         total_count=total_count,
         message=f"Retrieved {len(results)} matches",
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_response)
     )
 
 
