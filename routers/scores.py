@@ -462,7 +462,7 @@ async def delete_one_score(
             }
             inc_operations.update(roster_decrements)
 
-            update_operations: dict[str, Any] = {
+            update_operations = {
                 "$pull": {f"{team_flag}.scores": {"_id": score_id}},
                 "$inc": inc_operations,
             }
