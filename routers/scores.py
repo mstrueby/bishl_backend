@@ -461,7 +461,7 @@ async def delete_one_score(
                 f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": -1,
             }
             inc_operations.update(roster_decrements)
-            
+
             update_operations: dict[str, Any] = {
                 "$pull": {f"{team_flag}.scores": {"_id": score_id}},
                 "$inc": inc_operations,
