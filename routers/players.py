@@ -112,7 +112,7 @@ async def get_paginated_players(
     }
 
     query: dict[str, Any] = {}
-    
+
     if club_alias or team_alias or q or active is not None:
         query = {"$and": []}
         if club_alias:
