@@ -34,6 +34,7 @@ class PaginationHelper:
         page: int,
         page_size: int,
         sort: list[tuple[str, int]] | None = None,
+        projection: dict[str, int] | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         """
         Paginate a MongoDB query.
@@ -44,6 +45,7 @@ class PaginationHelper:
             page: Page number (1-indexed)
             page_size: Number of items per page
             sort: Optional list of (field, direction) tuples for sorting
+            projection: Optional MongoDB projection specification
 
         Returns:
             Tuple of (items, total_count)
@@ -54,7 +56,7 @@ class PaginationHelper:
         total_count = await collection.count_documents(query)
 
         # Get paginated items
-        cursor = collection.find(query).skip(skip).limit(page_size)
+        cursor = collection.find(query, projection).skip(skip).limit(page_size)
 
         if sort:
             cursor = cursor.sort(sort)

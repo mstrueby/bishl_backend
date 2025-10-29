@@ -24,8 +24,8 @@ async def get_tournaments(
     page_size: int = Query(100, ge=1, le=100, description="Items per page"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection = {"seasons.rounds": 0}
-    query = {}
+    exclusion_projection: dict[str, int] = {"seasons.rounds": 0}
+    query: dict[str, Any] = {}
 
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["tournaments"],
