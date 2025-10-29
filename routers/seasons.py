@@ -156,7 +156,7 @@ async def update_season(
         )
 
     # Prepare the update by excluding unchanged data
-    update_data = {"$set": {}}
+    update_data: dict[str, dict[str, Any]] = {"$set": {}}
     for field in season_dict:
         if field != "_id" and season_dict[field] != tournament["seasons"][season_index].get(field):
             update_data["$set"][f"seasons.{season_index}.{field}"] = season_dict[field]
