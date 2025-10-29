@@ -1,5 +1,7 @@
 # filename: routers/seasons.py
 
+from typing import Any
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
