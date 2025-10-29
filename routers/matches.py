@@ -345,7 +345,7 @@ async def get_rest_of_week_matches(
     club: str | None = None,
     team: str | None = None,
     assigned: bool | None = None,
-):
+) -> JSONResponse:
     mongodb = request.app.state.mongodb
 
     # Get current date and calculate tomorrow and end of week (Sunday)
