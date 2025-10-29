@@ -182,7 +182,7 @@ async def create_score(
             array_filters.append({"assistPlayer.player.playerId": assist_player_id})
 
         # Use incremental updates for INPROGRESS matches
-        update_operations = {
+        update_operations: dict[str, Any] = {
             "$push": {f"{team_flag}.scores": score_data},
             "$inc": {
                 f"{team_flag}.stats.goalsFor": 1,
