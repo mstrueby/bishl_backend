@@ -124,7 +124,7 @@ async def send_message_to_referee(match, receiver_id, content, footer=None):
                     error_detail = response.json()
                     error_msg += f": {error_detail}"
                 except (KeyError, TypeError) as e:
-                    error_msg += f" (Status code: {response.status_code}, Content: {response.content}, Error: {str(e)})"
+                    error_msg += f" (Status code: {response.status_code}, Content: {response.content!r}, Error: {str(e)})"
                 raise HTTPException(status_code=response.status_code, detail=error_msg)
 
             # After successfully sending the message, also send an email

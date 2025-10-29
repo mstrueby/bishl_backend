@@ -182,7 +182,7 @@ async def create_score(
             array_filters.append({"assistPlayer.player.playerId": assist_player_id})
 
         # Use incremental updates for INPROGRESS matches
-        update_operations = {
+        update_operations: dict[str, Any] = {
             "$push": {f"{team_flag}.scores": score_data},
             "$inc": {
                 f"{team_flag}.stats.goalsFor": 1,
@@ -191,13 +191,20 @@ async def create_score(
         }
 
         # Add roster incremental updates
+        roster_increments: dict[str, int] = {}
         if goal_player_id:
-            update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].goals"] = 1
-            update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].points"] = 1
+            roster_increments[f"{team_flag}.roster.$[goalPlayer].goals"] = 1
+            roster_increments[f"{team_flag}.roster.$[goalPlayer].points"] = 1
 
         if assist_player_id:
-            update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].assists"] = 1
-            update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].points"] = 1
+            roster_increments[f"{team_flag}.roster.$[assistPlayer].assists"] = 1
+            roster_increments[f"{team_flag}.roster.$[assistPlayer].points"] = 1
+
+        # Merge roster increments into update operations
+        if roster_increments:
+            if "$inc" not in update_operations:
+                update_operations["$inc"] = {}
+            update_operations["$inc"].update(roster_increments)
 
         # Execute the optimized update
         update_result = await mongodb["matches"].update_one(
