@@ -22,7 +22,7 @@ else:
     backup_prefix = "dev"
 
 # Connect to MongoDB
-client = MongoClient(DB_URL, tlsCAFile=certifi.where())
+client: MongoClient = MongoClient(DB_URL, tlsCAFile=certifi.where())
 db = client[DB_NAME]
 
 # Create backup directory
