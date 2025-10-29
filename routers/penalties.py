@@ -147,14 +147,23 @@ async def create_penalty(
     penalty_player_id = penalty.penaltyPlayer.playerId
 
     try:
-        penalty_data = {}
         new_penalty_id = str(ObjectId())
-        penalty_data["_id"] = new_penalty_id
-        penalty_data.update(penalty.model_dump())
-        penalty_data.pop("id")
-        penalty_data["matchSecondsStart"] = parse_time_to_seconds(penalty_data["matchTimeStart"])
-        if penalty_data["matchTimeEnd"] is not None:
-            penalty_data["matchSecondsEnd"] = parse_time_to_seconds(penalty_data["matchTimeEnd"])
+        penalty_dict = penalty.model_dump()
+        penalty_dict.pop("id", None)
+
+        # Extract time strings and convert to seconds
+        match_time_start = penalty_dict.pop("matchTimeStart")
+        match_time_end = penalty_dict.pop("matchTimeEnd", None)
+
+        # Build penalty data with seconds fields
+        penalty_data = {
+            "_id": new_penalty_id,
+            **penalty_dict,
+            "matchSecondsStart": parse_time_to_seconds(match_time_start),
+        }
+        if match_time_end is not None:
+            penalty_data["matchSecondsEnd"] = parse_time_to_seconds(match_time_end)
+
         penalty_data = jsonable_encoder(penalty_data)
 
         # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
