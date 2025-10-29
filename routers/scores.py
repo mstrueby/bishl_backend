@@ -1,5 +1,6 @@
 # filename: routers/scores.py
 import os
+from typing import Any
 
 from bson import ObjectId
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
@@ -318,7 +319,7 @@ async def patch_one_score(
     score_data = jsonable_encoder(score_data)
     print("score_data: ", score_data)
 
-    update_data = {"$set": {}}
+    update_data: dict[str, dict[str, Any]] = {"$set": {}}
     for key, value in score_data.items():
         update_data["$set"][f"{team_flag}.scores.$.{key}"] = value
 
@@ -414,6 +415,16 @@ async def delete_one_score(
         if assist_player_id:
             array_filters.append({"assistPlayer.player.playerId": assist_player_id})
 
+        # Build roster decremental updates
+        roster_decrements: dict[str, int] = {}
+        if goal_player_id:
+            roster_decrements[f"{team_flag}.roster.$[goalPlayer].goals"] = -1
+            roster_decrements[f"{team_flag}.roster.$[goalPlayer].points"] = -1
+
+        if assist_player_id:
+            roster_decrements[f"{team_flag}.roster.$[assistPlayer].assists"] = -1
+            roster_decrements[f"{team_flag}.roster.$[assistPlayer].points"] = -1
+
         # Recalculate match stats if needed
         if finish_type and t_alias:
             current_home_goals = match.get("home", {}).get("stats", {}).get("goalsFor", 0)
@@ -438,29 +449,23 @@ async def delete_one_score(
             )
 
             # Use full stats replacement when we have calculated stats
-            update_operations = {
+            update_operations: dict[str, Any] = {
                 "$pull": {f"{team_flag}.scores": {"_id": score_id}},
                 "$set": {"home.stats": match_stats["home"], "away.stats": match_stats["away"]},
-                "$inc": {},
+                "$inc": roster_decrements,
             }
         else:
             # Use incremental updates when no full stats calculation is needed
-            update_operations = {
-                "$pull": {f"{team_flag}.scores": {"_id": score_id}},
-                "$inc": {
-                    f"{team_flag}.stats.goalsFor": -1,
-                    f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": -1,
-                },
+            inc_operations = {
+                f"{team_flag}.stats.goalsFor": -1,
+                f"{'away' if team_flag == 'home' else 'home'}.stats.goalsAgainst": -1,
             }
+            inc_operations.update(roster_decrements)
 
-        # Add roster decremental updates
-        if goal_player_id:
-            update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].goals"] = -1
-            update_operations["$inc"][f"{team_flag}.roster.$[goalPlayer].points"] = -1
-
-        if assist_player_id:
-            update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].assists"] = -1
-            update_operations["$inc"][f"{team_flag}.roster.$[assistPlayer].points"] = -1
+            update_operations: dict[str, Any] = {
+                "$pull": {f"{team_flag}.scores": {"_id": score_id}},
+                "$inc": inc_operations,
+            }
 
         # Execute the optimized update
         result = await mongodb["matches"].update_one(

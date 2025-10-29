@@ -1,3 +1,5 @@
+from typing import Any
+
 from bson import ObjectId
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -292,7 +294,7 @@ async def patch_one_penalty(
         # penalty_data.pop('matchTimeEnd')
     penalty_data = jsonable_encoder(penalty_data)
 
-    update_data = {"$set": {}}
+    update_data: dict[str, dict[str, Any]] = {"$set": {}}
     for key, value in penalty_data.items():
         if current_penalty.get(key) != value:
             update_data["$set"][f"{team_flag}.penalties.$.{key}"] = value
