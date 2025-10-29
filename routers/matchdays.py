@@ -1,4 +1,5 @@
 # filename: routers/matchdays.py
+from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -27,7 +28,7 @@ async def get_matchdays_for_round(
     round_alias: str = Path(..., description="The alias of the round to get"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection = {}  # display all matches
+    exclusion_projection: dict[str, Any] = {}  # display all matches
     if (
         tournament := await mongodb["tournaments"].find_one(
             {"alias": tournament_alias}, exclusion_projection
@@ -72,7 +73,7 @@ async def get_matchday(
     matchday_alias: str = Path(..., description="The alias of the matchday to get"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection = {}
+    exclusion_projection: dict[str, Any] = {}
     if (
         tournament := await mongodb["tournaments"].find_one(
             {"alias": tournament_alias}, exclusion_projection
