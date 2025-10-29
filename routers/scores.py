@@ -170,7 +170,7 @@ async def create_score(
         score_data["_id"] = new_score_id
         score_data.update(score.model_dump())
         score_data.pop("id")
-        score_data["matchSeconds"] = parse_time_to_seconds(score_data["matchTime"])
+        score_data["matchSeconds"] = parse_time_to_seconds(score_data["matchTime"]) # type: ignore[assignment]
         score_data = jsonable_encoder(score_data)
 
         # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
