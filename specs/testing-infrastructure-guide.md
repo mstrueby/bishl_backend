@@ -772,19 +772,19 @@ async def test_something(match_with_roster):
 ## Implementation Checklist
 
 ### Phase 1: Setup (4-6 hours)
-- [ ] Install test dependencies: `poetry add --group test pytest pytest-asyncio pytest-cov faker`
-- [ ] Create `tests/` directory structure
-- [ ] Create `tests/conftest.py` with base fixtures
-- [ ] Create `tests/test_config.py` with test settings
-- [ ] Create `.env.test` file
-- [ ] Add test commands to `makefile`
+- ✅  Install test dependencies: `poetry add --group test pytest pytest-asyncio pytest-cov faker`
+- ✅  Create `tests/` directory structure
+- ✅  Create `tests/conftest.py` with base fixtures
+- ✅  Create `tests/test_config.py` with test settings
+- ✅  Create `.env.test` file
+- ✅  Add test commands to `makefile`
 
 ### Phase 2: Unit Tests (6-8 hours)
-- [ ] Write tests for `StatsService` (15+ tests)
-- [ ] Write tests for `AuthHandler` (10+ tests)
-- [ ] Write tests for utility functions (10+ tests)
-- [ ] Write tests for validators (5+ tests)
-- [ ] Aim for 80%+ coverage on tested modules
+- ✅  Write tests for `StatsService` (15+ tests)
+- ✅  Write tests for `AuthHandler` (10+ tests)
+- ✅  Write tests for utility functions (10+ tests)
+- ✅  Write tests for validators (5+ tests)
+- ✅  Aim for 80%+ coverage on tested modules
 
 ### Phase 3: Integration Tests (8-10 hours)
 - [ ] Create data fixtures in `tests/fixtures/`
