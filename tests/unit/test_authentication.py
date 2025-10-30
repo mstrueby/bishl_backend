@@ -1,4 +1,3 @@
-
 """Unit tests for AuthHandler"""
 import pytest
 from unittest.mock import MagicMock, patch
@@ -23,11 +22,13 @@ def auth_handler():
 def mock_user():
     """Mock user object"""
     user = MagicMock()
-    user.id = "test-user-id"
-    user.email = "test@example.com"
-    user.roles = ["USER"]
-    user.clubId = "test-club-id"
-    user.clubName = "Test Club"
+    user.__getitem__.side_effect = lambda key: {
+        "_id": "test-user-id",
+        "email": "test@example.com",
+        "roles": ["USER"],
+        "clubId": "test-club-id",
+        "clubName": "Test Club"
+    }.get(key)
     return user
 
 
@@ -37,46 +38,40 @@ class TestEncodeToken:
     def test_encode_access_token_success(self, auth_handler, mock_user):
         """Test successful access token encoding"""
         token = auth_handler.encode_token(mock_user)
-        
+
         assert isinstance(token, str)
         assert len(token) > 0
-        
-        # Decode to verify contents
-        with patch('authentication.settings') as mock_settings:
-            mock_settings.JWT_SECRET_KEY = "test-secret-key"
-            mock_settings.JWT_ALGORITHM = "HS256"
-            payload = jwt.decode(token, "test-secret-key", algorithms=["HS256"])
-        
-        assert payload["sub"] == "test-user-id"
-        assert payload["email"] == "test@example.com"
-        assert payload["roles"] == ["USER"]
+
+        # Decode to verify structure
+        payload = jwt.decode(token, "test-secret-key", algorithms=["HS256"])
+        assert payload["sub"] == mock_user["_id"]
+        assert payload["roles"] == mock_user["roles"]
 
     def test_encode_token_includes_expiration(self, auth_handler, mock_user):
         """Test token includes expiration time"""
         token = auth_handler.encode_token(mock_user)
-        
+
         with patch('authentication.settings') as mock_settings:
             mock_settings.JWT_SECRET_KEY = "test-secret-key"
             mock_settings.JWT_ALGORITHM = "HS256"
             payload = jwt.decode(token, "test-secret-key", algorithms=["HS256"])
-        
+
         assert "exp" in payload
         exp_time = datetime.fromtimestamp(payload["exp"])
         now = datetime.utcnow()
         assert exp_time > now
 
-    def test_encode_refresh_token(self, auth_handler, mock_user):
-        """Test refresh token encoding"""
+    def test_encode_refresh_token_success(self, auth_handler, mock_user):
+        """Test successful refresh token encoding"""
         token = auth_handler.encode_refresh_token(mock_user)
-        
+
         assert isinstance(token, str)
-        
-        with patch('authentication.settings') as mock_settings:
-            mock_settings.JWT_REFRESH_SECRET_KEY = "test-refresh-secret"
-            mock_settings.JWT_ALGORITHM = "HS256"
-            payload = jwt.decode(token, "test-refresh-secret", algorithms=["HS256"])
-        
-        assert payload["sub"] == "test-user-id"
+        assert len(token) > 0
+
+        # Decode to verify structure
+        payload = jwt.decode(token, "test-refresh-secret", algorithms=["HS256"])
+        assert payload["sub"] == mock_user["_id"]
+        assert payload["type"] == "refresh"
 
 
 class TestDecodeToken:
@@ -86,9 +81,9 @@ class TestDecodeToken:
         """Test decoding valid token"""
         token = auth_handler.encode_token(mock_user)
         payload = auth_handler.decode_token(token)
-        
-        assert payload["sub"] == "test-user-id"
-        assert payload["email"] == "test@example.com"
+
+        assert payload["sub"] == mock_user["_id"]
+        assert payload["email"] == mock_user["email"]
 
     def test_decode_expired_token_raises_exception(self, auth_handler):
         """Test decoding expired token raises exception"""
@@ -96,22 +91,22 @@ class TestDecodeToken:
         with patch('authentication.settings') as mock_settings:
             mock_settings.JWT_SECRET_KEY = "test-secret-key"
             mock_settings.JWT_ALGORITHM = "HS256"
-            
+
             payload = {
                 "sub": "test-user",
                 "exp": datetime.utcnow() - timedelta(hours=1)
             }
             expired_token = jwt.encode(payload, "test-secret-key", algorithm="HS256")
-        
+
         with pytest.raises(AuthenticationException) as exc_info:
             auth_handler.decode_token(expired_token)
-        
+
         assert "expired" in str(exc_info.value).lower()
 
     def test_decode_invalid_token_raises_exception(self, auth_handler):
         """Test decoding invalid token raises exception"""
         invalid_token = "invalid.token.here"
-        
+
         with pytest.raises(AuthenticationException):
             auth_handler.decode_token(invalid_token)
 
@@ -120,7 +115,7 @@ class TestDecodeToken:
         # Create token with different secret
         payload = {"sub": "test-user"}
         wrong_token = jwt.encode(payload, "wrong-secret", algorithm="HS256")
-        
+
         with pytest.raises(AuthenticationException):
             auth_handler.decode_token(wrong_token)
 
@@ -132,7 +127,7 @@ class TestPasswordHashing:
         """Test password hashing"""
         password = "test-password-123"
         hashed = auth_handler.hash_password(password)
-        
+
         assert isinstance(hashed, str)
         assert hashed != password
         assert len(hashed) > 0
@@ -141,14 +136,14 @@ class TestPasswordHashing:
         """Test password verification with correct password"""
         password = "test-password-123"
         hashed = auth_handler.hash_password(password)
-        
+
         assert auth_handler.verify_password(password, hashed) is True
 
     def test_verify_password_incorrect(self, auth_handler):
         """Test password verification with incorrect password"""
         password = "test-password-123"
         hashed = auth_handler.hash_password(password)
-        
+
         assert auth_handler.verify_password("wrong-password", hashed) is False
 
     def test_different_hashes_for_same_password(self, auth_handler):
@@ -156,7 +151,7 @@ class TestPasswordHashing:
         password = "test-password-123"
         hash1 = auth_handler.hash_password(password)
         hash2 = auth_handler.hash_password(password)
-        
+
         assert hash1 != hash2
         assert auth_handler.verify_password(password, hash1) is True
         assert auth_handler.verify_password(password, hash2) is True
@@ -182,12 +177,12 @@ class TestRoleValidation:
         """Test user has any of required roles"""
         roles = ["USER", "MODERATOR"]
         required = ["ADMIN", "MODERATOR", "SUPER_ADMIN"]
-        
+
         assert auth_handler.has_any_role(roles, required) is True
 
     def test_user_has_no_required_roles(self, auth_handler):
         """Test user has none of required roles"""
         roles = ["USER"]
         required = ["ADMIN", "MODERATOR"]
-        
+
         assert auth_handler.has_any_role(roles, required) is False
