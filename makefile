@@ -30,6 +30,26 @@ setup-hooks:
 check-all:
 	pre-commit run --all-files
 
+# Testing
+test:
+	pytest -v
+
+test-unit:
+	pytest tests/unit/ -v
+
+test-integration:
+	pytest tests/integration/ -v
+
+test-e2e:
+	pytest tests/e2e/ -v
+
+test-cov:
+	pytest --cov=. --cov-report=html --cov-report=term
+	@echo "Coverage report: htmlcov/index.html"
+
+test-watch:
+	pytest-watch
+
 	python backup_db.py
 
 backup-prod:
