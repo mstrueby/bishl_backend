@@ -2,84 +2,140 @@
 """Unit tests for utility functions"""
 import pytest
 from datetime import datetime
-from utils import format_datetime, validate_email, sanitize_string, parse_match_time
+from utils import (
+    parse_datetime,
+    parse_time_to_seconds,
+    parse_time_from_seconds,
+    validate_match_time,
+    flatten_dict,
+    to_camel
+)
 
 
-class TestFormatDateTime:
-    """Test datetime formatting utilities"""
+class TestParseDatetime:
+    """Test datetime parsing utilities"""
 
-    def test_format_datetime_iso(self):
-        """Test ISO datetime formatting"""
-        dt = datetime(2024, 1, 15, 14, 30, 0)
-        result = format_datetime(dt, format="iso")
-        assert result == "2024-01-15T14:30:00"
+    def test_parse_datetime_valid(self):
+        """Test parsing valid datetime string"""
+        result = parse_datetime("2024-01-15 14:30:00")
+        assert isinstance(result, datetime)
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+        assert result.hour == 14
+        assert result.minute == 30
 
-    def test_format_datetime_readable(self):
-        """Test readable datetime formatting"""
-        dt = datetime(2024, 1, 15, 14, 30, 0)
-        result = format_datetime(dt, format="readable")
-        assert "2024" in result
-        assert "14:30" in result
+    def test_parse_datetime_none(self):
+        """Test parsing None returns None"""
+        result = parse_datetime(None)
+        assert result is None
 
-
-class TestValidateEmail:
-    """Test email validation"""
-
-    def test_valid_email_returns_true(self):
-        """Test validation of valid email"""
-        assert validate_email("test@example.com") is True
-        assert validate_email("user.name+tag@example.co.uk") is True
-
-    def test_invalid_email_returns_false(self):
-        """Test validation of invalid email"""
-        assert validate_email("notanemail") is False
-        assert validate_email("missing@domain") is False
-        assert validate_email("@example.com") is False
-        assert validate_email("test@") is False
+    def test_parse_datetime_empty_string(self):
+        """Test parsing empty string returns None"""
+        result = parse_datetime("")
+        assert result is None
 
 
-class TestSanitizeString:
-    """Test string sanitization"""
-
-    def test_remove_special_characters(self):
-        """Test removal of special characters"""
-        result = sanitize_string("Hello<script>World</script>")
-        assert "<script>" not in result
-        assert "Hello" in result
-        assert "World" in result
-
-    def test_trim_whitespace(self):
-        """Test trimming of whitespace"""
-        result = sanitize_string("  Hello World  ")
-        assert result == "Hello World"
-
-    def test_empty_string(self):
-        """Test handling of empty string"""
-        result = sanitize_string("")
-        assert result == ""
-
-
-class TestParseMatchTime:
+class TestParseTime:
     """Test match time parsing"""
 
-    def test_parse_valid_time(self):
-        """Test parsing valid match time"""
-        result = parse_match_time("15:30")
-        assert result["minutes"] == 15
-        assert result["seconds"] == 30
+    def test_parse_time_to_seconds_valid(self):
+        """Test converting time string to seconds"""
+        result = parse_time_to_seconds("15:30")
+        assert result == 930  # 15*60 + 30
 
-    def test_parse_time_with_single_digits(self):
-        """Test parsing time with single digits"""
-        result = parse_match_time("5:03")
-        assert result["minutes"] == 5
-        assert result["seconds"] == 3
+    def test_parse_time_to_seconds_zero(self):
+        """Test converting zero time"""
+        result = parse_time_to_seconds("00:00")
+        assert result == 0
 
-    def test_parse_invalid_time_format(self):
-        """Test parsing invalid time format"""
+    def test_parse_time_to_seconds_none(self):
+        """Test handling None returns 0"""
+        result = parse_time_to_seconds(None)
+        assert result == 0
+
+    def test_parse_time_from_seconds_valid(self):
+        """Test converting seconds to time string"""
+        result = parse_time_from_seconds(930)
+        assert result == "15:30"
+
+    def test_parse_time_from_seconds_zero(self):
+        """Test converting zero seconds"""
+        result = parse_time_from_seconds(0)
+        assert result == "00:00"
+
+
+class TestValidateMatchTime:
+    """Test match time validation"""
+
+    def test_validate_match_time_valid(self):
+        """Test validation of valid match time"""
+        result = validate_match_time("15:30", "matchTime")
+        assert result == "15:30"
+
+    def test_validate_match_time_single_digit_minutes(self):
+        """Test validation with single digit minutes"""
+        result = validate_match_time("5:30", "matchTime")
+        assert result == "5:30"
+
+    def test_validate_match_time_invalid_format(self):
+        """Test validation fails for invalid format"""
         with pytest.raises(ValueError):
-            parse_match_time("invalid")
+            validate_match_time("invalid", "matchTime")
 
-    def test_parse_time_out_of_range(self):
-        """Test parsing time with values out of range"""
+    def test_validate_match_time_invalid_seconds(self):
+        """Test validation fails for seconds >= 60"""
         with pytest.raises(ValueError):
-            parse_match_time("15:99")
+            validate_match_time("15:99", "matchTime")
+
+
+class TestFlattenDict:
+    """Test dictionary flattening"""
+
+    def test_flatten_dict_simple(self):
+        """Test flattening simple nested dict"""
+        input_dict = {
+            "a": 1,
+            "b": {
+                "c": 2,
+                "d": 3
+            }
+        }
+        result = flatten_dict(input_dict)
+        assert result == {"a": 1, "b.c": 2, "b.d": 3}
+
+    def test_flatten_dict_deep_nesting(self):
+        """Test flattening deeply nested dict"""
+        input_dict = {
+            "a": {
+                "b": {
+                    "c": 1
+                }
+            }
+        }
+        result = flatten_dict(input_dict)
+        assert result == {"a.b.c": 1}
+
+    def test_flatten_dict_empty(self):
+        """Test flattening empty dict"""
+        result = flatten_dict({})
+        assert result == {}
+
+
+class TestToCamel:
+    """Test snake_case to camelCase conversion"""
+
+    def test_to_camel_simple(self):
+        """Test simple snake_case conversion"""
+        result = to_camel("hello_world")
+        assert result == "helloWorld"
+
+    def test_to_camel_multiple_underscores(self):
+        """Test multiple underscores"""
+        result = to_camel("this_is_a_test")
+        assert result == "thisIsATest"
+
+    def test_to_camel_no_underscores(self):
+        """Test string without underscores"""
+        result = to_camel("hello")
+        assert result == "hello"
