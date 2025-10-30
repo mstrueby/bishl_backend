@@ -112,7 +112,7 @@ localPort = 5000
 externalPort = 80
 
 [workflows]
-runButton = "Build & Quality Check"
+runButton = "Run"
 
 [[workflows.workflow]]
 name = "Run"

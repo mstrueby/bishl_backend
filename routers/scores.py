@@ -165,12 +165,13 @@ async def create_score(
     assist_player_id = score.assistPlayer.playerId if score.assistPlayer else None
 
     try:
-        score_data = {}
+        score_data: dict[str, Any] = {}
         new_score_id = str(ObjectId())
         score_data["_id"] = new_score_id
         score_data.update(score.model_dump())
         score_data.pop("id")
-        score_data["matchSeconds"] = parse_time_to_seconds(score_data["matchTime"]) # type: ignore[assignment]
+        match_time: str = score_data["matchTime"]
+        score_data["matchSeconds"] = parse_time_to_seconds(match_time)
         score_data = jsonable_encoder(score_data)
 
         # PHASE 1 OPTIMIZATION: Incremental updates instead of full recalculation
