@@ -9,6 +9,10 @@ entrypoint = "main.py"
 hidden = ["venv", ".config", "**/__pycache__", "**/.mypy_cache", "**/*.pyc"]
 modules = ["python-3.12"]
 
+[[ports]]
+localPort = 8080
+externalPort = 80
+
 # Specifies which nix channel to use when building the environment.
 [nix]
 channel = "stable-22_11"
@@ -103,14 +107,6 @@ start = "pylsp"
 run = ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 8080"]
 deploymentTarget = "cloudrun"
 
-[[ports]]
-localPort = 8080
-externalPort = 80
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
 [workflows]
 runButton = "Run"
 
@@ -120,7 +116,7 @@ author = 19449957
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
+args = "uvicorn main:app --host 0.0.0.0 --port 5000 --reload"
 
 [[workflows.workflow]]
 name = "Project"
@@ -180,6 +176,14 @@ args = "black ."
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "mypy ."
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[[ports]]
+localPort = 5000
+externalPort = 80
 
 [agent]
 expertMode = true
