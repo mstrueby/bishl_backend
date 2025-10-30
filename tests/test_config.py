@@ -7,6 +7,7 @@ from config import Settings
 class TestSettings(Settings):
     """Override settings for testing environment"""
     
+    DB_URL: str = "mongodb://localhost:27017"  # Default test DB URL
     DB_NAME: str = "bishl_test"
     JWT_SECRET_KEY: str = "test-secret-key-do-not-use-in-production"
     JWT_REFRESH_SECRET_KEY: str = "test-refresh-secret-do-not-use-in-production"
