@@ -5,7 +5,11 @@ Provides consistent response wrappers for all API endpoints.
 Includes pagination support and metadata.
 """
 
-from pydantic import BaseModel, Field
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict
+
+T = TypeVar("T")
 
 
 class PaginationMetadata(BaseModel):
@@ -17,6 +21,19 @@ class PaginationMetadata(BaseModel):
     total_pages: int = Field(description="Total number of pages")
     has_next: bool = Field(description="Whether there is a next page")
     has_prev: bool = Field(description="Whether there is a previous page")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "page": 1,
+                "page_size": 10,
+                "total_items": 25,
+                "total_pages": 3,
+                "has_next": True,
+                "has_prev": False,
+            }
+        }
+    )
 
     @classmethod
     def from_query(cls, page: int, page_size: int, total_items: int) -> "PaginationMetadata":
@@ -40,14 +57,15 @@ class StandardResponse[T](BaseModel):
     data: T | None = Field(description="Response data")
     message: str | None = Field(default=None, description="Optional success message")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "data": {"id": "123", "name": "Example"},
                 "message": "Resource retrieved successfully",
             }
         }
+    )
 
 
 class PaginatedResponse[T](BaseModel):
@@ -58,8 +76,8 @@ class PaginatedResponse[T](BaseModel):
     pagination: PaginationMetadata = Field(description="Pagination information")
     message: str | None = Field(default=None, description="Optional success message")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "data": [{"id": "1", "name": "Item 1"}, {"id": "2", "name": "Item 2"}],
@@ -74,6 +92,7 @@ class PaginatedResponse[T](BaseModel):
                 "message": "Resources retrieved successfully",
             }
         }
+    )
 
 
 class DeleteResponse(BaseModel):
@@ -83,14 +102,15 @@ class DeleteResponse(BaseModel):
     deleted_count: int = Field(description="Number of items deleted")
     message: str | None = Field(default=None, description="Optional success message")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "deleted_count": 1,
                 "message": "Resource deleted successfully",
             }
         }
+    )
 
 
 class BulkOperationResponse(BaseModel):
@@ -103,8 +123,8 @@ class BulkOperationResponse(BaseModel):
     errors: list[dict] | None = Field(default=None, description="List of errors if any")
     message: str | None = Field(default=None, description="Optional success message")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "processed_count": 10,
@@ -114,3 +134,4 @@ class BulkOperationResponse(BaseModel):
                 "message": "Bulk operation completed with some errors",
             }
         }
+    )
