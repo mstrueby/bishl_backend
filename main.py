@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import traceback
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 import certifi
@@ -38,6 +39,7 @@ from routers.users import router as users_router
 from routers.venues import router as venues_router
 
 app = FastAPI(
+    lifespan=lifespan,
     title="BISHL API",
     version="1.0.0",
     description="""
@@ -207,18 +209,22 @@ async def general_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=error_response)
 
 
-@app.on_event("startup")
-async def startup_db_client():
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     logger.info("Starting BISHL API server...")
     logger.info(f"Connecting to MongoDB: {settings.DB_NAME}")
     app.state.client = AsyncIOMotorClient(settings.DB_URL, tlsCAFile=certifi.where())
     app.state.mongodb_client = app.state.client  # Keep backward compatibility
     app.state.mongodb = app.state.client[settings.DB_NAME]
     logger.info("MongoDB connection established")
-
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
+    
+    yield
+    
+    # Shutdown
     logger.info("Shutting down BISHL API server...")
     app.state.client.close()
     logger.info("MongoDB connection closed")
