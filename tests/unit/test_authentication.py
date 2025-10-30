@@ -21,15 +21,17 @@ def auth_handler():
 @pytest.fixture
 def mock_user():
     """Mock user object"""
-    user = MagicMock()
-    user.__getitem__.side_effect = lambda key: {
+    return {
         "_id": "test-user-id",
         "email": "test@example.com",
         "roles": ["USER"],
-        "clubId": "test-club-id",
-        "clubName": "Test Club"
-    }.get(key)
-    return user
+        "firstName": "Test",
+        "lastName": "User",
+        "club": {
+            "clubId": "test-club-id",
+            "clubName": "Test Club"
+        }
+    }
 
 
 class TestEncodeToken:
