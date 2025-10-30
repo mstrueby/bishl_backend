@@ -9,15 +9,22 @@ from authentication import AuthHandler, AuthenticationException
 @pytest.fixture
 def auth_handler():
     """AuthHandler instance with test settings"""
-    with patch('authentication.settings') as mock_settings:
-        mock_settings.SECRET_KEY = "test-secret-key"
-        mock_settings.JWT_SECRET_KEY = "test-secret-key"
-        mock_settings.JWT_REFRESH_SECRET_KEY = "test-refresh-secret"
-        mock_settings.JWT_ALGORITHM = "HS256"
-        mock_settings.ACCESS_TOKEN_EXPIRE_MINUTES = 30
-        mock_settings.REFRESH_TOKEN_EXPIRE_DAYS = 7
-        handler = AuthHandler()
-        yield handler
+    # Patch settings before creating AuthHandler and keep it active
+    patcher = patch('authentication.settings')
+    mock_settings = patcher.start()
+    
+    mock_settings.SECRET_KEY = "test-secret-key"
+    mock_settings.JWT_SECRET_KEY = "test-secret-key"
+    mock_settings.JWT_REFRESH_SECRET_KEY = "test-refresh-secret"
+    mock_settings.JWT_ALGORITHM = "HS256"
+    mock_settings.ACCESS_TOKEN_EXPIRE_MINUTES = 30
+    mock_settings.REFRESH_TOKEN_EXPIRE_DAYS = 7
+    
+    handler = AuthHandler()
+    yield handler
+    
+    # Clean up the patch after test completes
+    patcher.stop()
 
 
 @pytest.fixture
