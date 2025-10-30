@@ -53,8 +53,8 @@ class TestEncodeToken:
         assert isinstance(token, str)
         assert len(token) > 0
 
-        # Decode to verify structure
-        payload = jwt.decode(token, "test-secret-key", algorithms=["HS256"])
+        # Decode to verify structure using auth_handler's decode method
+        payload = auth_handler.decode_token(token)
         assert payload["sub"] == mock_user["_id"]
         assert payload["roles"] == mock_user["roles"]
 
@@ -62,10 +62,8 @@ class TestEncodeToken:
         """Test token includes expiration time"""
         token = auth_handler.encode_token(mock_user)
 
-        with patch('authentication.settings') as mock_settings:
-            mock_settings.JWT_SECRET_KEY = "test-secret-key"
-            mock_settings.JWT_ALGORITHM = "HS256"
-            payload = jwt.decode(token, "test-secret-key", algorithms=["HS256"])
+        # Decode using auth_handler to ensure correct secret is used
+        payload = auth_handler.decode_token(token)
 
         assert "exp" in payload
         exp_time = datetime.fromtimestamp(payload["exp"])
@@ -79,8 +77,8 @@ class TestEncodeToken:
         assert isinstance(token, str)
         assert len(token) > 0
 
-        # Decode to verify structure
-        payload = jwt.decode(token, "test-refresh-secret", algorithms=["HS256"])
+        # Decode to verify structure using decode_refresh_token
+        payload = auth_handler.decode_refresh_token(token)
         assert payload["sub"] == mock_user["_id"]
         assert payload["type"] == "refresh"
 
