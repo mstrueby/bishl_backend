@@ -55,18 +55,19 @@ class TestEncodeToken:
 
         # Decode to verify structure using auth_handler's decode method
         payload = auth_handler.decode_token(token)
-        assert payload["sub"] == mock_user["_id"]
-        assert payload["roles"] == mock_user["roles"]
+        assert payload.sub == mock_user["_id"]
+        assert payload.roles == mock_user["roles"]
 
     def test_encode_token_includes_expiration(self, auth_handler, mock_user):
         """Test token includes expiration time"""
         token = auth_handler.encode_token(mock_user)
 
-        # Decode using auth_handler to ensure correct secret is used
-        payload = auth_handler.decode_token(token)
-
-        assert "exp" in payload
-        exp_time = datetime.fromtimestamp(payload["exp"])
+        # Decode the raw JWT to check expiration (TokenPayload doesn't expose exp)
+        import jwt
+        raw_payload = jwt.decode(token, auth_handler.secret, algorithms=["HS256"])
+        
+        assert "exp" in raw_payload
+        exp_time = datetime.fromtimestamp(raw_payload["exp"])
         now = datetime.utcnow()
         assert exp_time > now
 
@@ -77,10 +78,14 @@ class TestEncodeToken:
         assert isinstance(token, str)
         assert len(token) > 0
 
-        # Decode to verify structure using decode_refresh_token
-        payload = auth_handler.decode_refresh_token(token)
-        assert payload["sub"] == mock_user["_id"]
-        assert payload["type"] == "refresh"
+        # Decode refresh token returns just the user ID (string), not TokenPayload
+        user_id = auth_handler.decode_refresh_token(token)
+        assert user_id == mock_user["_id"]
+        
+        # Verify token type by decoding raw JWT
+        import jwt
+        raw_payload = jwt.decode(token, auth_handler.refresh_secret, algorithms=["HS256"])
+        assert raw_payload["type"] == "refresh"
 
 
 class TestDecodeToken:
@@ -91,8 +96,9 @@ class TestDecodeToken:
         token = auth_handler.encode_token(mock_user)
         payload = auth_handler.decode_token(token)
 
-        assert payload["sub"] == mock_user["_id"]
-        assert payload["email"] == mock_user["email"]
+        assert payload.sub == mock_user["_id"]
+        assert payload.firstName == mock_user["firstName"]
+        assert payload.lastName == mock_user["lastName"]
 
     def test_decode_expired_token_raises_exception(self, auth_handler):
         """Test decoding expired token raises exception"""
