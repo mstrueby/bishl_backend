@@ -102,16 +102,13 @@ class TestDecodeToken:
 
     def test_decode_expired_token_raises_exception(self, auth_handler):
         """Test decoding expired token raises exception"""
-        # Create expired token
-        with patch('authentication.settings') as mock_settings:
-            mock_settings.JWT_SECRET_KEY = "test-secret-key"
-            mock_settings.JWT_ALGORITHM = "HS256"
-
-            payload = {
-                "sub": "test-user",
-                "exp": datetime.utcnow() - timedelta(hours=1)
-            }
-            expired_token = jwt.encode(payload, "test-secret-key", algorithm="HS256")
+        # Create expired token using the same secret as auth_handler
+        payload = {
+            "sub": "test-user",
+            "exp": datetime.now() - timedelta(hours=1),
+            "type": "access"
+        }
+        expired_token = jwt.encode(payload, auth_handler.secret, algorithm="HS256")
 
         with pytest.raises(AuthenticationException) as exc_info:
             auth_handler.decode_token(expired_token)
