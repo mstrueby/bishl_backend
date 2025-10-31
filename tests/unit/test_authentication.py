@@ -138,7 +138,7 @@ class TestPasswordHashing:
     def test_hash_password_returns_hash(self, auth_handler):
         """Test password hashing"""
         password = "test-password-123"
-        hashed = auth_handler.hash_password(password)
+        hashed = auth_handler.get_password_hash(password)
 
         assert isinstance(hashed, str)
         assert hashed != password
@@ -147,22 +147,22 @@ class TestPasswordHashing:
     def test_verify_password_correct(self, auth_handler):
         """Test password verification with correct password"""
         password = "test-password-123"
-        hashed = auth_handler.hash_password(password)
+        hashed = auth_handler.get_password_hash(password)
 
         assert auth_handler.verify_password(password, hashed) is True
 
     def test_verify_password_incorrect(self, auth_handler):
         """Test password verification with incorrect password"""
         password = "test-password-123"
-        hashed = auth_handler.hash_password(password)
+        hashed = auth_handler.get_password_hash(password)
 
         assert auth_handler.verify_password("wrong-password", hashed) is False
 
     def test_different_hashes_for_same_password(self, auth_handler):
         """Test that same password produces different hashes (salt)"""
         password = "test-password-123"
-        hash1 = auth_handler.hash_password(password)
-        hash2 = auth_handler.hash_password(password)
+        hash1 = auth_handler.get_password_hash(password)
+        hash2 = auth_handler.get_password_hash(password)
 
         assert hash1 != hash2
         assert auth_handler.verify_password(password, hash1) is True
