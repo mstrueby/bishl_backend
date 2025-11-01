@@ -237,16 +237,16 @@ class TestCalculateRosterStats:
             
             # Create mock responses
             async def mock_get(url):
-                mock_response = AsyncMock()
+                mock_response = MagicMock()
                 if 'roster' in url:
                     mock_response.status_code = 200
-                    mock_response.json.return_value = mock_roster
+                    mock_response.json = MagicMock(return_value=mock_roster)
                 elif 'scores' in url:
                     mock_response.status_code = 200
-                    mock_response.json.return_value = mock_scores
+                    mock_response.json = MagicMock(return_value=mock_scores)
                 elif 'penalties' in url:
                     mock_response.status_code = 200
-                    mock_response.json.return_value = mock_penalties
+                    mock_response.json = MagicMock(return_value=mock_penalties)
                 return mock_response
             
             mock_context.get = mock_get
@@ -321,16 +321,16 @@ class TestCalculateRosterStats:
             
             # Create mock responses
             async def mock_get(url):
-                mock_response = AsyncMock()
+                mock_response = MagicMock()
                 if 'roster' in url:
                     mock_response.status_code = 200
-                    mock_response.json.return_value = mock_roster
+                    mock_response.json = MagicMock(return_value=mock_roster)
                 elif 'scores' in url:
                     mock_response.status_code = 200
-                    mock_response.json.return_value = []
+                    mock_response.json = MagicMock(return_value=[])
                 elif 'penalties' in url:
                     mock_response.status_code = 200
-                    mock_response.json.return_value = mock_penalties
+                    mock_response.json = MagicMock(return_value=mock_penalties)
                 return mock_response
             
             mock_context.get = mock_get
