@@ -1,4 +1,4 @@
-from pydantic import Field, ConfigDict
+from pydantic import ConfigDict, Field
 from pydantic_settings import BaseSettings
 
 
@@ -52,10 +52,7 @@ class Settings(BaseSettings):
     CLDY_API_KEY: str = Field(default="", description="Cloudinary API key")
     CLDY_API_SECRET: str = Field(default="", description="Cloudinary API secret")
 
-    model_config = ConfigDict(
-        env_file=".env",
-        case_sensitive=True
-    )
+    model_config = ConfigDict(env_file=".env", case_sensitive=True)
 
 
 # Create a global settings instance

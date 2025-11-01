@@ -1,4 +1,3 @@
-
 """Unit tests for StatsService"""
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -26,103 +25,160 @@ class TestCalculateMatchStats:
 
     def test_regular_time_win(self, stats_service):
         """Test stats for regular time win"""
-        result = stats_service.calculate_match_stats(
-            match_status="FINISHED",
-            finish_type="REGULAR",
-            standings_settings={},
-            home_score=5,
-            away_score=3
-        )
-        
+        result = stats_service.calculate_match_stats(match_status="FINISHED",
+                                                     finish_type="REGULAR",
+                                                     standings_setting={
+                                                         "pointsWinReg": 3,
+                                                         "pointsLossReg": 0,
+                                                         "pointsDrawReg": 1,
+                                                         "pointsWinOvertime":
+                                                         2,
+                                                         "pointsLossOvertime":
+                                                         1,
+                                                         "pointsWinShootout":
+                                                         2,
+                                                         "pointsLossShootout":
+                                                         1
+                                                     },
+                                                     home_score=5,
+                                                     away_score=3)
+
         assert result["home"]["points"] == 3
-        assert result["home"]["wins"] == 1
-        assert result["home"]["losses"] == 0
+        assert result["home"]["win"] == 1
+        assert result["home"]["loss"] == 0
         assert result["home"]["goalsFor"] == 5
         assert result["home"]["goalsAgainst"] == 3
-        
+
         assert result["away"]["points"] == 0
-        assert result["away"]["wins"] == 0
-        assert result["away"]["losses"] == 1
+        assert result["away"]["win"] == 0
+        assert result["away"]["loss"] == 1
         assert result["away"]["goalsFor"] == 3
         assert result["away"]["goalsAgainst"] == 5
 
     def test_overtime_win(self, stats_service):
         """Test stats for overtime win"""
-        result = stats_service.calculate_match_stats(
-            match_status="FINISHED",
-            finish_type="OVERTIME",
-            standings_settings={},
-            home_score=4,
-            away_score=3
-        )
-        
+        result = stats_service.calculate_match_stats(match_status="FINISHED",
+                                                     finish_type="OVERTIME",
+                                                     standings_setting={
+                                                         "pointsWinReg": 3,
+                                                         "pointsLossReg": 0,
+                                                         "pointsDrawReg": 1,
+                                                         "pointsWinOvertime":
+                                                         2,
+                                                         "pointsLossOvertime":
+                                                         1,
+                                                         "pointsWinShootout":
+                                                         2,
+                                                         "pointsLossShootout":
+                                                         1
+                                                     },
+                                                     home_score=4,
+                                                     away_score=3)
+
         assert result["home"]["points"] == 2
-        assert result["home"]["overtimeWins"] == 1
+        assert result["home"]["otWin"] == 1
         assert result["away"]["points"] == 1
-        assert result["away"]["overtimeLosses"] == 1
+        assert result["away"]["otLoss"] == 1
 
     def test_shootout_win(self, stats_service):
         """Test stats for shootout win"""
-        result = stats_service.calculate_match_stats(
-            match_status="FINISHED",
-            finish_type="SHOOTOUT",
-            standings_settings={},
-            home_score=3,
-            away_score=2
-        )
-        
+        result = stats_service.calculate_match_stats(match_status="FINISHED",
+                                                     finish_type="SHOOTOUT",
+                                                     standings_setting={
+                                                         "pointsWinReg": 3,
+                                                         "pointsLossReg": 0,
+                                                         "pointsDrawReg": 1,
+                                                         "pointsWinOvertime":
+                                                         2,
+                                                         "pointsLossOvertime":
+                                                         1,
+                                                         "pointsWinShootout":
+                                                         2,
+                                                         "pointsLossShootout":
+                                                         1
+                                                     },
+                                                     home_score=3,
+                                                     away_score=2)
+
         assert result["home"]["points"] == 2
-        assert result["home"]["shootoutWins"] == 1
+        assert result["home"]["soWin"] == 1
         assert result["away"]["points"] == 1
-        assert result["away"]["shootoutLosses"] == 1
+        assert result["away"]["soLoss"] == 1
 
     def test_tie_game(self, stats_service):
         """Test stats for tie game"""
-        result = stats_service.calculate_match_stats(
-            match_status="FINISHED",
-            finish_type="REGULAR",
-            standings_settings={},
-            home_score=3,
-            away_score=3
-        )
-        
-        assert result["home"]["points"] == 1
-        assert result["home"]["ties"] == 1
-        assert result["away"]["points"] == 1
-        assert result["away"]["ties"] == 1
+        result = stats_service.calculate_match_stats(match_status="FINISHED",
+                                                     finish_type="REGULAR",
+                                                     standings_setting={
+                                                         "pointsWinReg": 3,
+                                                         "pointsLossReg": 0,
+                                                         "pointsDrawReg": 1,
+                                                         "pointsWinOvertime":
+                                                         2,
+                                                         "pointsLossOvertime":
+                                                         1,
+                                                         "pointsWinShootout":
+                                                         2,
+                                                         "pointsLossShootout":
+                                                         1
+                                                     },
+                                                     home_score=3,
+                                                     away_score=3)
 
-    def test_custom_standings_settings(self, stats_service):
-        """Test custom points settings"""
-        custom_settings = {
-            "pointsForWin": 5,
-            "pointsForTie": 2,
-            "pointsForOvertimeWin": 4,
-            "pointsForOvertimeLoss": 1
-        }
-        
-        result = stats_service.calculate_match_stats(
-            match_status="FINISHED",
-            finish_type="OVERTIME",
-            standings_settings=custom_settings,
-            home_score=4,
-            away_score=3
-        )
-        
-        assert result["home"]["points"] == 4
+        assert result["home"]["points"] == 1
+        assert result["home"]["draw"] == 1
         assert result["away"]["points"] == 1
+        assert result["away"]["draw"] == 1
 
     def test_incomplete_match_returns_zeros(self, stats_service):
         """Test that incomplete match returns zero stats"""
-        result = stats_service.calculate_match_stats(
-            match_status="SCHEDULED",
-            finish_type=None,
-            standings_settings={},
-            home_score=0,
-            away_score=0
-        )
-        
+        result = stats_service.calculate_match_stats(match_status="SCHEDULED",
+                                                     finish_type=None,
+                                                     standings_setting={
+                                                         "pointsWinReg": 3,
+                                                         "pointsLossReg": 0,
+                                                         "pointsDrawReg": 1,
+                                                         "pointsWinOvertime":
+                                                         2,
+                                                         "pointsLossOvertime":
+                                                         1,
+                                                         "pointsWinShootout":
+                                                         2,
+                                                         "pointsLossShootout":
+                                                         1
+                                                     },
+                                                     home_score=0,
+                                                     away_score=0)
+
         assert result["home"]["points"] == 0
+        assert result["home"]["draw"] == 0
         assert result["away"]["points"] == 0
+        assert result["away"]["draw"] == 0
+
+
+    def test_match_in_progress_returns_zeros(self, stats_service):
+        """Test that match in progress returns zero stats"""
+        result = stats_service.calculate_match_stats(match_status="INPROGRESS",
+                                                     finish_type=None,
+                                                     standings_setting={
+                                                         "pointsWinReg": 3,
+                                                         "pointsLossReg": 0,
+                                                         "pointsDrawReg": 1,
+                                                         "pointsWinOvertime":
+                                                         2,
+                                                         "pointsLossOvertime":
+                                                         1,
+                                                         "pointsWinShootout":
+                                                         2,
+                                                         "pointsLossShootout":
+                                                         1
+                                                     },
+                                                     home_score=1,
+                                                     away_score=0)
+        assert result["home"]["points"] == 0
+        assert result["home"]["win"] == 0
+        assert result["away"]["points"] == 0
+        assert result["away"]["loss"] == 0
 
 
 class TestCalculateRosterStats:
@@ -132,37 +188,53 @@ class TestCalculateRosterStats:
     async def test_calculate_goals_and_assists(self, stats_service, mock_db):
         """Test calculation of goals and assists from scores"""
         match_id = "test-match-id"
-        
+
         # Mock match data
         mock_match = {
             "_id": match_id,
             "home": {
-                "scores": [
-                    {
-                        "goalPlayer": {"playerId": "player-1"},
-                        "assistPlayer": {"playerId": "player-2"}
+                "scores": [{
+                    "goalPlayer": {
+                        "playerId": "player-1"
                     },
-                    {
-                        "goalPlayer": {"playerId": "player-1"},
-                        "assistPlayer": None
+                    "assistPlayer": {
+                        "playerId": "player-2"
                     }
-                ],
-                "roster": [
-                    {"_id": "r1", "player": {"playerId": "player-1"}, "goals": 0, "assists": 0, "points": 0},
-                    {"_id": "r2", "player": {"playerId": "player-2"}, "goals": 0, "assists": 0, "points": 0}
-                ]
+                }, {
+                    "goalPlayer": {
+                        "playerId": "player-1"
+                    },
+                    "assistPlayer": None
+                }],
+                "roster": [{
+                    "_id": "r1",
+                    "player": {
+                        "playerId": "player-1"
+                    },
+                    "goals": 0,
+                    "assists": 0,
+                    "points": 0
+                }, {
+                    "_id": "r2",
+                    "player": {
+                        "playerId": "player-2"
+                    },
+                    "goals": 0,
+                    "assists": 0,
+                    "points": 0
+                }]
             }
         }
-        
+
         mock_db.matches.find_one.return_value = mock_match
         mock_db.matches.update_one.return_value = AsyncMock()
-        
+
         await stats_service.calculate_roster_stats(match_id, "home")
-        
+
         # Verify update was called with correct stats
         update_call = mock_db.matches.update_one.call_args
         updated_roster = update_call[1]["$set"]["home.roster"]
-        
+
         roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
         assert roster_by_id["player-1"]["goals"] == 2
         assert roster_by_id["player-1"]["assists"] == 0
@@ -175,31 +247,51 @@ class TestCalculateRosterStats:
     async def test_calculate_penalties(self, stats_service, mock_db):
         """Test calculation of penalty minutes"""
         match_id = "test-match-id"
-        
+
         mock_match = {
             "_id": match_id,
             "home": {
                 "scores": [],
-                "penalties": [
-                    {"player": {"playerId": "player-1"}, "minutes": 2},
-                    {"player": {"playerId": "player-1"}, "minutes": 2},
-                    {"player": {"playerId": "player-2"}, "minutes": 5}
-                ],
-                "roster": [
-                    {"_id": "r1", "player": {"playerId": "player-1"}, "pim": 0},
-                    {"_id": "r2", "player": {"playerId": "player-2"}, "pim": 0}
-                ]
+                "penalties": [{
+                    "player": {
+                        "playerId": "player-1"
+                    },
+                    "minutes": 2
+                }, {
+                    "player": {
+                        "playerId": "player-1"
+                    },
+                    "minutes": 2
+                }, {
+                    "player": {
+                        "playerId": "player-2"
+                    },
+                    "minutes": 5
+                }],
+                "roster": [{
+                    "_id": "r1",
+                    "player": {
+                        "playerId": "player-1"
+                    },
+                    "pim": 0
+                }, {
+                    "_id": "r2",
+                    "player": {
+                        "playerId": "player-2"
+                    },
+                    "pim": 0
+                }]
             }
         }
-        
+
         mock_db.matches.find_one.return_value = mock_match
         mock_db.matches.update_one.return_value = AsyncMock()
-        
+
         await stats_service.calculate_roster_stats(match_id, "home")
-        
+
         update_call = mock_db.matches.update_one.call_args
         updated_roster = update_call[1]["$set"]["home.roster"]
-        
+
         roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
         assert roster_by_id["player-1"]["pim"] == 4
         assert roster_by_id["player-2"]["pim"] == 5
@@ -210,12 +302,10 @@ class TestCalculateGoalkeeperStats:
 
     def test_goalie_stats_shutout(self, stats_service):
         """Test goalie stats for shutout"""
-        result = stats_service.calculate_goalie_stats(
-            goals_against=0,
-            saves=25,
-            played=True
-        )
-        
+        result = stats_service.calculate_goalie_stats(goals_against=0,
+                                                      saves=25,
+                                                      played=True)
+
         assert result["shutouts"] == 1
         assert result["goalsAgainst"] == 0
         assert result["saves"] == 25
@@ -223,24 +313,20 @@ class TestCalculateGoalkeeperStats:
 
     def test_goalie_stats_with_goals(self, stats_service):
         """Test goalie stats with goals allowed"""
-        result = stats_service.calculate_goalie_stats(
-            goals_against=3,
-            saves=22,
-            played=True
-        )
-        
+        result = stats_service.calculate_goalie_stats(goals_against=3,
+                                                      saves=22,
+                                                      played=True)
+
         assert result["shutouts"] == 0
         assert result["goalsAgainst"] == 3
         assert result["saves"] == 22
 
     def test_goalie_not_played(self, stats_service):
         """Test goalie stats when not played"""
-        result = stats_service.calculate_goalie_stats(
-            goals_against=0,
-            saves=0,
-            played=False
-        )
-        
+        result = stats_service.calculate_goalie_stats(goals_against=0,
+                                                      saves=0,
+                                                      played=False)
+
         assert result["gamesPlayed"] == 0
         assert result["shutouts"] == 0
 
@@ -251,31 +337,59 @@ class TestCalculateStandings:
 
     async def test_standings_sorting_by_points(self, stats_service, mock_db):
         """Test standings are sorted by points"""
-        teams = [
-            {"_id": "team-1", "stats": {"points": 10, "wins": 3}},
-            {"_id": "team-2", "stats": {"points": 15, "wins": 5}},
-            {"_id": "team-3", "stats": {"points": 5, "wins": 1}}
-        ]
-        
+        teams = [{
+            "_id": "team-1",
+            "stats": {
+                "points": 10,
+                "wins": 3
+            }
+        }, {
+            "_id": "team-2",
+            "stats": {
+                "points": 15,
+                "wins": 5
+            }
+        }, {
+            "_id": "team-3",
+            "stats": {
+                "points": 5,
+                "wins": 1
+            }
+        }]
+
         mock_db.teams.find.return_value.to_list = AsyncMock(return_value=teams)
-        
-        standings = await stats_service.calculate_standings("tournament", "season", "round")
-        
+
+        standings = await stats_service.calculate_standings(
+            "tournament", "season", "round")
+
         assert standings[0]["_id"] == "team-2"
         assert standings[1]["_id"] == "team-1"
         assert standings[2]["_id"] == "team-3"
 
-    async def test_standings_tie_breaker_goal_diff(self, stats_service, mock_db):
+    async def test_standings_tie_breaker_goal_diff(self, stats_service,
+                                                   mock_db):
         """Test tie breaker by goal difference"""
-        teams = [
-            {"_id": "team-1", "stats": {"points": 10, "goalsFor": 20, "goalsAgainst": 15}},
-            {"_id": "team-2", "stats": {"points": 10, "goalsFor": 18, "goalsAgainst": 10}}
-        ]
-        
+        teams = [{
+            "_id": "team-1",
+            "stats": {
+                "points": 10,
+                "goalsFor": 20,
+                "goalsAgainst": 15
+            }
+        }, {
+            "_id": "team-2",
+            "stats": {
+                "points": 10,
+                "goalsFor": 18,
+                "goalsAgainst": 10
+            }
+        }]
+
         mock_db.teams.find.return_value.to_list = AsyncMock(return_value=teams)
-        
-        standings = await stats_service.calculate_standings("tournament", "season", "round")
-        
+
+        standings = await stats_service.calculate_standings(
+            "tournament", "season", "round")
+
         # team-2 has better goal diff (+8 vs +5)
         assert standings[0]["_id"] == "team-2"
         assert standings[1]["_id"] == "team-1"
@@ -286,21 +400,32 @@ class TestValidateRosterPlayer:
 
     def test_player_in_roster_returns_true(self, stats_service):
         """Test validation passes when player in roster"""
-        roster = [
-            {"player": {"playerId": "player-1"}},
-            {"player": {"playerId": "player-2"}}
-        ]
-        
+        roster = [{
+            "player": {
+                "playerId": "player-1"
+            }
+        }, {
+            "player": {
+                "playerId": "player-2"
+            }
+        }]
+
         assert stats_service.validate_roster_player("player-1", roster) is True
 
     def test_player_not_in_roster_returns_false(self, stats_service):
         """Test validation fails when player not in roster"""
-        roster = [
-            {"player": {"playerId": "player-1"}},
-            {"player": {"playerId": "player-2"}}
-        ]
-        
-        assert stats_service.validate_roster_player("player-3", roster) is False
+        roster = [{
+            "player": {
+                "playerId": "player-1"
+            }
+        }, {
+            "player": {
+                "playerId": "player-2"
+            }
+        }]
+
+        assert stats_service.validate_roster_player("player-3",
+                                                    roster) is False
 
     def test_empty_roster_returns_false(self, stats_service):
         """Test validation fails for empty roster"""

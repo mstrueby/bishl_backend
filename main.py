@@ -48,9 +48,9 @@ async def lifespan(app: FastAPI):
     app.state.mongodb_client = app.state.client  # Keep backward compatibility
     app.state.mongodb = app.state.client[settings.DB_NAME]
     logger.info("MongoDB connection established")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down BISHL API server...")
     app.state.client.close()

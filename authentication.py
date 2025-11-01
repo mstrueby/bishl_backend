@@ -131,6 +131,14 @@ class AuthHandler:
                 message="Invalid reset token", details={"reason": "invalid_reset_token"}
             ) from e
 
+    def has_role(self, user_roles: list, required_role: str) -> bool:
+        """Check if user has a specific role"""
+        return required_role in user_roles
+
+    def has_any_role(self, user_roles: list, required_roles: list) -> bool:
+        """Check if user has any of the required roles"""
+        return any(role in user_roles for role in required_roles)
+
     def auth_wrapper(self, auth: HTTPAuthorizationCredentials = Security(security)):
         return self.decode_token(auth.credentials)
 
