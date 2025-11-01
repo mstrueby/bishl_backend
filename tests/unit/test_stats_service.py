@@ -20,6 +20,10 @@ def mock_db():
     mock_players_collection.find_one = AsyncMock()
     mock_players_collection.update_one = AsyncMock(return_value=MagicMock(acknowledged=True))
     
+    # Store collections as attributes for easier access in tests
+    db._matches_collection = mock_matches_collection
+    db._players_collection = mock_players_collection
+    
     # Attach collections to db
     db.__getitem__ = MagicMock(side_effect=lambda name: {
         'matches': mock_matches_collection,
@@ -269,9 +273,8 @@ class TestCalculateRosterStats:
             await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=False)
 
             # Verify update was called with correct stats
-            # Access the mock collection through __getitem__
-            matches_collection = mock_db.__getitem__.return_value
-            update_call = matches_collection.update_one.call_args
+            # Access the mock collection directly from the fixture
+            update_call = mock_db._matches_collection.update_one.call_args
             updated_roster = update_call[1]["$set"]["home.roster"]
 
             roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
@@ -351,9 +354,8 @@ class TestCalculateRosterStats:
             
             await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=False)
 
-            # Access the mock collection through __getitem__
-            matches_collection = mock_db.__getitem__.return_value
-            update_call = matches_collection.update_one.call_args
+            # Access the mock collection directly from the fixture
+            update_call = mock_db._matches_collection.update_one.call_args
             updated_roster = update_call[1]["$set"]["home.roster"]
 
             roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
