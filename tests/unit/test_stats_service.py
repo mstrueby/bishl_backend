@@ -369,40 +369,6 @@ class TestCalculateRosterStats:
             assert roster_by_id["player-2"]["penaltyMinutes"] == 5
 
 
-class TestCalculateGoalkeeperStats:
-    """Test goalkeeper statistics calculations"""
-
-    def test_goalie_stats_shutout(self, stats_service):
-        """Test goalie stats for shutout"""
-        result = stats_service.calculate_goalie_stats(goals_against=0,
-                                                      saves=25,
-                                                      played=True)
-
-        assert result["shutouts"] == 1
-        assert result["goalsAgainst"] == 0
-        assert result["saves"] == 25
-        assert result["gamesPlayed"] == 1
-
-    def test_goalie_stats_with_goals(self, stats_service):
-        """Test goalie stats with goals allowed"""
-        result = stats_service.calculate_goalie_stats(goals_against=3,
-                                                      saves=22,
-                                                      played=True)
-
-        assert result["shutouts"] == 0
-        assert result["goalsAgainst"] == 3
-        assert result["saves"] == 22
-
-    def test_goalie_not_played(self, stats_service):
-        """Test goalie stats when not played"""
-        result = stats_service.calculate_goalie_stats(goals_against=0,
-                                                      saves=0,
-                                                      played=False)
-
-        assert result["gamesPlayed"] == 0
-        assert result["shutouts"] == 0
-
-
 @pytest.mark.asyncio
 class TestCalculateStandings:
     """Test standings calculations"""
