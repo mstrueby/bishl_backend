@@ -274,8 +274,11 @@ class TestCalculateRosterStats:
 
             # Verify update was called with correct stats
             # Access the mock collection directly from the fixture
+            # update_one is called as: update_one(filter, update_doc)
+            # call_args gives us (args, kwargs), so args[1] is the update document
             update_call = mock_db._matches_collection.update_one.call_args
-            updated_roster = update_call[1]["$set"]["home.roster"]
+            update_document = update_call[0][1]  # Second positional argument
+            updated_roster = update_document["$set"]["home.roster"]
 
             roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
             assert roster_by_id["player-1"]["goals"] == 2
@@ -355,8 +358,11 @@ class TestCalculateRosterStats:
             await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=False)
 
             # Access the mock collection directly from the fixture
+            # update_one is called as: update_one(filter, update_doc)
+            # call_args gives us (args, kwargs), so args[1] is the update document
             update_call = mock_db._matches_collection.update_one.call_args
-            updated_roster = update_call[1]["$set"]["home.roster"]
+            update_document = update_call[0][1]  # Second positional argument
+            updated_roster = update_document["$set"]["home.roster"]
 
             roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
             assert roster_by_id["player-1"]["penaltyMinutes"] == 4
