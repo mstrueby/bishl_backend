@@ -437,33 +437,107 @@ class TestCalculateStandings:
         assert standings["Team B"]["losses"] == 1
 
 
-    async def test_standings_tie_breaker_goal_diff(self, stats_service,
-                                                   mock_db):
+    async def test_standings_tie_breaker_goal_diff(self, stats_service):
         """Test tie breaker by goal difference"""
-        teams = [{
-            "_id": "team-1",
-            "stats": {
-                "points": 10,
-                "goalsFor": 20,
-                "goalsAgainst": 15
+        # Create mock matches where both teams have same points but different goal diff
+        matches = [
+            {
+                "home": {
+                    "fullName": "Team A",
+                    "shortName": "TMA",
+                    "tinyName": "A",
+                    "logo": "http://example.com/a.png",
+                    "stats": {
+                        "gamePlayed": 1,
+                        "goalsFor": 5,
+                        "goalsAgainst": 0,
+                        "points": 3,
+                        "win": 1,
+                        "loss": 0,
+                        "draw": 0,
+                        "otWin": 0,
+                        "otLoss": 0,
+                        "soWin": 0,
+                        "soLoss": 0
+                    }
+                },
+                "away": {
+                    "fullName": "Team B",
+                    "shortName": "TMB",
+                    "tinyName": "B",
+                    "logo": "http://example.com/b.png",
+                    "stats": {
+                        "gamePlayed": 1,
+                        "goalsFor": 0,
+                        "goalsAgainst": 5,
+                        "points": 0,
+                        "win": 0,
+                        "loss": 1,
+                        "draw": 0,
+                        "otWin": 0,
+                        "otLoss": 0,
+                        "soWin": 0,
+                        "soLoss": 0
+                    }
+                }
+            },
+            {
+                "home": {
+                    "fullName": "Team B",
+                    "shortName": "TMB",
+                    "tinyName": "B",
+                    "logo": "http://example.com/b.png",
+                    "stats": {
+                        "gamePlayed": 1,
+                        "goalsFor": 3,
+                        "goalsAgainst": 0,
+                        "points": 3,
+                        "win": 1,
+                        "loss": 0,
+                        "draw": 0,
+                        "otWin": 0,
+                        "otLoss": 0,
+                        "soWin": 0,
+                        "soLoss": 0
+                    }
+                },
+                "away": {
+                    "fullName": "Team A",
+                    "shortName": "TMA",
+                    "tinyName": "A",
+                    "logo": "http://example.com/a.png",
+                    "stats": {
+                        "gamePlayed": 1,
+                        "goalsFor": 0,
+                        "goalsAgainst": 3,
+                        "points": 0,
+                        "win": 0,
+                        "loss": 1,
+                        "draw": 0,
+                        "otWin": 0,
+                        "otLoss": 0,
+                        "soWin": 0,
+                        "soLoss": 0
+                    }
+                }
             }
-        }, {
-            "_id": "team-2",
-            "stats": {
-                "points": 10,
-                "goalsFor": 18,
-                "goalsAgainst": 10
-            }
-        }]
+        ]
 
-        mock_db.teams.find.return_value.to_list = AsyncMock(return_value=teams)
+        # Call the private method directly for unit testing
+        standings = stats_service._calculate_standings(matches)
 
-        standings = await stats_service.calculate_standings(
-            "tournament", "season", "round")
-
-        # team-2 has better goal diff (+8 vs +5)
-        assert standings[0]["_id"] == "team-2"
-        assert standings[1]["_id"] == "team-1"
+        # Both teams have 3 points (1 win, 1 loss each)
+        # Team A: 5-3 = +2 goal diff
+        # Team B: 3-5 = -2 goal diff
+        # Team A should be first due to better goal difference
+        teams_list = list(standings.keys())
+        assert teams_list[0] == "Team A"
+        assert standings["Team A"]["points"] == 3
+        assert standings["Team A"]["goalsFor"] - standings["Team A"]["goalsAgainst"] == 2
+        
+        assert teams_list[1] == "Team B"
+        assert standings["Team B"]["points"] == 3
+        assert standings["Team B"]["goalsFor"] - standings["Team B"]["goalsAgainst"] == -2
 
 
 class TestValidateRosterPlayer:
