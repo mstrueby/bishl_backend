@@ -266,13 +266,12 @@ class TestCalculateRosterStats:
             
             mock_context.get = mock_get
             
-            # Mock database update
-            mock_db.matches.update_one.return_value = AsyncMock(acknowledged=True)
-
             await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=False)
 
             # Verify update was called with correct stats
-            update_call = mock_db.matches.update_one.call_args
+            # Access the mock collection through __getitem__
+            matches_collection = mock_db.__getitem__.return_value
+            update_call = matches_collection.update_one.call_args
             updated_roster = update_call[1]["$set"]["home.roster"]
 
             roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
@@ -350,12 +349,11 @@ class TestCalculateRosterStats:
             
             mock_context.get = mock_get
             
-            # Mock database update
-            mock_db.matches.update_one.return_value = AsyncMock(acknowledged=True)
-
             await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=False)
 
-            update_call = mock_db.matches.update_one.call_args
+            # Access the mock collection through __getitem__
+            matches_collection = mock_db.__getitem__.return_value
+            update_call = matches_collection.update_one.call_args
             updated_roster = update_call[1]["$set"]["home.roster"]
 
             roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
