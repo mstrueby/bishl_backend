@@ -187,114 +187,165 @@ class TestCalculateRosterStats:
     @pytest.mark.asyncio
     async def test_calculate_goals_and_assists(self, stats_service, mock_db):
         """Test calculation of goals and assists from scores"""
+        from unittest.mock import patch
+        
         match_id = "test-match-id"
 
-        # Mock match data
-        mock_match = {
-            "_id": match_id,
-            "home": {
-                "scores": [{
-                    "goalPlayer": {
-                        "playerId": "player-1"
-                    },
-                    "assistPlayer": {
-                        "playerId": "player-2"
-                    }
-                }, {
-                    "goalPlayer": {
-                        "playerId": "player-1"
-                    },
-                    "assistPlayer": None
-                }],
-                "roster": [{
-                    "_id": "r1",
-                    "player": {
-                        "playerId": "player-1"
-                    },
-                    "goals": 0,
-                    "assists": 0,
-                    "points": 0
-                }, {
-                    "_id": "r2",
-                    "player": {
-                        "playerId": "player-2"
-                    },
-                    "goals": 0,
-                    "assists": 0,
-                    "points": 0
-                }]
+        # Mock roster data
+        mock_roster = [{
+            "_id": "r1",
+            "player": {
+                "playerId": "player-1"
+            },
+            "goals": 0,
+            "assists": 0,
+            "points": 0,
+            "penaltyMinutes": 0
+        }, {
+            "_id": "r2",
+            "player": {
+                "playerId": "player-2"
+            },
+            "goals": 0,
+            "assists": 0,
+            "points": 0,
+            "penaltyMinutes": 0
+        }]
+
+        # Mock scoreboard data
+        mock_scores = [{
+            "goalPlayer": {
+                "playerId": "player-1"
+            },
+            "assistPlayer": {
+                "playerId": "player-2"
             }
-        }
+        }, {
+            "goalPlayer": {
+                "playerId": "player-1"
+            },
+            "assistPlayer": None
+        }]
 
-        mock_db.matches.find_one.return_value = mock_match
-        mock_db.matches.update_one.return_value = AsyncMock()
+        # Mock penalties data
+        mock_penalties = []
 
-        await stats_service.calculate_roster_stats(match_id, "home")
+        # Mock the HTTP API calls
+        with patch('services.stats_service.httpx.AsyncClient') as mock_client:
+            mock_context = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_context
+            
+            # Create mock responses
+            async def mock_get(url):
+                mock_response = AsyncMock()
+                if 'roster' in url:
+                    mock_response.status_code = 200
+                    mock_response.json.return_value = mock_roster
+                elif 'scores' in url:
+                    mock_response.status_code = 200
+                    mock_response.json.return_value = mock_scores
+                elif 'penalties' in url:
+                    mock_response.status_code = 200
+                    mock_response.json.return_value = mock_penalties
+                return mock_response
+            
+            mock_context.get = mock_get
+            
+            # Mock database update
+            mock_db.matches.update_one.return_value = AsyncMock(acknowledged=True)
 
-        # Verify update was called with correct stats
-        update_call = mock_db.matches.update_one.call_args
-        updated_roster = update_call[1]["$set"]["home.roster"]
+            await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=False)
 
-        roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
-        assert roster_by_id["player-1"]["goals"] == 2
-        assert roster_by_id["player-1"]["assists"] == 0
-        assert roster_by_id["player-1"]["points"] == 2
-        assert roster_by_id["player-2"]["goals"] == 0
-        assert roster_by_id["player-2"]["assists"] == 1
-        assert roster_by_id["player-2"]["points"] == 1
+            # Verify update was called with correct stats
+            update_call = mock_db.matches.update_one.call_args
+            updated_roster = update_call[1]["$set"]["home.roster"]
+
+            roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
+            assert roster_by_id["player-1"]["goals"] == 2
+            assert roster_by_id["player-1"]["assists"] == 0
+            assert roster_by_id["player-1"]["points"] == 2
+            assert roster_by_id["player-2"]["goals"] == 0
+            assert roster_by_id["player-2"]["assists"] == 1
+            assert roster_by_id["player-2"]["points"] == 1
 
     @pytest.mark.asyncio
     async def test_calculate_penalties(self, stats_service, mock_db):
         """Test calculation of penalty minutes"""
+        from unittest.mock import patch
+        
         match_id = "test-match-id"
 
-        mock_match = {
-            "_id": match_id,
-            "home": {
-                "scores": [],
-                "penalties": [{
-                    "player": {
-                        "playerId": "player-1"
-                    },
-                    "minutes": 2
-                }, {
-                    "player": {
-                        "playerId": "player-1"
-                    },
-                    "minutes": 2
-                }, {
-                    "player": {
-                        "playerId": "player-2"
-                    },
-                    "minutes": 5
-                }],
-                "roster": [{
-                    "_id": "r1",
-                    "player": {
-                        "playerId": "player-1"
-                    },
-                    "pim": 0
-                }, {
-                    "_id": "r2",
-                    "player": {
-                        "playerId": "player-2"
-                    },
-                    "pim": 0
-                }]
-            }
-        }
+        # Mock roster data
+        mock_roster = [{
+            "_id": "r1",
+            "player": {
+                "playerId": "player-1"
+            },
+            "goals": 0,
+            "assists": 0,
+            "points": 0,
+            "penaltyMinutes": 0
+        }, {
+            "_id": "r2",
+            "player": {
+                "playerId": "player-2"
+            },
+            "goals": 0,
+            "assists": 0,
+            "points": 0,
+            "penaltyMinutes": 0
+        }]
 
-        mock_db.matches.find_one.return_value = mock_match
-        mock_db.matches.update_one.return_value = AsyncMock()
+        # Mock penalties data
+        mock_penalties = [{
+            "penaltyPlayer": {
+                "playerId": "player-1"
+            },
+            "penaltyMinutes": 2
+        }, {
+            "penaltyPlayer": {
+                "playerId": "player-1"
+            },
+            "penaltyMinutes": 2
+        }, {
+            "penaltyPlayer": {
+                "playerId": "player-2"
+            },
+            "penaltyMinutes": 5
+        }]
 
-        await stats_service.calculate_roster_stats(match_id, "home")
+        # Mock the HTTP API calls
+        with patch('services.stats_service.httpx.AsyncClient') as mock_client:
+            mock_context = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_context
+            
+            # Create mock responses
+            async def mock_get(url):
+                mock_response = AsyncMock()
+                if 'roster' in url:
+                    mock_response.status_code = 200
+                    mock_response.json.return_value = mock_roster
+                elif 'scores' in url:
+                    mock_response.status_code = 200
+                    mock_response.json.return_value = []
+                elif 'penalties' in url:
+                    mock_response.status_code = 200
+                    mock_response.json.return_value = mock_penalties
+                return mock_response
+            
+            mock_context.get = mock_get
+            
+            # Mock database update
+            mock_db.matches.update_one.return_value = AsyncMock(acknowledged=True)
 
-        update_call = mock_db.matches.update_one.call_args
-        updated_roster = update_call[1]["$set"]["home.roster"]
+            await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=False)
 
-        roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
-        assert roster_by_id["player-1"]["pim"] == 4
-        assert roster_by_id["player-2"]["pim"] == 5
+            update_call = mock_db.matches.update_one.call_args
+            updated_roster = update_call[1]["$set"]["home.roster"]
+
+            roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
+            assert roster_by_id["player-1"]["penaltyMinutes"] == 4
+            assert roster_by_id["player-2"]["penaltyMinutes"] == 5
 
 
 class TestCalculateGoalkeeperStats:
