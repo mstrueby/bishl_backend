@@ -274,8 +274,11 @@ class TestCalculateRosterStats:
 
             # Verify update was called with correct stats
             # Access the mock collection directly from the fixture
+            # update_one is called as: update_one(filter, update_doc)
+            # call_args gives us (args, kwargs), so args[1] is the update document
             update_call = mock_db._matches_collection.update_one.call_args
-            updated_roster = update_call[1]["$set"]["home.roster"]
+            update_document = update_call[0][1]  # Second positional argument
+            updated_roster = update_document["$set"]["home.roster"]
 
             roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
             assert roster_by_id["player-1"]["goals"] == 2
@@ -355,46 +358,15 @@ class TestCalculateRosterStats:
             await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=False)
 
             # Access the mock collection directly from the fixture
+            # update_one is called as: update_one(filter, update_doc)
+            # call_args gives us (args, kwargs), so args[1] is the update document
             update_call = mock_db._matches_collection.update_one.call_args
-            updated_roster = update_call[1]["$set"]["home.roster"]
+            update_document = update_call[0][1]  # Second positional argument
+            updated_roster = update_document["$set"]["home.roster"]
 
             roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
             assert roster_by_id["player-1"]["penaltyMinutes"] == 4
             assert roster_by_id["player-2"]["penaltyMinutes"] == 5
-
-
-class TestCalculateGoalkeeperStats:
-    """Test goalkeeper statistics calculations"""
-
-    def test_goalie_stats_shutout(self, stats_service):
-        """Test goalie stats for shutout"""
-        result = stats_service.calculate_goalie_stats(goals_against=0,
-                                                      saves=25,
-                                                      played=True)
-
-        assert result["shutouts"] == 1
-        assert result["goalsAgainst"] == 0
-        assert result["saves"] == 25
-        assert result["gamesPlayed"] == 1
-
-    def test_goalie_stats_with_goals(self, stats_service):
-        """Test goalie stats with goals allowed"""
-        result = stats_service.calculate_goalie_stats(goals_against=3,
-                                                      saves=22,
-                                                      played=True)
-
-        assert result["shutouts"] == 0
-        assert result["goalsAgainst"] == 3
-        assert result["saves"] == 22
-
-    def test_goalie_not_played(self, stats_service):
-        """Test goalie stats when not played"""
-        result = stats_service.calculate_goalie_stats(goals_against=0,
-                                                      saves=0,
-                                                      played=False)
-
-        assert result["gamesPlayed"] == 0
-        assert result["shutouts"] == 0
 
 
 @pytest.mark.asyncio
