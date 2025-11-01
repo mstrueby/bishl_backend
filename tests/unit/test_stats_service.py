@@ -9,8 +9,23 @@ from services.stats_service import StatsService
 def mock_db():
     """Mock MongoDB database"""
     db = MagicMock()
-    db.matches = AsyncMock()
-    db.players = AsyncMock()
+    
+    # Create mock collections with proper async methods
+    mock_matches_collection = MagicMock()
+    mock_matches_collection.update_one = AsyncMock(return_value=MagicMock(acknowledged=True))
+    mock_matches_collection.find_one = AsyncMock()
+    mock_matches_collection.find = MagicMock()
+    
+    mock_players_collection = MagicMock()
+    mock_players_collection.find_one = AsyncMock()
+    mock_players_collection.update_one = AsyncMock(return_value=MagicMock(acknowledged=True))
+    
+    # Attach collections to db
+    db.__getitem__ = MagicMock(side_effect=lambda name: {
+        'matches': mock_matches_collection,
+        'players': mock_players_collection
+    }.get(name))
+    
     return db
 
 
