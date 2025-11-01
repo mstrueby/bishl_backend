@@ -5,7 +5,7 @@ Provides consistent response wrappers for all API endpoints.
 Includes pagination support and metadata.
 """
 
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
