@@ -6,6 +6,7 @@ This file is automatically loaded by pytest.
 import asyncio
 import pytest
 import pytest_asyncio
+from contextlib import asynccontextmanager
 from motor.motor_asyncio import AsyncIOMotorClient
 from httpx import AsyncClient
 from main import app
@@ -13,6 +14,17 @@ from tests.test_config import TestSettings
 
 # Override app settings for testing
 app.state.settings = TestSettings()
+
+# Override the lifespan to prevent production DB connection during tests
+@asynccontextmanager
+async def test_lifespan(app):
+    """Test lifespan that doesn't connect to production database"""
+    print(f"\n🧪 Test mode: Skipping production database connection")
+    yield
+    # No cleanup needed - handled by fixtures
+
+# Replace the app's lifespan with test version
+app.router.lifespan_context = test_lifespan
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
@@ -61,9 +73,13 @@ async def mongodb():
 @pytest_asyncio.fixture
 async def client(mongodb):
     """HTTP client for API testing"""
+    settings = TestSettings()
+    
     # Override the app's database connection with test database
     app.state.mongodb = mongodb
-    app.state.settings = TestSettings()
+    app.state.settings = settings
+    
+    print(f"🔌 Client fixture using database: {settings.DB_NAME}")
     
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
