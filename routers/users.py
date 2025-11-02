@@ -1,6 +1,5 @@
 # filename routers/users.py
 import json
-import logging
 import os
 from datetime import date
 
@@ -12,14 +11,13 @@ from fastapi.responses import JSONResponse, Response
 from authentication import AuthHandler, TokenPayload
 from config import settings
 from exceptions import AuthorizationException, ResourceNotFoundException
+from logging_config import logger
 from mail_service import send_email
 from models.assignments import AssignmentDB
 from models.matches import MatchDB
 from models.responses import PaginatedResponse
 from models.users import Club, CurrentUser, LoginBase, Role, UserBase, UserUpdate
 from services.pagination import PaginationHelper
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 auth = AuthHandler()
@@ -410,11 +408,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     # Send password reset email (skip in test and development environments)
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
 
-    print("TEST")
-    logger.debug(f"debug")
-    logger.warning(f"warning")
-    logger.info(f"info")
-    # Only send email in production environment
+     # Only send email in production environment
     if settings.ENVIRONMENT == 'production':
         try:
             email_body = f"""
