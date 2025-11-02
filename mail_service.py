@@ -21,10 +21,10 @@ fastmail = FastMail(conf)
 
 
 async def send_email(subject: str, recipients: list, body: str, cc: list | None = None):
-    """Send email (skipped in test environment)"""
-    # Skip email sending in test environment
-    if settings.ENVIRONMENT == "test":
-        logger.info(f"Test mode: Skipping email '{subject}' to {recipients}")
+    """Send email (only in production environment)"""
+    # Only send emails in production environment
+    if settings.ENVIRONMENT != "production":
+        logger.info(f"Non-production mode ({settings.ENVIRONMENT}): Skipping email '{subject}' to {recipients}")
         return
     
     message = MessageSchema(

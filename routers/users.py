@@ -406,11 +406,11 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     # Generate reset token
     reset_token = auth.encode_reset_token(user)
 
-    # Send password reset email (skip in test environment)
+    # Send password reset email (skip in test and development environments)
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
     
-    # Skip email sending in test environment
-    if os.environ.get('ENVIRONMENT') != 'test':
+    # Only send email in production environment
+    if os.environ.get('ENVIRONMENT') == 'production':
         try:
             email_body = f"""
                 <p>Hallo,</p>
@@ -423,7 +423,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
         except Exception as e:
             logger.error(f"Error sending password reset email: {e}")
     else:
-        logger.info(f"Test mode: Skipping password reset email to {email}. Reset URL: {reset_url}")
+        logger.info(f"Non-production mode ({os.environ.get('ENVIRONMENT')}): Skipping password reset email to {email}. Reset URL: {reset_url}")
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
