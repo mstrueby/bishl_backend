@@ -5,6 +5,7 @@ This file is automatically loaded by pytest.
 """
 import asyncio
 import pytest
+import pytest_asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from httpx import AsyncClient
 from main import app
@@ -22,7 +23,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def mongodb():
     """MongoDB client for testing"""
     settings = TestSettings()
@@ -44,7 +45,7 @@ async def mongodb():
     client.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client(mongodb):
     """HTTP client for API testing"""
     app.state.mongodb = mongodb
@@ -52,8 +53,8 @@ async def client(mongodb):
         yield ac
 
 
-@pytest.fixture
-async def admin_token():
+@pytest_asyncio.fixture
+async def admin_token(mongodb):
     """Generate admin authentication token"""
     from authentication import AuthHandler
     
@@ -83,7 +84,7 @@ async def admin_token():
     return auth.encode_token(user_dict)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def clean_collections(mongodb):
     """Clean specific collections before each test"""
     async def _clean(*collection_names):
