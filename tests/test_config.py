@@ -16,6 +16,7 @@ class TestSettings(Settings):
     ENVIRONMENT: str = "test"
 
     model_config = ConfigDict(
-        env_file=".env.test",
+        # Don't load .env.test here - conftest.py sets environment variables
+        # This prevents accidentally loading .env instead
         case_sensitive=True
     )
