@@ -70,11 +70,12 @@ class TestUsersAPI:
     async def test_login_success(self, client: AsyncClient, mongodb):
         """Test successful user login"""
         from authentication import AuthHandler
+        from bson import ObjectId
         
         # Setup - Create user with hashed password
         auth = AuthHandler()
         user = {
-            "_id": "test-user",
+            "_id": str(ObjectId()),
             "email": "user@test.com",
             "password": auth.get_password_hash("TestPass123!"),
             "firstName": "Test",
