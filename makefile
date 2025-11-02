@@ -30,23 +30,30 @@ setup-hooks:
 check-all:
 	pre-commit run --all-files
 
-# Testing
+# Run tests (ensure .env.test is loaded)
 test:
-	pytest tests/ -v
+	@echo "Running all tests with bishl_test database..."
+	@echo "Database: bishl_test"
+	pytest -v
 
 test-unit:
+	@echo "Running unit tests..."
 	pytest tests/unit/ -v
 
 test-integration:
+	@echo "Running integration tests with bishl_test database..."
+	@echo "Database: bishl_test"
 	pytest tests/integration/ -v
 
 test-cov:
-	pytest tests/ -v --cov=. --cov-report=html --cov-report=term
+	@echo "Running tests with coverage..."
+	pytest --cov=. --cov-report=html --cov-report=term-missing
 
 clean-test-db:
 	python -c "from motor.motor_asyncio import AsyncIOMotorClient; import asyncio; from tests.test_config import TestSettings; settings = TestSettings(); async def clean(): client = AsyncIOMotorClient(settings.DB_URL); db = client[settings.DB_NAME]; collections = await db.list_collection_names(); [await db[col].drop() for col in collections]; print(f'Dropped {len(collections)} collections from {settings.DB_NAME}'); client.close(); asyncio.run(clean())"
 
 test-e2e:
+	@echo "Running e2e tests..."
 	pytest tests/e2e/ -v
 
 test-watch:

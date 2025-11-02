@@ -41,6 +41,9 @@ async def mongodb():
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
     
+    # Verify we're using the test database
+    print(f"📊 Test using database: {settings.DB_NAME}")
+    
     # NOTE: Collections are NOT dropped automatically
     # This allows inspecting test data after execution
     # To manually clean before running tests, use: make clean-test-db
@@ -58,7 +61,10 @@ async def mongodb():
 @pytest_asyncio.fixture
 async def client(mongodb):
     """HTTP client for API testing"""
+    # Override the app's database connection with test database
     app.state.mongodb = mongodb
+    app.state.settings = TestSettings()
+    
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
 
