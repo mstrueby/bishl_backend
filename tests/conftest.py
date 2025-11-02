@@ -22,7 +22,7 @@ async def mongodb():
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
     
-    # Drop all collections before tests for clean slate
+    # Drop all collections before each test for clean slate
     for collection_name in await db.list_collection_names():
         await db[collection_name].drop()
     
@@ -32,8 +32,8 @@ async def mongodb():
     
     yield db
     
-    # Cleanup after all tests (optional - comment out to inspect data)
-    # await client.drop_database(settings.DB_NAME)
+    # DO NOT cleanup after tests - keep data for inspection
+    # Database will be cleaned before the next test runs
     client.close()
 
 

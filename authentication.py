@@ -64,6 +64,11 @@ class AuthHandler:
             "exp": datetime.now() + timedelta(days=7),  # Long-lived refresh token
             "iat": datetime.now(),
             "sub": user["_id"],
+            "roles": user["roles"],
+            "firstName": user["firstName"],
+            "lastName": user["lastName"],
+            "clubId": user.get("club", {}).get("clubId") if user.get("club") else None,
+            "clubName": user.get("club", {}).get("clubName") if user.get("club") else None,
             "type": "refresh",
         }
         return jwt.encode(payload, self.refresh_secret, algorithm="HS256")
