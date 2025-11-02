@@ -406,21 +406,24 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     # Generate reset token
     reset_token = auth.encode_reset_token(user)
 
-    # Send password reset email
+    # Send password reset email (skip in test environment)
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
-    try:
-        email_body = f"""
-            <p>Hallo,</p>
-            <p>Klicke auf den folgenden Link, um ein neues Passwort zu setzen::</p>
-            <p><a href="{reset_url}">Neues Passwort erstellen</a></p>
-            <p>Dieser Link ist eine Stunde gültig.</p>
-            <p>Wenn Sie das Zurücksetzen des Passworts nicht beantragt haben, ignorieren Sie bitte diese E-Mail.</p>
-        """
-        await send_email(subject="Passwort zurücksetzen", recipients=[email], body=email_body)
-    except Exception as e:
-        print("Error sending email:", e)
-        print("reset_url", reset_url)
-        print("token", reset_token)
+    
+    # Skip email sending in test environment
+    if os.environ.get('ENVIRONMENT') != 'test':
+        try:
+            email_body = f"""
+                <p>Hallo,</p>
+                <p>Klicke auf den folgenden Link, um ein neues Passwort zu setzen::</p>
+                <p><a href="{reset_url}">Neues Passwort erstellen</a></p>
+                <p>Dieser Link ist eine Stunde gültig.</p>
+                <p>Wenn Sie das Zurücksetzen des Passworts nicht beantragt haben, ignorieren Sie bitte diese E-Mail.</p>
+            """
+            await send_email(subject="Passwort zurücksetzen", recipients=[email], body=email_body)
+        except Exception as e:
+            logger.error(f"Error sending password reset email: {e}")
+    else:
+        logger.info(f"Test mode: Skipping password reset email to {email}. Reset URL: {reset_url}")
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
