@@ -32,8 +32,10 @@ check-all:
 
 # Run tests (ensure .env.test is loaded)
 test:
-	@echo "🧪 Running all tests with bishl_test database..."
-	@echo "📊 Database: bishl_test"
+	@echo "🧪 Running all tests..."
+	@echo "⚠️  SAFETY: Tests will ONLY use 'bishl_test' database"
+	@echo "⚠️  If you see 'bishl_dev' or 'bishl', tests will FAIL immediately"
+	@echo ""
 	pytest -v
 
 test-unit:
