@@ -2,6 +2,7 @@ from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from pydantic import SecretStr
 
 from config import settings
+from logging_config import logger
 
 conf = ConnectionConfig(
     MAIL_USERNAME=settings.MAIL_USERNAME,
@@ -20,6 +21,12 @@ fastmail = FastMail(conf)
 
 
 async def send_email(subject: str, recipients: list, body: str, cc: list | None = None):
+    """Send email (only in production environment)"""
+    # Only send emails in production environment
+    if settings.ENVIRONMENT != "production":
+        logger.info(f"Non-production mode ({settings.ENVIRONMENT}): Skipping email '{subject}' to {recipients}")
+        return
+    
     message = MessageSchema(
         subject=subject, recipients=recipients, cc=cc or [], body=body, subtype=MessageType.html
     )
