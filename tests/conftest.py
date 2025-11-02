@@ -15,7 +15,7 @@ from httpx import AsyncClient
 # This must happen before any Settings objects are created
 os.environ["ENV_FILE"] = ".env.test"
 os.environ["DB_NAME"] = "bishl_test"
-os.environ["DB_URL"] = "mongodb://localhost:27017"
+os.environ["DB_URL"] = "mongodb+srv://test_user:YmIjOnKWuHcsvVbI@mflix.fmroc7j.mongodb.net/?retryWrites=true&w=majority&appName=mflix"
 os.environ["ENVIRONMENT"] = "test"
 
 from main import app
