@@ -43,17 +43,17 @@ class AuthHandler:
         """Check if password needs to be upgraded from bcrypt to argon2"""
         return not hashed_password.startswith("$argon2")
 
-    def encode_token(self, user):
-        """Generate short-lived access token (15 minutes)"""
+    def encode_token(self, user: dict) -> str:
+        """Generate short-lived access token (30 minutes)"""
         payload = {
-            "exp": datetime.now() + timedelta(minutes=15),  # Short-lived access token
+            "exp": datetime.now() + timedelta(minutes=30),
             "iat": datetime.now(),
             "sub": user["_id"],
             "roles": user["roles"],
             "firstName": user["firstName"],
             "lastName": user["lastName"],
-            "clubId": user["club"]["clubId"] if user["club"] else None,
-            "clubName": user["club"]["clubName"] if user["club"] else None,
+            "clubId": user.get("club", {}).get("clubId") if user.get("club") else None,
+            "clubName": user.get("club", {}).get("clubName") if user.get("club") else None,
             "type": "access",
         }
         return jwt.encode(payload, self.secret, algorithm="HS256")
