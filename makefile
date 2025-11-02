@@ -32,7 +32,7 @@ check-all:
 
 # Testing
 test:
-	pytest -v
+	pytest tests/ -v
 
 test-unit:
 	pytest tests/unit/ -v
@@ -40,15 +40,14 @@ test-unit:
 test-integration:
 	pytest tests/integration/ -v
 
-test-integration:
-	pytest tests/integration/ -v
+test-cov:
+	pytest tests/ -v --cov=. --cov-report=html --cov-report=term
+
+clean-test-db:
+	python -c "from motor.motor_asyncio import AsyncIOMotorClient; import asyncio; from tests.test_config import TestSettings; settings = TestSettings(); async def clean(): client = AsyncIOMotorClient(settings.DB_URL); db = client[settings.DB_NAME]; collections = await db.list_collection_names(); [await db[col].drop() for col in collections]; print(f'Dropped {len(collections)} collections from {settings.DB_NAME}'); client.close(); asyncio.run(clean())"
 
 test-e2e:
 	pytest tests/e2e/ -v
-
-test-cov:
-	pytest --cov=. --cov-report=html --cov-report=term
-	@echo "Coverage report: htmlcov/index.html"
 
 test-watch:
 	pytest-watch

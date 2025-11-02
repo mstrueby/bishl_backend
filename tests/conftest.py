@@ -15,6 +15,24 @@ from tests.test_config import TestSettings
 app.state.settings = TestSettings()
 
 
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def cleanup_before_session():
+    """Clean database once before all tests in the session"""
+    settings = TestSettings()
+    client = AsyncIOMotorClient(settings.DB_URL)
+    db = client[settings.DB_NAME]
+    
+    # Drop all collections at the start of test session
+    collections = await db.list_collection_names()
+    for collection_name in collections:
+        await db[collection_name].drop()
+    
+    print(f"\n🧹 Cleaned {len(collections)} collections from {settings.DB_NAME} before test session")
+    
+    client.close()
+    yield
+
+
 @pytest_asyncio.fixture(scope="function")
 async def mongodb():
     """MongoDB client for testing"""
@@ -22,9 +40,9 @@ async def mongodb():
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
     
-    # Drop all collections before each test for clean slate
-    for collection_name in await db.list_collection_names():
-        await db[collection_name].drop()
+    # NOTE: Collections are NOT dropped automatically
+    # This allows inspecting test data after execution
+    # To manually clean before running tests, use: make clean-test-db
     
     # TODO: Create indexes here if needed
     # from scripts.create_indexes import create_indexes
@@ -33,7 +51,6 @@ async def mongodb():
     yield db
     
     # DO NOT cleanup after tests - keep data for inspection
-    # Database will be cleaned before the next test runs
     client.close()
 
 
