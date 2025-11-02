@@ -409,7 +409,11 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
 
     # Send password reset email (skip in test and development environments)
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
-    
+
+    print("TEST")
+    logger.debug(f"debug")
+    logger.warning(f"warning")
+    logger.info(f"info")
     # Only send email in production environment
     if settings.ENVIRONMENT == 'production':
         try:
