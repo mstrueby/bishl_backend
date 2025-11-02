@@ -39,9 +39,11 @@ class TestUsersAPI:
 
     async def test_register_duplicate_email_fails(self, client: AsyncClient, mongodb, admin_token):
         """Test registering user with existing email fails"""
+        from bson import ObjectId
+        
         # Setup - Create existing user
         existing_user = {
-            "_id": "existing-user",
+            "_id": str(ObjectId()),
             "email": "existing@test.com",
             "password": "hashed",
             "firstName": "Existing",
@@ -100,11 +102,12 @@ class TestUsersAPI:
     async def test_login_wrong_password(self, client: AsyncClient, mongodb):
         """Test login with wrong password fails"""
         from authentication import AuthHandler
+        from bson import ObjectId
         
         # Setup
         auth = AuthHandler()
         user = {
-            "_id": "test-user",
+            "_id": str(ObjectId()),
             "email": "user@test.com",
             "password": auth.get_password_hash("CorrectPassword"),
             "firstName": "Test",
@@ -158,9 +161,11 @@ class TestUsersAPI:
 
     async def test_update_other_user_as_admin(self, client: AsyncClient, mongodb, admin_token):
         """Test admin updating another user"""
+        from bson import ObjectId
+        
         # Setup - Create another user
         other_user = {
-            "_id": "other-user",
+            "_id": str(ObjectId()),
             "email": "other@test.com",
             "password": "hashed",
             "firstName": "Other",
@@ -183,9 +188,11 @@ class TestUsersAPI:
 
     async def test_get_all_referees(self, client: AsyncClient, mongodb, admin_token):
         """Test retrieving all referees"""
+        from bson import ObjectId
+        
         # Setup - Create referee users
         referee1 = {
-            "_id": "ref-1",
+            "_id": str(ObjectId()),
             "email": "ref1@test.com",
             "password": "hashed",
             "firstName": "Ref",
@@ -193,7 +200,7 @@ class TestUsersAPI:
             "roles": ["REFEREE"]
         }
         referee2 = {
-            "_id": "ref-2",
+            "_id": str(ObjectId()),
             "email": "ref2@test.com",
             "password": "hashed",
             "firstName": "Ref",
@@ -215,9 +222,11 @@ class TestUsersAPI:
 
     async def test_forgot_password(self, client: AsyncClient, mongodb):
         """Test forgot password flow"""
+        from bson import ObjectId
+        
         # Setup
         user = {
-            "_id": "test-user",
+            "_id": str(ObjectId()),
             "email": "user@test.com",
             "password": "hashed",
             "firstName": "Test",
