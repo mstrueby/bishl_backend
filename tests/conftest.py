@@ -19,6 +19,7 @@ app.state.settings = TestSettings()
 async def cleanup_before_session():
     """Clean database once before all tests in the session"""
     settings = TestSettings()
+    print(f"\n🔧 Using test database: {settings.DB_NAME} at {settings.DB_URL}")
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
     
@@ -27,7 +28,7 @@ async def cleanup_before_session():
     for collection_name in collections:
         await db[collection_name].drop()
     
-    print(f"\n🧹 Cleaned {len(collections)} collections from {settings.DB_NAME} before test session")
+    print(f"🧹 Cleaned {len(collections)} collections from {settings.DB_NAME} before test session\n")
     
     client.close()
     yield
@@ -35,7 +36,7 @@ async def cleanup_before_session():
 
 @pytest_asyncio.fixture(scope="function")
 async def mongodb():
-    """MongoDB client for testing"""
+    """MongoDB client for testing - uses bishl_test database"""
     settings = TestSettings()
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
