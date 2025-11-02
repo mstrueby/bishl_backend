@@ -32,18 +32,24 @@ check-all:
 
 # Run tests (ensure .env.test is loaded)
 test:
-	@echo "Running all tests with bishl_test database..."
-	@echo "Database: bishl_test"
+	@echo "🧪 Running all tests with bishl_test database..."
+	@echo "📊 Database: bishl_test"
 	pytest -v
 
 test-unit:
-	@echo "Running unit tests..."
+	@echo "🧪 Running unit tests..."
 	pytest tests/unit/ -v
 
 test-integration:
-	@echo "Running integration tests with bishl_test database..."
-	@echo "Database: bishl_test"
+	@echo "🧪 Running integration tests with bishl_test database..."
+	@echo "📊 Database: bishl_test"
 	pytest tests/integration/ -v
+
+test-clean:
+	@echo "🧹 Cleaning test database before running tests..."
+	$(MAKE) clean-test-db
+	@echo "🧪 Running tests..."
+	pytest -v
 
 test-cov:
 	@echo "Running tests with coverage..."

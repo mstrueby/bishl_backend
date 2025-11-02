@@ -1,97 +1,100 @@
 
-"""Sample data fixtures for testing"""
-from faker import Faker
+"""Test data fixtures and helper functions for creating test documents"""
+import uuid
 from datetime import datetime, timedelta
-from bson import ObjectId
-
-fake = Faker()
+from typing import Dict, Any
 
 
-def create_test_tournament():
-    """Create a test tournament document"""
-    return {
-        "_id": "test-tournament",
-        "name": "Test League",
-        "alias": "test-league",
-        "tinyName": "TL",
-        "published": True
+def generate_test_id() -> str:
+    """Generate a unique test ID"""
+    return f"test_{uuid.uuid4().hex[:8]}"
+
+
+def create_test_user(test_id: str = None, **overrides) -> Dict[str, Any]:
+    """Create a test user document"""
+    test_id = test_id or generate_test_id()
+    user = {
+        "test_id": test_id,
+        "_id": overrides.get("_id", f"user_{test_id}"),
+        "email": f"{test_id}@example.com",
+        "firstName": "Test",
+        "lastName": "User",
+        "password": "$argon2id$v=19$m=65536,t=3,p=4$...",  # hashed password
+        "roles": ["USER"],
+        "isActive": True,
+        "emailVerified": False,
+        "createdAt": datetime.utcnow(),
+        "updatedAt": datetime.utcnow(),
     }
+    user.update(overrides)
+    return user
 
 
-def create_test_season(tournament_alias="test-league"):
-    """Create a test season document"""
-    return {
-        "alias": "2024",
-        "year": 2024,
-        "published": True,
-        "isCurrent": True
-    }
-
-
-def create_test_team(team_id=None):
-    """Create a test team document"""
-    return {
-        "_id": team_id or str(ObjectId()),
-        "name": fake.company(),
-        "alias": fake.slug(),
-        "clubId": "test-club-id",
-        "ageGroup": {"key": "U15", "label": "U15"}
-    }
-
-
-def create_test_player(player_id=None):
-    """Create a test player document"""
-    return {
-        "_id": player_id or str(ObjectId()),
-        "firstName": fake.first_name(),
-        "lastName": fake.last_name(),
-        "alias": fake.user_name(),
-        "jersey": fake.random_int(1, 99),
-        "sex": "MALE",
-        "email": fake.email(),
-        "published": True
-    }
-
-
-def create_test_match(match_id=None, status="SCHEDULED"):
+def create_test_match(test_id: str = None, **overrides) -> Dict[str, Any]:
     """Create a test match document"""
-    match_id = match_id or str(ObjectId())
-    
-    return {
-        "_id": match_id,
-        "matchId": fake.random_int(1000, 9999),
-        "tournament": {"alias": "test-league"},
-        "season": {"alias": "2024"},
-        "round": {"alias": "hauptrunde"},
-        "matchday": {"alias": "1"},
-        "matchStatus": {"key": status},
-        "finishType": {"key": "REGULAR"},
-        "matchDate": datetime.now() + timedelta(days=7),
-        "venue": {"name": "Test Arena"},
+    test_id = test_id or generate_test_id()
+    match = {
+        "test_id": test_id,
+        "_id": f"match_{test_id}",
+        "matchNumber": 1000 + hash(test_id) % 1000,  # Unique match number
+        "status": "SCHEDULED",
         "home": {
-            "team": create_test_team("home-team-id"),
+            "teamId": f"team_home_{test_id}",
+            "teamName": "Home Team",
+            "roster": [],
             "scores": [],
             "penalties": [],
-            "roster": [],
-            "stats": {}
+            "stats": {"goals": 0, "assists": 0, "points": 0}
         },
         "away": {
-            "team": create_test_team("away-team-id"),
+            "teamId": f"team_away_{test_id}",
+            "teamName": "Away Team",
+            "roster": [],
             "scores": [],
             "penalties": [],
-            "roster": [],
-            "stats": {}
-        }
+            "stats": {"goals": 0, "assists": 0, "points": 0}
+        },
+        "dateTime": datetime.utcnow() + timedelta(days=1),
+        "venue": f"venue_{test_id}",
+        "round": f"round_{test_id}",
+        "createdAt": datetime.utcnow(),
+        "updatedAt": datetime.utcnow(),
     }
+    match.update(overrides)
+    return match
 
 
-def create_test_roster_player(player_id=None):
-    """Create a roster entry"""
-    return {
-        "_id": str(ObjectId()),
-        "player": create_test_player(player_id),
-        "goals": 0,
-        "assists": 0,
-        "points": 0,
-        "pim": 0
+def create_test_player(test_id: str = None, **overrides) -> Dict[str, Any]:
+    """Create a test player document"""
+    test_id = test_id or generate_test_id()
+    player = {
+        "test_id": test_id,
+        "_id": f"player_{test_id}",
+        "playerId": f"player_{test_id}",
+        "firstName": "Test",
+        "lastName": "Player",
+        "playerNumber": hash(test_id) % 100,
+        "sex": "M",
+        "published": True,
+        "createdAt": datetime.utcnow(),
+        "updatedAt": datetime.utcnow(),
     }
+    player.update(overrides)
+    return player
+
+
+def create_test_club(test_id: str = None, **overrides) -> Dict[str, Any]:
+    """Create a test club document"""
+    test_id = test_id or generate_test_id()
+    club = {
+        "test_id": test_id,
+        "_id": f"club_{test_id}",
+        "clubId": f"club_{test_id}",
+        "clubName": f"Test Club {test_id}",
+        "clubAlias": f"test-club-{test_id}",
+        "published": True,
+        "createdAt": datetime.utcnow(),
+        "updatedAt": datetime.utcnow(),
+    }
+    club.update(overrides)
+    return club

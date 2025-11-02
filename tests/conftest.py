@@ -123,3 +123,45 @@ async def clean_collections(mongodb):
         for name in collection_names:
             await mongodb[name].delete_many({})
     return _clean
+
+
+@pytest_asyncio.fixture
+async def test_isolation(mongodb):
+    """
+    Provides test isolation by tracking created documents and cleaning them up.
+    Usage:
+        async def test_example(test_isolation):
+            # Create test data with test_id
+            match_id = await test_isolation.create("matches", {"test_id": test_isolation.id, ...})
+            # Test runs...
+            # Auto cleanup happens after test
+    """
+    import uuid
+    
+    class TestIsolation:
+        def __init__(self, db):
+            self.db = db
+            self.id = f"test_{uuid.uuid4().hex[:8]}"
+            self.created_docs = []  # Track (collection, filter) for cleanup
+        
+        async def create(self, collection: str, document: dict):
+            """Create a document and track it for cleanup"""
+            document["test_id"] = self.id
+            result = await self.db[collection].insert_one(document)
+            self.created_docs.append((collection, {"_id": result.inserted_id}))
+            return result.inserted_id
+        
+        async def cleanup(self):
+            """Clean up all created documents"""
+            for collection, filter_dict in reversed(self.created_docs):
+                await self.db[collection].delete_many(filter_dict)
+            
+            # Also clean by test_id as fallback
+            for collection_name in await self.db.list_collection_names():
+                await self.db[collection_name].delete_many({"test_id": self.id})
+    
+    isolation = TestIsolation(mongodb)
+    yield isolation
+    
+    # Cleanup after test
+    await isolation.cleanup()
