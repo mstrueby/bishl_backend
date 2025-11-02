@@ -10,6 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 
 from authentication import AuthHandler, TokenPayload
+from config import settings
 from exceptions import AuthorizationException, ResourceNotFoundException
 from mail_service import send_email
 from models.assignments import AssignmentDB
@@ -410,7 +411,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
     
     # Only send email in production environment
-    if os.environ.get('ENVIRONMENT') == 'production':
+    if settings.ENVIRONMENT == 'production':
         try:
             email_body = f"""
                 <p>Hallo,</p>
@@ -423,7 +424,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
         except Exception as e:
             logger.error(f"Error sending password reset email: {e}")
     else:
-        logger.info(f"Non-production mode ({os.environ.get('ENVIRONMENT')}): Skipping password reset email to {email}. Reset URL: {reset_url}")
+        logger.info(f"Non-production mode ({settings.ENVIRONMENT}): Skipping password reset email to {email}. Reset URL: {reset_url}")
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
