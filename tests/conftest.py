@@ -3,16 +3,23 @@
 Shared pytest fixtures for all tests.
 This file is automatically loaded by pytest.
 """
+import os
 import asyncio
 import pytest
 import pytest_asyncio
 from contextlib import asynccontextmanager
 from motor.motor_asyncio import AsyncIOMotorClient
 from httpx import AsyncClient
+
+# CRITICAL: Force pytest to use .env.test BEFORE importing any settings
+# This must happen before any Settings objects are created
+os.environ["ENV_FILE"] = ".env.test"
+os.environ["DB_NAME"] = "bishl_test"
+os.environ["DB_URL"] = "mongodb://localhost:27017"
+os.environ["ENVIRONMENT"] = "test"
+
 from main import app
 from tests.test_config import TestSettings
-
-# Override app settings for testing
 
 
 def pytest_runtest_setup(item):
@@ -25,6 +32,7 @@ def pytest_runtest_setup(item):
         print(f"\n🔍 Safety check for test: {item.name}")
 
 
+# Override app settings for testing
 app.state.settings = TestSettings()
 
 # Override the lifespan to prevent production DB connection during tests
@@ -77,14 +85,6 @@ async def mongodb():
     assert actual_db_name == "bishl_test", f"❌ SAFETY CHECK FAILED: Expected 'bishl_test' but got '{actual_db_name}'"
     
     print(f"✅ Verified test database: {actual_db_name}")
-    
-    # NOTE: Collections are NOT dropped automatically
-    # This allows inspecting test data after execution
-    # To manually clean before running tests, use: make clean-test-db
-    
-    # TODO: Create indexes here if needed
-    # from scripts.create_indexes import create_indexes
-    # await create_indexes(db)
     
     yield db
     
