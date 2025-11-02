@@ -40,6 +40,9 @@ test-unit:
 test-integration:
 	pytest tests/integration/ -v
 
+test-integration:
+	pytest tests/integration/ -v
+
 test-e2e:
 	pytest tests/e2e/ -v
 
