@@ -655,11 +655,12 @@ async def create_match(
         # convert startDate to the required datetime format
         if "startDate" in match_data and match_data["startDate"] is not None:
             start_date_str = match_data["startDate"]
-            print(start_date_str)
+            if DEBUG_LEVEL > 10:
+                print("Start Date: ", start_date_str)
             try:
                 start_date_parts = datetime.fromisoformat(str(start_date_str))
                 if DEBUG_LEVEL > 100:
-                    print(start_date_parts)
+                    print("Start Date Parts:", start_date_parts)
                 match_data["startDate"] = datetime(
                     start_date_parts.year,
                     start_date_parts.month,
