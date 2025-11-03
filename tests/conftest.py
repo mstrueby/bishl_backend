@@ -116,9 +116,11 @@ async def admin_token(mongodb):
     from bson import ObjectId
 
     auth = AuthHandler()
-    admin_id = str(ObjectId())  # Generate valid ObjectId
+    
+    # IMPORTANT: Generate ObjectId and convert to string for MongoDB
+    admin_id = ObjectId()
     admin_user = {
-        "_id": admin_id,
+        "_id": str(admin_id),  # MongoDB stores as string
         "email": "admin@test.com",
         "password": auth.get_password_hash("admin123"),
         "roles": ["ADMIN"],
@@ -130,6 +132,9 @@ async def admin_token(mongodb):
         }
     }
 
+    # Clean up any existing admin users first to avoid conflicts
+    await mongodb["users"].delete_many({"email": "admin@test.com"})
+    
     # Insert admin user into database so it exists when endpoints look for it
     await mongodb["users"].insert_one(admin_user)
 
