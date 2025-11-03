@@ -98,7 +98,8 @@ class TestMatchesAPI:
                    new_callable=AsyncMock, return_value=mock_standings_settings), \
              patch('routers.matches.fetch_ref_points', new_callable=AsyncMock, return_value=10), \
              patch('routers.matches.get_sys_ref_tool_token', new_callable=AsyncMock, return_value="mock_token"), \
-             patch('routers.matches.update_round_and_matchday', new_callable=AsyncMock):
+             patch('routers.matches.update_round_and_matchday', new_callable=AsyncMock), \
+             patch('services.stats_service.StatsService.calculate_roster_stats', new_callable=AsyncMock) as mock_roster_stats:
             response = await client.post(
                 "/matches/",
                 json=match_data,
