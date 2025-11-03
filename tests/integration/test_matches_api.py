@@ -93,10 +93,11 @@ class TestMatchesAPI:
         }
         
         # Execute - Mock all HTTP dependencies to avoid external API calls
+        # Note: Must patch where functions are imported (routers.matches), not where defined (utils)
         with patch('services.stats_service.StatsService.get_standings_settings', 
                    new_callable=AsyncMock, return_value=mock_standings_settings), \
-             patch('utils.fetch_ref_points', new_callable=AsyncMock, return_value=10), \
-             patch('utils.get_sys_ref_tool_token', new_callable=AsyncMock, return_value="mock_token"), \
+             patch('routers.matches.fetch_ref_points', new_callable=AsyncMock, return_value=10), \
+             patch('routers.matches.get_sys_ref_tool_token', new_callable=AsyncMock, return_value="mock_token"), \
              patch('routers.matches.update_round_and_matchday', new_callable=AsyncMock):
             response = await client.post(
                 "/matches/",
