@@ -262,7 +262,7 @@ class TestUsersAPI:
 
         # Assert
         assert response.status_code == 200
-        assert "reset" in response.json()["message"].lower()
+        assert "Password reset instructions sent to your email" in response.json()["message"]
 
     async def test_unauthorized_register(self, client: AsyncClient):
         """Test registering without admin token fails"""
