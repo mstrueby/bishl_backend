@@ -3,6 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from bson import ObjectId
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.mark.asyncio
@@ -16,6 +17,18 @@ class TestMatchesAPI:
         
         # Setup: Insert required data
         tournament = create_test_tournament()
+        
+        # Ensure standingsSettings is present in the season (required for match stats calculation)
+        if tournament.get("seasons") and len(tournament["seasons"]) > 0:
+            tournament["seasons"][0]["standingsSettings"] = {
+                "pointsWinReg": 3,
+                "pointsLossReg": 0,
+                "pointsDrawReg": 1,
+                "pointsWinOvertime": 2,
+                "pointsLossOvertime": 1,
+                "pointsWinShootout": 2,
+                "pointsLossShootout": 1
+            }
         
         # Create teams with all required fields
         home_team_id = str(ObjectId())
@@ -44,13 +57,24 @@ class TestMatchesAPI:
         await mongodb["tournaments"].insert_one(tournament)
         await mongodb["teams"].insert_many([home_team, away_team])
         
+        # Mock the standings settings HTTP call to avoid external API dependency
+        mock_standings_settings = {
+            "pointsWinReg": 3,
+            "pointsLossReg": 0,
+            "pointsDrawReg": 1,
+            "pointsWinOvertime": 2,
+            "pointsLossOvertime": 1,
+            "pointsWinShootout": 2,
+            "pointsLossShootout": 1
+        }
+        
         # Create match data with all required fields
         match_data = {
             "matchId": 1001,
             "tournament": {"name": tournament["name"], "alias": tournament["alias"]},
             "season": {"name": tournament["seasons"][0]["name"], "alias": tournament["seasons"][0]["alias"]},
             "round": {"name": "Hauptrunde", "alias": "hauptrunde"},
-            "matchday": {"name": "1. Spieltag", "alias": "1"},
+            "matchday": {"name": "1. Spieltag", "alias": "1-spieltag"},
             "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
             "home": {
                 "teamAlias": home_team["teamAlias"],
@@ -68,12 +92,14 @@ class TestMatchesAPI:
             }
         }
         
-        # Execute
-        response = await client.post(
-            "/matches/",
-            json=match_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
-        )
+        # Execute - Mock the standings settings fetch to use test data
+        with patch('services.stats_service.StatsService.get_standings_settings', 
+                   new_callable=AsyncMock, return_value=mock_standings_settings):
+            response = await client.post(
+                "/matches/",
+                json=match_data,
+                headers={"Authorization": f"Bearer {admin_token}"}
+            )
         
         # Assert response
         assert response.status_code == 201

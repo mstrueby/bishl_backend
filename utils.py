@@ -166,7 +166,7 @@ def calculate_match_stats(
 
 async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> int:
     if DEBUG_LEVEL > 0:
-        print("fetching referee points...")
+        logger.debug("Fetching referee points...")
     async with aiohttp.ClientSession() as session:
         async with session.get(
             f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
