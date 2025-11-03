@@ -102,10 +102,10 @@ class TestMatchesAPI:
         
         # Assert
         assert response.status_code == 200
-        data = response.json()
-        print(f"data: {data}")
-        assert data["_id"] == match["_id"]
-        assert data["matchId"] == match["matchId"]
+        response_data = response.json()
+        assert response_data["success"] is True
+        assert response_data["data"]["_id"] == match["_id"]
+        assert response_data["data"]["matchId"] == match["matchId"]
 
     async def test_get_match_not_found(self, client: AsyncClient):
         """Test retrieving non-existent match returns 404"""
