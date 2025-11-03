@@ -113,10 +113,12 @@ async def client(mongodb):
 async def admin_token(mongodb):
     """Generate admin token for testing"""
     from authentication import AuthHandler
+    from bson import ObjectId
 
     auth = AuthHandler()
+    admin_id = str(ObjectId())  # Generate valid ObjectId
     admin_user = {
-        "_id": "test-admin-id",
+        "_id": admin_id,
         "email": "admin@test.com",
         "password": auth.get_password_hash("admin123"),
         "roles": ["ADMIN"],
