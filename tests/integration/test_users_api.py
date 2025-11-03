@@ -209,8 +209,15 @@ class TestUsersAPI:
         """Test retrieving all referees"""
         from bson import ObjectId
 
-        # Clean up existing test referees first
-        await mongodb["users"].delete_many({"email": {"$in": ["ref1@test.com", "ref2@test.com"]}})
+        # CRITICAL: Clean up ALL test referees first (including old invalid data)
+        # Delete by email patterns and by invalid _id patterns
+        await mongodb["users"].delete_many({
+            "$or": [
+                {"email": {"$in": ["ref1@test.com", "ref2@test.com"]}},
+                {"_id": {"$in": ["ref-1", "ref-2", "ref-user-1", "ref-user-2"]}},  # Old test IDs
+                {"firstName": "Ref", "lastName": {"$in": ["One", "Two"]}}  # Test data pattern
+            ]
+        })
         
         # Setup - Create referee users with valid ObjectIds
         referee1 = {

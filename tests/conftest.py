@@ -84,6 +84,17 @@ async def mongodb():
     assert actual_db_name == "bishl_test", f"❌ SAFETY CHECK FAILED: Expected 'bishl_test' but got '{actual_db_name}'"
 
     print(f"✅ Verified test database: {actual_db_name}")
+    
+    # Clean up old invalid test data that might cause validation errors
+    # Remove any documents with invalid ObjectIds (string patterns like 'ref-1', 'test-admin-id', etc.)
+    try:
+        await db["users"].delete_many({
+            "$or": [
+                {"_id": {"$type": "string", "$regex": "^(ref-|test-|assign-)"}},
+            ]
+        })
+    except Exception as e:
+        print(f"Warning: Could not clean old test data: {e}")
 
     yield db
 

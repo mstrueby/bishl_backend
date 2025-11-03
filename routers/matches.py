@@ -463,7 +463,6 @@ async def get_matches(
     date_to: str | None = None,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(10, ge=1, le=100, description="Items per page"),
-    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
 ) -> JSONResponse:
     query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
     if tournament:
@@ -548,7 +547,6 @@ async def get_matches(
 async def get_match(
     match_id: str,
     request: Request,
-    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
 ):
     mongodb = request.app.state.mongodb
     match = await get_match_object(mongodb, match_id)
