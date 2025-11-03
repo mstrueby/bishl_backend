@@ -7,54 +7,8 @@ from utils import get_sys_ref_tool_token
 from routers.matches import update_round_and_matchday
 
 
-# Note: fetch_ref_points is tested as part of integration tests in test_matches_api.py
-# since it calls an internal API endpoint and is better suited for integration testing
-
-
-class TestGetSysRefToolToken:
-    """Test system referee tool token generation"""
-
-    @pytest.mark.asyncio
-    async def test_get_sys_ref_tool_token_success(self):
-        """Test successful token generation"""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"access_token": "test-token-12345"}
-
-        with patch('httpx.AsyncClient') as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-            mock_client.post = AsyncMock(return_value=mock_response)
-
-            result = await get_sys_ref_tool_token(
-                email="admin@test.com",
-                password="test-password"
-            )
-
-            assert result == "test-token-12345"
-            mock_client.post.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_sys_ref_tool_token_invalid_credentials(self):
-        """Test token generation with invalid credentials"""
-        from fastapi import HTTPException
-
-        mock_response = MagicMock()
-        mock_response.status_code = 401
-        mock_response.text = "Invalid credentials"
-
-        with patch('httpx.AsyncClient') as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-            mock_client.post = AsyncMock(return_value=mock_response)
-
-            with pytest.raises(HTTPException) as exc_info:
-                await get_sys_ref_tool_token(
-                    email="wrong@test.com",
-                    password="wrong-password"
-                )
-
-            assert exc_info.value.status_code == 401
+# Note: fetch_ref_points and get_sys_ref_tool_token are tested as part of integration tests
+# since they call internal API endpoints and are better suited for integration testing
 
 
 class TestUpdateRoundAndMatchday:
