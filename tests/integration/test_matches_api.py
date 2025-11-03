@@ -35,7 +35,7 @@ class TestMatchesAPI:
         away_team_id = str(ObjectId())
         
         home_team = {
-            "_id": home_team_id,
+            "teamId": home_team_id,
             "name": "Home Team",
             "fullName": "Home Team Full",
             "shortName": "HOME",
@@ -45,7 +45,7 @@ class TestMatchesAPI:
         }
         
         away_team = {
-            "_id": away_team_id,
+            "teamId": away_team_id,
             "name": "Away Team",
             "fullName": "Away Team Full",
             "shortName": "AWAY",
@@ -77,6 +77,7 @@ class TestMatchesAPI:
             "matchday": {"name": "1. Spieltag", "alias": "1-spieltag"},
             "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
             "home": {
+                "teamId": home_team["teamId"],
                 "teamAlias": home_team["teamAlias"],
                 "name": home_team["name"],
                 "fullName": home_team["fullName"],
@@ -84,6 +85,7 @@ class TestMatchesAPI:
                 "tinyName": home_team["tinyName"]
             },
             "away": {
+                "teamId": away_team["teamId"],
                 "teamAlias": away_team["teamAlias"],
                 "name": away_team["name"],
                 "fullName": away_team["fullName"],
@@ -93,11 +95,13 @@ class TestMatchesAPI:
         }
         
         # Execute - Mock all HTTP dependencies to avoid external API calls
+        # Note: Must patch where functions are imported (routers.matches), not where defined (utils)
         with patch('services.stats_service.StatsService.get_standings_settings', 
                    new_callable=AsyncMock, return_value=mock_standings_settings), \
-             patch('utils.fetch_ref_points', new_callable=AsyncMock, return_value=10), \
-             patch('utils.get_sys_ref_tool_token', new_callable=AsyncMock, return_value="mock_token"), \
-             patch('routers.matches.update_round_and_matchday', new_callable=AsyncMock):
+             patch('routers.matches.fetch_ref_points', new_callable=AsyncMock, return_value=10), \
+             patch('routers.matches.get_sys_ref_tool_token', new_callable=AsyncMock, return_value="mock_token"), \
+             patch('routers.matches.update_round_and_matchday', new_callable=AsyncMock), \
+             patch('services.stats_service.StatsService.calculate_roster_stats', new_callable=AsyncMock) as mock_roster_stats:
             response = await client.post(
                 "/matches/",
                 json=match_data,
@@ -109,7 +113,7 @@ class TestMatchesAPI:
         data = response.json()
         assert data["matchId"] == 1001
         assert data["matchStatus"]["key"] == "SCHEDULED"
-        assert data["home"]["team"]["_id"] == home_team["_id"]
+        assert data["home"]["teamId"] == home_team["_id"]
         
         # Assert database
         match_in_db = await mongodb["matches"].find_one({"_id": data["_id"]})
