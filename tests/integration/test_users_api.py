@@ -237,7 +237,7 @@ class TestUsersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] >= 2
+        assert data["pagination"]["total_items"] >= 2
 
     async def test_forgot_password(self, client: AsyncClient, mongodb):
         """Test forgot password flow"""
@@ -275,4 +275,4 @@ class TestUsersAPI:
 
         response = await client.post("/users/register", json=user_data)
 
-        assert response.status_code == 401
+        assert response.status_code == 403
