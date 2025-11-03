@@ -3,81 +3,12 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
-from utils import fetch_ref_points, get_sys_ref_tool_token
+from utils import get_sys_ref_tool_token
 from routers.matches import update_round_and_matchday
 
 
-class TestFetchRefPoints:
-    """Test referee points fetching"""
-
-    @pytest.mark.asyncio
-    async def test_fetch_ref_points_success(self):
-        """Test successful fetching of referee points"""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"refPoints": 10}
-
-        with patch('httpx.AsyncClient') as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-            mock_client.get = AsyncMock(return_value=mock_response)
-
-            result = await fetch_ref_points(
-                t_alias="test-tournament",
-                s_alias="test-season",
-                r_alias="test-round",
-                md_alias="test-matchday"
-            )
-
-            assert result == 10
-            mock_client.get.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_fetch_ref_points_not_found(self):
-        """Test fetching referee points when matchday not found"""
-        from exceptions.custom_exceptions import ResourceNotFoundException
-
-        mock_response = MagicMock()
-        mock_response.status_code = 404
-
-        with patch('httpx.AsyncClient') as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-            mock_client.get = AsyncMock(return_value=mock_response)
-
-            with pytest.raises(ResourceNotFoundException) as exc_info:
-                await fetch_ref_points(
-                    t_alias="test-tournament",
-                    s_alias="test-season",
-                    r_alias="test-round",
-                    md_alias="non-existent"
-                )
-
-            assert exc_info.value.resource_type == "Matchday"
-
-    @pytest.mark.asyncio
-    async def test_fetch_ref_points_server_error(self):
-        """Test fetching referee points with server error"""
-        from fastapi import HTTPException
-
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
-
-        with patch('httpx.AsyncClient') as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-            mock_client.get = AsyncMock(return_value=mock_response)
-
-            with pytest.raises(HTTPException) as exc_info:
-                await fetch_ref_points(
-                    t_alias="test-tournament",
-                    s_alias="test-season",
-                    r_alias="test-round",
-                    md_alias="test-matchday"
-                )
-
-            assert exc_info.value.status_code == 500
+# Note: fetch_ref_points is tested as part of integration tests in test_matches_api.py
+# since it calls an internal API endpoint and is better suited for integration testing
 
 
 class TestGetSysRefToolToken:
