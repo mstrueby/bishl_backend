@@ -113,7 +113,8 @@ class TestMatchesAPI:
         data = response.json()
         assert data["matchId"] == 1001
         assert data["matchStatus"]["key"] == "SCHEDULED"
-        assert data["home"]["teamId"] == home_team["_id"]
+        assert data["home"]["teamId"] == home_team_id
+        assert data["away"]["teamId"] == away_team_id
         
         # Assert database
         match_in_db = await mongodb["matches"].find_one({"_id": data["_id"]})
