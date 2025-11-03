@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from bson import ObjectId
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 
 @pytest.mark.asyncio
@@ -92,9 +92,12 @@ class TestMatchesAPI:
             }
         }
         
-        # Execute - Mock the standings settings fetch to use test data
+        # Execute - Mock all HTTP dependencies to avoid external API calls
         with patch('services.stats_service.StatsService.get_standings_settings', 
-                   new_callable=AsyncMock, return_value=mock_standings_settings):
+                   new_callable=AsyncMock, return_value=mock_standings_settings), \
+             patch('utils.fetch_ref_points', new_callable=AsyncMock, return_value=10), \
+             patch('utils.get_sys_ref_tool_token', new_callable=AsyncMock, return_value="mock_token"), \
+             patch('routers.matches.update_round_and_matchday', new_callable=AsyncMock):
             response = await client.post(
                 "/matches/",
                 json=match_data,
