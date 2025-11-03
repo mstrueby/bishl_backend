@@ -17,10 +17,10 @@ class TestFetchRefPoints:
         mock_response.status_code = 200
         mock_response.json.return_value = {"refPoints": 10}
 
-        with patch('utils.httpx.AsyncClient') as mock_client:
-            mock_context = AsyncMock()
-            mock_client.return_value.__aenter__.return_value = mock_context
-            mock_context.get = AsyncMock(return_value=mock_response)
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client.get = AsyncMock(return_value=mock_response)
 
             result = await fetch_ref_points(
                 t_alias="test-tournament",
@@ -30,7 +30,7 @@ class TestFetchRefPoints:
             )
 
             assert result == 10
-            mock_context.get.assert_called_once()
+            mock_client.get.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_fetch_ref_points_not_found(self):
@@ -40,10 +40,10 @@ class TestFetchRefPoints:
         mock_response = MagicMock()
         mock_response.status_code = 404
 
-        with patch('utils.httpx.AsyncClient') as mock_client:
-            mock_context = AsyncMock()
-            mock_client.return_value.__aenter__.return_value = mock_context
-            mock_context.get = AsyncMock(return_value=mock_response)
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client.get = AsyncMock(return_value=mock_response)
 
             with pytest.raises(ResourceNotFoundException) as exc_info:
                 await fetch_ref_points(
@@ -64,10 +64,10 @@ class TestFetchRefPoints:
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 
-        with patch('utils.httpx.AsyncClient') as mock_client:
-            mock_context = AsyncMock()
-            mock_client.return_value.__aenter__.return_value = mock_context
-            mock_context.get = AsyncMock(return_value=mock_response)
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client.get = AsyncMock(return_value=mock_response)
 
             with pytest.raises(HTTPException) as exc_info:
                 await fetch_ref_points(
@@ -90,10 +90,10 @@ class TestGetSysRefToolToken:
         mock_response.status_code = 200
         mock_response.json.return_value = {"access_token": "test-token-12345"}
 
-        with patch('utils.httpx.AsyncClient') as mock_client:
-            mock_context = AsyncMock()
-            mock_client.return_value.__aenter__.return_value = mock_context
-            mock_context.post = AsyncMock(return_value=mock_response)
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client.post = AsyncMock(return_value=mock_response)
 
             result = await get_sys_ref_tool_token(
                 email="admin@test.com",
@@ -101,7 +101,7 @@ class TestGetSysRefToolToken:
             )
 
             assert result == "test-token-12345"
-            mock_context.post.assert_called_once()
+            mock_client.post.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_sys_ref_tool_token_invalid_credentials(self):
@@ -112,10 +112,10 @@ class TestGetSysRefToolToken:
         mock_response.status_code = 401
         mock_response.text = "Invalid credentials"
 
-        with patch('utils.httpx.AsyncClient') as mock_client:
-            mock_context = AsyncMock()
-            mock_client.return_value.__aenter__.return_value = mock_context
-            mock_context.post = AsyncMock(return_value=mock_response)
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client.post = AsyncMock(return_value=mock_response)
 
             with pytest.raises(HTTPException) as exc_info:
                 await get_sys_ref_tool_token(
