@@ -1,6 +1,217 @@
 
 """Unit tests for utility functions"""
 import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+import httpx
+from utils import fetch_ref_points, get_sys_ref_tool_token, update_round_and_matchday
+
+
+class TestFetchRefPoints:
+    """Test referee points fetching"""
+
+    @pytest.mark.asyncio
+    async def test_fetch_ref_points_success(self):
+        """Test successful fetching of referee points"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"refPoints": 10}
+
+        with patch('utils.httpx.AsyncClient') as mock_client:
+            mock_context = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_context
+            mock_context.get = AsyncMock(return_value=mock_response)
+
+            result = await fetch_ref_points(
+                t_alias="test-tournament",
+                s_alias="test-season",
+                r_alias="test-round",
+                md_alias="test-matchday"
+            )
+
+            assert result == 10
+            mock_context.get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_fetch_ref_points_not_found(self):
+        """Test fetching referee points when matchday not found"""
+        from exceptions.custom_exceptions import ResourceNotFoundException
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        with patch('utils.httpx.AsyncClient') as mock_client:
+            mock_context = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_context
+            mock_context.get = AsyncMock(return_value=mock_response)
+
+            with pytest.raises(ResourceNotFoundException) as exc_info:
+                await fetch_ref_points(
+                    t_alias="test-tournament",
+                    s_alias="test-season",
+                    r_alias="test-round",
+                    md_alias="non-existent"
+                )
+
+            assert exc_info.value.resource_type == "Matchday"
+
+    @pytest.mark.asyncio
+    async def test_fetch_ref_points_server_error(self):
+        """Test fetching referee points with server error"""
+        from fastapi import HTTPException
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+
+        with patch('utils.httpx.AsyncClient') as mock_client:
+            mock_context = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_context
+            mock_context.get = AsyncMock(return_value=mock_response)
+
+            with pytest.raises(HTTPException) as exc_info:
+                await fetch_ref_points(
+                    t_alias="test-tournament",
+                    s_alias="test-season",
+                    r_alias="test-round",
+                    md_alias="test-matchday"
+                )
+
+            assert exc_info.value.status_code == 500
+
+
+class TestGetSysRefToolToken:
+    """Test system referee tool token generation"""
+
+    @pytest.mark.asyncio
+    async def test_get_sys_ref_tool_token_success(self):
+        """Test successful token generation"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_token": "test-token-12345"}
+
+        with patch('utils.httpx.AsyncClient') as mock_client:
+            mock_context = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_context
+            mock_context.post = AsyncMock(return_value=mock_response)
+
+            result = await get_sys_ref_tool_token(
+                email="admin@test.com",
+                password="test-password"
+            )
+
+            assert result == "test-token-12345"
+            mock_context.post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_sys_ref_tool_token_invalid_credentials(self):
+        """Test token generation with invalid credentials"""
+        from fastapi import HTTPException
+
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.text = "Invalid credentials"
+
+        with patch('utils.httpx.AsyncClient') as mock_client:
+            mock_context = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_context
+            mock_context.post = AsyncMock(return_value=mock_response)
+
+            with pytest.raises(HTTPException) as exc_info:
+                await get_sys_ref_tool_token(
+                    email="wrong@test.com",
+                    password="wrong-password"
+                )
+
+            assert exc_info.value.status_code == 401
+
+
+class TestUpdateRoundAndMatchday:
+    """Test round and matchday update function"""
+
+    @pytest.mark.asyncio
+    async def test_update_round_and_matchday_success(self):
+        """Test successful update of round and matchday dates"""
+        mock_client = AsyncMock()
+        mock_headers = {"Authorization": "Bearer test-token"}
+
+        # Mock successful responses
+        round_response = MagicMock()
+        round_response.status_code = 200
+        matchday_response = MagicMock()
+        matchday_response.status_code = 200
+
+        mock_client.patch = AsyncMock(side_effect=[round_response, matchday_response])
+
+        await update_round_and_matchday(
+            client=mock_client,
+            headers=mock_headers,
+            t_alias="test-tournament",
+            s_alias="test-season",
+            r_alias="test-round",
+            round_id="round-id-123",
+            md_id="matchday-id-456"
+        )
+
+        # Verify both PATCH calls were made
+        assert mock_client.patch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_update_round_and_matchday_round_update_fails(self):
+        """Test when round update fails"""
+        mock_client = AsyncMock()
+        mock_headers = {"Authorization": "Bearer test-token"}
+
+        # Mock failed round response
+        round_response = MagicMock()
+        round_response.status_code = 500
+
+        mock_client.patch = AsyncMock(return_value=round_response)
+
+        # Should not raise exception, just log warning
+        await update_round_and_matchday(
+            client=mock_client,
+            headers=mock_headers,
+            t_alias="test-tournament",
+            s_alias="test-season",
+            r_alias="test-round",
+            round_id="round-id-123",
+            md_id="matchday-id-456"
+        )
+
+        # Verify only one PATCH call was made (round update failed, so matchday not attempted)
+        assert mock_client.patch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_update_round_and_matchday_matchday_update_fails(self):
+        """Test when matchday update fails after successful round update"""
+        mock_client = AsyncMock()
+        mock_headers = {"Authorization": "Bearer test-token"}
+
+        # Mock successful round response, failed matchday response
+        round_response = MagicMock()
+        round_response.status_code = 200
+        matchday_response = MagicMock()
+        matchday_response.status_code = 404
+
+        mock_client.patch = AsyncMock(side_effect=[round_response, matchday_response])
+
+        # Should not raise exception, just log warning
+        await update_round_and_matchday(
+            client=mock_client,
+            headers=mock_headers,
+            t_alias="test-tournament",
+            s_alias="test-season",
+            r_alias="test-round",
+            round_id="round-id-123",
+            md_id="matchday-id-456"
+        )
+
+        # Verify both PATCH calls were made
+        assert mock_client.patch.call_count == 2
+
+
+"""Unit tests for utility functions"""
+import pytest
 from datetime import datetime
 from utils import (
     parse_datetime,
