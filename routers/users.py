@@ -423,6 +423,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
             logger.error(f"Error sending password reset email: {e}")
     else:
         logger.info(f"Non-production mode ({settings.ENVIRONMENT}): Skipping password reset email to {email}. Reset URL: {reset_url}")
+        logger.info(f"Reset token: {reset_token}")
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
