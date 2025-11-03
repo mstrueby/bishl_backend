@@ -74,7 +74,7 @@ class TestMatchesAPI:
             "tournament": {"name": tournament["name"], "alias": tournament["alias"]},
             "season": {"name": tournament["seasons"][0]["name"], "alias": tournament["seasons"][0]["alias"]},
             "round": {"name": "Hauptrunde", "alias": "hauptrunde"},
-            "matchday": {"name": "1. Spieltag", "alias": "1"},
+            "matchday": {"name": "1. Spieltag", "alias": "1-spieltag"},
             "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
             "home": {
                 "teamAlias": home_team["teamAlias"],
