@@ -45,7 +45,7 @@ if login_response.status_code != 200:
     exit(1)
 
 # get token
-token = login_response.json()["token"]
+token = login_response.json()["access_token"]
 print("token", token)
 
 # User authentication header

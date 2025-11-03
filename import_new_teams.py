@@ -34,7 +34,7 @@ try:
         print("Error logging in")
         exit()
 
-    token = login_response.json()["token"]
+    token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     with open(filename, encoding="utf-8") as f:

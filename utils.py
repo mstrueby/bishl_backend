@@ -187,7 +187,7 @@ async def get_sys_ref_tool_token(email: str, password: str):
 
     if login_response.status_code != 200:
         raise Exception(f"Error logging in: {login_response.json()}")
-    return login_response.json()["token"]
+    return login_response.json()["access_token"]
 
 
 # calc_roster_stats has been moved to services.stats_service.StatsService.calculate_roster_stats()

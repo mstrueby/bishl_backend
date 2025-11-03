@@ -83,7 +83,7 @@ class ImportService:
                 logger.error(f"Authentication failed: {response.text}")
                 return False
 
-            self.token = response.json()["token"]
+            self.token = response.json()["access_token"]
             self.headers = {
                 "Authorization": f"Bearer {self.token}",
                 "Content-Type": "application/json",
