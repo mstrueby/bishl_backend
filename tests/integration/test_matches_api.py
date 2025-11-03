@@ -103,6 +103,7 @@ class TestMatchesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
+        print(f"data: {data}")
         assert data["_id"] == match["_id"]
         assert data["matchId"] == match["matchId"]
 
