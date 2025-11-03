@@ -209,7 +209,10 @@ class TestUsersAPI:
         """Test retrieving all referees"""
         from bson import ObjectId
 
-        # Setup - Create referee users
+        # Clean up existing test referees first
+        await mongodb["users"].delete_many({"email": {"$in": ["ref1@test.com", "ref2@test.com"]}})
+        
+        # Setup - Create referee users with valid ObjectIds
         referee1 = {
             "_id": str(ObjectId()),
             "email": "ref1@test.com",
@@ -237,7 +240,7 @@ class TestUsersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["pagination"]["total_items"] >= 2
+        assert data["pagination"]["total_items"] == 2
 
     async def test_forgot_password(self, client: AsyncClient, mongodb):
         """Test forgot password flow"""
