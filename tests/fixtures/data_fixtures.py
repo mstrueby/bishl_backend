@@ -40,19 +40,61 @@ def create_test_tournament():
         "_id": str(ObjectId()),
         "name": "Test League",
         "alias": "test-league",
-        "published": True
+        "tinyName": "TL",
+        "ageGroup": {
+            "key": "U18",
+            "value": "U18"
+        },
+        "published": True,
+        "active": True,
+        "seasons": [
+            {
+                "name": "2025",
+                "alias": "2025",
+                "published": True,
+                "standingsSettings": {
+                    "pointsWinReg": 3,
+                    "pointsLossReg": 0,
+                    "pointsDrawReg": 1,
+                    "pointsWinOvertime": 2,
+                    "pointsLossOvertime": 1,
+                    "pointsWinShootout": 2,
+                    "pointsLossShootout": 1
+                },
+                "rounds": [
+                    {
+                        "name": "Hauptrunde",
+                        "alias": "hauptrunde",
+                        "sortOrder": 1,
+                        "createStandings": True,
+                        "createStats": True,
+                        "matchdaysType": {
+                            "key": "REGULAR",
+                            "value": "Regulär"
+                        },
+                        "matchdaysSortedBy": {
+                            "key": "DATE",
+                            "value": "Datum"
+                        },
+                        "published": True,
+                        "matchdays": [
+                            {
+                                "name": "1. Spieltag",
+                                "alias": "1-spieltag",
+                                "type": {
+                                    "key": "REGULAR",
+                                    "value": "Regulär"
+                                },
+                                "createStandings": True,
+                                "createStats": True,
+                                "published": True
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
     }
-
-
-def create_test_season():
-    """Create a test season document"""
-    return {
-        "_id": str(ObjectId()),
-        "name": "2024",
-        "alias": "2024",
-        "published": True
-    }
-
 
 def create_test_team(team_id=None):
     """Create a test team document"""
@@ -95,7 +137,7 @@ def create_test_match(match_id=None, status="SCHEDULED"):
         },
         "matchday": {
             "name": "1. Spieltag",
-            "alias": "1"
+            "alias": "1-spieltag"
         },
         "matchStatus": {
             "key": status,

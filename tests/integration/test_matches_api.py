@@ -11,12 +11,11 @@ class TestMatchesAPI:
 
     async def test_create_match_success(self, client: AsyncClient, mongodb, admin_token):
         """Test creating a new match"""
-        from tests.fixtures.data_fixtures import create_test_tournament, create_test_season
+        from tests.fixtures.data_fixtures import create_test_tournament
         from bson import ObjectId
         
         # Setup: Insert required data
         tournament = create_test_tournament()
-        season = create_test_season()
         
         # Create teams with all required fields
         home_team_id = str(ObjectId())
@@ -43,14 +42,13 @@ class TestMatchesAPI:
         }
         
         await mongodb["tournaments"].insert_one(tournament)
-        await mongodb["seasons"].insert_one({**season, "tournament": {"alias": tournament["alias"]}})
         await mongodb["teams"].insert_many([home_team, away_team])
         
         # Create match data with all required fields
         match_data = {
             "matchId": 1001,
             "tournament": {"name": tournament["name"], "alias": tournament["alias"]},
-            "season": {"name": season["name"], "alias": season["alias"]},
+            "season": {"name": tournament["seasons"][0]["name"], "alias": tournament["seasons"][0]["alias"]},
             "round": {"name": "Hauptrunde", "alias": "hauptrunde"},
             "matchday": {"name": "1. Spieltag", "alias": "1"},
             "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
