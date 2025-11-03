@@ -24,9 +24,9 @@ def update_rounds():
     login_response = requests.post(login_url, json=login_data)
     if login_response.status_code != 200:
         print("Error logging in")
-        return
+        exit()
 
-    token = login_response.json()["token"]
+    token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     # Get all tournaments
