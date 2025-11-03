@@ -35,7 +35,7 @@ class TestMatchesAPI:
         away_team_id = str(ObjectId())
         
         home_team = {
-            "_id": home_team_id,
+            "teamId": home_team_id,
             "name": "Home Team",
             "fullName": "Home Team Full",
             "shortName": "HOME",
@@ -45,7 +45,7 @@ class TestMatchesAPI:
         }
         
         away_team = {
-            "_id": away_team_id,
+            "teamId": away_team_id,
             "name": "Away Team",
             "fullName": "Away Team Full",
             "shortName": "AWAY",
@@ -77,6 +77,7 @@ class TestMatchesAPI:
             "matchday": {"name": "1. Spieltag", "alias": "1-spieltag"},
             "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
             "home": {
+                "teamId": home_team["teamId"],
                 "teamAlias": home_team["teamAlias"],
                 "name": home_team["name"],
                 "fullName": home_team["fullName"],
@@ -84,6 +85,7 @@ class TestMatchesAPI:
                 "tinyName": home_team["tinyName"]
             },
             "away": {
+                "teamId": away_team["teamId"],
                 "teamAlias": away_team["teamAlias"],
                 "name": away_team["name"],
                 "fullName": away_team["fullName"],
@@ -111,7 +113,7 @@ class TestMatchesAPI:
         data = response.json()
         assert data["matchId"] == 1001
         assert data["matchStatus"]["key"] == "SCHEDULED"
-        assert data["home"]["team"]["_id"] == home_team["_id"]
+        assert data["home"]["teamId"] == home_team["_id"]
         
         # Assert database
         match_in_db = await mongodb["matches"].find_one({"_id": data["_id"]})
