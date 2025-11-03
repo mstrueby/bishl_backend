@@ -3,7 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
-from utils import fetch_ref_points, get_sys_ref_tool_token, update_round_and_matchday
+from utils import fetch_ref_points, get_sys_ref_tool_token
+from routers.matches import update_round_and_matchday
 
 
 class TestFetchRefPoints:
