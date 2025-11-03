@@ -4,96 +4,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 from utils import get_sys_ref_tool_token
-from routers.matches import update_round_and_matchday
-
-
-# Note: fetch_ref_points and get_sys_ref_tool_token are tested as part of integration tests
-# since they call internal API endpoints and are better suited for integration testing
-
-
-class TestUpdateRoundAndMatchday:
-    """Test round and matchday update function"""
-
-    @pytest.mark.asyncio
-    async def test_update_round_and_matchday_success(self):
-        """Test successful update of round and matchday dates"""
-        mock_client = AsyncMock()
-        mock_headers = {"Authorization": "Bearer test-token"}
-
-        # Mock successful responses
-        round_response = MagicMock()
-        round_response.status_code = 200
-        matchday_response = MagicMock()
-        matchday_response.status_code = 200
-
-        mock_client.patch = AsyncMock(side_effect=[round_response, matchday_response])
-
-        await update_round_and_matchday(
-            client=mock_client,
-            headers=mock_headers,
-            t_alias="test-tournament",
-            s_alias="test-season",
-            r_alias="test-round",
-            round_id="round-id-123",
-            md_id="matchday-id-456"
-        )
-
-        # Verify both PATCH calls were made
-        assert mock_client.patch.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_update_round_and_matchday_round_update_fails(self):
-        """Test when round update fails"""
-        mock_client = AsyncMock()
-        mock_headers = {"Authorization": "Bearer test-token"}
-
-        # Mock failed round response
-        round_response = MagicMock()
-        round_response.status_code = 500
-
-        mock_client.patch = AsyncMock(return_value=round_response)
-
-        # Should not raise exception, just log warning
-        await update_round_and_matchday(
-            client=mock_client,
-            headers=mock_headers,
-            t_alias="test-tournament",
-            s_alias="test-season",
-            r_alias="test-round",
-            round_id="round-id-123",
-            md_id="matchday-id-456"
-        )
-
-        # Verify only one PATCH call was made (round update failed, so matchday not attempted)
-        assert mock_client.patch.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_update_round_and_matchday_matchday_update_fails(self):
-        """Test when matchday update fails after successful round update"""
-        mock_client = AsyncMock()
-        mock_headers = {"Authorization": "Bearer test-token"}
-
-        # Mock successful round response, failed matchday response
-        round_response = MagicMock()
-        round_response.status_code = 200
-        matchday_response = MagicMock()
-        matchday_response.status_code = 404
-
-        mock_client.patch = AsyncMock(side_effect=[round_response, matchday_response])
-
-        # Should not raise exception, just log warning
-        await update_round_and_matchday(
-            client=mock_client,
-            headers=mock_headers,
-            t_alias="test-tournament",
-            s_alias="test-season",
-            r_alias="test-round",
-            round_id="round-id-123",
-            md_id="matchday-id-456"
-        )
-
-        # Verify both PATCH calls were made
-        assert mock_client.patch.call_count == 2
+# Note: fetch_ref_points, get_sys_ref_tool_token, and update_round_and_matchday 
+# make HTTP calls to internal endpoints. These are tested indirectly through
+# integration tests of the endpoints that use them (e.g., test_create_match).
+# Testing them in isolation would require mocking HTTP behavior, which doesn't
+# provide value beyond what integration tests already cover.
 
 
 """Unit tests for utility functions"""
