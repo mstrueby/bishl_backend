@@ -11,28 +11,63 @@ class TestMatchesAPI:
 
     async def test_create_match_success(self, client: AsyncClient, mongodb, admin_token):
         """Test creating a new match"""
-        from tests.fixtures.data_fixtures import create_test_tournament, create_test_season, create_test_team
+        from tests.fixtures.data_fixtures import create_test_tournament, create_test_season
+        from bson import ObjectId
         
         # Setup: Insert required data
         tournament = create_test_tournament()
         season = create_test_season()
-        home_team = create_test_team("home-team-id")
-        away_team = create_test_team("away-team-id")
+        
+        # Create teams with all required fields
+        home_team_id = str(ObjectId())
+        away_team_id = str(ObjectId())
+        
+        home_team = {
+            "_id": home_team_id,
+            "name": "Home Team",
+            "fullName": "Home Team Full",
+            "shortName": "HOME",
+            "tinyName": "HOM",
+            "teamAlias": "home-team",
+            "published": True
+        }
+        
+        away_team = {
+            "_id": away_team_id,
+            "name": "Away Team",
+            "fullName": "Away Team Full",
+            "shortName": "AWAY",
+            "tinyName": "AWY",
+            "teamAlias": "away-team",
+            "published": True
+        }
         
         await mongodb["tournaments"].insert_one(tournament)
         await mongodb["seasons"].insert_one({**season, "tournament": {"alias": tournament["alias"]}})
         await mongodb["teams"].insert_many([home_team, away_team])
         
-        # Create match data
+        # Create match data with all required fields
         match_data = {
             "matchId": 1001,
-            "tournament": {"alias": tournament["alias"]},
-            "season": {"alias": season["alias"]},
-            "round": {"alias": "hauptrunde"},
-            "matchday": {"alias": "1"},
-            "matchStatus": {"key": "SCHEDULED"},
-            "home": {"team": {"_id": home_team["_id"]}},
-            "away": {"team": {"_id": away_team["_id"]}}
+            "tournament": {"name": tournament["name"], "alias": tournament["alias"]},
+            "season": {"name": season["name"], "alias": season["alias"]},
+            "round": {"name": "Hauptrunde", "alias": "hauptrunde"},
+            "matchday": {"name": "1. Spieltag", "alias": "1"},
+            "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
+            "home": {
+                "teamAlias": home_team["teamAlias"],
+                "name": home_team["name"],
+                "fullName": home_team["fullName"],
+                "shortName": home_team["shortName"],
+                "tinyName": home_team["tinyName"]
+            },
+            "away": {
+                "teamAlias": away_team["teamAlias"],
+                "name": away_team["name"],
+                "fullName": away_team["fullName"],
+                "shortName": away_team["shortName"],
+                "tinyName": away_team["tinyName"]
+            }
         }
         
         # Execute
@@ -68,6 +103,7 @@ class TestMatchesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
+        print(f"data: {data}")
         assert data["_id"] == match["_id"]
         assert data["matchId"] == match["matchId"]
 
