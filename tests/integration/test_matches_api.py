@@ -72,7 +72,7 @@ class TestMatchesAPI:
         
         # Execute
         response = await client.post(
-            "/matches",
+            "/matches/",
             json=match_data,
             headers={"Authorization": f"Bearer {admin_token}"}
         )
