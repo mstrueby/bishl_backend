@@ -100,7 +100,7 @@ class TestGetStandingsSettings:
         logger.debug(f"Exception details: {exc_info.value.details}")
 
         assert exc_info.value.details["resource_type"] == "Season"
-        assert exc_info.value.details["resource_id"] == "test-season"
+        assert exc_info.value.details["resource_id"] == "test-tournament/test-season"
 
     @pytest.mark.asyncio
     async def test_get_standings_settings_no_settings(self, tournament_service, mock_db):

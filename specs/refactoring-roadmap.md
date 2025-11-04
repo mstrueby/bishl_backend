@@ -272,7 +272,178 @@ matchday_info = await tournament_service.get_matchday_info(...)
 
 ---
 
-### 8. Error Handling Standardization ✅ COMPLETE
+### 8. Router Service Layer Creation (Roster, Scores, Penalties)
+**Effort:** High | **Impact:** High | **Risk if ignored:** Medium
+
+**Status:** 🔄 **IN PROGRESS**
+
+**Problem:**
+- Business logic embedded in routers (`roster.py`, `scores.py`, `penalties.py`)
+- Router endpoints contain database operations and validation logic
+- Difficult to test and reuse logic across endpoints
+- Violates Single Responsibility Principle
+
+**Current Locations:**
+1. `routers/roster.py` - Lines ~60-200 (roster validation, jersey updates, stats calculation)
+2. `routers/scores.py` - Lines ~100-350 (score creation, incremental stats updates)
+3. `routers/penalties.py` - Lines ~100-300 (penalty creation, roster updates)
+
+**Actions:**
+
+1. **Phase 1: Create Service Layer** (10-12 hours)
+   
+   Create `services/roster_service.py`:
+   - `get_roster(match_id, team_flag)` - Fetch and populate roster data
+   - `update_roster(match_id, team_flag, roster_data, user_roles)` - Validate and update roster
+   - `validate_roster_changes(match, team_flag, new_roster)` - Check scores/penalties dependencies
+   - `update_jersey_numbers(match_id, team_flag, jersey_updates)` - Update jerseys in scores/penalties
+   
+   Create `services/score_service.py`:
+   - `get_scores(match_id, team_flag)` - Fetch and populate score sheet
+   - `get_score_by_id(match_id, team_flag, score_id)` - Fetch single score
+   - `create_score(match_id, team_flag, score_data)` - Validate and create score with incremental updates
+   - `update_score(match_id, team_flag, score_id, score_data)` - Update existing score
+   - `delete_score(match_id, team_flag, score_id)` - Remove score with decremental updates
+   - `validate_score_player_in_roster(match, team_flag, score)` - Check roster membership
+   
+   Create `services/penalty_service.py`:
+   - `get_penalties(match_id, team_flag)` - Fetch and populate penalty sheet
+   - `get_penalty_by_id(match_id, team_flag, penalty_id)` - Fetch single penalty
+   - `create_penalty(match_id, team_flag, penalty_data)` - Validate and create penalty with incremental updates
+   - `update_penalty(match_id, team_flag, penalty_id, penalty_data)` - Update existing penalty
+   - `delete_penalty(match_id, team_flag, penalty_id)` - Remove penalty with decremental updates
+   - `validate_penalty_player_in_roster(match, team_flag, penalty)` - Check roster membership
+
+2. **Phase 2: Update Routers to Use Services** (6-8 hours)
+   
+   Update `routers/roster.py`:
+   - Replace inline validation with `RosterService.validate_roster_changes()`
+   - Replace jersey update logic with `RosterService.update_jersey_numbers()`
+   - Use `RosterService.update_roster()` for main update operation
+   - Router becomes thin wrapper with HTTP concerns only
+   
+   Update `routers/scores.py`:
+   - Replace inline player validation with `ScoreService.validate_score_player_in_roster()`
+   - Replace incremental update logic with `ScoreService.create_score()`
+   - Use `ScoreService.update_score()` and `ScoreService.delete_score()`
+   - Remove direct database operations from router
+   
+   Update `routers/penalties.py`:
+   - Replace inline player validation with `PenaltyService.validate_penalty_player_in_roster()`
+   - Replace incremental update logic with `PenaltyService.create_penalty()`
+   - Use `PenaltyService.update_penalty()` and `PenaltyService.delete_penalty()`
+   - Remove direct database operations from router
+
+3. **Phase 3: Create Unit Tests** (8-10 hours)
+   
+   Create `tests/unit/test_roster_service.py`:
+   - Test roster validation (players in scores/penalties)
+   - Test jersey number updates across scores/penalties
+   - Test roster update with authorization checks
+   - Test edge cases (empty roster, invalid team_flag)
+   
+   Create `tests/unit/test_score_service.py`:
+   - Test score creation with incremental stats updates
+   - Test score deletion with decremental stats updates
+   - Test player roster validation
+   - Test match status validation (INPROGRESS only)
+   
+   Create `tests/unit/test_penalty_service.py`:
+   - Test penalty creation with penalty minute increments
+   - Test penalty deletion with penalty minute decrements
+   - Test player roster validation
+   - Test match status validation (INPROGRESS only)
+
+4. **Phase 4: Update Integration Tests** (4-6 hours)
+   
+   Update `tests/integration/test_roster_api.py`:
+   - Remove API mocking, test service layer directly
+   - Verify roster updates persist to database
+   - Test jersey number propagation
+   
+   Update `tests/integration/test_scores_api.py`:
+   - Verify incremental stats updates in database
+   - Test standings recalculation triggers
+   - Test INPROGRESS status requirement
+   
+   Update `tests/integration/test_penalties_api.py`:
+   - Verify penalty minutes increment in roster
+   - Test penalty deletion decrements
+   - Test match status validation
+
+**Benefits:**
+- ✅ Reusable business logic across routers
+- ✅ Easier to test (no HTTP mocking needed)
+- ✅ Better separation of concerns
+- ✅ Consistent validation logic
+- ✅ Simplified router code (thin wrappers)
+- ✅ Enables database transactions for multi-step operations
+
+**Example Refactoring:**
+
+**Before (Anti-Pattern):**
+```python
+# In routers/scores.py
+@router.post("/")
+async def create_score(request, match_id, team_flag, score, token):
+    mongodb = request.app.state.mongodb
+    
+    # Validation logic
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not any(player["player"]["playerId"] == score.goalPlayer.playerId 
+               for player in match[team_flag]["roster"]):
+        raise HTTPException(400, "Player not in roster")
+    
+    # Database operations
+    score_data = score.model_dump()
+    update_operations = {
+        "$push": {f"{team_flag}.scores": score_data},
+        "$inc": {f"{team_flag}.stats.goalsFor": 1}
+    }
+    await mongodb["matches"].update_one({"_id": match_id}, update_operations)
+    
+    # Stats recalculation
+    stats_service = StatsService(mongodb)
+    await stats_service.aggregate_round_standings(...)
+```
+
+**After (Service Layer):**
+```python
+# In services/score_service.py
+class ScoreService:
+    def __init__(self, db):
+        self.db = db
+    
+    async def create_score(self, match_id, team_flag, score_data):
+        """Create score with validation and incremental updates"""
+        match = await self._get_match(match_id)
+        await self._validate_match_status(match)
+        await self._validate_player_in_roster(match, team_flag, score_data)
+        
+        score_id = await self._save_score(match_id, team_flag, score_data)
+        await self._update_incremental_stats(match_id, team_flag, score_data)
+        await self._recalculate_standings(match)
+        
+        return await self.get_score_by_id(match_id, team_flag, score_id)
+
+# In routers/scores.py
+@router.post("/")
+async def create_score(request, match_id, team_flag, score, token):
+    service = ScoreService(request.app.state.mongodb)
+    result = await service.create_score(match_id, team_flag, score)
+    return JSONResponse(status_code=201, content=jsonable_encoder(result))
+```
+
+**Estimated Time:** 28-36 hours
+
+**Dependencies:**
+- StatsService (already complete)
+- TournamentService (already complete)
+- Custom exceptions (already complete)
+
+---
+
+### 9. Error Handling Standardization ✅ COMPLETE
 **Effort:** Medium | **Impact:** Medium | **Risk if ignored:** Low
 
 **Status:** ✅ **COMPLETED**
@@ -301,7 +472,7 @@ matchday_info = await tournament_service.get_matchday_info(...)
 
 ---
 
-### 8. Environment Configuration Cleanup ✅ COMPLETE
+### 10. Environment Configuration Cleanup ✅ COMPLETE
 **Effort:** Low | **Impact:** Medium | **Risk if ignored:** Low
 
 **Status:** ✅ **COMPLETED**
@@ -327,7 +498,7 @@ matchday_info = await tournament_service.get_matchday_info(...)
 
 ---
 
-### 9. Authentication Token Refresh ✅ COMPLETE
+### 11. Authentication Token Refresh ✅ COMPLETE
 **Effort:** Medium | **Impact:** Medium | **Risk if ignored:** Low
 
 **Status:** ✅ **COMPLETED**
@@ -358,7 +529,7 @@ matchday_info = await tournament_service.get_matchday_info(...)
 
 ---
 
-### 10. API Response Standardization ✅ COMPLETE
+### 12. API Response Standardization ✅ COMPLETE
 **Effort:** Low | **Impact:** Low | **Risk if ignored:** Low
 
 **Status:** ✅ **COMPLETED**
@@ -390,7 +561,7 @@ matchday_info = await tournament_service.get_matchday_info(...)
 
 ## Low Priority (Nice to Have)
 
-### 11. Database Query Optimization ⏸️ PARTIALLY COMPLETE
+### 13. Database Query Optimization ⏸️ PARTIALLY COMPLETE
 **Effort:** Medium | **Impact:** Medium | **Risk if ignored:** Low
 
 **Status:** ⏸️ **PARTIALLY COMPLETED - POSTPONED**
@@ -413,7 +584,7 @@ matchday_info = await tournament_service.get_matchday_info(...)
 
 ---
 
-### 12. API Documentation Enhancement ✅ COMPLETE
+### 14. API Documentation Enhancement ✅ COMPLETE
 **Effort:** Low | **Impact:** Low | **Risk if ignored:** Very Low
 
 **Status:** ✅ **COMPLETED**
@@ -437,7 +608,7 @@ matchday_info = await tournament_service.get_matchday_info(...)
 
 ---
 
-### 13. Import Scripts Consolidation ✅ COMPLETE
+### 15. Import Scripts Consolidation ✅ COMPLETE
 **Effort:** Medium | **Impact:** Low | **Risk if ignored:** Very Low
 
 **Status:** ✅ **COMPLETED**
@@ -470,7 +641,7 @@ python scripts/import_cli.py <entity> [--prod] [--dry-run] [--import-all]
 
 ---
 
-### 14. Code Quality Tools ✅ COMPLETE
+### 16. Code Quality Tools ✅ COMPLETE
 **Effort:** Low | **Impact:** Low | **Risk if ignored:** Very Low
 
 **Status:** ✅ **COMPLETED**
@@ -512,9 +683,9 @@ make check-all    # Run pre-commit on all files
 |----------|-------------|---------------------|------------|
 | Critical | 3 | 12-18 | High |
 | High | 3 | 44-66 | Medium |
-| Medium | 6 | 58-83 | Low |
+| Medium | 7 | 86-119 | Low |
 | Low | 4 | 22-32 | Very Low |
-| **TOTAL** | **16** | **136-199** | **Mixed** |
+| **TOTAL** | **17** | **164-235** | **Mixed** |
 
 ---
 

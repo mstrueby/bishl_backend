@@ -241,8 +241,8 @@ class TestCalculateRosterStats:
         # Mock the find_one to return test match
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
 
-        # Use use_db_direct=True to bypass HTTP calls
-        await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=True)
+        # Now always uses direct DB access
+        await stats_service.calculate_roster_stats(match_id, "home")
 
         # Verify update was called with correct stats
         update_call = mock_db._matches_collection.update_one.call_args
@@ -298,8 +298,8 @@ class TestCalculateRosterStats:
         # Mock the find_one to return test match
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
 
-        # Use use_db_direct=True to bypass HTTP calls
-        await stats_service.calculate_roster_stats(match_id, "home", use_db_direct=True)
+        # Now always uses direct DB access
+        await stats_service.calculate_roster_stats(match_id, "home")
 
         # Verify update was called with correct stats
         update_call = mock_db._matches_collection.update_one.call_args
@@ -476,7 +476,7 @@ class TestCalculateStandings:
         assert teams_list[0] == "Team A"
         assert standings["Team A"]["points"] == 3
         assert standings["Team A"]["goalsFor"] - standings["Team A"]["goalsAgainst"] == 2
-        
+
         assert teams_list[1] == "Team B"
         assert standings["Team B"]["points"] == 3
         assert standings["Team B"]["goalsFor"] - standings["Team B"]["goalsAgainst"] == -2
@@ -493,9 +493,9 @@ class TestTeamStandingsHelpers:
             "tinyName": "T",
             "logo": "http://example.com/logo.png"
         }
-        
+
         standings = stats_service._init_team_standings(team_data)
-        
+
         assert standings["fullName"] == "Test Team"
         assert standings["shortName"] == "TT"
         assert standings["tinyName"] == "T"
@@ -517,54 +517,54 @@ class TestTeamStandingsHelpers:
         """Test streak update for win"""
         team_standings = {"streak": []}
         match_stats = {"win": 1}
-        
+
         stats_service._update_streak(team_standings, match_stats)
-        
+
         assert team_standings["streak"] == ["W"]
 
     def test_update_streak_loss(self, stats_service):
         """Test streak update for loss"""
         team_standings = {"streak": []}
         match_stats = {"loss": 1}
-        
+
         stats_service._update_streak(team_standings, match_stats)
-        
+
         assert team_standings["streak"] == ["L"]
 
     def test_update_streak_draw(self, stats_service):
         """Test streak update for draw"""
         team_standings = {"streak": []}
         match_stats = {"draw": 1}
-        
+
         stats_service._update_streak(team_standings, match_stats)
-        
+
         assert team_standings["streak"] == ["D"]
 
     def test_update_streak_overtime_win(self, stats_service):
         """Test streak update for overtime win"""
         team_standings = {"streak": []}
         match_stats = {"otWin": 1}
-        
+
         stats_service._update_streak(team_standings, match_stats)
-        
+
         assert team_standings["streak"] == ["OTW"]
 
     def test_update_streak_shootout_loss(self, stats_service):
         """Test streak update for shootout loss"""
         team_standings = {"streak": []}
         match_stats = {"soLoss": 1}
-        
+
         stats_service._update_streak(team_standings, match_stats)
-        
+
         assert team_standings["streak"] == ["SOL"]
 
     def test_update_streak_max_length(self, stats_service):
         """Test that streak maintains max length of 5"""
         team_standings = {"streak": ["W", "W", "L", "W", "W"]}
         match_stats = {"win": 1}
-        
+
         stats_service._update_streak(team_standings, match_stats)
-        
+
         assert len(team_standings["streak"]) == 5
         assert team_standings["streak"] == ["W", "L", "W", "W", "W"]
 
@@ -572,9 +572,9 @@ class TestTeamStandingsHelpers:
         """Test streak with no valid result"""
         team_standings = {"streak": ["W"]}
         match_stats = {}
-        
+
         stats_service._update_streak(team_standings, match_stats)
-        
+
         # Streak should not change when no valid result
         assert team_standings["streak"] == ["W"]
 
@@ -596,9 +596,9 @@ class TestRosterStatsHelpers:
                 "assists": 0
             }
         ]
-        
+
         player_stats = stats_service._initialize_roster_player_stats(roster)
-        
+
         assert "player-1" in player_stats
         assert "player-2" in player_stats
         assert player_stats["player-1"] == {
@@ -611,9 +611,9 @@ class TestRosterStatsHelpers:
     def test_initialize_roster_player_stats_empty_roster(self, stats_service):
         """Test initialization with empty roster"""
         roster = []
-        
+
         player_stats = stats_service._initialize_roster_player_stats(roster)
-        
+
         assert player_stats == {}
 
     def test_calculate_scoring_stats_creates_missing_player(self, stats_service):
@@ -625,9 +625,9 @@ class TestRosterStatsHelpers:
             }
         ]
         player_stats = {}
-        
+
         stats_service._calculate_scoring_stats(scoreboard, player_stats)
-        
+
         assert "player-3" in player_stats
         assert "player-4" in player_stats
         assert player_stats["player-3"]["goals"] == 1
@@ -642,9 +642,9 @@ class TestRosterStatsHelpers:
             }
         ]
         player_stats = {}
-        
+
         stats_service._calculate_scoring_stats(scoreboard, player_stats)
-        
+
         assert player_stats["player-1"]["goals"] == 1
         assert player_stats["player-1"]["assists"] == 0
 
@@ -667,9 +667,9 @@ class TestRosterStatsHelpers:
                 "penaltyMinutes": 4
             }
         }
-        
+
         updated_roster = stats_service._apply_stats_to_roster(roster, player_stats)
-        
+
         assert updated_roster[0]["goals"] == 2
         assert updated_roster[0]["assists"] == 1
         assert updated_roster[0]["points"] == 3
@@ -696,7 +696,7 @@ class TestEdgeCases:
             home_score=3,
             away_score=2
         )
-        
+
         # Should reset to zeros for unknown finish type
         assert result["home"]["points"] == 0
         assert result["away"]["points"] == 0
@@ -704,9 +704,9 @@ class TestEdgeCases:
     def test_calculate_standings_empty_matches(self, stats_service):
         """Test standings calculation with no matches"""
         matches = []
-        
+
         standings = stats_service._calculate_standings(matches)
-        
+
         assert standings == {}
 
     def test_calculate_standings_multiple_teams(self, stats_service):
@@ -793,9 +793,9 @@ class TestEdgeCases:
                 }
             }
         ]
-        
+
         standings = stats_service._calculate_standings(matches)
-        
+
         teams_list = list(standings.keys())
         # Team A should be first (3 points, +5 goal diff)
         assert teams_list[0] == "Team A"

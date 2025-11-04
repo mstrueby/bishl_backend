@@ -15,7 +15,7 @@ class TestMatchesAPI:
         from tests.fixtures.data_fixtures import create_test_tournament
         from bson import ObjectId
         
-        # Setup: Insert required data
+        # Setup: Insert required data directly into DB
         tournament = create_test_tournament()
         
         # Ensure standingsSettings is present in the season (required for match stats calculation)
@@ -57,17 +57,6 @@ class TestMatchesAPI:
         await mongodb["tournaments"].insert_one(tournament)
         await mongodb["teams"].insert_many([home_team, away_team])
         
-        # Mock the standings settings HTTP call to avoid external API dependency
-        mock_standings_settings = {
-            "pointsWinReg": 3,
-            "pointsLossReg": 0,
-            "pointsDrawReg": 1,
-            "pointsWinOvertime": 2,
-            "pointsLossOvertime": 1,
-            "pointsWinShootout": 2,
-            "pointsLossShootout": 1
-        }
-        
         # Create match data with all required fields
         match_data = {
             "matchId": 1001,
@@ -94,19 +83,13 @@ class TestMatchesAPI:
             }
         }
         
-        # Execute - Mock all HTTP dependencies to avoid external API calls
-        # Note: Must patch where functions are imported (routers.matches), not where defined (utils)
-        with patch('services.stats_service.StatsService.get_standings_settings', 
-                   new_callable=AsyncMock, return_value=mock_standings_settings), \
-             patch('routers.matches.fetch_ref_points', new_callable=AsyncMock, return_value=10), \
-             patch('routers.matches.get_sys_ref_tool_token', new_callable=AsyncMock, return_value="mock_token"), \
-             patch('routers.matches.update_round_and_matchday', new_callable=AsyncMock), \
-             patch('services.stats_service.StatsService.calculate_roster_stats', new_callable=AsyncMock) as mock_roster_stats:
-            response = await client.post(
-                "/matches/",
-                json=match_data,
-                headers={"Authorization": f"Bearer {admin_token}"}
-            )
+        # Execute - No mocking needed! All operations are now direct DB calls
+        # The service layer (StatsService, TournamentService) uses DB directly
+        response = await client.post(
+            "/matches/",
+            json=match_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
         
         # Assert response
         assert response.status_code == 201
@@ -116,10 +99,12 @@ class TestMatchesAPI:
         assert data["home"]["teamId"] == home_team_id
         assert data["away"]["teamId"] == away_team_id
         
-        # Assert database
+        # Assert database - verify match was created with calculated stats
         match_in_db = await mongodb["matches"].find_one({"_id": data["_id"]})
         assert match_in_db is not None
         assert match_in_db["matchId"] == 1001
+        assert "stats" in match_in_db["home"]
+        assert "stats" in match_in_db["away"]
 
     async def test_get_match_by_id(self, client: AsyncClient, mongodb):
         """Test retrieving a match by ID"""
@@ -188,15 +173,30 @@ class TestMatchesAPI:
 
     async def test_finish_match_updates_stats(self, client: AsyncClient, mongodb, admin_token):
         """Test finishing match calculates and stores stats"""
-        from tests.fixtures.data_fixtures import create_test_match
+        from tests.fixtures.data_fixtures import create_test_match, create_test_tournament
         
-        # Setup - Match in progress with scores
+        # Setup - Create tournament with standings settings first
+        tournament = create_test_tournament()
+        tournament["seasons"][0]["standingsSettings"] = {
+            "pointsWinReg": 3,
+            "pointsLossReg": 0,
+            "pointsDrawReg": 1,
+            "pointsWinOvertime": 2,
+            "pointsLossOvertime": 1,
+            "pointsWinShootout": 2,
+            "pointsLossShootout": 1
+        }
+        await mongodb["tournaments"].insert_one(tournament)
+        
+        # Create match in progress with scores
         match = create_test_match(status="INPROGRESS")
         match["home"]["scores"] = [{"_id": "s1"}, {"_id": "s2"}]
         match["away"]["scores"] = [{"_id": "s3"}]
+        match["home"]["stats"] = {"goalsFor": 2, "goalsAgainst": 1}
+        match["away"]["stats"] = {"goalsFor": 1, "goalsAgainst": 2}
         await mongodb["matches"].insert_one(match)
         
-        # Execute - Finish match
+        # Execute - Finish match (stats will be calculated by StatsService using DB)
         response = await client.patch(
             f"/matches/{match['_id']}",
             json={
@@ -211,10 +211,10 @@ class TestMatchesAPI:
         data = response.json()
         assert data["matchStatus"]["key"] == "FINISHED"
         
-        # Verify stats were calculated
+        # Verify stats were calculated correctly
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert updated["home"]["stats"]["goalsFor"] == 2
-        assert updated["home"]["stats"]["points"] == 3  # Win
+        assert updated["home"]["stats"]["points"] == 3  # Win (regular time)
         assert updated["away"]["stats"]["goalsFor"] == 1
         assert updated["away"]["stats"]["points"] == 0  # Loss
 

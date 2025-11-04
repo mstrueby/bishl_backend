@@ -3,8 +3,6 @@ import time
 from functools import wraps
 from typing import Any
 
-import httpx
-
 from config import settings
 from exceptions.custom_exceptions import (
     DatabaseOperationException,
@@ -589,7 +587,7 @@ class StatsService:
 
     @log_performance
     async def calculate_roster_stats(
-        self, match_id: str, team_flag: str, use_db_direct: bool = False
+        self, match_id: str, team_flag: str
     ) -> None:
         """
         Calculate and update roster statistics for a team in a match.
@@ -598,7 +596,6 @@ class StatsService:
         Args:
             match_id: The ID of the match
             team_flag: The team flag ('home' or 'away')
-            use_db_direct: If True, fetch data directly from DB instead of API (for validation/testing)
 
         Raises:
             HTTPException: If team_flag is invalid or data cannot be fetched
@@ -623,17 +620,10 @@ class StatsService:
         )
 
         try:
-            if use_db_direct:
-                # Fetch directly from database (for validation/testing)
-                roster, scoreboard, penaltysheet = await self._fetch_match_data_from_db(
-                    match_id, team_flag
-                )
-            else:
-                # Fetch via HTTP API (normal operation)
-                async with httpx.AsyncClient() as client:
-                    roster = await self._fetch_roster(client, match_id, team_flag)
-                    scoreboard = await self._fetch_scoreboard(client, match_id, team_flag)
-                    penaltysheet = await self._fetch_penaltysheet(client, match_id, team_flag)
+            # Fetch directly from database
+            roster, scoreboard, penaltysheet = await self._fetch_match_data_from_db(
+                match_id, team_flag
+            )
 
             # Initialize player stats from roster
             player_stats = self._initialize_roster_player_stats(roster)
@@ -678,11 +668,10 @@ class StatsService:
                 details={"match_id": match_id, "team_flag": team_flag},
             ) from e
 
-    @monitor_query("fetch_match_data_direct")
+    @monitor_query("fetch_match_data_from_db")
     async def _fetch_match_data_from_db(self, match_id: str, team_flag: str) -> tuple:
         """
         Fetch roster, scores, and penalties directly from database.
-        Used for validation/testing when API might not be available.
 
         Returns:
             Tuple of (roster, scoreboard, penaltysheet)
@@ -708,63 +697,6 @@ class StatsService:
         )
 
         return roster, scoreboard, penaltysheet
-
-    @monitor_query("fetch_roster_api")
-    async def _fetch_roster(
-        self, client: httpx.AsyncClient, match_id: str, team_flag: str
-    ) -> list[dict]:
-        """Fetch roster for a team from the API"""
-        response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/roster/")
-        if response.status_code != 200:
-            raise DatabaseOperationException(
-                operation="fetch_roster",
-                message=f"Failed to fetch roster for {team_flag} team in match {match_id}",
-                details={
-                    "http_status_code": response.status_code,
-                    "match_id": match_id,
-                    "team_flag": team_flag,
-                },
-            )
-        roster: list[dict] = response.json()
-        return roster
-
-    @monitor_query("fetch_scoreboard_api")
-    async def _fetch_scoreboard(
-        self, client: httpx.AsyncClient, match_id: str, team_flag: str
-    ) -> list[dict]:
-        """Fetch scoreboard for a team from the API"""
-        response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/scores/")
-        if response.status_code != 200:
-            raise DatabaseOperationException(
-                operation="fetch_scoreboard",
-                message=f"Failed to fetch scoreboard for {team_flag} team in match {match_id}",
-                details={
-                    "http_status_code": response.status_code,
-                    "match_id": match_id,
-                    "team_flag": team_flag,
-                },
-            )
-        scoreboard: list[dict] = response.json()
-        return scoreboard
-
-    @monitor_query("fetch_penaltysheet_api")
-    async def _fetch_penaltysheet(
-        self, client: httpx.AsyncClient, match_id: str, team_flag: str
-    ) -> list[dict]:
-        """Fetch penaltysheet for a team from the API"""
-        response = await client.get(f"{BASE_URL}/matches/{match_id}/{team_flag}/penalties/")
-        if response.status_code != 200:
-            raise DatabaseOperationException(
-                operation="fetch_penaltysheet",
-                message=f"Failed to fetch penaltysheet for {team_flag} team in match {match_id}",
-                details={
-                    "http_status_code": response.status_code,
-                    "match_id": match_id,
-                    "team_flag": team_flag,
-                },
-            )
-        penaltysheet: list[dict] = response.json()
-        return penaltysheet
 
     def _initialize_roster_player_stats(self, roster: list[dict]) -> dict:
         """
