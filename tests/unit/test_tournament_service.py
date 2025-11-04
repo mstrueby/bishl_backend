@@ -97,7 +97,7 @@ class TestGetStandingsSettings:
         with pytest.raises(ResourceNotFoundException) as exc_info:
             await tournament_service.get_standings_settings("test-tournament", "test-season")
 
-        logger.debug()
+        logger.debug(f"Exception details: {exc_info.value.details}")
 
         assert exc_info.value.details["resource_type"] == "Season"
         assert exc_info.value.details["resource_id"] == "test-season"
