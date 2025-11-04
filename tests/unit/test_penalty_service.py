@@ -40,12 +40,14 @@ class TestGetPenalties:
     @pytest.mark.asyncio
     async def test_get_penalties_success(self, penalty_service, mock_db):
         """Test successful penalties retrieval"""
+        from bson import ObjectId
+        
         test_match = {
             "_id": "match-1",
             "home": {
                 "penalties": [
                     {
-                        "_id": "penalty-1",
+                        "_id": str(ObjectId()),
                         "matchSecondsStart": 120,
                         "matchSecondsEnd": 240,
                         "penaltyPlayer": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
@@ -224,13 +226,16 @@ class TestDeletePenalty:
     @pytest.mark.asyncio
     async def test_delete_penalty_success(self, penalty_service, mock_db):
         """Test successful penalty deletion with decremental updates"""
+        from bson import ObjectId
+        
+        penalty_id = str(ObjectId())
         test_match = {
             "_id": "match-1",
             "matchStatus": {"key": "INPROGRESS"},
             "home": {
                 "penalties": [
                     {
-                        "_id": "penalty-1",
+                        "_id": penalty_id,
                         "penaltyPlayer": {"playerId": "p1"},
                         "penaltyMinutes": 2
                     }
@@ -243,7 +248,7 @@ class TestDeletePenalty:
             return_value=MagicMock(modified_count=1)
         )
         
-        await penalty_service.delete_penalty("match-1", "home", "penalty-1")
+        await penalty_service.delete_penalty("match-1", "home", penalty_id)
         
         # Verify decremental update was called
         update_call = mock_db._matches_collection.update_one.call_args
