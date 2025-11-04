@@ -71,23 +71,18 @@ class TestUsersAPI:
         # Assert
         assert response.status_code == 409
 
-    async def test_login_success(self, client: AsyncClient, admin_token):
+    async def test_login_success(self, client: AsyncClient, create_test_user):
         """Test successful user login"""
-        # Setup - Create user via API
-        user_data = {
-            "email": "loginuser@test.com",
-            "password": "TestPass123!",
-            "firstName": "Test",
-            "lastName": "User",
-            "roles": ["REFEREE"]
-        }
-        await client.post(
-            "/users/register",
-            json=user_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+        # Setup - Create user directly in DB (faster, doesn't test /register)
+        await create_test_user(
+            email="loginuser@test.com",
+            password="TestPass123!",
+            roles=["REFEREE"],
+            firstName="Test",
+            lastName="User"
         )
 
-        # Execute
+        # Execute - Test login endpoint
         response = await client.post(
             "/users/login",
             json={"email": "loginuser@test.com", "password": "TestPass123!"}
@@ -100,23 +95,18 @@ class TestUsersAPI:
         assert "refresh_token" in data
         assert data["user"]["email"] == "loginuser@test.com"
 
-    async def test_login_wrong_password(self, client: AsyncClient, admin_token):
+    async def test_login_wrong_password(self, client: AsyncClient, create_test_user):
         """Test login with wrong password fails"""
-        # Setup - Create user via API
-        user_data = {
-            "email": "wrongpwuser@test.com",
-            "password": "CorrectPassword123!",
-            "firstName": "Test",
-            "lastName": "User",
-            "roles": []
-        }
-        await client.post(
-            "/users/register",
-            json=user_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+        # Setup - Create user directly in DB
+        await create_test_user(
+            email="wrongpwuser@test.com",
+            password="CorrectPassword123!",
+            roles=[],
+            firstName="Test",
+            lastName="User"
         )
 
-        # Execute
+        # Execute - Test login with wrong password
         response = await client.post(
             "/users/login",
             json={"email": "wrongpwuser@test.com", "password": "WrongPassword"}

@@ -162,6 +162,36 @@ async def clean_collections(mongodb):
 
 
 @pytest_asyncio.fixture
+async def create_test_user(mongodb):
+    """Helper to create test users directly in DB (faster than API calls)"""
+    from authentication import AuthHandler
+    from bson import ObjectId
+    
+    auth = AuthHandler()
+    
+    async def _create(email: str, password: str, roles: list = None, **kwargs):
+        """Create a user directly in the database"""
+        user_id = str(ObjectId())
+        user_doc = {
+            "_id": user_id,
+            "email": email,
+            "password": auth.get_password_hash(password),
+            "roles": roles or [],
+            "firstName": kwargs.get("firstName", "Test"),
+            "lastName": kwargs.get("lastName", "User"),
+            "club": kwargs.get("club"),
+        }
+        
+        # Clean up existing user with same email
+        await mongodb["users"].delete_many({"email": email})
+        await mongodb["users"].insert_one(user_doc)
+        
+        return user_id
+    
+    return _create
+
+
+@pytest_asyncio.fixture
 async def test_isolation(mongodb):
     """
     Provides test isolation by tracking created documents and cleaning them up.
