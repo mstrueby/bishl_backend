@@ -11,6 +11,7 @@ class TestRosterAPI:
     async def test_add_player_to_roster(self, client: AsyncClient, mongodb, admin_token):
         """Test adding a player to match roster"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_player
+        from bson import ObjectId
         
         # Setup - Direct DB insertion
         match = create_test_match(status="SCHEDULED")
@@ -66,17 +67,19 @@ class TestRosterAPI:
     async def test_remove_player_from_roster(self, client: AsyncClient, mongodb, admin_token):
         """Test removing a player from roster"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        from bson import ObjectId
         
         # Setup
         match = create_test_match(status="SCHEDULED")
+        roster_id = str(ObjectId())
         player = create_test_roster_player("player-1")
-        player["_id"] = "roster-1"
+        player["_id"] = roster_id
         match["home"]["roster"] = [player]
         await mongodb["matches"].insert_one(match)
         
         # Execute
         response = await client.delete(
-            f"/matches/{match['_id']}/home/roster/roster-1",
+            f"/matches/{match['_id']}/home/roster/{roster_id}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         
@@ -90,18 +93,20 @@ class TestRosterAPI:
     async def test_cannot_remove_player_with_stats(self, client: AsyncClient, mongodb, admin_token):
         """Test cannot remove player who has goals/assists/penalties"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        from bson import ObjectId
         
         # Setup - Player with stats
         match = create_test_match(status="INPROGRESS")
+        roster_id = str(ObjectId())
         player = create_test_roster_player("player-1")
-        player["_id"] = "roster-1"
+        player["_id"] = roster_id
         player["goals"] = 1
         match["home"]["roster"] = [player]
         await mongodb["matches"].insert_one(match)
         
         # Execute
         response = await client.delete(
-            f"/matches/{match['_id']}/home/roster/roster-1",
+            f"/matches/{match['_id']}/home/roster/{roster_id}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         

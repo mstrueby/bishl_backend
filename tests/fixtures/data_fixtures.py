@@ -310,3 +310,28 @@ def create_test_club(test_id: str = None, **overrides) -> Dict[str, Any]:
     }
     club.update(overrides)
     return club
+
+
+def create_test_roster_player(player_id: str, jersey_number: int = 10, **overrides) -> Dict[str, Any]:
+    """Create a test roster player entry with proper structure"""
+    roster_player = {
+        "player": {
+            "playerId": player_id,
+            "firstName": "Test",
+            "lastName": "Player",
+            "jerseyNumber": jersey_number,
+            "displayFirstName": "Test",
+            "displayLastName": "Player",
+            "imageUrl": None,
+            "imageVisible": False
+        },
+        "playerPosition": {"key": "FW", "value": "Forward"},
+        "passNumber": f"PASS-{player_id}",
+        "goals": 0,
+        "assists": 0,
+        "points": 0,
+        "penaltyMinutes": 0,
+        "called": False
+    }
+    roster_player.update(overrides)
+    return roster_player
