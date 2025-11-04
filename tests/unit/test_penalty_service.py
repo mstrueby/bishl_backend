@@ -7,7 +7,8 @@ from exceptions import (
     ResourceNotFoundException,
     DatabaseOperationException,
 )
-
+from bson import ObjectId
+from models.matches import PenaltiesBase, PenaltiesU EventPlayer
 
 @pytest.fixture
 def mock_db():
@@ -39,7 +40,6 @@ class TestGetPenalties:
     @pytest.mark.asyncio
     async def test_get_penalties_success(self, penalty_service, mock_db):
         """Test successful penalties retrieval"""
-        from bson import ObjectId
 
         test_match = {
             "_id": str(ObjectId()),
@@ -101,6 +101,7 @@ class TestValidatePenaltyPlayer:
     @pytest.mark.asyncio
     async def test_validate_player_not_in_roster(self, penalty_service):
         """Test validation fails when penalty player not in roster"""
+        
         match = {
             "_id": str(ObjectId()),
             "home": {
@@ -126,8 +127,6 @@ class TestCreatePenalty:
     @pytest.mark.asyncio
     async def test_create_penalty_success(self, penalty_service, mock_db):
         """Test successful penalty creation with incremental updates"""
-        from models.matches import PenaltiesBase, EventPlayer
-        from bson import ObjectId
 
         test_match = {
             "_id": str(ObjectId()),
@@ -166,8 +165,6 @@ class TestCreatePenalty:
     @pytest.mark.asyncio
     async def test_create_penalty_wrong_status(self, penalty_service, mock_db):
         """Test penalty creation fails when match not INPROGRESS"""
-        from models.matches import PenaltiesBase, EventPlayer
-        from bson import ObjectId
 
         test_match = {
             "_id": str(ObjectId()),
@@ -190,8 +187,6 @@ class TestCreatePenalty:
     @pytest.mark.asyncio
     async def test_create_game_misconduct_penalty(self, penalty_service, mock_db):
         """Test creation of game misconduct penalty"""
-        from models.matches import PenaltiesBase, EventPlayer
-        from bson import ObjectId
 
         test_match = {
             "_id": str(ObjectId()),
@@ -233,7 +228,6 @@ class TestDeletePenalty:
     @pytest.mark.asyncio
     async def test_delete_penalty_success(self, penalty_service, mock_db):
         """Test successful penalty deletion with decremental updates"""
-        from bson import ObjectId
 
         penalty_id = str(ObjectId())
         test_match = {
@@ -289,8 +283,6 @@ class TestUpdatePenalty:
     @pytest.mark.asyncio
     async def test_update_penalty_success(self, penalty_service, mock_db):
         """Test successful penalty update"""
-        from models.matches import PenaltiesUpdate
-        from bson import ObjectId
 
         test_match = {
             "_id": str(ObjectId()),
