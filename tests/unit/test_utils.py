@@ -1,18 +1,6 @@
 
 """Unit tests for utility functions"""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-import httpx
-from utils import get_sys_ref_tool_token
-# Note: fetch_ref_points, get_sys_ref_tool_token, and update_round_and_matchday 
-# make HTTP calls to internal endpoints. These are tested indirectly through
-# integration tests of the endpoints that use them (e.g., test_create_match).
-# Testing them in isolation would require mocking HTTP behavior, which doesn't
-# provide value beyond what integration tests already cover.
-
-
-"""Unit tests for utility functions"""
-import pytest
 from datetime import datetime
 from utils import (
     parse_datetime,
