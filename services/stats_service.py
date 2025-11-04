@@ -3,9 +3,6 @@ import time
 from functools import wraps
 from typing import Any
 
-import aiohttp
-import httpx
-
 from config import settings
 from exceptions.custom_exceptions import (
     DatabaseOperationException,
@@ -15,8 +12,7 @@ from exceptions.custom_exceptions import (
 )
 from logging_config import logger
 from services.performance_monitor import monitor_query
-
-BASE_URL = settings.BE_API_URL
+from services.tournament_service import TournamentService
 
 # Remove the pydantic_patch.py file as requested.
 
@@ -79,40 +75,13 @@ class StatsService:
                 details={"tournament_alias": tournament_alias, "season_alias": season_alias},
             )
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(
-                    f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}"
-                ) as response:
-                    if response.status != 200:
-                        raise ResourceNotFoundException(
-                            resource_type="StandingsSettings",
-                            resource_id=f"{tournament_alias}/{season_alias}",
-                            details={"http_status_code": response.status},
-                        )
-                    data = await response.json()
-                    settings: dict[str, Any] | None = data.get("standingsSettings")
-                    if not settings:
-                        raise ResourceNotFoundException(
-                            resource_type="StandingsSettings",
-                            resource_id=f"{tournament_alias}/{season_alias}",
-                            details={"message": "No standings settings found"},
-                        )
-                    return settings
-            except aiohttp.ClientError as e:
-                logger.error(
-                    f"Failed to fetch standings settings: {str(e)}",
-                    extra={
-                        "tournament_alias": tournament_alias,
-                        "season_alias": season_alias,
-                        "error": str(e),
-                    },
-                )
-                raise DatabaseOperationException(
-                    operation="fetch_standings_settings",
-                    message=f"Failed to fetch standings settings: {str(e)}",
-                    details={"tournament_alias": tournament_alias, "season_alias": season_alias},
-                ) from e
+        logger.debug(
+            "Fetching standings settings",
+            extra={"tournament": tournament_alias, "season": season_alias},
+        )
+
+        tournament_service = TournamentService(self.db)
+        return await tournament_service.get_standings_settings(tournament_alias, season_alias)
 
     def calculate_match_stats(
         self,
@@ -972,47 +941,15 @@ class StatsService:
             return
 
         # Fetch round information
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.get(
-                    f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
-                )
-                response.raise_for_status()  # Raise HTTPStatusError for bad responses (4xx or 5xx)
-                round_info = response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    f"Failed to fetch round information: {str(e)}",
-                    extra={
-                        "tournament_alias": t_alias,
-                        "season_alias": s_alias,
-                        "round_alias": r_alias,
-                        "http_status_code": e.response.status_code,
-                    },
-                )
-                raise ResourceNotFoundException(
-                    resource_type="Round",
-                    resource_id=f"{t_alias}/{s_alias}/{r_alias}",
-                    details={"http_status_code": e.response.status_code},
-                ) from e
-            except httpx.RequestError as e:
-                logger.error(
-                    f"Network error fetching round information: {str(e)}",
-                    extra={
-                        "tournament_alias": t_alias,
-                        "season_alias": s_alias,
-                        "round_alias": r_alias,
-                        "error": str(e),
-                    },
-                )
-                raise DatabaseOperationException(
-                    operation="fetch_round_info",
-                    message=f"Network error fetching round info: {str(e)}",
-                    details={
-                        "tournament_alias": t_alias,
-                        "season_alias": s_alias,
-                        "round_alias": r_alias,
-                    },
-                ) from e
+        tournament_service = TournamentService(self.db)
+        try:
+            round_info = await tournament_service.get_round_info(t_alias, s_alias, r_alias)
+        except ResourceNotFoundException as e:
+            logger.error(f"Failed to fetch round information: {str(e)}")
+            raise
+        except DatabaseOperationException as e:
+            logger.error(f"Network error fetching round information: {str(e)}")
+            raise
 
         # Process round statistics
         matches = []

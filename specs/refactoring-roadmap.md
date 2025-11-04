@@ -160,7 +160,107 @@ faker = "^20.0.0"
 
 ## Medium Priority
 
-### 7. Error Handling Standardization ✅ COMPLETE
+### 7. Service Layer Extraction (Anti-Pattern Removal)
+**Effort:** High | **Impact:** High | **Risk if ignored:** Medium
+
+**Problem:**
+- Multiple routers call their own API endpoints via HTTP
+- Creates unnecessary network overhead and authentication complexity
+- Makes testing harder and prevents proper database transactions
+- Example: `fetch_ref_points()` calls `/matchdays/` endpoint, `send_message_to_referee()` calls `/messages/`
+
+**Current Locations:**
+1. `routers/matches.py` - Lines ~520, ~540 (calls tournaments/matchdays/rounds endpoints)
+2. `routers/assignments.py` - Line ~850 (calls messages endpoint)
+3. `routers/users.py` - Lines ~180, ~200 (calls matches/assignments endpoints)
+4. `utils.py` - `fetch_ref_points()` (calls matchday endpoint)
+5. `services/stats_service.py` - Lines ~60, ~780 (calls tournaments/rounds endpoints)
+
+**Actions:**
+1. **Phase 1: Create Service Layer** (8-10 hours)
+   - Create `services/tournament_service.py`:
+     - `get_standings_settings(t_alias, s_alias)` - Extract from API call
+     - `get_matchday_info(t_alias, s_alias, r_alias, md_alias)` - Extract referee points logic
+     - `get_round_info(t_alias, s_alias, r_alias)` - Extract round data
+     - `update_round_dates(round_id, mongodb)` - Direct DB update
+     - `update_matchday_dates(matchday_id, mongodb)` - Direct DB update
+   
+   - Create `services/message_service.py`:
+     - `send_referee_notification(referee_id, match, content, mongodb)` - Direct DB insert
+     - `format_match_notification(match)` - Reusable formatter
+   
+   - Create `services/match_service.py`:
+     - `get_matches_for_referee(referee_id, date_from, mongodb)` - Direct DB query
+     - `get_referee_assignments(referee_id, mongodb)` - Direct DB query
+
+2. **Phase 2: Update Routers** (6-8 hours)
+   - Update `routers/matches.py`:
+     - Replace `fetch_ref_points()` with `TournamentService.get_matchday_info()`
+     - Replace HTTP calls to update rounds/matchdays with direct service calls
+   
+   - Update `routers/assignments.py`:
+     - Replace `send_message_to_referee()` HTTP call with `MessageService.send_referee_notification()`
+   
+   - Update `routers/users.py`:
+     - Replace HTTP calls with `MatchService.get_matches_for_referee()`
+     - Replace HTTP calls with `MatchService.get_referee_assignments()`
+   
+   - Update `services/stats_service.py`:
+     - Replace HTTP calls with `TournamentService` methods
+
+3. **Phase 3: Remove Deprecated Functions** ✅ COMPLETE (2-3 hours)
+   - ✅ Removed deprecated wrapper functions from `utils.py`:
+     - `calculate_match_stats()`
+     - `calculate_roster_stats()`
+     - `calculate_player_card_stats()`
+   - ✅ Removed HTTP client imports (`aiohttp`, `httpx`) from `utils.py`
+   - ✅ Removed HTTP client imports from `services/stats_service.py`
+   - ✅ Removed unused `BASE_URL` constants
+   - ✅ All routers now use service layer directly (completed in Phase 2)
+
+4. **Phase 4: Testing** (4-6 hours)
+   - Update unit tests to test service functions directly
+   - Verify integration tests still pass
+   - Test transaction rollback scenarios
+
+**Benefits:**
+- 50-100ms faster response times (no HTTP overhead)
+- Simpler authentication (no token generation needed)
+- Better error handling (direct exceptions vs HTTP status codes)
+- Enables database transactions for multi-step operations
+- Easier to test (no HTTP mocking required)
+- Follows Single Responsibility Principle
+
+**Example Refactoring:**
+
+**Before (Anti-Pattern):**
+```python
+# In matches.py
+async with httpx.AsyncClient() as client:
+    response = await client.get(f"{BASE_URL}/tournaments/{t_alias}/...")
+    data = response.json()
+```
+
+**After (Service Layer):**
+```python
+# In services/tournament_service.py
+class TournamentService:
+    async def get_matchday_info(self, t_alias, s_alias, r_alias, md_alias):
+        return await self.db["tournaments"].find_one({...})
+
+# In matches.py
+tournament_service = TournamentService(mongodb)
+matchday_info = await tournament_service.get_matchday_info(...)
+```
+
+**Estimated Time:** 20-27 hours
+
+**Dependencies:**
+- None (can start immediately)
+
+---
+
+### 8. Error Handling Standardization ✅ COMPLETE
 **Effort:** Medium | **Impact:** Medium | **Risk if ignored:** Low
 
 **Status:** ✅ **COMPLETED**
@@ -400,9 +500,9 @@ make check-all    # Run pre-commit on all files
 |----------|-------------|---------------------|------------|
 | Critical | 3 | 12-18 | High |
 | High | 3 | 44-66 | Medium |
-| Medium | 5 | 38-56 | Low |
+| Medium | 6 | 58-83 | Low |
 | Low | 4 | 22-32 | Very Low |
-| **TOTAL** | **15** | **116-172** | **Mixed** |
+| **TOTAL** | **16** | **136-199** | **Mixed** |
 
 ---
 

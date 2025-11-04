@@ -16,11 +16,12 @@ from exceptions import (
 )
 from mail_service import send_email
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory
-from utils import get_sys_ref_tool_token
+from services.message_service import MessageService
 
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ["BE_API_URL"]
+message_service = None  # Will be initialized with MongoDB instance
 
 
 class AllStatuses(Enum):
@@ -102,68 +103,23 @@ async def set_referee_in_match(db, match_id, referee, position, session=None):
     )
 
 
-async def send_message_to_referee(match, receiver_id, content, footer=None):
-    token = await get_sys_ref_tool_token(
-        email=os.environ["SYS_REF_TOOL_EMAIL"], password=os.environ["SYS_REF_TOOL_PASSWORD"]
+async def send_message_to_referee(mongodb, match, receiver_id, content, sender_id, sender_name, footer=None):
+    """
+    Send notification to referee using MessageService.
+    Replaces HTTP call to /messages/ endpoint.
+    """
+    global message_service
+    if message_service is None:
+        message_service = MessageService(mongodb)
+    
+    await message_service.send_referee_notification(
+        referee_id=receiver_id,
+        match=match,
+        content=content,
+        sender_id=sender_id,
+        sender_name=sender_name,
+        footer=footer
     )
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    weekdays_german = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
-    weekday_abbr = weekdays_german[match["startDate"].weekday()]
-    match_text = f"{match['tournament']['name']}\n{match['home']['fullName']} - {match['away']['fullName']}\n{weekday_abbr}, {match['startDate'].strftime('%d.%m.%Y')}, {match['startDate'].strftime('%H:%M')} Uhr\n{match['venue']['name']}"
-    if content is None:
-        content = f"something happened to you for match:\n\n{match_text}"
-    else:
-        content = f"{content}\n\n{match_text}"
-    message_data = {"receiverId": receiver_id, "content": content}
-    url = f"{BASE_URL}/messages/"
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(url, json=message_data, headers=headers)
-            if response.status_code != 201:
-                error_msg = "Failed to send message"
-                try:
-                    error_detail = response.json()
-                    error_msg += f": {error_detail}"
-                except (KeyError, TypeError) as e:
-                    error_msg += f" (Status code: {response.status_code}, Content: {response.content!r}, Error: {str(e)})"
-                raise HTTPException(status_code=response.status_code, detail=error_msg)
-
-            # After successfully sending the message, also send an email
-            try:
-                # Get referee's email by making a request to users endpoint
-                user_url = f"{BASE_URL}/users/{receiver_id}"
-                user_response = await client.get(user_url, headers=headers)
-                if user_response.status_code == 200:
-                    user_data = user_response.json()
-                    referee_email = user_data.get("email")
-
-                    if referee_email:
-                        # Format the email content as HTML
-                        email_subject = "BISHL - Schiedsrichter-Information"
-                        email_content = f"""
-                        <p>{content.replace('\n', '<br>')}</p>
-                        {f'<p>{footer}</p>' if footer else ''}
-                        """
-
-                        if os.environ.get("ENV") == "production":
-                            await send_email(
-                                subject=email_subject,
-                                recipients=[referee_email],
-                                body=email_content,
-                            )
-                            print(f"Email sent to referee {receiver_id} at {referee_email}")
-                        else:
-                            print(f"Email not sent because of ENV = {os.environ.get('ENV')}")
-                    else:
-                        print(f"Referee {receiver_id} has no email address")
-                else:
-                    print(f"Failed to get referee {receiver_id} data: {user_response.status_code}")
-            except Exception as e:
-                # Just log email sending failure but don't fail the request
-                print(f"Failed to send email to referee {receiver_id}: {str(e)}")
-
-        except httpx.RequestError as e:
-            raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}") from e
 
 
 # GET all assigments for ONE match ======
@@ -392,9 +348,12 @@ async def create_assignment(
 
         # Send notification after transaction commits
         await send_message_to_referee(
+            mongodb=mongodb,
             match=match,
             receiver_id=referee["userId"],
             content=f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+            sender_id=token_payload.sub,
+            sender_name=f"{token_payload.firstName} {token_payload.lastName}",
             footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast.",
         )
 
@@ -615,15 +574,21 @@ async def update_assignment(
             # Send notifications after transaction commits
             if update_data["status"] not in [Status.assigned, Status.accepted]:
                 await send_message_to_referee(
+                    mongodb=mongodb,
                     match=match,
                     receiver_id=ref_id,
                     content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
+                    sender_id=token_payload.sub,
+                    sender_name=f"{token_payload.firstName} {token_payload.lastName}",
                 )
             elif update_data["status"] in [Status.assigned, Status.accepted]:
                 await send_message_to_referee(
+                    mongodb=mongodb,
                     match=match,
                     receiver_id=ref_id,
                     content=f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+                    sender_id=token_payload.sub,
+                    sender_name=f"{token_payload.firstName} {token_payload.lastName}",
                     footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast.",
                 )
             # print("update_data before update", update_data)
@@ -1095,8 +1060,11 @@ async def delete_assignment(
 
     # Send notification after transaction commits
     await send_message_to_referee(
+        mongodb=mongodb,
         match=match,
         receiver_id=ref_id,
         content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
+        sender_id=token_payload.sub,
+        sender_name=f"{token_payload.firstName} {token_payload.lastName}",
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -2,10 +2,8 @@ import asyncio
 import re
 from datetime import datetime
 
-import aiohttp
 import cloudinary
 import cloudinary.uploader
-import httpx
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
@@ -13,7 +11,6 @@ from pydantic import BaseModel
 from config import settings
 from logging_config import logger
 
-BASE_URL = settings.BE_API_URL
 DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 
@@ -126,104 +123,3 @@ def validate_match_time(v, field_name: str):
     return v
 
 
-# fetch_standings_settings has been moved to services.stats_service.StatsService.get_standings_settings()
-# This function is deprecated - import StatsService directly instead
-
-
-# calc_match_stats has been moved to services.stats_service.StatsService.calculate_match_stats()
-# This function is deprecated - import StatsService directly instead
-def calculate_match_stats(
-    match_status: str,
-    finish_type: str,
-    standings_setting: dict,
-    home_score: int = 0,
-    away_score: int = 0,
-) -> dict[str, dict]:
-    """
-    DEPRECATED: Use StatsService.calculate_match_stats() instead
-    This wrapper maintains backward compatibility
-    """
-    logger.warning(
-        "Deprecated function called - use StatsService instead",
-        extra={"function": "calculate_match_stats"},
-    )
-
-    from services.stats_service import StatsService
-
-    stats_service = StatsService()
-    return stats_service.calculate_match_stats(
-        match_status, finish_type, standings_setting, home_score, away_score
-    )
-
-
-# calc_standings_per_round has been moved to services.stats_service.StatsService.aggregate_round_standings()
-# This function is deprecated - import StatsService directly instead
-
-
-# calc_standings_per_matchday has been moved to services.stats_service.StatsService.aggregate_matchday_standings()
-# This function is deprecated - import StatsService directly instead
-
-
-async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> int:
-    if DEBUG_LEVEL > 0:
-        logger.debug("Fetching referee points...")
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
-        ) as response:
-            if response.status != 200:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Matchday {md_alias} not found for {t_alias} / {s_alias} / {r_alias}",
-                )
-            return (await response.json()).get("matchSettings").get("refereePoints")
-
-
-async def get_sys_ref_tool_token(email: str, password: str):
-    login_url = f"{settings.BE_API_URL}/users/login"
-    login_data = {"email": email, "password": password}
-    async with httpx.AsyncClient() as client:
-        login_response = await client.post(login_url, json=login_data)
-
-    if login_response.status_code != 200:
-        raise Exception(f"Error logging in: {login_response.json()}")
-    return login_response.json()["access_token"]
-
-
-# calc_roster_stats has been moved to services.stats_service.StatsService.calculate_roster_stats()
-# This function is deprecated - import StatsService directly instead
-async def calculate_roster_stats(match_id: str, team_flag: str, db) -> dict:
-    """
-    DEPRECATED: Use StatsService.calculate_roster_stats() instead
-    This wrapper maintains backward compatibility
-    """
-    logger.warning(
-        "Deprecated function called - use StatsService instead",
-        extra={"function": "calculate_roster_stats", "match_id": match_id, "team_flag": team_flag},
-    )
-
-    from services.stats_service import StatsService
-
-    stats_service = StatsService(db)
-    return asyncio.run(stats_service.calculate_roster_stats(match_id, team_flag))
-
-
-async def calculate_player_card_stats(
-    player_ids: list[str],
-    t_alias: str,
-    s_alias: str,
-    r_alias: str,
-    md_alias: str,
-    token_payload=None,
-) -> None:
-    """
-    DEPRECATED: Use StatsService.calculate_player_card_stats() instead
-
-    This is a temporary wrapper for backward compatibility.
-    """
-    from services.stats_service import StatsService
-
-    stats_service = StatsService(None)  # Assuming db is not needed here based on the original stub
-    await stats_service.calculate_player_card_stats(
-        player_ids, t_alias, s_alias, r_alias, md_alias, token_payload
-    )

@@ -3,7 +3,6 @@ import json
 import os
 from datetime import date
 
-import httpx
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
@@ -17,11 +16,12 @@ from models.assignments import AssignmentDB
 from models.matches import MatchDB
 from models.responses import PaginatedResponse
 from models.users import Club, CurrentUser, LoginBase, Role, UserBase, UserUpdate
+from services.match_service import MatchService
 from services.pagination import PaginationHelper
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = os.environ.get("BE_API_URL")
+match_service = None  # Will be initialized with MongoDB instance
 
 
 async def calculate_referee_points(mongodb, user_id):
@@ -269,6 +269,10 @@ async def get_assigned_matches(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
+    global match_service
+    if match_service is None:
+        match_service = MatchService(mongodb)
+    
     user_id = token_payload.sub
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
@@ -279,16 +283,14 @@ async def get_assigned_matches(
             details={"user_id": user_id, "user_roles": user.get("roles", [])},
         )
 
-    # Fetch matches assigned to me as referee using the GET endpoint
-    async with httpx.AsyncClient() as client:
-        current_date = date.today().strftime("%Y-%m-%d")
-        response = await client.get(
-            f"{BASE_URL}/matches/?referee={user_id}&date_from={current_date}"
-        )
-        print("response", response)
-        # Parse matches into a list of MatchDB objects
-        matches_list = [MatchDB(**match) for match in response.json()]
-        return JSONResponse(status_code=status.HTTP_200_OK, content=matches_list)
+    # Fetch matches assigned to me as referee using MatchService
+    from datetime import datetime
+    current_date = datetime.combine(date.today(), datetime.min.time())
+    matches = await match_service.get_matches_for_referee(user_id, current_date)
+    
+    # Parse matches into a list of MatchDB objects
+    matches_list = [MatchDB(**match) for match in matches]
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(matches_list))
 
 
 @router.get(
@@ -298,6 +300,10 @@ async def get_assignments(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
+    global match_service
+    if match_service is None:
+        match_service = MatchService(mongodb)
+    
     user_id = token_payload.sub
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
@@ -308,13 +314,12 @@ async def get_assignments(
             details={"user_id": user_id, "user_roles": user.get("roles", [])},
         )
 
-    # Fetch assignments assigned to me using the GET endpoint
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"{BASE_URL}/assignments/?referee={user_id}")
-        print("response", response)
-        # Parse assignments into a list of AssignmentDB objects
-        assignments_list = [AssignmentDB(**assignment) for assignment in response.json()]
-        return JSONResponse(status_code=status.HTTP_200_OK, content=assignments_list)
+    # Fetch assignments assigned to me using MatchService
+    assignments = await match_service.get_referee_assignments(user_id)
+    
+    # Parse assignments into a list of AssignmentDB objects
+    assignments_list = [AssignmentDB(**assignment) for assignment in assignments]
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(assignments_list))
 
 
 @router.get(
