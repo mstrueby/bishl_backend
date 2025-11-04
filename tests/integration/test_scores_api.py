@@ -121,21 +121,27 @@ class TestScoresAPI:
     async def test_update_score(self, client: AsyncClient, mongodb, admin_token):
         """Test updating an existing score"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        from bson import ObjectId
         
         # Setup
         match = create_test_match(status="INPROGRESS")
+        score_id = str(ObjectId())
         player = create_test_roster_player("player-1")
         match["home"]["roster"] = [player]
         match["home"]["scores"] = [{
-            "_id": "score-1",
-            "matchTime": "05:00",
-            "goalPlayer": {"playerId": "player-1"}
+            "_id": score_id,
+            "matchSeconds": 300,
+            "goalPlayer": {"playerId": "player-1", "firstName": "Test", "lastName": "Player", "jerseyNumber": 10},
+            "assistPlayer": None,
+            "isPPG": False,
+            "isSHG": False,
+            "isGWG": False
         }]
         await mongodb["matches"].insert_one(match)
         
         # Execute - Update match time
         response = await client.patch(
-            f"/matches/{match['_id']}/home/scores/score-1",
+            f"/matches/{match['_id']}/home/scores/{score_id}",
             json={"matchTime": "06:30"},
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -148,23 +154,31 @@ class TestScoresAPI:
     async def test_delete_score(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting a score with decremental stats updates"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        from bson import ObjectId
         
         # Setup - Match with score and stats
         match = create_test_match(status="INPROGRESS")
+        score_id = str(ObjectId())
         player = create_test_roster_player("player-1")
         player["goals"] = 1
         player["assists"] = 0
         player["points"] = 1
         match["home"]["roster"] = [player]
-        match["home"]["scores"] = [
-            {"_id": "score-1", "goalPlayer": {"playerId": "player-1"}}
-        ]
-        match["home"]["stats"] = {"goalsFor": 1, "goalsAgainst": 0}
+        match["home"]["scores"] = [{
+            "_id": score_id,
+            "matchSeconds": 300,
+            "goalPlayer": {"playerId": "player-1", "firstName": "Test", "lastName": "Player", "jerseyNumber": 10},
+            "assistPlayer": None,
+            "isPPG": False,
+            "isSHG": False,
+            "isGWG": False
+        }]
+        match["home"]["stats"]["goalsFor"] = 1
         await mongodb["matches"].insert_one(match)
         
         # Execute - ScoreService handles decremental stats updates
         response = await client.delete(
-            f"/matches/{match['_id']}/home/scores/score-1",
+            f"/matches/{match['_id']}/home/scores/{score_id}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         

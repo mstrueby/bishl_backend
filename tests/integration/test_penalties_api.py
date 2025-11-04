@@ -130,23 +130,28 @@ class TestPenaltiesAPI:
     async def test_update_penalty(self, client: AsyncClient, mongodb, admin_token):
         """Test updating an existing penalty"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        from bson import ObjectId
         
         # Setup
         match = create_test_match(status="INPROGRESS")
+        penalty_id = str(ObjectId())
         player = create_test_roster_player("player-1")
         match["home"]["roster"] = [player]
         match["home"]["penalties"] = [{
-            "_id": "penalty-1",
-            "matchTimeStart": "05:00",
-            "penaltyPlayer": {"playerId": "player-1"},
+            "_id": penalty_id,
+            "matchSecondsStart": 300,
+            "matchSecondsEnd": None,
+            "penaltyPlayer": {"playerId": "player-1", "firstName": "Test", "lastName": "Player", "jerseyNumber": 10},
             "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
-            "penaltyMinutes": 2
+            "penaltyMinutes": 2,
+            "isGM": False,
+            "isMP": False
         }]
         await mongodb["matches"].insert_one(match)
         
         # Execute - Update end time
         response = await client.patch(
-            f"/matches/{match['_id']}/home/penalties/penalty-1",
+            f"/matches/{match['_id']}/home/penalties/{penalty_id}",
             json={"matchTimeEnd": "07:00"},
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -159,22 +164,29 @@ class TestPenaltiesAPI:
     async def test_delete_penalty(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting a penalty with decremental penalty minute updates"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        from bson import ObjectId
         
         # Setup - Match with penalty and penalty minutes
         match = create_test_match(status="INPROGRESS")
+        penalty_id = str(ObjectId())
         player = create_test_roster_player("player-1")
         player["penaltyMinutes"] = 2
         match["home"]["roster"] = [player]
         match["home"]["penalties"] = [{
-            "_id": "penalty-1",
-            "penaltyPlayer": {"playerId": "player-1"},
-            "penaltyMinutes": 2
+            "_id": penalty_id,
+            "matchSecondsStart": 300,
+            "matchSecondsEnd": None,
+            "penaltyPlayer": {"playerId": "player-1", "firstName": "Test", "lastName": "Player", "jerseyNumber": 10},
+            "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
+            "penaltyMinutes": 2,
+            "isGM": False,
+            "isMP": False
         }]
         await mongodb["matches"].insert_one(match)
         
         # Execute - PenaltyService handles decremental penalty minute updates
         response = await client.delete(
-            f"/matches/{match['_id']}/home/penalties/penalty-1",
+            f"/matches/{match['_id']}/home/penalties/{penalty_id}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         
@@ -192,12 +204,31 @@ class TestPenaltiesAPI:
     async def test_get_penalty_sheet(self, client: AsyncClient, mongodb):
         """Test retrieving penalty sheet for a team"""
         from tests.fixtures.data_fixtures import create_test_match
+        from bson import ObjectId
         
         # Setup
         match = create_test_match(status="INPROGRESS")
         match["home"]["penalties"] = [
-            {"_id": "p1", "penaltyMinutes": 2},
-            {"_id": "p2", "penaltyMinutes": 5}
+            {
+                "_id": str(ObjectId()),
+                "matchSecondsStart": 300,
+                "matchSecondsEnd": None,
+                "penaltyPlayer": {"playerId": "player-1", "firstName": "Test", "lastName": "Player", "jerseyNumber": 10},
+                "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
+                "penaltyMinutes": 2,
+                "isGM": False,
+                "isMP": False
+            },
+            {
+                "_id": str(ObjectId()),
+                "matchSecondsStart": 600,
+                "matchSecondsEnd": None,
+                "penaltyPlayer": {"playerId": "player-2", "firstName": "Test2", "lastName": "Player2", "jerseyNumber": 20},
+                "penaltyCode": {"key": "5MIN", "label": "5 Minutes"},
+                "penaltyMinutes": 5,
+                "isGM": False,
+                "isMP": False
+            }
         ]
         await mongodb["matches"].insert_one(match)
         
@@ -212,25 +243,32 @@ class TestPenaltiesAPI:
     async def test_get_one_penalty(self, client: AsyncClient, mongodb):
         """Test retrieving a single penalty"""
         from tests.fixtures.data_fixtures import create_test_match
+        from bson import ObjectId
         
         # Setup
         match = create_test_match()
+        penalty_id = str(ObjectId())
         match["home"]["penalties"] = [{
-            "_id": "penalty-1",
-            "matchTimeStart": "10:00",
-            "penaltyMinutes": 2
+            "_id": penalty_id,
+            "matchSecondsStart": 600,
+            "matchSecondsEnd": None,
+            "penaltyPlayer": {"playerId": "player-1", "firstName": "Test", "lastName": "Player", "jerseyNumber": 10},
+            "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
+            "penaltyMinutes": 2,
+            "isGM": False,
+            "isMP": False
         }]
         await mongodb["matches"].insert_one(match)
         
         # Execute
         response = await client.get(
-            f"/matches/{match['_id']}/home/penalties/penalty-1"
+            f"/matches/{match['_id']}/home/penalties/{penalty_id}"
         )
         
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["_id"] == "penalty-1"
+        assert data["_id"] == penalty_id
         assert data["matchTimeStart"] == "10:00"
 
     async def test_create_penalty_requires_inprogress_status(self, client: AsyncClient, mongodb, admin_token):
