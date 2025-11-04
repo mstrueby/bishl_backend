@@ -1,26 +1,8 @@
+
 """Integration tests for users API endpoints"""
 import pytest
 from httpx import AsyncClient
 from datetime import datetime
-
-
-# Example of using test_isolation for proper cleanup:
-# @pytest.mark.asyncio
-# async def test_example_with_isolation(client, test_isolation):
-#     """Example showing proper test isolation"""
-#     # Create test user with unique test_id
-#     user_data = {
-#         "email": f"test_{test_isolation.id}@example.com",
-#         "firstName": "Test",
-#         "lastName": "User",
-#         "password": "TestPass123!"
-#     }
-#     
-#     response = await client.post("/users/register", json=user_data)
-#     assert response.status_code == 201
-#     
-#     # Test runs...
-#     # Cleanup happens automatically via fixture
 
 
 @pytest.mark.asyncio
@@ -58,57 +40,57 @@ class TestUsersAPI:
 
     async def test_register_duplicate_email_fails(self, client: AsyncClient, mongodb, admin_token):
         """Test registering user with existing email fails"""
-        from bson import ObjectId
-
-        # Setup - Create existing user
-        existing_user = {
-            "_id": str(ObjectId()),
+        # Setup - Create existing user via API
+        existing_user_data = {
             "email": "existing@test.com",
-            "password": "hashed",
+            "password": "SecurePass123!",
             "firstName": "Existing",
             "lastName": "User",
             "roles": []
         }
-        await mongodb["users"].insert_one(existing_user)
+        await client.post(
+            "/users/register",
+            json=existing_user_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
 
         # Execute - Try to register with same email
-        user_data = {
+        duplicate_user_data = {
             "email": "existing@test.com",
-            "password": "password",
+            "password": "DifferentPass123!",
             "firstName": "New",
             "lastName": "User"
         }
 
         response = await client.post(
             "/users/register",
-            json=user_data,
+            json=duplicate_user_data,
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert
         assert response.status_code == 409
 
-    async def test_login_success(self, client: AsyncClient, mongodb):
+    async def test_login_success(self, client: AsyncClient, admin_token):
         """Test successful user login"""
-        from authentication import AuthHandler
-        from bson import ObjectId
-
-        # Setup - Create user with hashed password
-        auth = AuthHandler()
-        user = {
-            "_id": str(ObjectId()),
-            "email": "user@test.com",
-            "password": auth.get_password_hash("TestPass123!"),
+        # Setup - Create user via API
+        user_data = {
+            "email": "loginuser@test.com",
+            "password": "TestPass123!",
             "firstName": "Test",
             "lastName": "User",
             "roles": ["REFEREE"]
         }
-        await mongodb["users"].insert_one(user)
+        await client.post(
+            "/users/register",
+            json=user_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
 
         # Execute
         response = await client.post(
             "/users/login",
-            json={"email": "user@test.com", "password": "TestPass123!"}
+            json={"email": "loginuser@test.com", "password": "TestPass123!"}
         )
 
         # Assert
@@ -116,35 +98,34 @@ class TestUsersAPI:
         data = response.json()
         assert "access_token" in data
         assert "refresh_token" in data
-        assert data["user"]["email"] == "user@test.com"
+        assert data["user"]["email"] == "loginuser@test.com"
 
-    async def test_login_wrong_password(self, client: AsyncClient, mongodb):
+    async def test_login_wrong_password(self, client: AsyncClient, admin_token):
         """Test login with wrong password fails"""
-        from authentication import AuthHandler
-        from bson import ObjectId
-
-        # Setup
-        auth = AuthHandler()
-        user = {
-            "_id": str(ObjectId()),
-            "email": "user@test.com",
-            "password": auth.get_password_hash("CorrectPassword"),
+        # Setup - Create user via API
+        user_data = {
+            "email": "wrongpwuser@test.com",
+            "password": "CorrectPassword123!",
             "firstName": "Test",
             "lastName": "User",
             "roles": []
         }
-        await mongodb["users"].insert_one(user)
+        await client.post(
+            "/users/register",
+            json=user_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
 
         # Execute
         response = await client.post(
             "/users/login",
-            json={"email": "user@test.com", "password": "WrongPassword"}
+            json={"email": "wrongpwuser@test.com", "password": "WrongPassword"}
         )
 
         # Assert
         assert response.status_code == 401
 
-    async def test_get_current_user(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_current_user(self, client: AsyncClient, admin_token):
         """Test getting current user details"""
         # Execute
         response = await client.get(
@@ -158,7 +139,7 @@ class TestUsersAPI:
         assert "email" in data
         assert "_id" in data
 
-    async def test_update_own_profile(self, client: AsyncClient, mongodb, admin_token):
+    async def test_update_own_profile(self, client: AsyncClient, admin_token):
         """Test user updating their own profile"""
         # Setup - Get current user ID from token
         from authentication import AuthHandler
@@ -178,24 +159,26 @@ class TestUsersAPI:
         data = response.json()
         assert data["firstName"] == "UpdatedName"
 
-    async def test_update_other_user_as_admin(self, client: AsyncClient, mongodb, admin_token):
+    async def test_update_other_user_as_admin(self, client: AsyncClient, admin_token):
         """Test admin updating another user"""
-        from bson import ObjectId
-
-        # Setup - Create another user
-        other_user = {
-            "_id": str(ObjectId()),
-            "email": "other@test.com",
-            "password": "hashed",
+        # Setup - Create another user via API
+        other_user_data = {
+            "email": "otheruser@test.com",
+            "password": "SecurePass123!",
             "firstName": "Other",
             "lastName": "User",
             "roles": ["REFEREE"]
         }
-        await mongodb["users"].insert_one(other_user)
+        create_response = await client.post(
+            "/users/register",
+            json=other_user_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        other_user_id = create_response.json()["user"]["_id"]
 
         # Execute
         response = await client.patch(
-            f"/users/{other_user['_id']}",
+            f"/users/{other_user_id}",
             data={"firstName": "Modified"},
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -207,36 +190,36 @@ class TestUsersAPI:
 
     async def test_get_all_referees(self, client: AsyncClient, mongodb, admin_token):
         """Test retrieving all referees"""
-        from bson import ObjectId
-
-        # CRITICAL: Clean up ALL test referees first (including old invalid data)
-        # Delete by email patterns and by invalid _id patterns
+        # Clean up any existing test referees
         await mongodb["users"].delete_many({
-            "$or": [
-                {"email": {"$in": ["ref1@test.com", "ref2@test.com"]}},
-                {"_id": {"$in": ["ref-1", "ref-2", "ref-user-1", "ref-user-2"]}},  # Old test IDs
-                {"firstName": "Ref", "lastName": {"$in": ["One", "Two"]}}  # Test data pattern
-            ]
+            "email": {"$in": ["ref1@test.com", "ref2@test.com"]}
         })
         
-        # Setup - Create referee users with valid ObjectIds
-        referee1 = {
-            "_id": str(ObjectId()),
+        # Setup - Create referee users via API
+        referee1_data = {
             "email": "ref1@test.com",
-            "password": "hashed",
+            "password": "SecurePass123!",
             "firstName": "Ref",
             "lastName": "One",
             "roles": ["REFEREE"]
         }
-        referee2 = {
-            "_id": str(ObjectId()),
+        referee2_data = {
             "email": "ref2@test.com",
-            "password": "hashed",
+            "password": "SecurePass123!",
             "firstName": "Ref",
             "lastName": "Two",
             "roles": ["REFEREE"]
         }
-        await mongodb["users"].insert_many([referee1, referee2])
+        await client.post(
+            "/users/register",
+            json=referee1_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        await client.post(
+            "/users/register",
+            json=referee2_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
 
         # Execute
         response = await client.get(
@@ -249,25 +232,26 @@ class TestUsersAPI:
         data = response.json()
         assert data["pagination"]["total_items"] >= 2
 
-    async def test_forgot_password(self, client: AsyncClient, mongodb):
+    async def test_forgot_password(self, client: AsyncClient, admin_token):
         """Test forgot password flow"""
-        from bson import ObjectId
-
-        # Setup
-        user = {
-            "_id": str(ObjectId()),
-            "email": "user@test.com",
-            "password": "hashed",
+        # Setup - Create user via API
+        user_data = {
+            "email": "forgotpw@test.com",
+            "password": "SecurePass123!",
             "firstName": "Test",
             "lastName": "User",
             "roles": []
         }
-        await mongodb["users"].insert_one(user)
+        await client.post(
+            "/users/register",
+            json=user_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
 
         # Execute
         response = await client.post(
             "/users/forgot-password",
-            json={"email": "user@test.com"}
+            json={"email": "forgotpw@test.com"}
         )
 
         # Assert
