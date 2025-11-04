@@ -3,9 +3,6 @@ import time
 from functools import wraps
 from typing import Any
 
-import aiohttp
-import httpx
-
 from config import settings
 from exceptions.custom_exceptions import (
     DatabaseOperationException,
@@ -16,8 +13,6 @@ from exceptions.custom_exceptions import (
 from logging_config import logger
 from services.performance_monitor import monitor_query
 from services.tournament_service import TournamentService
-
-BASE_URL = settings.BE_API_URL
 
 # Remove the pydantic_patch.py file as requested.
 

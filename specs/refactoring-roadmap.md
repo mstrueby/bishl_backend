@@ -208,11 +208,15 @@ faker = "^20.0.0"
    - Update `services/stats_service.py`:
      - Replace HTTP calls with `TournamentService` methods
 
-3. **Phase 3: Remove Deprecated Functions** (2-3 hours)
-   - Remove `fetch_ref_points()` from `utils.py`
-   - Remove `send_message_to_referee()` from `routers/assignments.py`
-   - Remove HTTP client usage from internal functions
-   - Update all imports
+3. **Phase 3: Remove Deprecated Functions** ✅ COMPLETE (2-3 hours)
+   - ✅ Removed deprecated wrapper functions from `utils.py`:
+     - `calculate_match_stats()`
+     - `calculate_roster_stats()`
+     - `calculate_player_card_stats()`
+   - ✅ Removed HTTP client imports (`aiohttp`, `httpx`) from `utils.py`
+   - ✅ Removed HTTP client imports from `services/stats_service.py`
+   - ✅ Removed unused `BASE_URL` constants
+   - ✅ All routers now use service layer directly (completed in Phase 2)
 
 4. **Phase 4: Testing** (4-6 hours)
    - Update unit tests to test service functions directly
