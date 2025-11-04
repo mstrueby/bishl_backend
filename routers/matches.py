@@ -2,7 +2,6 @@ import os
 from datetime import datetime, timedelta
 from typing import Any
 
-import httpx
 import isodate
 from bson import ObjectId
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
@@ -28,10 +27,9 @@ from models.matches import (
 from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.stats_service import StatsService
+from services.tournament_service import TournamentService
 from utils import (
-    fetch_ref_points,
     flatten_dict,
-    get_sys_ref_tool_token,
     my_jsonable_encoder,
     parse_time_from_seconds,
     parse_time_to_seconds,
@@ -41,7 +39,6 @@ from utils import (
 router = APIRouter()
 auth_handler = AuthHandler()
 stats_service = None  # Will be initialized with MongoDB instance
-BASE_URL = os.environ.get("BE_API_URL")
 DEBUG_LEVEL = int(os.environ.get("DEBUG_LEVEL", 0))
 
 
@@ -119,30 +116,7 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
     return MatchDB(**match)
 
 
-async def update_round_and_matchday(client, headers, t_alias, s_alias, r_alias, round_id, md_id):
-    if DEBUG_LEVEL > 0:
-        print(f"Updating round {r_alias} and matchday {md_id} for {t_alias} / {s_alias}")
 
-    # Update round dates first
-    round_response = await client.patch(
-        f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}",
-        json={},
-        headers=headers,
-        timeout=30.0,
-    )
-    if round_response.status_code not in [200, 304]:
-        print(f"WARNING: Failed to update round dates: {round_response.status_code}")
-        return
-
-    # After successful round update, update matchday
-    matchday_response = await client.patch(
-        f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_id}",
-        json={},
-        headers=headers,
-        timeout=30.0,
-    )
-    if matchday_response.status_code not in [200, 304]:
-        print(f"WARNING: Failed to update matchday dates: {matchday_response.status_code}")
 
 
 # get today's matches
@@ -628,9 +602,11 @@ async def create_match(
 
         if t_alias and s_alias and r_alias and md_alias:
             try:
-                ref_points = await fetch_ref_points(
-                    t_alias=t_alias, s_alias=s_alias, r_alias=r_alias, md_alias=md_alias
+                tournament_service = TournamentService(mongodb)
+                matchday_info = await tournament_service.get_matchday_info(
+                    t_alias, s_alias, r_alias, md_alias
                 )
+                ref_points = matchday_info.get("refPoints", 0)
                 if DEBUG_LEVEL > 20:
                     print("ref_points: ", ref_points)
                 if match.matchStatus.key in ["FINISHED", "FORFEITED"]:
@@ -638,14 +614,8 @@ async def create_match(
                         match.referee1.points = ref_points
                     if match.referee2 is not None:
                         match.referee2.points = ref_points
-            except HTTPException as e:
-                if e.status_code == 404:
-                    raise ResourceNotFoundException(
-                        resource_type="Matchday",
-                        resource_id=md_alias,
-                        details={"tournament": t_alias, "season": s_alias, "round": r_alias},
-                    ) from e
-                raise e
+            except ResourceNotFoundException:
+                raise
 
         if DEBUG_LEVEL > 20:
             print("xxx match", match)
@@ -694,10 +664,6 @@ async def create_match(
 
         # Update rounds and matchdays dates, and calc standings
         if t_alias and s_alias and r_alias and md_alias:
-            token = await get_sys_ref_tool_token(
-                email=os.environ["SYS_ADMIN_EMAIL"], password=os.environ["SYS_ADMIN_PASSWORD"]
-            )
-            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
             tournament = await mongodb["tournaments"].find_one({"alias": t_alias})
             if tournament:
                 season = next(
@@ -719,10 +685,9 @@ async def create_match(
                         )
                         if matchday_data and "_id" in matchday_data:
                             md_id = matchday_data["_id"]
-                            async with httpx.AsyncClient() as client:
-                                await update_round_and_matchday(
-                                    client, headers, t_alias, s_alias, r_alias, round_id, md_id
-                                )
+                            tournament_service = TournamentService(mongodb)
+                            await tournament_service.update_round_dates(round_id, t_alias, s_alias, r_alias)
+                            await tournament_service.update_matchday_dates(md_id, t_alias, s_alias, r_alias, md_alias)
                         else:
                             print(f"Warning: Matchday {md_alias} not found or has no ID")
                     else:
@@ -879,7 +844,9 @@ async def update_match(
     # Only update referee points if match status changed to FINISHED/FORFEITED
     if new_match_status in ["FINISHED", "FORFEITED"] and current_match_status != new_match_status:
         if t_alias and s_alias and r_alias and md_alias:
-            ref_points = await fetch_ref_points(t_alias, s_alias, r_alias, md_alias)
+            tournament_service = TournamentService(mongodb)
+            matchday_info = await tournament_service.get_matchday_info(t_alias, s_alias, r_alias, md_alias)
+            ref_points = matchday_info.get("refPoints", 0)
             if existing_match["referee1"] is not None:
                 match_data["referee1"]["points"] = ref_points
             if existing_match["referee2"] is not None:
@@ -943,10 +910,6 @@ async def update_match(
 
         # Only update round/matchday dates if date-affecting fields changed
         if date_change_detected and t_alias and s_alias and r_alias and md_alias:
-            token = await get_sys_ref_tool_token(
-                email=os.environ["SYS_ADMIN_EMAIL"], password=os.environ["SYS_ADMIN_PASSWORD"]
-            )
-            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
             tournament = await mongodb["tournaments"].find_one({"alias": t_alias})
             if tournament:
                 season = next(
@@ -968,10 +931,9 @@ async def update_match(
                         )
                         if matchday_data and "_id" in matchday_data:
                             md_id = matchday_data["_id"]
-                            async with httpx.AsyncClient() as client:
-                                await update_round_and_matchday(
-                                    client, headers, t_alias, s_alias, r_alias, round_id, md_id
-                                )
+                            tournament_service = TournamentService(mongodb)
+                            await tournament_service.update_round_dates(round_id, t_alias, s_alias, r_alias)
+                            await tournament_service.update_matchday_dates(md_id, t_alias, s_alias, r_alias, md_alias)
                         else:
                             print(f"WARNING: Matchday {md_alias} not found or has no ID")
                     else:

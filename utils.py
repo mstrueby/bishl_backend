@@ -5,7 +5,6 @@ from datetime import datetime
 import aiohttp
 import cloudinary
 import cloudinary.uploader
-import httpx
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
@@ -162,32 +161,6 @@ def calculate_match_stats(
 
 # calc_standings_per_matchday has been moved to services.stats_service.StatsService.aggregate_matchday_standings()
 # This function is deprecated - import StatsService directly instead
-
-
-async def fetch_ref_points(t_alias: str, s_alias: str, r_alias: str, md_alias: str) -> int:
-    if DEBUG_LEVEL > 0:
-        logger.debug("Fetching referee points...")
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            f"{BASE_URL}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
-        ) as response:
-            if response.status != 200:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Matchday {md_alias} not found for {t_alias} / {s_alias} / {r_alias}",
-                )
-            return (await response.json()).get("matchSettings").get("refereePoints")
-
-
-async def get_sys_ref_tool_token(email: str, password: str):
-    login_url = f"{settings.BE_API_URL}/users/login"
-    login_data = {"email": email, "password": password}
-    async with httpx.AsyncClient() as client:
-        login_response = await client.post(login_url, json=login_data)
-
-    if login_response.status_code != 200:
-        raise Exception(f"Error logging in: {login_response.json()}")
-    return login_response.json()["access_token"]
 
 
 # calc_roster_stats has been moved to services.stats_service.StatsService.calculate_roster_stats()
