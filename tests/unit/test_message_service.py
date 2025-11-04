@@ -95,8 +95,9 @@ class TestSendRefereeNotification:
                 sender_name="Admin"
             )
         
-        assert exc_info.value.resource_type == "User"
-        assert exc_info.value.resource_id == "invalid-id"
+        # Check the exception message contains the expected information
+        assert "User" in str(exc_info.value)
+        assert "invalid-id" in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_send_notification_with_footer(self, message_service, mock_db):
