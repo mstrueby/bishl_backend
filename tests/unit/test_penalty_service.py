@@ -49,6 +49,7 @@ class TestGetPenalties:
                         "matchSecondsStart": 120,
                         "matchSecondsEnd": 240,
                         "penaltyPlayer": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
+                        "penaltyCode": {"key": "B", "value": "Unerlaubter Körperangriff"}
                         "penaltyMinutes": 2
                     }
                 ]
