@@ -12,13 +12,13 @@ class TestRosterAPI:
         """Test adding a player to match roster"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_player
         
-        # Setup
+        # Setup - Direct DB insertion
         match = create_test_match(status="SCHEDULED")
         player = create_test_player("player-1")
         await mongodb["matches"].insert_one(match)
         await mongodb["players"].insert_one(player)
         
-        # Execute
+        # Execute - RosterService handles validation and DB updates
         roster_data = {
             "player": {"playerId": player["_id"]},
             "jersey": 10
@@ -30,15 +30,17 @@ class TestRosterAPI:
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         
-        # Assert
+        # Assert response
         assert response.status_code == 201
         data = response.json()
         assert data["player"]["playerId"] == player["_id"]
         assert data["jersey"] == 10
         
-        # Verify database
+        # Verify database persistence
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert len(updated["home"]["roster"]) == 1
+        assert updated["home"]["roster"][0]["player"]["playerId"] == player["_id"]
+        assert updated["home"]["roster"][0]["jersey"] == 10
 
     async def test_add_duplicate_player_fails(self, client: AsyncClient, mongodb, admin_token):
         """Test adding same player twice fails"""
@@ -125,3 +127,44 @@ class TestRosterAPI:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
+
+    async def test_update_roster_propagates_jersey_numbers(self, client: AsyncClient, mongodb, admin_token):
+        """Test that updating roster jersey numbers propagates to scores and penalties"""
+        from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        
+        # Setup - Match with roster, scores, and penalties
+        match = create_test_match(status="INPROGRESS")
+        player1 = create_test_roster_player("player-1")
+        player1["jersey"] = 10
+        player1["_id"] = "roster-1"
+        match["home"]["roster"] = [player1]
+        match["home"]["scores"] = [
+            {"_id": "s1", "goalPlayer": {"playerId": "player-1", "jersey": 10}}
+        ]
+        match["home"]["penalties"] = [
+            {"_id": "p1", "penaltyPlayer": {"playerId": "player-1", "jersey": 10}}
+        ]
+        await mongodb["matches"].insert_one(match)
+        
+        # Execute - Update roster with new jersey number
+        updated_roster = [
+            {
+                "player": {"playerId": "player-1"},
+                "jersey": 99
+            }
+        ]
+        
+        response = await client.put(
+            f"/matches/{match['_id']}/home/roster",
+            json=updated_roster,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        
+        # Assert
+        assert response.status_code == 200
+        
+        # Verify jersey numbers updated in scores and penalties
+        updated = await mongodb["matches"].find_one({"_id": match["_id"]})
+        assert updated["home"]["roster"][0]["jersey"] == 99
+        assert updated["home"]["scores"][0]["goalPlayer"]["jersey"] == 99
+        assert updated["home"]["penalties"][0]["penaltyPlayer"]["jersey"] == 99

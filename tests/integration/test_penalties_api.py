@@ -12,13 +12,14 @@ class TestPenaltiesAPI:
         """Test creating a penalty during INPROGRESS match"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
         
-        # Setup - Match with roster
+        # Setup - Match with roster and initial penalty minutes
         match = create_test_match(status="INPROGRESS")
         player = create_test_roster_player("player-1")
+        player["penaltyMinutes"] = 0
         match["home"]["roster"] = [player]
         await mongodb["matches"].insert_one(match)
         
-        # Execute
+        # Execute - PenaltyService handles incremental penalty minute updates
         penalty_data = {
             "matchTimeStart": "10:30",
             "penaltyPlayer": {"playerId": "player-1"},
@@ -42,11 +43,11 @@ class TestPenaltiesAPI:
         assert data["penaltyMinutes"] == 2
         assert "_id" in data
         
-        # Verify database
+        # Verify database persistence
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert len(updated["home"]["penalties"]) == 1
         
-        # Verify roster penalty minutes updated
+        # Verify roster penalty minutes incremented
         roster_player = updated["home"]["roster"][0]
         assert roster_player["penaltyMinutes"] == 2
 
@@ -156,10 +157,10 @@ class TestPenaltiesAPI:
         assert data["matchTimeEnd"] == "07:00"
 
     async def test_delete_penalty(self, client: AsyncClient, mongodb, admin_token):
-        """Test deleting a penalty"""
+        """Test deleting a penalty with decremental penalty minute updates"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
         
-        # Setup
+        # Setup - Match with penalty and penalty minutes
         match = create_test_match(status="INPROGRESS")
         player = create_test_roster_player("player-1")
         player["penaltyMinutes"] = 2
@@ -171,7 +172,7 @@ class TestPenaltiesAPI:
         }]
         await mongodb["matches"].insert_one(match)
         
-        # Execute
+        # Execute - PenaltyService handles decremental penalty minute updates
         response = await client.delete(
             f"/matches/{match['_id']}/home/penalties/penalty-1",
             headers={"Authorization": f"Bearer {admin_token}"}
@@ -180,7 +181,7 @@ class TestPenaltiesAPI:
         # Assert
         assert response.status_code == 204
         
-        # Verify database
+        # Verify database - penalty removed
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert len(updated["home"]["penalties"]) == 0
         
@@ -231,3 +232,31 @@ class TestPenaltiesAPI:
         data = response.json()
         assert data["_id"] == "penalty-1"
         assert data["matchTimeStart"] == "10:00"
+
+    async def test_create_penalty_requires_inprogress_status(self, client: AsyncClient, mongodb, admin_token):
+        """Test that penalties can only be created during INPROGRESS matches"""
+        from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        
+        # Setup - FINISHED match
+        match = create_test_match(status="FINISHED")
+        player = create_test_roster_player("player-1")
+        match["home"]["roster"] = [player]
+        await mongodb["matches"].insert_one(match)
+        
+        # Execute
+        penalty_data = {
+            "matchTimeStart": "10:30",
+            "penaltyPlayer": {"playerId": "player-1"},
+            "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
+            "penaltyMinutes": 2
+        }
+        
+        response = await client.post(
+            f"/matches/{match['_id']}/home/penalties",
+            json=penalty_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        
+        # Assert - Should fail because match is not INPROGRESS
+        assert response.status_code == 400
+        assert "inprogress" in response.json()["error"]["message"].lower()

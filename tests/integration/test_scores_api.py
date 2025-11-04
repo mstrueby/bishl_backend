@@ -12,13 +12,17 @@ class TestScoresAPI:
         """Test creating a score during INPROGRESS match"""
         from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
         
-        # Setup - Match with roster
+        # Setup - Match with roster and initial stats
         match = create_test_match(status="INPROGRESS")
         player = create_test_roster_player("player-1")
+        player["goals"] = 0
+        player["assists"] = 0
+        player["points"] = 0
         match["home"]["roster"] = [player]
+        match["home"]["stats"] = {"goalsFor": 0, "goalsAgainst": 0}
         await mongodb["matches"].insert_one(match)
         
-        # Execute
+        # Execute - ScoreService handles incremental stats updates
         score_data = {
             "matchTime": "10:30",
             "goalPlayer": {"playerId": "player-1"}
@@ -37,10 +41,15 @@ class TestScoresAPI:
         assert data["goalPlayer"]["playerId"] == "player-1"
         assert "_id" in data
         
-        # Verify database
+        # Verify database - incremental stats updates
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert len(updated["home"]["scores"]) == 1
         assert updated["home"]["stats"]["goalsFor"] == 1
+        
+        # Verify roster stats incremented
+        roster_player = updated["home"]["roster"][0]
+        assert roster_player["goals"] == 1
+        assert roster_player["points"] == 1
 
     async def test_create_score_with_assist(self, client: AsyncClient, mongodb, admin_token):
         """Test creating a score with assist player"""
@@ -137,16 +146,23 @@ class TestScoresAPI:
         assert data["matchTime"] == "06:30"
 
     async def test_delete_score(self, client: AsyncClient, mongodb, admin_token):
-        """Test deleting a score"""
-        from tests.fixtures.data_fixtures import create_test_match
+        """Test deleting a score with decremental stats updates"""
+        from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
         
-        # Setup
+        # Setup - Match with score and stats
         match = create_test_match(status="INPROGRESS")
-        match["home"]["scores"] = [{"_id": "score-1"}]
-        match["home"]["stats"] = {"goalsFor": 1}
+        player = create_test_roster_player("player-1")
+        player["goals"] = 1
+        player["assists"] = 0
+        player["points"] = 1
+        match["home"]["roster"] = [player]
+        match["home"]["scores"] = [
+            {"_id": "score-1", "goalPlayer": {"playerId": "player-1"}}
+        ]
+        match["home"]["stats"] = {"goalsFor": 1, "goalsAgainst": 0}
         await mongodb["matches"].insert_one(match)
         
-        # Execute
+        # Execute - ScoreService handles decremental stats updates
         response = await client.delete(
             f"/matches/{match['_id']}/home/scores/score-1",
             headers={"Authorization": f"Bearer {admin_token}"}
@@ -155,10 +171,15 @@ class TestScoresAPI:
         # Assert
         assert response.status_code == 204
         
-        # Verify database
+        # Verify database - decremental stats updates
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert len(updated["home"]["scores"]) == 0
         assert updated["home"]["stats"]["goalsFor"] == 0
+        
+        # Verify roster stats decremented
+        roster_player = updated["home"]["roster"][0]
+        assert roster_player["goals"] == 0
+        assert roster_player["points"] == 0
 
     async def test_unauthorized_create_score(self, client: AsyncClient, mongodb):
         """Test creating score without auth fails"""
@@ -173,3 +194,29 @@ class TestScoresAPI:
         )
         
         assert response.status_code == 401
+
+    async def test_create_score_requires_inprogress_status(self, client: AsyncClient, mongodb, admin_token):
+        """Test that scores can only be created during INPROGRESS matches"""
+        from tests.fixtures.data_fixtures import create_test_match, create_test_roster_player
+        
+        # Setup - SCHEDULED match
+        match = create_test_match(status="SCHEDULED")
+        player = create_test_roster_player("player-1")
+        match["home"]["roster"] = [player]
+        await mongodb["matches"].insert_one(match)
+        
+        # Execute
+        score_data = {
+            "matchTime": "10:30",
+            "goalPlayer": {"playerId": "player-1"}
+        }
+        
+        response = await client.post(
+            f"/matches/{match['_id']}/home/scores",
+            json=score_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        
+        # Assert - Should fail because match is not INPROGRESS
+        assert response.status_code == 400
+        assert "inprogress" in response.json()["error"]["message"].lower()
