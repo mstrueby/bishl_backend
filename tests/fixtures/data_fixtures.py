@@ -49,8 +49,8 @@ def create_test_tournament():
         "active": True,
         "seasons": [
             {
-                "name": "2025",
-                "alias": "2025",
+                "name": "2024",
+                "alias": "2024",
                 "published": True,
                 "standingsSettings": {
                     "pointsWinReg": 3,

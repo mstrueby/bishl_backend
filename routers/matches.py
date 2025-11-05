@@ -618,7 +618,7 @@ async def create_match(
                 raise
 
         if DEBUG_LEVEL > 20:
-            print("xxx match", match)
+            print("match: ", match)
         match_data = my_jsonable_encoder(match)
         match_data = convert_times_to_seconds(match_data)
 
@@ -647,7 +647,7 @@ async def create_match(
                 ) from e
 
         if DEBUG_LEVEL > 0:
-            print("xxx match_data: ", match_data)
+            print("match_data: ", match_data)
 
         # add match to collection matches
         try:
@@ -693,18 +693,14 @@ async def create_match(
                     else:
                         print(f"Warning: Round {r_alias} not found or has no ID")
 
-        if DEBUG_LEVEL > 0:
-            print("calc_roster_stats (home) ...")
         stats_service = StatsService(mongodb)
         await stats_service.calculate_roster_stats(result.inserted_id, "home")
-        if DEBUG_LEVEL > 0:
-            print("calc_roster_stats (away) ...")
         await stats_service.calculate_roster_stats(result.inserted_id, "away")
 
         # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
         # Player stats will be calculated when match status changes to FINISHED
         if DEBUG_LEVEL > 0:
-            print("Match created - player card stats will be calculated when match finishes")
+            logger.debug("Match created - player card stats will be calculated when match finishes")
 
         # return complete match document
         new_match = await get_match_object(mongodb, result.inserted_id)
