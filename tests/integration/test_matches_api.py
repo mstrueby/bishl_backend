@@ -180,7 +180,7 @@ class TestMatchesAPI:
             json={"matchStatus": {"key": "INPROGRESS"}}
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 403
 
     async def test_finish_match_updates_stats(self, client: AsyncClient, mongodb, admin_token):
         """Test finishing match calculates and stores stats"""
