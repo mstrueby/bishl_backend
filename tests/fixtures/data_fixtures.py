@@ -289,7 +289,7 @@ def create_test_player(test_id: str = None, **overrides) -> Dict[str, Any]:
         "displayLastName": "Player",
         "birthdate": datetime(2008, 1, 1),
         "nationality": "deutsch",
-        "position": "SKATER",
+        "position": "Skater",
         "sex": "männlich",
         "fullFaceReq": False,
         "managedByISHD": True,

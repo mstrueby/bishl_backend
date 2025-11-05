@@ -246,4 +246,4 @@ class TestPlayersAPI:
         
         response = await client.get(f"/players/{player['_id']}")
         
-        assert response.status_code == 401
+        assert response.status_code == 403
