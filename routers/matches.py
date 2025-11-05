@@ -74,7 +74,7 @@ def convert_seconds_to_times(data):
                 penalty["matchTimeEnd"] = parse_time_from_seconds(penalty["matchSecondsEnd"])
     for penalty in data.get("away", {}).get("penalties") or []:
         if penalty is not None:
-            penalty["matchTimeStart"] = parse_time_to_seconds(penalty["matchSecondsStart"])
+            penalty["matchTimeStart"] = parse_time_from_seconds(penalty["matchSecondsStart"])
             if penalty.get("matchSecondsEnd") is not None:
                 penalty["matchTimeEnd"] = parse_time_from_seconds(penalty["matchSecondsEnd"])
     if DEBUG_LEVEL > 100:
