@@ -305,8 +305,8 @@ class TestMatchesAPI:
         match2["season"] = {"alias": test_season, "name": "2024/25"}
         await mongodb["matches"].insert_many([match1, match2])
 
-        # Execute with explicit season
-        response = await client.get(f"/matches?tournament_alias=league-a&season={test_season}")
+        # Execute with explicit season - use 'tournament' not 'tournament_alias'
+        response = await client.get(f"/matches?tournament=league-a&season={test_season}")
 
         # Assert
         assert response.status_code == 200
