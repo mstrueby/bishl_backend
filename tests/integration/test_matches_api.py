@@ -134,24 +134,18 @@ class TestMatchesAPI:
 
     async def test_update_match_status(self, client: AsyncClient, mongodb, admin_token):
         """Test updating match status"""
-        from tests.fixtures.data_fixtures import create_test_match
+        from tests.fixtures.data_fixtures import create_test_match, create_test_tournament
 
-        # Setup - Insert tournament with standings settings
-        tournament = {
-            "alias": "test-league",
-            "name": "Test League",
-            "seasons": [{
-                "alias": "2024",
-                "standingsSettings": {
-                    "pointsWinReg": 3,
-                    "pointsLossReg": 0,
-                    "pointsDrawReg": 1,
-                    "pointsWinOvertime": 2,
-                    "pointsLossOvertime": 1,
-                    "pointsWinShootout": 2,
-                    "pointsLossShootout": 1
-                }
-            }]
+        # Setup - Insert tournament with standings settings that matches create_test_match
+        tournament = create_test_tournament()
+        tournament["seasons"][0]["standingsSettings"] = {
+            "pointsWinReg": 3,
+            "pointsLossReg": 0,
+            "pointsDrawReg": 1,
+            "pointsWinOvertime": 2,
+            "pointsLossOvertime": 1,
+            "pointsWinShootout": 2,
+            "pointsLossShootout": 1
         }
         await mongodb["tournaments"].insert_one(tournament)
 
