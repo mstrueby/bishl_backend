@@ -1,7 +1,7 @@
 
 """Unit tests for RosterService"""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from services.roster_service import RosterService
 from exceptions import (
     ValidationException,
@@ -272,7 +272,7 @@ class TestUpdateRoster:
             )
         ]
         
-        with pytest.mock.patch('services.roster_service.populate_event_player_fields', new_callable=AsyncMock):
+        with patch('services.roster_service.populate_event_player_fields', new_callable=AsyncMock):
             result = await roster_service.update_roster(
                 match_id, "home", new_roster, user_roles=["ADMIN"]
             )
@@ -321,7 +321,7 @@ class TestUpdateRoster:
             )
         ]
         
-        with pytest.mock.patch('services.roster_service.populate_event_player_fields', new_callable=AsyncMock):
+        with patch('services.roster_service.populate_event_player_fields', new_callable=AsyncMock):
             with pytest.raises(DatabaseOperationException):
                 await roster_service.update_roster(
                     match_id, "home", new_roster, user_roles=["ADMIN"]
