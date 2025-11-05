@@ -285,8 +285,10 @@ def create_test_player(test_id: str = None, **overrides) -> Dict[str, Any]:
         "playerId": f"player_{test_id}",
         "firstName": "Test",
         "lastName": "Player",
+        "displayFirstName": "Test",
+        "displayLastName": "Player","
         "playerNumber": hash(test_id) % 100,
-        "sex": "M",
+        "sex": "männlich",
         "published": True,
         "createdAt": datetime.utcnow(),
         "updatedAt": datetime.utcnow(),
