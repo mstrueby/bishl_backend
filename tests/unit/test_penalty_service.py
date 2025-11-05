@@ -301,12 +301,12 @@ class TestUpdatePenalty:
 
         penalty_update = PenaltiesUpdate(matchTimeEnd="12:00")
 
-        with patch.object(penalty_service.stats_service, 'calculate_roster_stats', new_callable=AsyncMock):
+        with patch.object(penalty_service.stats_service, 'calculate_roster_stats', new_callable=AsyncMock) as mock_calculate_stats:
             with patch.object(penalty_service, 'get_penalty_by_id', new_callable=AsyncMock):
                 await penalty_service.update_penalty(match_id, "home", "penalty-1", penalty_update)
 
-        # Verify recalculation was triggered
-        penalty_service.stats_service.calculate_roster_stats.assert_called_once()
+            # Verify recalculation was triggered
+            mock_calculate_stats.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_update_penalty_no_changes(self, penalty_service, mock_db):
