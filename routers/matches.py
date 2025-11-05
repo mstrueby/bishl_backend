@@ -529,7 +529,7 @@ async def get_match(
 
 
 # create new match
-@router.post("/", response_description="Add new match", response_model=StandardResponse[MatchDB])
+@router.post("", response_description="Add new match", response_model=StandardResponse[MatchDB])
 async def create_match(
     request: Request,
     match: MatchBase = Body(...),
@@ -999,7 +999,16 @@ async def update_match(
 
 
 # delete match
-@router.delete("/{match_id}", response_description="Delete match", response_model=DeleteResponse)
+@router.delete(
+    "/{match_id}",
+    response_description="Delete match",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        204: {"description": "Match deleted successfully"},
+        404: {"description": "Match not found"},
+        403: {"description": "Not authorized"}
+    }
+)
 async def delete_match(
     request: Request,
     match_id: str,

@@ -40,7 +40,7 @@ from models.players import (
     SexEnum,
     SourceEnum,
 )
-from models.responses import PaginatedResponse
+from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.performance_monitor import monitor_query
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
@@ -1275,7 +1275,7 @@ async def get_players_for_team(
 
 # GET ALL PLAYERS
 # -------------------
-@router.get("/", response_description="Get all players", response_model=PaginatedResponse[PlayerDB])
+@router.get("", response_description="Get all players", response_model=PaginatedResponse[PlayerDB])
 async def get_players(
     request: Request,
     search: str | None = Query(None, description="Search by name"),
@@ -1337,7 +1337,7 @@ async def get_players(
 
 # GET ONE PLAYER
 # --------------------
-@router.get("/{id}", response_description="Get a player by ID", response_model=PlayerDB)
+@router.get("/{id}", response_description="Get a player by ID", response_model=StandardResponse[PlayerDB])
 async def get_player(
     id: str, request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
@@ -1345,14 +1345,22 @@ async def get_player(
     player = await mongodb["players"].find_one({"_id": id})
     if player is None:
         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+    
     return JSONResponse(
-        status_code=status.HTTP_200_OK, content=jsonable_encoder(PlayerDB(**player))
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(
+            StandardResponse(
+                success=True,
+                data=PlayerDB(**player),
+                message="Player retrieved successfully"
+            )
+        )
     )
 
 
 # CREATE NEW PLAYER
 # ----------------------
-@router.post("/", response_description="Add new player", response_model=PlayerDB)
+@router.post("", response_description="Add new player", response_model=StandardResponse[PlayerDB])
 async def create_player(
     request: Request,
     firstName: str = Form(...),
@@ -1434,7 +1442,13 @@ async def create_player(
             logger.info(f"Player created successfully: {player_id}")
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(PlayerDB(**created_player)),
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=PlayerDB(**created_player),
+                        message="Player created successfully"
+                    )
+                ),
             )
         else:
             raise DatabaseOperationException(
@@ -1451,7 +1465,7 @@ async def create_player(
 
 # UPDATE PLAYER
 # ----------------------
-@router.patch("/{id}", response_description="Update player", response_model=PlayerDB)
+@router.patch("/{id}", response_description="Update player", response_model=StandardResponse[PlayerDB])
 async def update_player(
     request: Request,
     id: str,
@@ -1562,7 +1576,14 @@ async def update_player(
             updated_player = await mongodb["players"].find_one({"_id": id})
             logger.info(f"Player updated successfully: {id}")
             return JSONResponse(
-                status_code=status.HTTP_200_OK, content=jsonable_encoder(PlayerDB(**updated_player))
+                status_code=status.HTTP_200_OK,
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=PlayerDB(**updated_player),
+                        message="Player updated successfully"
+                    )
+                )
             )
         raise DatabaseOperationException(
             operation="update_one",
@@ -1578,7 +1599,16 @@ async def update_player(
 
 # DELETE PLAYER
 # ----------------------
-@router.delete("/{id}", response_description="Delete a player by ID")
+@router.delete(
+    "/{id}",
+    response_description="Delete a player by ID",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        204: {"description": "Player deleted successfully"},
+        404: {"description": "Player not found"},
+        403: {"description": "Not authorized"}
+    }
+)
 async def delete_player(
     request: Request, id: str, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> Response:
