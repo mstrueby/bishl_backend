@@ -270,12 +270,18 @@ class TestMatchesAPI:
         """Test listing matches with pagination"""
         from tests.fixtures.data_fixtures import create_test_match
 
-        # Setup - Insert multiple matches
+        # Setup - Insert multiple matches with explicit season
         matches = [create_test_match() for _ in range(5)]
+        
+        # Ensure all matches have the same season for consistent querying
+        test_season = "2024-25"
+        for match in matches:
+            match["season"] = {"alias": test_season, "name": "2024/25"}
+        
         await mongodb["matches"].insert_many(matches)
 
-        # Execute - Get first page
-        response = await client.get("/matches?page=1&page_size=3")
+        # Execute - Get first page with explicit season parameter
+        response = await client.get(f"/matches?page=1&page_size=3&season={test_season}")
 
         # Assert
         assert response.status_code == 200
@@ -290,14 +296,17 @@ class TestMatchesAPI:
         from tests.fixtures.data_fixtures import create_test_match
 
         # Setup - Matches from different tournaments
+        test_season = "2024-25"
         match1 = create_test_match()
-        match1["tournament"] = {"alias": "league-a"}
+        match1["tournament"] = {"alias": "league-a", "name": "League A"}
+        match1["season"] = {"alias": test_season, "name": "2024/25"}
         match2 = create_test_match()
-        match2["tournament"] = {"alias": "league-b"}
+        match2["tournament"] = {"alias": "league-b", "name": "League B"}
+        match2["season"] = {"alias": test_season, "name": "2024/25"}
         await mongodb["matches"].insert_many([match1, match2])
 
-        # Execute
-        response = await client.get("/matches?tournament_alias=league-a")
+        # Execute with explicit season
+        response = await client.get(f"/matches?tournament_alias=league-a&season={test_season}")
 
         # Assert
         assert response.status_code == 200
