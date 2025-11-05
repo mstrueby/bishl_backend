@@ -34,7 +34,6 @@ class TestPlayersAPI:
             "displayFirstName": "John",
             "displayLastName": "Doe",
             "nationality": "deutsch",
-            "position": "SKATER",
             "sex": "männlich",
             "fullFaceReq": "false",
             "managedByISHD": "false",
