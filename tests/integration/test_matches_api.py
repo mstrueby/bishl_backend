@@ -144,7 +144,7 @@ class TestMatchesAPI:
         # Execute - Start match
         response = await client.patch(
             f"/matches/{match['_id']}",
-            json={"matchStatus": {"key": "INPROGRESS"}},
+            json={"matchStatus": {"key": "INPROGRESS", "value": "Live"}},
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         
