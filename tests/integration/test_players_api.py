@@ -26,10 +26,7 @@ class TestPlayersAPI:
         }
         await mongodb["clubs"].insert_one(club)
         
-        # Execute - Create player with multipart form data
-        import io
-        from httpx import AsyncClient
-        
+        # Execute - Create player with form data
         player_data = {
             "firstName": "John",
             "lastName": "Doe",
@@ -38,7 +35,7 @@ class TestPlayersAPI:
             "displayLastName": "Doe",
             "nationality": "deutsch",
             "position": "SKATER",
-            "sex": "MALE",
+            "sex": "männlich",
             "fullFaceReq": "false",
             "managedByISHD": "false",
             "source": "BISHL"
@@ -53,12 +50,13 @@ class TestPlayersAPI:
         # Assert response
         assert response.status_code == 201
         data = response.json()
-        assert data["firstName"] == "John"
-        assert data["lastName"] == "Doe"
-        assert "_id" in data
+        assert data["success"] is True
+        assert data["data"]["firstName"] == "John"
+        assert data["data"]["lastName"] == "Doe"
+        assert "_id" in data["data"]
         
         # Verify database
-        player_in_db = await mongodb["players"].find_one({"_id": data["_id"]})
+        player_in_db = await mongodb["players"].find_one({"_id": data["data"]["_id"]})
         assert player_in_db is not None
         assert player_in_db["firstName"] == "John"
 
@@ -82,8 +80,9 @@ class TestPlayersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["_id"] == player["_id"]
-        assert data["firstName"] == "Jane"
+        assert data["success"] is True
+        assert data["data"]["_id"] == player["_id"]
+        assert data["data"]["firstName"] == "Jane"
 
     async def test_get_player_not_found(self, client: AsyncClient, admin_token):
         """Test retrieving non-existent player returns 404"""
@@ -107,7 +106,7 @@ class TestPlayersAPI:
         player["birthdate"] = datetime(2008, 1, 1)
         await mongodb["players"].insert_one(player)
         
-        # Execute - Update first name
+        # Execute - Update first name using form data
         response = await client.patch(
             f"/players/{player['_id']}",
             data={"firstName": "Updated"},
@@ -117,7 +116,8 @@ class TestPlayersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["firstName"] == "Updated"
+        assert data["success"] is True
+        assert data["data"]["firstName"] == "Updated"
         
         # Verify database
         updated = await mongodb["players"].find_one({"_id": player["_id"]})
@@ -174,7 +174,8 @@ class TestPlayersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] >= 1
+        assert data["success"] is True
+        assert data["pagination"]["total_items"] >= 1
 
     async def test_get_players_for_team(self, client: AsyncClient, mongodb, admin_token):
         """Test retrieving players for a specific team"""
@@ -206,7 +207,8 @@ class TestPlayersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] >= 1
+        assert data["success"] is True
+        assert data["pagination"]["total_items"] >= 1
 
     async def test_search_players(self, client: AsyncClient, mongodb, admin_token):
         """Test searching players by name"""
@@ -230,9 +232,10 @@ class TestPlayersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["total_count"] >= 1
+        assert data["success"] is True
+        assert data["pagination"]["total_items"] >= 1
         # Should contain Michael but not LeBron
-        items = data["items"]
+        items = data["data"]
         assert any(p["firstName"] == "Michael" for p in items)
 
     async def test_unauthorized_access(self, client: AsyncClient, mongodb):
