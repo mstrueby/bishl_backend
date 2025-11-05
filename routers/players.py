@@ -1275,7 +1275,7 @@ async def get_players_for_team(
 
 # GET ALL PLAYERS
 # -------------------
-@router.get("/", response_description="Get all players", response_model=PaginatedResponse[PlayerDB])
+@router.get("", response_description="Get all players", response_model=PaginatedResponse[PlayerDB])
 async def get_players(
     request: Request,
     search: str | None = Query(None, description="Search by name"),
@@ -1360,7 +1360,7 @@ async def get_player(
 
 # CREATE NEW PLAYER
 # ----------------------
-@router.post("/", response_description="Add new player", response_model=StandardResponse[PlayerDB])
+@router.post("", response_description="Add new player", response_model=StandardResponse[PlayerDB])
 async def create_player(
     request: Request,
     firstName: str = Form(...),

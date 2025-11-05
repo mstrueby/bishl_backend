@@ -529,7 +529,7 @@ async def get_match(
 
 
 # create new match
-@router.post("/", response_description="Add new match", response_model=StandardResponse[MatchDB])
+@router.post("", response_description="Add new match", response_model=StandardResponse[MatchDB])
 async def create_match(
     request: Request,
     match: MatchBase = Body(...),
