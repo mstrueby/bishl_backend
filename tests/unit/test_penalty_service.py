@@ -8,7 +8,7 @@ from exceptions import (
     DatabaseOperationException,
 )
 from bson import ObjectId
-from models.matches import PenaltiesBase, PenaltiesU EventPlayer
+from models.matches import PenaltiesBase, PenaltiesUpdate, EventPlayer
 
 @pytest.fixture
 def mock_db():
