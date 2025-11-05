@@ -704,8 +704,11 @@ async def create_match(
 
         # return complete match document
         new_match = await get_match_object(mongodb, result.inserted_id)
-        return StandardResponse(
+        response = StandardResponse(
             success=True, data=new_match, message="Match created successfully"
+        )
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED, content=jsonable_encoder(response)
         )
 
     except Exception as e:
