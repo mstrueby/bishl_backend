@@ -92,14 +92,14 @@ class TestMatchesAPI:
 
         # Assert response
         assert response.status_code == 201
-        data = response.json()
-        assert data["matchId"] == 1001
-        assert data["matchStatus"]["key"] == "SCHEDULED"
-        assert data["home"]["teamId"] == home_team_id
-        assert data["away"]["teamId"] == away_team_id
+        match_response = response.json()
+        assert match_response["data"]["matchId"] == 1001
+        assert match_response["data"]["matchStatus"]["key"] == "SCHEDULED"
+        assert match_response["data"]["home"]["teamId"] == home_team_id
+        assert match_response["data"]["away"]["teamId"] == away_team_id
 
         # Assert database - verify match was created with calculated stats
-        match_in_db = await mongodb["matches"].find_one({"_id": data["_id"]})
+        match_in_db = await mongodb["matches"].find_one({"_id": match_response["data"]["_id"]})
         assert match_in_db is not None
         assert match_in_db["matchId"] == 1001
         assert "stats" in match_in_db["home"]
@@ -162,7 +162,7 @@ class TestMatchesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["matchStatus"]["key"] == "INPROGRESS"
+        assert data["data"]["matchStatus"]["key"] == "INPROGRESS"
 
         # Verify in database
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
@@ -201,8 +201,45 @@ class TestMatchesAPI:
 
         # Create match in progress with scores
         match = create_test_match(status="INPROGRESS")
-        match["home"]["scores"] = [{"_id": "s1"}, {"_id": "s2"}]
-        match["away"]["scores"] = [{"_id": "s3"}]
+        match["home"]["scores"] = [
+            {
+                "_id": str(ObjectId()),
+                "matchTime": "00:10",
+                "matchSeconds": 10,
+                "goalPlayer": {
+                    "playerId": "p1",
+                    "firstName": "John",
+                    "lastName": "Doe"
+                },
+                "assistPlayer": {
+                    "playerId": "p2",
+                    "firstName": "Jane",
+                    "lastName": "Doe"
+                }
+            },
+            {
+                "_id": str(ObjectId()),
+                "matchTime": "00:20",
+                "matchSeconds": 20,
+                "goalPlayer": {
+                    "playerId": "p3",
+                    "firstName": "Alice",
+                    "lastName": "Smith"
+                }
+            }
+        ]
+        match["away"]["scores"] = [
+            {
+                "_id": str(ObjectId()),
+                "matchTime": "00:15",
+                "matchSeconds": 15,
+                "goalPlayer": {
+                    "playerId": "p4",
+                    "firstName": "Bob",
+                    "lastName": "Smith"
+                }
+            }
+        ]
         match["home"]["stats"] = {"goalsFor": 2, "goalsAgainst": 1}
         match["away"]["stats"] = {"goalsFor": 1, "goalsAgainst": 2}
         await mongodb["matches"].insert_one(match)
@@ -211,8 +248,8 @@ class TestMatchesAPI:
         response = await client.patch(
             f"/matches/{match['_id']}",
             json={
-                "matchStatus": {"key": "FINISHED"},
-                "finishType": {"key": "REGULAR"}
+                "matchStatus": {"key": "FINISHED", "value":"beendet"},
+                "finishType": {"key": "REGULAR", "value": "Regulär"}
             },
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -220,7 +257,7 @@ class TestMatchesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["matchStatus"]["key"] == "FINISHED"
+        assert data["data"]["matchStatus"]["key"] == "FINISHED"
 
         # Verify stats were calculated correctly
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
@@ -243,10 +280,10 @@ class TestMatchesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert len(data["items"]) == 3
-        assert data["page"] == 1
-        assert data["total_items"] == 5
-        assert data["total_pages"] == 2
+        assert len(data["data"]) == 3
+        assert data["pagination"]["page"] == 1
+        assert data["pagination"]["total_items"] == 5
+        assert data["pagination"]["total_pages"] == 2
 
     async def test_list_matches_filter_by_tournament(self, client: AsyncClient, mongodb):
         """Test filtering matches by tournament"""
@@ -265,8 +302,8 @@ class TestMatchesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert len(data["items"]) == 1
-        assert data["items"][0]["tournament"]["alias"] == "league-a"
+        assert len(data["data"]) == 1
+        assert data["data"][0]["tournament"]["alias"] == "league-a"
 
     async def test_delete_match(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting a match"""
