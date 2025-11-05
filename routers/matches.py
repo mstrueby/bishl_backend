@@ -24,7 +24,7 @@ from models.matches import (
     MatchTeamUpdate,
     MatchUpdate,
 )
-from models.responses import PaginatedResponse, StandardResponse
+from models.responses import DeleteResponse, PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.stats_service import StatsService
 from services.tournament_service import TournamentService
@@ -529,12 +529,12 @@ async def get_match(
 
 
 # create new match
-@router.post("/", response_description="Add new match", response_model=MatchDB)
+@router.post("/", response_description="Add new match", response_model=StandardResponse[MatchDB])
 async def create_match(
     request: Request,
     match: MatchBase = Body(...),
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
-) -> JSONResponse:
+) -> StandardResponse[MatchDB]:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
@@ -704,8 +704,8 @@ async def create_match(
 
         # return complete match document
         new_match = await get_match_object(mongodb, result.inserted_id)
-        return JSONResponse(
-            status_code=status.HTTP_201_CREATED, content=jsonable_encoder(new_match)
+        return StandardResponse(
+            success=True, data=new_match, message="Match created successfully"
         )
 
     except Exception as e:
@@ -713,13 +713,13 @@ async def create_match(
 
 
 # ------ update match
-@router.patch("/{match_id}", response_description="Update match", response_model=MatchDB)
+@router.patch("/{match_id}", response_description="Update match", response_model=StandardResponse[MatchDB])
 async def update_match(
     request: Request,
     match_id: str,
     match: MatchUpdate = Body(...),
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
-):
+) -> StandardResponse[MatchDB] | Response:
     mongodb = request.app.state.mongodb
     if not any(role in token_payload.roles for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
         raise AuthorizationException(
@@ -992,16 +992,16 @@ async def update_match(
             f"Match updated - {change_type} change detected for match {match_id}{player_calc_note}"
         )
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(updated_match))
+    return StandardResponse(success=True, data=updated_match, message="Match updated successfully")
 
 
 # delete match
-@router.delete("/{match_id}", response_description="Delete match")
+@router.delete("/{match_id}", response_description="Delete match", response_model=DeleteResponse)
 async def delete_match(
     request: Request,
     match_id: str,
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
-) -> Response:
+) -> DeleteResponse:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
@@ -1085,7 +1085,7 @@ async def delete_match(
                 player_ids, t_alias, s_alias, r_alias, md_alias, token_payload
             )
 
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        return DeleteResponse(success=True, deleted_count=1, message="Match deleted successfully")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
