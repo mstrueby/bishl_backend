@@ -1004,7 +1004,7 @@ async def delete_match(
     request: Request,
     match_id: str,
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
-) -> DeleteResponse:
+) -> Response:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
@@ -1088,7 +1088,7 @@ async def delete_match(
                 player_ids, t_alias, s_alias, r_alias, md_alias, token_payload
             )
 
-        return DeleteResponse(success=True, deleted_count=1, message="Match deleted successfully")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
