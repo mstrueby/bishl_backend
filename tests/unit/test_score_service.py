@@ -40,12 +40,14 @@ class TestGetScores:
     @pytest.mark.asyncio
     async def test_get_scores_success(self, score_service, mock_db):
         """Test successful scores retrieval"""
+        from bson import ObjectId
+        
         test_match = {
             "_id": "match-1",
             "home": {
                 "scores": [
                     {
-                        "_id": "score-1",
+                        "_id": str(ObjectId()),
                         "matchSeconds": 630,
                         "goalPlayer": {"playerId": "p1", "firstName": "John", "lastName": "Doe"}
                     }
@@ -166,9 +168,10 @@ class TestCreateScore:
     async def test_create_score_success(self, score_service, mock_db):
         """Test successful score creation with incremental updates"""
         from models.matches import ScoresBase, EventPlayer
+        from bson import ObjectId
         
         test_match = {
-            "_id": "match-1",
+            "_id": str(ObjectId()),
             "matchStatus": {"key": "INPROGRESS"},
             "tournament": {"alias": "test-tournament"},
             "season": {"alias": "test-season"},
@@ -193,10 +196,12 @@ class TestCreateScore:
             assistPlayer=EventPlayer(playerId="p2", firstName="Jane", lastName="Doe")
         )
         
+        match_id = test_match["_id"]
+        
         with patch.object(score_service.stats_service, 'aggregate_round_standings', new_callable=AsyncMock):
             with patch.object(score_service.stats_service, 'aggregate_matchday_standings', new_callable=AsyncMock):
                 with patch.object(score_service, 'get_score_by_id', new_callable=AsyncMock):
-                    await score_service.create_score("match-1", "home", score)
+                    await score_service.create_score(match_id, "home", score)
         
         # Verify update was called with incremental operations
         update_call = mock_db._matches_collection.update_one.call_args
@@ -211,9 +216,11 @@ class TestCreateScore:
     async def test_create_score_wrong_status(self, score_service, mock_db):
         """Test score creation fails when match not INPROGRESS"""
         from models.matches import ScoresBase, EventPlayer
+        from bson import ObjectId
         
+        match_id = str(ObjectId())
         test_match = {
-            "_id": "match-1",
+            "_id": match_id,
             "matchStatus": {"key": "SCHEDULED"}
         }
         
@@ -225,7 +232,7 @@ class TestCreateScore:
         )
         
         with pytest.raises(ValidationException):
-            await score_service.create_score("match-1", "home", score)
+            await score_service.create_score(match_id, "home", score)
 
 
 class TestDeleteScore:
@@ -234,8 +241,12 @@ class TestDeleteScore:
     @pytest.mark.asyncio
     async def test_delete_score_success(self, score_service, mock_db):
         """Test successful score deletion with decremental updates"""
+        from bson import ObjectId
+        
+        match_id = str(ObjectId())
+        score_id = str(ObjectId())
         test_match = {
-            "_id": "match-1",
+            "_id": match_id,
             "matchStatus": {"key": "INPROGRESS"},
             "tournament": {"alias": "test-tournament"},
             "season": {"alias": "test-season"},
@@ -244,7 +255,7 @@ class TestDeleteScore:
             "home": {
                 "scores": [
                     {
-                        "_id": "score-1",
+                        "_id": score_id,
                         "goalPlayer": {"playerId": "p1"},
                         "assistPlayer": {"playerId": "p2"}
                     }
@@ -259,7 +270,7 @@ class TestDeleteScore:
         
         with patch.object(score_service.stats_service, 'aggregate_round_standings', new_callable=AsyncMock):
             with patch.object(score_service.stats_service, 'aggregate_matchday_standings', new_callable=AsyncMock):
-                await score_service.delete_score("match-1", "home", "score-1")
+                await score_service.delete_score(match_id, "home", score_id)
         
         # Verify decremental update was called
         update_call = mock_db._matches_collection.update_one.call_args
@@ -273,8 +284,11 @@ class TestDeleteScore:
     @pytest.mark.asyncio
     async def test_delete_score_not_found(self, score_service, mock_db):
         """Test error when score not found"""
+        from bson import ObjectId
+        
+        match_id = str(ObjectId())
         test_match = {
-            "_id": "match-1",
+            "_id": match_id,
             "matchStatus": {"key": "INPROGRESS"},
             "home": {
                 "scores": []
@@ -284,7 +298,7 @@ class TestDeleteScore:
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
         
         with pytest.raises(ResourceNotFoundException):
-            await score_service.delete_score("match-1", "home", "invalid-score")
+            await score_service.delete_score(match_id, "home", "invalid-score")
 
 
 class TestUpdateScore:
@@ -294,9 +308,12 @@ class TestUpdateScore:
     async def test_update_score_success(self, score_service, mock_db):
         """Test successful score update"""
         from models.matches import ScoresUpdate
+        from bson import ObjectId
         
+        match_id = str(ObjectId())
+        score_id = str(ObjectId())
         test_match = {
-            "_id": "match-1",
+            "_id": match_id,
             "matchStatus": {"key": "INPROGRESS"},
             "home": {
                 "roster": [{"player": {"playerId": "p1"}}]
@@ -310,9 +327,9 @@ class TestUpdateScore:
         
         score_update = ScoresUpdate(matchTime="15:00")
         
-        with patch.object(score_service.stats_service, 'calculate_roster_stats', new_callable=AsyncMock):
+        with patch.object(score_service.stats_service, 'calculate_roster_stats', new_callable=AsyncMock) as mock_calc_stats:
             with patch.object(score_service, 'get_score_by_id', new_callable=AsyncMock):
-                await score_service.update_score("match-1", "home", "score-1", score_update)
+                await score_service.update_score(match_id, "home", score_id, score_update)
         
         # Verify recalculation was triggered
-        score_service.stats_service.calculate_roster_stats.assert_called_once()
+        mock_calc_stats.assert_called_once()
