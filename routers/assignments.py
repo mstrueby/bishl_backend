@@ -62,8 +62,8 @@ async def get_assignments_by_match(
     assignmentStatus: list[AllStatuses] | None = Query(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
-    mongodb = request.app.state.mongodb
     global assignment_service
+    mongodb = request.app.state.mongodb
     if assignment_service is None:
         assignment_service = AssignmentService(mongodb)
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
@@ -182,6 +182,7 @@ async def create_assignment(
     assignment_data: AssignmentBase = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> StandardResponse:
+    global assignment_service
     mongodb = request.app.state.mongodb
     if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
@@ -234,6 +235,9 @@ async def create_assignment(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Position must be set for this assignment",
             )
+        
+        if assignment_service is None:
+            assignment_service = AssignmentService(mongodb)
 
         # Create referee object
         referee = await assignment_service.create_referee_object(ref_id)
@@ -298,8 +302,7 @@ async def create_assignment(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You are not a referee")
         """
-
-        global assignment_service
+        
         if assignment_service is None:
             assignment_service = AssignmentService(mongodb)
         
@@ -350,8 +353,8 @@ async def update_assignment(
     assignment_data: AssignmentUpdate = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
-    mongodb = request.app.state.mongodb
     global assignment_service
+    mongodb = request.app.state.mongodb
     if assignment_service is None:
         assignment_service = AssignmentService(mongodb)
     
@@ -929,8 +932,8 @@ async def delete_assignment(
     id: str = Path(..., description="Assignment ID"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
-    mongodb = request.app.state.mongodb
     global assignment_service
+    mongodb = request.app.state.mongodb
     if assignment_service is None:
         assignment_service = AssignmentService(mongodb)
     
