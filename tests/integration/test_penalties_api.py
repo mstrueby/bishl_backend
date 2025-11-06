@@ -22,7 +22,12 @@ class TestPenaltiesAPI:
         # Execute - PenaltyService handles incremental penalty minute updates
         penalty_data = {
             "matchTimeStart": "10:30",
-            "penaltyPlayer": {"playerId": "player-1"},
+            "penaltyPlayer": {
+                "playerId": "player-1",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            },
             "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
             "penaltyMinutes": 2,
             "isGM": False,
@@ -38,10 +43,11 @@ class TestPenaltiesAPI:
         # Assert response
         assert response.status_code == 201
         data = response.json()
-        assert data["matchTimeStart"] == "10:30"
-        assert data["penaltyPlayer"]["playerId"] == "player-1"
-        assert data["penaltyMinutes"] == 2
-        assert "_id" in data
+        assert data["data"]["matchTimeStart"] == "10:30"
+        # assert data["data"]["matchSecondsStart"] == 630
+        assert data["data"]["penaltyPlayer"]["playerId"] == "player-1"
+        assert data["data"]["penaltyMinutes"] == 2
+        assert "_id" in data["data"]
         
         # Verify database persistence
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
@@ -64,7 +70,12 @@ class TestPenaltiesAPI:
         # Execute
         penalty_data = {
             "matchTimeStart": "15:00",
-            "penaltyPlayer": {"playerId": "player-1"},
+            "penaltyPlayer": {
+                "playerId": "player-1",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            },
             "penaltyCode": {"key": "GM", "label": "Game Misconduct"},
             "penaltyMinutes": 10,
             "isGM": True,
@@ -80,8 +91,8 @@ class TestPenaltiesAPI:
         # Assert
         assert response.status_code == 201
         data = response.json()
-        assert data["isGM"] is True
-        assert data["penaltyMinutes"] == 10
+        assert data["data"]["isGM"] is True
+        assert data["data"]["penaltyMinutes"] == 10
 
     async def test_create_penalty_player_not_in_roster(self, client: AsyncClient, mongodb, admin_token):
         """Test creating penalty with player not in roster fails"""
@@ -92,7 +103,12 @@ class TestPenaltiesAPI:
         
         penalty_data = {
             "matchTimeStart": "10:30",
-            "penaltyPlayer": {"playerId": "invalid-player"},
+            "penaltyPlayer": {
+                "playerId": "invalid-player",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            },
             "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
             "penaltyMinutes": 2
         }
@@ -115,6 +131,12 @@ class TestPenaltiesAPI:
         
         penalty_data = {
             "matchTimeStart": "10:30",
+            "penaltyPlayer": {
+                "playerId": "player-1",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            },
             "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
             "penaltyMinutes": 2
         }
@@ -159,7 +181,8 @@ class TestPenaltiesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["matchTimeEnd"] == "07:00"
+        assert data["data"]["matchTimeEnd"] == "07:00"
+        # assert data["data"]["matchSecondsEnd"] == 420
 
     async def test_delete_penalty(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting a penalty with decremental penalty minute updates"""
@@ -268,8 +291,8 @@ class TestPenaltiesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["_id"] == penalty_id
-        assert data["matchTimeStart"] == "10:00"
+        assert data["data"]["_id"] == penalty_id
+        assert data["data"]["matchTimeStart"] == "10:00"
 
     async def test_create_penalty_requires_inprogress_status(self, client: AsyncClient, mongodb, admin_token):
         """Test that penalties can only be created during INPROGRESS matches"""
@@ -284,7 +307,12 @@ class TestPenaltiesAPI:
         # Execute
         penalty_data = {
             "matchTimeStart": "10:30",
-            "penaltyPlayer": {"playerId": "player-1"},
+            "penaltyPlayer": {
+                "playerId": "player-1",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            },
             "penaltyCode": {"key": "2MIN", "label": "2 Minutes"},
             "penaltyMinutes": 2
         }
