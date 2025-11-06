@@ -173,7 +173,7 @@ class RosterService:
         team_flag: str,
         roster_data: list[RosterPlayer],
         user_roles: list[str],
-    ) -> list[RosterPlayer]:
+    ) -> tuple[list[RosterPlayer], bool]:
         """
         Validate and update roster with authorization checks
 
@@ -254,5 +254,7 @@ class RosterService:
         # Update jersey numbers in scores/penalties
         await self.update_jersey_numbers(match_id, team_flag, jersey_updates)
 
-        # Return updated roster
-        return await self.get_roster(match_id, team_flag)
+        # Return updated roster and modification flag
+        roster = await self.get_roster(match_id, team_flag)
+        was_modified = update_result.modified_count > 0
+        return roster, was_modified

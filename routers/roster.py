@@ -41,15 +41,21 @@ async def update_roster(
     mongodb = request.app.state.mongodb
     service = RosterService(mongodb)
 
-    updated_roster = await service.update_roster(
+    updated_roster, was_modified = await service.update_roster(
         match_id=match_id,
         team_flag=team_flag,
         roster_data=roster,
         user_roles=token_payload.roles,
     )
 
+    message = (
+        f"Roster updated successfully for {team_flag} team"
+        if was_modified
+        else f"Roster unchanged for {team_flag} team (data identical)"
+    )
+
     return StandardResponse(
         success=True,
         data=updated_roster,
-        message=f"Roster updated successfully for {team_flag} team"
+        message=message
     )
