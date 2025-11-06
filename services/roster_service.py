@@ -230,20 +230,25 @@ class RosterService:
             {"_id": match_id}, {"$set": {f"{team_flag}.roster": roster_json}}
         )
 
-        if update_result.modified_count == 0:
+        if not update_result.acknowledged:
             raise DatabaseOperationException(
                 operation="update_one",
                 collection="matches",
                 details={
                     "match_id": match_id,
                     "team_flag": team_flag,
-                    "reason": "No changes detected",
+                    "reason": "Update operation not acknowledged",
                 },
             )
 
         logger.info(
             "Roster updated",
-            extra={"match_id": match_id, "team_flag": team_flag, "roster_size": len(roster_json)},
+            extra={
+                "match_id": match_id,
+                "team_flag": team_flag,
+                "roster_size": len(roster_json),
+                "modified": update_result.modified_count > 0,
+            },
         )
 
         # Update jersey numbers in scores/penalties
