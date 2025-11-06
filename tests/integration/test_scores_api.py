@@ -42,9 +42,9 @@ class TestScoresAPI:
         # Assert response
         assert response.status_code == 201
         data = response.json()
-        assert data["matchTime"] == "10:30"
-        assert data["goalPlayer"]["playerId"] == "player-1"
-        assert "_id" in data
+        assert data["data"]["matchTime"] == "10:30"
+        assert data["data"]["goalPlayer"]["playerId"] == "player-1"
+        assert "_id" in data["data"]
         
         # Verify database - incremental stats updates
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
@@ -70,8 +70,18 @@ class TestScoresAPI:
         # Execute
         score_data = {
             "matchTime": "05:15",
-            "goalPlayer": {"playerId": "player-1"},
-            "assistPlayer": {"playerId": "player-2"}
+            "goalPlayer": {
+                "playerId": "player-1",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            },
+            "assistPlayer": {
+                "playerId": "player-2",
+                "firstName": "Assist",
+                "lastName": "Player",
+                "jerseyNumber": 20
+            }
         }
         
         response = await client.post(
@@ -83,7 +93,7 @@ class TestScoresAPI:
         # Assert
         assert response.status_code == 201
         data = response.json()
-        assert data["assistPlayer"]["playerId"] == "player-2"
+        assert data["data"]["assistPlayer"]["playerId"] == "player-2"
 
     async def test_create_score_player_not_in_roster(self, client: AsyncClient, mongodb, admin_token):
         """Test creating score with player not in roster fails"""
@@ -94,7 +104,12 @@ class TestScoresAPI:
         
         score_data = {
             "matchTime": "10:30",
-            "goalPlayer": {"playerId": "invalid-player"}
+            "goalPlayer": {
+                "playerId": "invalid-player",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            }
         }
         
         response = await client.post(
@@ -113,7 +128,15 @@ class TestScoresAPI:
         match = create_test_match(status="SCHEDULED")
         await mongodb["matches"].insert_one(match)
         
-        score_data = {"matchTime": "10:30"}
+        score_data = {
+            "matchTime": "10:30",
+            "goalPlayer": {
+                "playerId": "player-1",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            }
+        }
         
         response = await client.post(
             f"/matches/{match['_id']}/home/scores",
@@ -136,6 +159,7 @@ class TestScoresAPI:
         match["home"]["scores"] = [{
             "_id": score_id,
             "matchSeconds": 300,
+            "matchTime": "05:00",
             "goalPlayer": {"playerId": "player-1", "firstName": "Test", "lastName": "Player", "jerseyNumber": 10},
             "assistPlayer": None,
             "isPPG": False,
@@ -154,7 +178,7 @@ class TestScoresAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["matchTime"] == "06:30"
+        assert data["data"]["matchTime"] == "06:30"
 
     async def test_delete_score(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting a score with decremental stats updates"""
@@ -212,7 +236,7 @@ class TestScoresAPI:
             json={"matchTime": "10:30"}
         )
         
-        assert response.status_code == 401
+        assert response.status_code == 403
 
     async def test_create_score_requires_inprogress_status(self, client: AsyncClient, mongodb, admin_token):
         """Test that scores can only be created during INPROGRESS matches"""
@@ -227,7 +251,12 @@ class TestScoresAPI:
         # Execute
         score_data = {
             "matchTime": "10:30",
-            "goalPlayer": {"playerId": "player-1"}
+            "goalPlayer": {
+                "playerId": "player-1",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            }
         }
         
         response = await client.post(
