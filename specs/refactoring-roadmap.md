@@ -559,6 +559,74 @@ async def create_score(request, match_id, team_flag, score, token):
 
 ---
 
+### 12b. Fix Incorrect HTTP 304 Usage in PATCH Endpoints
+**Effort:** Low | **Impact:** Medium | **Risk if ignored:** Low
+
+**Status:** 📋 **PLANNED**
+
+**Problem:**
+- Multiple PATCH/PUT endpoints incorrectly return HTTP 304 (Not Modified) when data is unchanged
+- 304 should only be used for conditional GET requests with caching headers
+- PATCH/PUT should return 200 OK with current state, even if unchanged
+
+**Current Locations:**
+1. `routers/seasons.py` - PATCH endpoints return 304 when no changes
+2. `routers/matchdays.py` - Returns 304 when no update needed
+3. `routers/tournaments.py` - PATCH returns 304 for unchanged data
+4. `routers/matches.py` - Returns 304 when `modified_count == 0`
+
+**Actions:**
+
+1. **Update `routers/seasons.py`** (2 occurrences)
+   - Replace `Response(status_code=status.HTTP_304_NOT_MODIFIED)` with 200 OK
+   - Add message indicating "No changes detected" or "Season data unchanged"
+
+2. **Update `routers/matchdays.py`**
+   - Replace 304 response with 200 OK
+   - Return current matchday state with message "No changes needed"
+
+3. **Update `routers/tournaments.py`**
+   - Replace 304 response with 200 OK
+   - Return current tournament state with message "Tournament data unchanged"
+
+4. **Update `routers/matches.py`**
+   - Already partially fixed in roster.py refactoring
+   - Verify all PATCH endpoints return 200 OK when `modified_count == 0`
+
+**Benefits:**
+- ✅ Follows REST best practices
+- ✅ Consistent with API Response Standardization spec
+- ✅ Clients receive current resource state (useful for optimistic updates)
+- ✅ 304 reserved for proper conditional GET caching
+
+**Example Refactoring:**
+
+**Before (Incorrect):**
+```python
+if not match_to_update:
+    print("PATCH/match: No changes to update")
+    return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+```
+
+**After (Correct):**
+```python
+if not match_to_update:
+    logger.info("No changes to update for match", extra={"match_id": match_id})
+    return StandardResponse(
+        success=True,
+        data=existing_match,
+        message="Match data unchanged (already up to date)"
+    )
+```
+
+**Estimated Time:** 2-3 hours
+
+**Dependencies:**
+- StandardResponse model (already complete)
+- API Response Standardization spec (already complete)
+
+---
+
 ## Low Priority (Nice to Have)
 
 ### 13. Database Query Optimization ⏸️ PARTIALLY COMPLETE
