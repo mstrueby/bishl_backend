@@ -124,7 +124,7 @@ class AssignmentService:
             raise ResourceNotFoundException(
                 resource_type="User",
                 resource_id=user_id,
-                message="Referee not found or not a referee",
+                details={"reason": "Referee not found or not a referee"},
             )
 
         club_info = ref_user.get("referee", {}).get("club", {})
