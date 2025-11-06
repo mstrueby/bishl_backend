@@ -25,7 +25,12 @@ class TestScoresAPI:
         # Execute - ScoreService handles incremental stats updates
         score_data = {
             "matchTime": "10:30",
-            "goalPlayer": {"playerId": "player-1"}
+            "goalPlayer": {
+                "playerId": "player-1",
+                "firstName": "Test",
+                "lastName": "Player",
+                "jerseyNumber": 10
+            }
         }
         
         response = await client.post(

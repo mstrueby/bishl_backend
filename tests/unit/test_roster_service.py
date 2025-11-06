@@ -44,6 +44,43 @@ def roster_service(mock_db):
 class TestGetRoster:
     """Test roster retrieval"""
     
+
+
+    @pytest.mark.asyncio
+    async def test_validate_roster_duplicate_players(self, roster_service):
+        """Test validation fails when roster contains duplicate players"""
+        from models.matches import RosterPlayer, EventPlayer
+        from bson import ObjectId
+        
+        match_id = str(ObjectId())
+        match = {
+            "_id": match_id,
+            "home": {
+                "scores": [],
+                "penalties": []
+            }
+        }
+        
+        # Create roster with duplicate player
+        new_roster = [
+            RosterPlayer(
+                player=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
+                playerPosition={"key": "FW", "value": "Forward"},
+                passNumber="123"
+            ),
+            RosterPlayer(
+                player=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
+                playerPosition={"key": "DF", "value": "Defense"},
+                passNumber="456"
+            )
+        ]
+        
+        with pytest.raises(ValidationException) as exc_info:
+            await roster_service.validate_roster_changes(match, "home", new_roster)
+        
+        assert "duplicate players" in exc_info.value.message.lower()
+        assert "p1" in exc_info.value.details["duplicate_player_ids"]
+
     @pytest.mark.asyncio
     async def test_get_roster_success(self, roster_service, mock_db):
         """Test successful roster retrieval"""

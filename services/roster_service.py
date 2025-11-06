@@ -81,7 +81,29 @@ class RosterService:
 
         Raises:
             ValidationException: If players in scores/penalties are not in new roster
+            ValidationException: If roster contains duplicate players
         """
+        # Check for duplicate players
+        player_ids = [player.player.playerId for player in new_roster]
+        if len(player_ids) != len(set(player_ids)):
+            # Find the duplicates
+            seen = set()
+            duplicates = set()
+            for player_id in player_ids:
+                if player_id in seen:
+                    duplicates.add(player_id)
+                seen.add(player_id)
+            
+            raise ValidationException(
+                field="roster",
+                message="Roster contains duplicate players",
+                details={
+                    "match_id": match["_id"],
+                    "team_flag": team_flag,
+                    "duplicate_player_ids": list(duplicates),
+                },
+            )
+        
         scores = match.get(team_flag, {}).get("scores") or []
         penalties = match.get(team_flag, {}).get("penalties") or []
         new_player_ids = {player.player.playerId for player in new_roster}
