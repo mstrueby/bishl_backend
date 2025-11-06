@@ -173,7 +173,7 @@ class RosterService:
         team_flag: str,
         roster_data: list[RosterPlayer],
         user_roles: list[str],
-    ) -> list[RosterPlayer]:
+    ) -> tuple[list[RosterPlayer], bool]:
         """
         Validate and update roster with authorization checks
 
@@ -230,24 +230,31 @@ class RosterService:
             {"_id": match_id}, {"$set": {f"{team_flag}.roster": roster_json}}
         )
 
-        if update_result.modified_count == 0:
+        if not update_result.acknowledged:
             raise DatabaseOperationException(
                 operation="update_one",
                 collection="matches",
                 details={
                     "match_id": match_id,
                     "team_flag": team_flag,
-                    "reason": "No changes detected",
+                    "reason": "Update operation not acknowledged",
                 },
             )
 
         logger.info(
             "Roster updated",
-            extra={"match_id": match_id, "team_flag": team_flag, "roster_size": len(roster_json)},
+            extra={
+                "match_id": match_id,
+                "team_flag": team_flag,
+                "roster_size": len(roster_json),
+                "modified": update_result.modified_count > 0,
+            },
         )
 
         # Update jersey numbers in scores/penalties
         await self.update_jersey_numbers(match_id, team_flag, jersey_updates)
 
-        # Return updated roster
-        return await self.get_roster(match_id, team_flag)
+        # Return updated roster and modification flag
+        roster = await self.get_roster(match_id, team_flag)
+        was_modified = update_result.modified_count > 0
+        return roster, was_modified
