@@ -31,7 +31,7 @@ async def get_score_sheet(
 
 
 # create one score
-@router.post("", response_description="Create one score", response_model=StandardResponse[ScoresDB])
+@router.post("", response_description="Create one score", response_model=StandardResponse[ScoresDB], status_code=status.HTTP_201_CREATED)
 async def create_score(
     request: Request,
     match_id: str = Path(..., description="The id of the match"),
