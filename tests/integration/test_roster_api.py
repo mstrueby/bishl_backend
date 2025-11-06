@@ -53,7 +53,7 @@ class TestRosterAPI:
         assert len(updated["home"]["roster"]) == 1
         assert updated["home"]["roster"][0]["player"]["playerId"] == player[
             "_id"]
-        assert updated["home"]["roster"][0]["jersey"] == 10
+        assert updated["home"]["roster"][0]["player"]["jerseyNumber"] == 10
 
     async def test_add_duplicate_player_fails(self, client: AsyncClient,
                                               mongodb, admin_token):
