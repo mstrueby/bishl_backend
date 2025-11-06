@@ -42,9 +42,11 @@ class TestRosterAPI:
         # Assert response
         assert response.status_code == 200
         data = response.json()
-        assert data["data"]["player"]["playerId"] == player["_id"]
-        assert data["data"]["player"]["playerId"] == player["_id"]
-        assert data["data"]["jersey"] == 10
+        assert data["success"] is True
+        assert isinstance(data["data"], list)
+        assert len(data["data"]) == 1
+        assert data["data"][0]["player"]["playerId"] == player["_id"]
+        assert data["data"][0]["player"]["jerseyNumber"] == 10
 
         # Verify database persistence
         updated = await mongodb["matches"].find_one({"_id": match["_id"]})
