@@ -12,7 +12,7 @@ auth = AuthHandler()
 
 
 # get roster of a team
-@router.get("/", response_description="Get roster of a team", response_model=list[RosterPlayer])
+@router.get("", response_description="Get roster of a team", response_model=list[RosterPlayer])
 async def get_roster(
     request: Request,
     match_id: str = Path(..., description="The match id of the roster"),
@@ -26,7 +26,7 @@ async def get_roster(
 
 
 # update roster of a team
-@router.put("/", response_description="Update roster of a team", response_model=list[RosterPlayer])
+@router.put("", response_description="Update roster of a team", response_model=list[RosterPlayer])
 async def update_roster(
     request: Request,
     match_id: str = Path(..., description="The match id of the roster"),
