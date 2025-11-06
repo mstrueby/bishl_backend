@@ -229,7 +229,7 @@ class TestPenaltiesAPI:
         from tests.fixtures.data_fixtures import create_test_match
         from bson import ObjectId
         
-        # Setup
+        # Setup - Create fresh match with exactly 2 penalties
         match = create_test_match(status="INPROGRESS")
         match["home"]["penalties"] = [
             {
@@ -261,7 +261,10 @@ class TestPenaltiesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
+        assert data["success"] is True
+        assert len(data["data"]) == 2
+        assert data["data"][0]["penaltyMinutes"] in [2, 5]
+        assert data["data"][1]["penaltyMinutes"] in [2, 5]
 
     async def test_get_one_penalty(self, client: AsyncClient, mongodb):
         """Test retrieving a single penalty"""
