@@ -363,7 +363,8 @@ class TestUpdateAssignment:
         )
 
         assert result["status"] == "ACCEPTED"
-        mock_db._assignments_collection.update_one.assert_called_once()
+        # Should be called twice: once for update, once for status history
+        assert mock_db._assignments_collection.update_one.call_count == 2
 
     @pytest.mark.asyncio
     async def test_update_assignment_no_changes(self, assignment_service, mock_db):
