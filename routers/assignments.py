@@ -16,8 +16,8 @@ from exceptions import (
 )
 from mail_service import send_email
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory
+from models.responses import StandardResponse, PaginatedResponse
 from services.message_service import MessageService
-from utils.responses import StandardResponse, PaginatedResponse
 
 router = APIRouter()
 auth = AuthHandler()
