@@ -1,4 +1,3 @@
-
 """
 Roster Service - Business logic for roster management
 
@@ -93,7 +92,7 @@ class RosterService:
                 if player_id in seen:
                     duplicates.add(player_id)
                 seen.add(player_id)
-            
+
             raise ValidationException(
                 field="roster",
                 message="Roster contains duplicate players",
@@ -103,7 +102,7 @@ class RosterService:
                     "duplicate_player_ids": list(duplicates),
                 },
             )
-        
+
         scores = match.get(team_flag, {}).get("scores") or []
         penalties = match.get(team_flag, {}).get("penalties") or []
         new_player_ids = {player.player.playerId for player in new_roster}
@@ -161,15 +160,13 @@ class RosterService:
         # Update scores - goal players
         for player_id, jersey_number in jersey_updates.items():
             await self.db["matches"].update_one(
-                {"_id": match_id},
-                {"$set": {f"{team_flag}.scores.$[score].goalPlayer.jerseyNumber": jersey_number}},
+                {"_id": match_id}, {"$set": {f"{team_flag}.scores.$[score].goalPlayer.jerseyNumber": jersey_number}},
                 array_filters=[{"score.goalPlayer.playerId": player_id}],
             )
 
             # Update scores - assist players
             await self.db["matches"].update_one(
-                {"_id": match_id},
-                {"$set": {f"{team_flag}.scores.$[score].assistPlayer.jerseyNumber": jersey_number}},
+                {"_id": match_id}, {"$set": {f"{team_flag}.scores.$[score].assistPlayer.jerseyNumber": jersey_number}},
                 array_filters=[{"score.assistPlayer.playerId": player_id}],
             )
 
@@ -247,36 +244,25 @@ class RosterService:
             and roster_entry.get("player", {}).get("jerseyNumber") is not None
         }
 
-        # Update roster
-        update_result = await self.db["matches"].update_one(
-            {"_id": match_id}, {"$set": {f"{team_flag}.roster": roster_json}}
+        # Update roster in match document
+        result = await self.db["matches"].update_one(
+            {"_id": match_id}, {"$set": {f"{team_flag}.roster": jsonable_encoder(roster_data)}}
         )
 
-        if not update_result.acknowledged:
+        if result.modified_count == 0:
+            logger.warning("No changes detected in roster update", extra={"match_id": match_id})
             raise DatabaseOperationException(
-                operation="update_one",
+                operation="update_roster",
                 collection="matches",
-                details={
-                    "match_id": match_id,
-                    "team_flag": team_flag,
-                    "reason": "Update operation not acknowledged",
-                },
+                details={"match_id": match_id, "reason": "No changes detected - roster is identical"}
             )
 
-        logger.info(
-            "Roster updated",
-            extra={
-                "match_id": match_id,
-                "team_flag": team_flag,
-                "roster_size": len(roster_json),
-                "modified": update_result.modified_count > 0,
-            },
-        )
+        logger.info("Roster updated", extra={"match_id": match_id, "team": team_flag})
 
         # Update jersey numbers in scores/penalties
         await self.update_jersey_numbers(match_id, team_flag, jersey_updates)
 
         # Return updated roster and modification flag
         roster = await self.get_roster(match_id, team_flag)
-        was_modified = update_result.modified_count > 0
+        was_modified = result.modified_count > 0
         return roster, was_modified
