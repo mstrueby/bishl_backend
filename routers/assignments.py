@@ -1,3 +1,4 @@
+
 # filename: routers/assignments.py
 import os
 from datetime import datetime
@@ -21,13 +22,12 @@ from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, S
 from models.responses import StandardResponse, PaginatedResponse
 from services.assignment_service import AssignmentService
 from services.message_service import MessageService
+
 DEBUG_LEVEL = int(os.environ.get("DEBUG_LEVEL", 0))
 
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ["BE_API_URL"]
-message_service = None  # Will be initialized with MongoDB instance
-assignment_service = None  # Will be initialized with MongoDB instance
 
 
 class AllStatuses(Enum):
@@ -38,15 +38,29 @@ class AllStatuses(Enum):
     ACCEPTED = "ACCEPTED"
 
 
-async def send_message_to_referee(mongodb, match, receiver_id, content, sender_id, sender_name, footer=None):
+# Dependency injection for services
+def get_assignment_service(request: Request) -> AssignmentService:
+    """Dependency to get AssignmentService instance per request"""
+    return AssignmentService(request.app.state.mongodb)
+
+
+def get_message_service(request: Request) -> MessageService:
+    """Dependency to get MessageService instance per request"""
+    return MessageService(request.app.state.mongodb)
+
+
+async def send_message_to_referee(
+    message_service: MessageService,
+    match,
+    receiver_id,
+    content,
+    sender_id,
+    sender_name,
+    footer=None
+):
     """
     Send notification to referee using MessageService.
-    Replaces HTTP call to /messages/ endpoint.
     """
-    global message_service
-    if message_service is None:
-        message_service = MessageService(mongodb)
-
     await message_service.send_referee_notification(
         referee_id=receiver_id,
         match=match,
@@ -64,11 +78,10 @@ async def get_assignments_by_match(
     match_id: str = Path(..., description="Match ID"),
     assignmentStatus: list[AllStatuses] | None = Query(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
+    assignment_service: AssignmentService = Depends(get_assignment_service),
 ):
-    global assignment_service
     mongodb = request.app.state.mongodb
-    if assignment_service is None:
-        assignment_service = AssignmentService(mongodb)
+    
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(
             message="Admin or Ref Admin role required", details={"user_roles": token_payload.roles}
@@ -189,9 +202,11 @@ async def create_assignment(
     request: Request,
     assignment_data: AssignmentBase = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
+    assignment_service: AssignmentService = Depends(get_assignment_service),
+    message_service: MessageService = Depends(get_message_service),
 ) -> StandardResponse:
-    global assignment_service
     mongodb = request.app.state.mongodb
+    
     if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
@@ -221,9 +236,6 @@ async def create_assignment(
             and "ADMIN" not in token_payload.roles
         ):
             raise AuthorizationException(detail="Not authorized to be referee admin")
-        global assignment_service
-        if assignment_service is None:
-            assignment_service = AssignmentService(mongodb)
 
         # check if assignment already exists for match_id and referee.userId = ref_id
         if await assignment_service.check_assignment_exists(match_id, ref_id):
@@ -243,9 +255,6 @@ async def create_assignment(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Position must be set for this assignment",
             )
-
-        if assignment_service is None:
-            assignment_service = AssignmentService(mongodb)
 
         # Create referee object
         referee = await assignment_service.create_referee_object(ref_id)
@@ -280,7 +289,7 @@ async def create_assignment(
 
         # Send notification after transaction commits
         await send_message_to_referee(
-            mongodb=mongodb,
+            message_service=message_service,
             match=match,
             receiver_id=referee.userId,
             content=f"Hallo {referee.firstName}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
@@ -305,14 +314,6 @@ async def create_assignment(
         # REFEREE mode -------------------------------------------------------------
         print("REFEREE mode")
         ref_id = user_id
-        """
-        if 'REFEREE' not in token_payload.roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="You are not a referee")
-        """
-
-        if assignment_service is None:
-            assignment_service = AssignmentService(mongodb)
 
         # check if assignment already exists for match_id and referee.userId = ref_id
         if await assignment_service.check_assignment_exists(match_id, ref_id):
@@ -360,11 +361,10 @@ async def update_assignment(
     assignment_id: str = Path(..., description="Assignment ID"),
     assignment_data: AssignmentUpdate = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
+    assignment_service: AssignmentService = Depends(get_assignment_service),
+    message_service: MessageService = Depends(get_message_service),
 ):
-    global assignment_service
     mongodb = request.app.state.mongodb
-    if assignment_service is None:
-        assignment_service = AssignmentService(mongodb)
 
     if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(detail="Not authorized")
@@ -497,7 +497,7 @@ async def update_assignment(
             # Send notifications after transaction commits
             if update_data["status"] not in [Status.assigned, Status.accepted]:
                 await send_message_to_referee(
-                    mongodb=mongodb,
+                    message_service=message_service,
                     match=match,
                     receiver_id=ref_id,
                     content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
@@ -506,7 +506,7 @@ async def update_assignment(
                 )
             elif update_data["status"] in [Status.assigned, Status.accepted]:
                 await send_message_to_referee(
-                    mongodb=mongodb,
+                    message_service=message_service,
                     match=match,
                     receiver_id=ref_id,
                     content=f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
@@ -629,11 +629,8 @@ async def update_assignment(
 async def get_unassigned_matches_in_14_days(
     request: Request,
     send_emails: bool = Query(False, description="Whether to send notification emails"),
-    # token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     mongodb = request.app.state.mongodb
-    # if not any(role in ['ADMIN', 'REF_ADMIN'] for role in token_payload.roles):
-    #    raise AuthorizationException(detail="Not authorized")
 
     # Calculate date exactly 14 days from now
     from datetime import datetime, timedelta
@@ -972,11 +969,9 @@ async def delete_assignment(
     request: Request,
     id: str = Path(..., description="Assignment ID"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
+    assignment_service: AssignmentService = Depends(get_assignment_service),
 ) -> Response:
-    global assignment_service
     mongodb = request.app.state.mongodb
-    if assignment_service is None:
-        assignment_service = AssignmentService(mongodb)
 
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(

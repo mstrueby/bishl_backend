@@ -5,10 +5,11 @@ from bson import ObjectId
 from tests.fixtures.data_fixtures import get_test_assignment_data, create_test_match
 from authentication import AuthHandler
 
-@pytest.mark.asyncio
+
 class TestAssignmentsAPI:
     """Test referee assignment operations"""
 
+    @pytest.mark.asyncio
     async def test_create_assignment_as_referee(self, client: AsyncClient, mongodb):
         """Test referee requesting assignment"""
         # Setup - Create referee user and match
@@ -54,6 +55,7 @@ class TestAssignmentsAPI:
         assignment = await mongodb["assignments"].find_one({"matchId": match["_id"]})
         assert assignment is not None
 
+    @pytest.mark.asyncio
     async def test_create_assignment_as_ref_admin(self, client: AsyncClient, mongodb, admin_token):
         """Test ref admin assigning referee to match"""
         # Setup - Create referee and match
@@ -96,6 +98,7 @@ class TestAssignmentsAPI:
         updated_match = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert updated_match["referee1"]["userId"] == referee["_id"]
 
+    @pytest.mark.asyncio
     async def test_get_assignments_for_match(self, client: AsyncClient, mongodb, admin_token):
         """Test retrieving all assignments for a match"""
         # Setup
@@ -143,6 +146,7 @@ class TestAssignmentsAPI:
         data = response.json()
         assert len(data) >= 2  # All referees listed
 
+    @pytest.mark.asyncio
     async def test_get_assignments_for_user(self, client, admin_token, mongodb):
         """Test getting assignments for a specific user."""
         # Create a test assignment with proper ObjectIds
@@ -180,6 +184,7 @@ class TestAssignmentsAPI:
         data = response.json()
         assert len(data) >= 1
 
+    @pytest.mark.asyncio
     async def test_update_assignment_status(self, client: AsyncClient, mongodb, admin_token):
         """Test updating assignment status"""
         # Setup
@@ -224,6 +229,7 @@ class TestAssignmentsAPI:
         assert data["status"] == "ASSIGNED"
         assert data["position"] == 1
 
+    @pytest.mark.asyncio
     async def test_referee_accept_assignment(self, client: AsyncClient, mongodb):
         """Test referee accepting their assignment"""
         # Setup
@@ -269,6 +275,7 @@ class TestAssignmentsAPI:
         data = response.json()
         assert data["status"] == "ACCEPTED"
 
+    @pytest.mark.asyncio
     async def test_delete_assignment(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting an assignment"""
         # Setup
@@ -310,6 +317,7 @@ class TestAssignmentsAPI:
         updated_match = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert updated_match["referee1"] is None
 
+    @pytest.mark.asyncio
     async def test_unauthorized_assignment_creation(self, client: AsyncClient, mongodb):
         """Test creating assignment without auth fails"""
         match = create_test_match()
