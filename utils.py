@@ -1,15 +1,12 @@
-import asyncio
 import re
 from datetime import datetime
 
 import cloudinary
 import cloudinary.uploader
-from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 from config import settings
-from logging_config import logger
 
 DEBUG_LEVEL = settings.DEBUG_LEVEL
 

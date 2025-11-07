@@ -6,14 +6,11 @@ Handles assignment creation, updates, validation, and synchronization with match
 """
 
 from datetime import datetime
-from typing import Any
 
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorClientSession
 
 from exceptions import (
-    AuthorizationException,
-    DatabaseOperationException,
     ResourceNotFoundException,
     ValidationException,
 )
@@ -128,7 +125,7 @@ class AssignmentService:
             )
 
         club_info = ref_user.get("referee", {}).get("club", {})
-        
+
         return Referee(
             userId=user_id,
             firstName=ref_user["firstName"],
@@ -219,11 +216,11 @@ class AssignmentService:
         insert_response = await self.db["assignments"].insert_one(
             jsonable_encoder(assignment), session=session
         )
-        
+
         created_assignment = await self.db["assignments"].find_one(
             {"_id": insert_response.inserted_id}, session=session
         )
-        
+
         logger.info(
             "Assignment created",
             extra={
@@ -233,7 +230,7 @@ class AssignmentService:
                 "status": status,
             },
         )
-        
+
         return created_assignment
 
     async def update_assignment(
@@ -273,7 +270,7 @@ class AssignmentService:
         updated_assignment = await self.db["assignments"].find_one(
             {"_id": assignment_id}, session=session
         )
-        
+
         logger.info(
             "Assignment updated",
             extra={
@@ -281,7 +278,7 @@ class AssignmentService:
                 "updated_fields": list(update_data.keys()),
             },
         )
-        
+
         return updated_assignment
 
     async def delete_assignment(
@@ -298,7 +295,7 @@ class AssignmentService:
             True if deleted, False otherwise
         """
         result = await self.db["assignments"].delete_one({"_id": assignment_id}, session=session)
-        
+
         if result.deleted_count == 1:
             logger.info("Assignment deleted", extra={"assignment_id": assignment_id})
             return True

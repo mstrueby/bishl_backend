@@ -5,9 +5,7 @@ Handles roster validation, updates, and jersey number synchronization across
 scores and penalties.
 """
 
-from typing import Any
 
-from bson import ObjectId
 from fastapi.encoders import jsonable_encoder
 
 from exceptions import (
@@ -18,7 +16,6 @@ from exceptions import (
 )
 from logging_config import logger
 from models.matches import RosterPlayer
-from services.stats_service import StatsService
 from utils import populate_event_player_fields
 
 

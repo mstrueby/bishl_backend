@@ -1345,7 +1345,7 @@ async def get_player(
     player = await mongodb["players"].find_one({"_id": id})
     if player is None:
         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
-    
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content=jsonable_encoder(

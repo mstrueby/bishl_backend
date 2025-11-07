@@ -26,7 +26,7 @@ async def send_email(subject: str, recipients: list, body: str, cc: list | None 
     if settings.ENVIRONMENT != "production":
         logger.info(f"Non-production mode ({settings.ENVIRONMENT}): Skipping email '{subject}' to {recipients}")
         return
-    
+
     message = MessageSchema(
         subject=subject, recipients=recipients, cc=cc or [], body=body, subtype=MessageType.html
     )

@@ -53,7 +53,7 @@ class MessageService:
             "Sending referee notification",
             extra={"referee_id": referee_id, "sender_id": sender_id}
         )
-        
+
         # Get referee user
         referee = await self.db["users"].find_one({"_id": referee_id})
         if not referee:
@@ -61,15 +61,15 @@ class MessageService:
                 resource_type="User",
                 resource_id=referee_id
             )
-        
+
         # Format match text
         match_text = self.format_match_notification(match)
-        
+
         # Build full content
         full_content = f"{content}\n\n{match_text}"
         if footer:
             full_content += f"\n\n{footer}"
-        
+
         # Create message document
         message = {
             "_id": str(ObjectId()),
@@ -87,7 +87,7 @@ class MessageService:
             "timestamp": datetime.now().replace(microsecond=0),
             "read": False
         }
-        
+
         # Insert message
         try:
             await self.db["messages"].insert_one(message)
@@ -97,10 +97,10 @@ class MessageService:
                 collection="messages",
                 details={"error": str(e), "referee_id": referee_id}
             ) from e
-        
+
         # Send email notification
         await self._send_email_notification(referee, full_content)
-        
+
         return message
 
     def format_match_notification(self, match: dict) -> str:
@@ -115,7 +115,7 @@ class MessageService:
         """
         weekdays_german = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
         start_date = match.get("startDate")
-        
+
         if start_date:
             weekday_abbr = weekdays_german[start_date.weekday()]
             date_str = start_date.strftime("%d.%m.%Y")
@@ -124,12 +124,12 @@ class MessageService:
             weekday_abbr = "TBD"
             date_str = "TBD"
             time_str = "TBD"
-        
+
         tournament_name = match.get("tournament", {}).get("name", "Unknown Tournament")
         home_name = match.get("home", {}).get("fullName", "Unknown Team")
         away_name = match.get("away", {}).get("fullName", "Unknown Team")
         venue_name = match.get("venue", {}).get("name", "Unknown Venue")
-        
+
         return (
             f"{tournament_name}\n"
             f"{home_name} - {away_name}\n"
@@ -146,25 +146,25 @@ class MessageService:
             content: Email content
         """
         referee_email = referee.get("email")
-        
+
         if not referee_email:
             logger.warning(
                 "Referee has no email address",
                 extra={"referee_id": referee.get("_id")}
             )
             return
-        
+
         try:
             if settings.ENVIRONMENT == "production":
                 email_subject = "BISHL - Schiedsrichter-Information"
                 email_content = f"<p>{content.replace('\n', '<br>')}</p>"
-                
+
                 await send_email(
                     subject=email_subject,
                     recipients=[referee_email],
                     body=email_content
                 )
-                
+
                 logger.info(
                     "Email sent to referee",
                     extra={"referee_id": referee.get("_id"), "email": referee_email}
