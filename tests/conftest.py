@@ -24,11 +24,12 @@ from main import app
 from tests.test_config import TestSettings
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def event_loop():
-    """Create an instance of the default event loop for each test."""
+    """Create a session-scoped event loop to prevent Motor connection issues."""
     policy = asyncio.get_event_loop_policy()
     loop = policy.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
 
@@ -84,9 +85,9 @@ async def cleanup_before_session():
     yield
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def mongodb():
-    """MongoDB client for testing - function scoped to avoid event loop issues"""
+    """MongoDB client for testing - session scoped to share event loop"""
     settings = TestSettings()
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
@@ -97,25 +98,30 @@ async def mongodb():
 
     print(f"✅ Verified test database: {actual_db_name}")
 
-    # Clean all test collections before each test to prevent duplicate key errors
+    yield db
+
+    # Close client at end of session
+    client.close()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def clean_db(mongodb):
+    """Auto-cleanup database before each test"""
     collections_to_clean = ["users", "matches", "assignments", "teams", "clubs", "tournaments"]
     for collection_name in collections_to_clean:
         try:
-            await db[collection_name].delete_many({})
+            await mongodb[collection_name].delete_many({})
         except Exception as e:
             print(f"Warning: Could not clean {collection_name}: {e}")
-
-    yield db
-
-    # Cleanup after each test to ensure clean state
+    
+    yield
+    
+    # Cleanup after test
     for collection_name in collections_to_clean:
         try:
-            await db[collection_name].delete_many({})
+            await mongodb[collection_name].delete_many({})
         except Exception as e:
             print(f"Warning: Could not cleanup {collection_name}: {e}")
-
-    # Don't close client here - let Python GC handle it
-    # Closing it causes "Event loop is closed" errors when running full suite
 
 
 @pytest_asyncio.fixture
