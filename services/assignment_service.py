@@ -4,7 +4,6 @@ Assignment Service - Business logic for referee assignment management
 
 Handles assignment creation, updates, validation, and synchronization with matches.
 """
-
 from datetime import datetime
 
 from fastapi.encoders import jsonable_encoder
@@ -16,7 +15,6 @@ from exceptions import (
 )
 from logging_config import logger
 from models.assignments import AssignmentDB, Referee, Status, StatusHistory
-
 
 class AssignmentService:
     """Service for managing referee assignments"""
