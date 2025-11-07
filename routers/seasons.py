@@ -190,20 +190,31 @@ async def update_season(
                     )
                 else:
                     # If season exists but no changes were applied because data was the same
-                    return StandardResponse(
-                        status_code=status.HTTP_304_NOT_MODIFIED,
-                        message="No changes detected, season not modified."
-                    ).response()
+                    current_season = updated_tournament_check["seasons"][0]
+                    if "rounds" in current_season and current_season["rounds"] is not None:
+                        for round in current_season["rounds"]:
+                            if "matchdays" in round:
+                                del round["matchdays"]
+                    season_response = SeasonDB(**current_season)
+                    return JSONResponse(
+                        status_code=status.HTTP_200_OK, content=jsonable_encoder(season_response)
+                    )
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     else:
         # No changes detected in the payload compared to the existing season data
-        return StandardResponse(
-            status_code=status.HTTP_304_NOT_MODIFIED,
-            message="No changes detected, season not modified."
-        ).response()
+        # Fetch current season to return
+        current_season = tournament["seasons"][season_index]
+        if "rounds" in current_season and current_season["rounds"] is not None:
+            for round in current_season["rounds"]:
+                if "matchdays" in round:
+                    del round["matchdays"]
+        season_response = SeasonDB(**current_season)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(season_response)
+        )
 
     # Fetch the current season data after update
     tournament = await mongodb["tournaments"].find_one(
