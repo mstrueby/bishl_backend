@@ -189,10 +189,10 @@ async def update_tournament(
 
 
 # delete tournament
-@router.delete("/{tournament_alias}", response_description="Delete tournament")
+@router.delete("/{id}", response_description="Delete tournament")
 async def delete_tournament(
     request: Request,
-    tournament_alias: str,
+    id: str,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
@@ -202,11 +202,11 @@ async def delete_tournament(
             details={"user_role": token_payload.roles},
         )
 
-    logger.info(f"Deleting tournament with alias: {tournament_alias}")
-    result = await mongodb["tournaments"].delete_one({"alias": tournament_alias})
+    logger.info(f"Deleting tournament with id: {id}")
+    result = await mongodb["tournaments"].delete_one({"_id": id})
     if result.deleted_count == 1:
-        logger.info(f"Tournament deleted successfully: {tournament_alias}")
+        logger.info(f"Tournament deleted successfully: {id}")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     raise ResourceNotFoundException(
-        resource_type="Tournament", resource_id=tournament_alias, details={"query_field": "alias"}
+        resource_type="Tournament", resource_id=id
     )

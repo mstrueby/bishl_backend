@@ -222,20 +222,20 @@ async def update_season(
 
 
 # delete season from tournament
-@router.delete("/{season_alias}", response_description="Delete a single season from a tournament")
+@router.delete("/{season_id}", response_description="Delete a single season from a tournament")
 async def delete_season(
     request: Request,
     tournament_alias: str = Path(
         ..., description="The alias of the tournament to delete the season from"
     ),
-    season_alias: str = Path(..., description="The alias of the season to delete"),
+    season_id: str = Path(..., description="The ID of the season to delete"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
     delete_result = await mongodb["tournaments"].update_one(
-        {"alias": tournament_alias}, {"$pull": {"seasons": {"alias": season_alias}}}
+        {"alias": tournament_alias}, {"$pull": {"seasons": {"_id": season_id}}}
     )
     if delete_result.modified_count == 1:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -247,6 +247,6 @@ async def delete_season(
     else:
         raise ResourceNotFoundException(
             resource_type="Season",
-            resource_id=season_alias,
+            resource_id=season_id,
             details={"tournament_alias": tournament_alias},
         )

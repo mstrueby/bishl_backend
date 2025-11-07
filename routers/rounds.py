@@ -371,14 +371,14 @@ async def update_round(
 
 
 # delete round from a season
-@router.delete("/{round_alias}", response_description="Delete a single round from a season")
+@router.delete("/{round_id}", response_description="Delete a single round from a season")
 async def delete_round(
     request: Request,
     tournament_alias: str = Path(
         ..., description="The alias of the tournament to delete the round from"
     ),
     season_alias: str = Path(..., description="The alias of the season to delete the round from"),
-    round_alias: str = Path(..., description="The alias of the round to delete"),
+    round_id: str = Path(..., description="The ID of the round to delete"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
@@ -389,20 +389,20 @@ async def delete_round(
         )
 
     logger.info(
-        f"Deleting round {round_alias}",
+        f"Deleting round {round_id}",
         extra={"tournament_alias": tournament_alias, "season_alias": season_alias},
     )
 
     delete_result = await mongodb["tournaments"].update_one(
         {"alias": tournament_alias, "seasons.alias": season_alias},
-        {"$pull": {"seasons.$.rounds": {"alias": round_alias}}},
+        {"$pull": {"seasons.$.rounds": {"_id": round_id}}},
     )
     if delete_result.modified_count == 1:
-        logger.info(f"Successfully deleted round {round_alias}")
+        logger.info(f"Successfully deleted round {round_id}")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     raise ResourceNotFoundException(
         resource_type="Round",
-        resource_id=round_alias,
+        resource_id=round_id,
         details={"season_alias": season_alias, "tournament_alias": tournament_alias},
     )
