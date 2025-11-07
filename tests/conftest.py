@@ -135,6 +135,10 @@ async def client(mongodb):
 
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
+    
+    # CRITICAL: Clear the app state to prevent Motor client reuse across tests
+    # This prevents the "Event loop is closed" error
+    app.state.mongodb = None
 
 
 @pytest_asyncio.fixture
