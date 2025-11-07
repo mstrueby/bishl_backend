@@ -114,7 +114,8 @@ async def mongodb():
         except Exception as e:
             print(f"Warning: Could not cleanup {collection_name}: {e}")
 
-    client.close()
+    # Don't close client here - let Python GC handle it
+    # Closing it causes "Event loop is closed" errors when running full suite
 
 
 @pytest_asyncio.fixture
