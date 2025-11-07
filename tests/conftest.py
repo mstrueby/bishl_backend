@@ -1,3 +1,4 @@
+
 """
 Shared pytest fixtures for all tests.
 This file is automatically loaded by pytest.
@@ -24,9 +25,12 @@ from main import app
 from tests.test_config import TestSettings
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def event_loop():
-    """Create a new event loop for each test function."""
+    """
+    Create a session-scoped event loop for integration tests.
+    This prevents Motor client 'Event loop is closed' errors.
+    """
     policy = asyncio.get_event_loop_policy()
     loop = policy.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -87,7 +91,7 @@ async def cleanup_before_session():
 
 @pytest_asyncio.fixture(scope="function")
 async def mongodb():
-    """MongoDB client for testing - function scoped for fresh connection per test"""
+    """MongoDB client for testing - function scoped for isolation"""
     settings = TestSettings()
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
@@ -119,21 +123,45 @@ async def mongodb():
     client.close()
 
 
-@pytest_asyncio.fixture
-async def client(mongodb):
-    """HTTP client for API testing"""
+@pytest_asyncio.fixture(scope="session")
+async def app_with_db():
+    """
+    Session-scoped fixture that sets up the app with a persistent Motor client.
+    This prevents 'Event loop is closed' errors in integration tests.
+    """
     settings = TestSettings()
-
-    # CRITICAL SAFETY CHECK: Verify test database
-    assert mongodb.name == "bishl_test", f"❌ SAFETY: Client using wrong database: {mongodb.name}"
-
-    # Override the app's database connection with test database
-    app.state.mongodb = mongodb
+    
+    # Create a session-scoped Motor client
+    client = AsyncIOMotorClient(settings.DB_URL)
+    db = client[settings.DB_NAME]
+    
+    # Verify database
+    assert db.name == "bishl_test", f"❌ SAFETY: App using wrong database: {db.name}"
+    
+    # Set app state once for the entire session
+    app.state.mongodb = db
     app.state.settings = settings
+    
+    print(f"✅ App configured with session Motor client for database: {db.name}")
+    
+    yield app
+    
+    # Cleanup at end of session
+    client.close()
+    app.state.mongodb = None
 
-    print(f"✅ Client verified using database: {mongodb.name}")
 
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+@pytest_asyncio.fixture
+async def client(app_with_db, mongodb):
+    """
+    HTTP client for API testing.
+    Uses session-scoped app to prevent Motor client issues.
+    """
+    # The app already has the Motor client set by app_with_db fixture
+    # Just verify it's correct
+    assert app_with_db.state.mongodb.name == "bishl_test"
+    
+    async with AsyncClient(app=app_with_db, base_url="http://test") as ac:
         yield ac
 
 
