@@ -1,6 +1,6 @@
 # filename: routers/assignments.py
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -17,30 +17,17 @@ from exceptions import (
 
 from logging_config import logger
 from mail_service import send_email
-from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory, AssignmentCreate, AssignmentRead, AssignmentStatusUpdate
+from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory
 from models.responses import StandardResponse, PaginatedResponse
 from services.assignment_service import AssignmentService
 from services.message_service import MessageService
-from utils.user_roles import UserRoles
-
 DEBUG_LEVEL = int(os.environ.get("DEBUG_LEVEL", 0))
 
 router = APIRouter()
 auth = AuthHandler()
 BASE_URL = os.environ["BE_API_URL"]
-
-# Dependency injection providers
-def get_db(request: Request):
-    """Get the current request's MongoDB database"""
-    return request.app.state.mongodb
-
-def get_assignment_service(db = Depends(get_db)) -> AssignmentService:
-    """Create AssignmentService instance with current request's DB"""
-    return AssignmentService(db)
-
-def get_message_service(db = Depends(get_db)) -> MessageService:
-    """Create MessageService instance with current request's DB"""
-    return MessageService(db)
+message_service = None  # Will be initialized with MongoDB instance
+assignment_service = None  # Will be initialized with MongoDB instance
 
 
 class AllStatuses(Enum):
@@ -51,14 +38,14 @@ class AllStatuses(Enum):
     ACCEPTED = "ACCEPTED"
 
 
-async def send_message_to_referee(
-    mongodb, match, receiver_id, content, sender_id, sender_name, footer=None
-):
+async def send_message_to_referee(mongodb, match, receiver_id, content, sender_id, sender_name, footer=None):
     """
     Send notification to referee using MessageService.
     Replaces HTTP call to /messages/ endpoint.
     """
-    message_service = MessageService(mongodb)
+    global message_service
+    if message_service is None:
+        message_service = MessageService(mongodb)
 
     await message_service.send_referee_notification(
         referee_id=receiver_id,
@@ -75,12 +62,21 @@ async def send_message_to_referee(
 async def get_assignments_by_match(
     request: Request,
     match_id: str = Path(..., description="Match ID"),
-    assignmentStatus: list[AllStatuses] | None = Query(None, description="Filter by assignment status"),
+    assignmentStatus: list[AllStatuses] | None = Query(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-    assignment_service: AssignmentService = Depends(get_assignment_service),
 ):
-    """Get all assignments for a specific match"""
+    global assignment_service
     mongodb = request.app.state.mongodb
+    if assignment_service is None:
+        assignment_service = AssignmentService(mongodb)
+    if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
+        raise AuthorizationException(
+            message="Admin or Ref Admin role required", details={"user_roles": token_payload.roles}
+        )
+
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
 
     # Get all users with role REFEREE
     referees = (
@@ -182,56 +178,27 @@ async def get_assignments_by_user(
     )
 
 
-# GET all assignments for ONE referee ======
-@router.get("/referees/{referee_id}", response_model=list[AssignmentRead])
-async def get_assignments_by_referee(
-    request: Request,
-    referee_id: str = Path(..., description="Referee ID"),
-    assignmentStatus: list[AllStatuses] | None = Query(
-        None, description="Filter by assignment status"
-    ),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper),
-    assignment_service: AssignmentService = Depends(get_assignment_service),
-):
-    """Get all assignments for a specific referee"""
-    assignments = await assignment_service.get_assignments_by_referee(
-        referee_id, assignmentStatus
-    )
-    return assignments
-
-# GET a specific assignment by ID ======
-@router.get("/{assignment_id}", response_model=AssignmentRead)
-async def get_assignment(
-    request: Request,
-    assignment_id: str = Path(..., description="Assignment ID"),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper),
-    assignment_service: AssignmentService = Depends(get_assignment_service),
-):
-    """Get a specific assignment by ID"""
-    assignment = await assignment_service.get_assignment_by_id(assignment_id)
-    if not assignment:
-        raise_http_exception(
-            status_code=404,
-            error_code="ASSIGNMENT_NOT_FOUND",
-            message="Assignment not found",
-        )
-    return assignment
-
 # POST =====================================================================
-@router.post("", response_model=AssignmentRead, status_code=201)
+@router.post(
+    "",
+    response_description="Create Assignment",
+    status_code=status.HTTP_201_CREATED,
+    response_model=StandardResponse[AssignmentDB],
+)
 async def create_assignment(
     request: Request,
-    assignment_create: AssignmentCreate,
+    assignment_data: AssignmentBase = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-    assignment_service: AssignmentService = Depends(get_assignment_service),
-):
-    """Create Assignment"""
+) -> StandardResponse:
+    global assignment_service
     mongodb = request.app.state.mongodb
+    if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    match_id = assignment_create.matchId
+    match_id = assignment_data.matchId
     user_id = token_payload.sub
-    ref_id = assignment_create.refereeId
-    ref_admin = assignment_create.refAdmin
+    ref_id = assignment_data.userId
+    ref_admin = assignment_data.refAdmin
 
     # check if match exists
     match = await mongodb["matches"].find_one({"_id": match_id})
@@ -241,7 +208,7 @@ async def create_assignment(
     if ref_admin:
         # REF_ADMIN mode ------------------------------------------------------------
         print("REF_ADMN mode")
-        # check if assignment_create.refereeId exists
+        # check if assignment_data.userId exists
         if not ref_id:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -250,10 +217,13 @@ async def create_assignment(
         # check if really ref_admin or admin
         if (
             ref_admin
-            and UserRoles.REF_ADMIN not in token_payload.roles
-            and UserRoles.ADMIN not in token_payload.roles
+            and "REF_ADMIN" not in token_payload.roles
+            and "ADMIN" not in token_payload.roles
         ):
             raise AuthorizationException(detail="Not authorized to be referee admin")
+        global assignment_service
+        if assignment_service is None:
+            assignment_service = AssignmentService(mongodb)
 
         # check if assignment already exists for match_id and referee.userId = ref_id
         if await assignment_service.check_assignment_exists(match_id, ref_id):
@@ -262,17 +232,20 @@ async def create_assignment(
                 detail=f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}",
             )
         # check proper status
-        if assignment_create.status != Status.assigned:
+        if assignment_data.status != Status.assigned:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Invalid status. Only 'ASSIGNED' is allowed",
             )
         # Check if position is set in the assignment data
-        if not assignment_create.position:
+        if not assignment_data.position:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Position must be set for this assignment",
             )
+
+        if assignment_service is None:
+            assignment_service = AssignmentService(mongodb)
 
         # Create referee object
         referee = await assignment_service.create_referee_object(ref_id)
@@ -285,8 +258,8 @@ async def create_assignment(
                     new_assignment = await assignment_service.create_assignment(
                         match_id=match_id,
                         referee=referee,
-                        status=assignment_create.status,
-                        position=assignment_create.position,
+                        status=assignment_data.status,
+                        position=assignment_data.position,
                         updated_by=token_payload.sub,
                         updated_by_name=f"{token_payload.firstName} {token_payload.lastName}",
                         session=session,
@@ -294,7 +267,7 @@ async def create_assignment(
 
                     # Update match document within same transaction
                     await assignment_service.set_referee_in_match(
-                        match_id, jsonable_encoder(referee), assignment_create.position, session=session
+                        match_id, jsonable_encoder(referee), assignment_data.position, session=session
                     )
 
                     # Transaction commits automatically on success
@@ -338,6 +311,9 @@ async def create_assignment(
                                 detail="You are not a referee")
         """
 
+        if assignment_service is None:
+            assignment_service = AssignmentService(mongodb)
+
         # check if assignment already exists for match_id and referee.userId = ref_id
         if await assignment_service.check_assignment_exists(match_id, ref_id):
             raise HTTPException(
@@ -345,7 +321,7 @@ async def create_assignment(
                 detail=f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}",
             )
         # check proper status
-        if assignment_create.status not in [Status.requested, Status.unavailable]:
+        if assignment_data.status not in [Status.requested, Status.unavailable]:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid assignment status"
             )
@@ -356,7 +332,7 @@ async def create_assignment(
         new_assignment = await assignment_service.create_assignment(
             match_id=match_id,
             referee=referee,
-            status=assignment_create.status,
+            status=assignment_data.status,
             position=None,
             updated_by=ref_id,
             updated_by_name=f"{referee.firstName} {referee.lastName}",
@@ -377,149 +353,272 @@ async def create_assignment(
 
 # PATCH =====================================================================
 @router.patch(
-    "/{assignment_id}/status", response_model=AssignmentRead
+    "/{assignment_id}", response_description="Update an assignment", response_model=StandardResponse[AssignmentDB]
 )
-async def update_assignment_status(
-    request: Request,
-    assignment_id: str = Path(..., description="Assignment ID"),
-    status_update: AssignmentStatusUpdate = Body(...),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper),
-    assignment_service: AssignmentService = Depends(get_assignment_service),
-    message_service: MessageService = Depends(get_message_service),
-):
-    """Update assignment status (accept/decline by referee)"""
-    # Get existing assignment
-    existing = await assignment_service.get_assignment_by_id(assignment_id)
-    if not existing:
-        raise_http_exception(
-            status_code=404,
-            error_code="ASSIGNMENT_NOT_FOUND",
-            message="Assignment not found",
-        )
-
-    # Check permissions: referee can only update their own assignments
-    if (
-        UserRoles.REFEREE in token_payload.roles
-        and existing["refereeId"] != token_payload.sub
-    ):
-        raise_http_exception(
-            status_code=403,
-            error_code="PERMISSION_DENIED",
-            message="You can only update your own assignments",
-        )
-
-    # Use transaction for atomic update of assignment and message creation
-    async with await request.app.state.mongodb.client.start_session() as session:
-        async with session.start_transaction():
-            try:
-                updated_assignment = await assignment_service.update_assignment_status(
-                    assignment_id, status_update.status, token_payload.sub, session=session
-                )
-                # Add status history entry
-                await assignment_service.add_status_history(
-                    assignment_id,
-                    status_update.status,
-                    token_payload.sub,
-                    f"{token_payload.firstName} {token_payload.lastName}",
-                    session=session,
-                )
-
-                # Update match document if status is accepted or unavailable
-                if status_update.status in [Status.accepted, Status.unavailable]:
-                    await assignment_service.update_match_referee_status(
-                        existing["matchId"],
-                        existing["position"],
-                        status_update.status,
-                        session=session,
-                    )
-
-                # Send notification to referee if accepted
-                if status_update.status == Status.accepted:
-                    match = await mongodb["matches"].find_one({"_id": existing["matchId"]})
-                    await send_message_to_referee(
-                        mongodb=mongodb,
-                        match=match,
-                        receiver_id=existing["refereeId"],
-                        content=f"Hallo {existing['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} bestätigt:",
-                        sender_id=token_payload.sub,
-                        sender_name=f"{token_payload.firstName} {token_payload.lastName}",
-                        footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast.",
-                    )
-                # Transaction commits automatically on success
-            except Exception as e:
-                # Transaction aborts automatically on exception
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to update assignment status: {str(e)}",
-                ) from e
-
-    return StandardResponse(
-        success=True,
-        data=AssignmentRead(**updated_assignment),
-        message="Assignment status updated successfully",
-        status_code=status.HTTP_200_OK,
-    )
-
-
-# PUT =====================================================================
-@router.put("/{assignment_id}", response_model=AssignmentRead)
 async def update_assignment(
     request: Request,
     assignment_id: str = Path(..., description="Assignment ID"),
-    assignment_update: AssignmentUpdate = Body(...),
+    assignment_data: AssignmentUpdate = Body(...),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-    assignment_service: AssignmentService = Depends(get_assignment_service),
 ):
-    """Update an assignment"""
-    # Get existing assignment
-    existing = await assignment_service.get_assignment_by_id(assignment_id)
-    if not existing:
-        raise_http_exception(
-            status_code=404,
-            error_code="ASSIGNMENT_NOT_FOUND",
-            message="Assignment not found",
+    global assignment_service
+    mongodb = request.app.state.mongodb
+    if assignment_service is None:
+        assignment_service = AssignmentService(mongodb)
+
+    if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
+        raise AuthorizationException(detail="Not authorized")
+
+    user_id = token_payload.sub
+    ref_admin = assignment_data.refAdmin
+
+    # check if really ref_admin
+    if ref_admin and "REF_ADMIN" not in token_payload.roles and "ADMIN" not in token_payload.roles:
+        raise AuthorizationException(detail="Not authorized to be ref_admin")
+
+    # get assignment from db
+    assignment = await assignment_service.get_assignment_by_id(assignment_id)
+    if not assignment:
+        raise ResourceNotFoundException(resource_type="Assignment", resource_id=assignment_id)
+    match_id = assignment["matchId"]
+
+    # check if match exists
+    match = await assignment_service.get_match(match_id)
+
+    # check if match equals match_id of assignement
+    if assignment["matchId"] != match_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Assignment {assignment_id} does not belong to match with id {match_id}",
         )
 
-    # Check permissions
-    if UserRoles.REF_ADMIN not in token_payload.roles:
-        raise_http_exception(
-            status_code=403,
-            error_code="PERMISSION_DENIED",
-            message="Only REF_ADMIN can update assignments",
-        )
+    if ref_admin:
+        # REF_ADMIN mode ------------------------------------------------------------
+        print("REF_ADMIN mode")
+        ref_id = assignment["referee"]["userId"]
+        update_data = assignment_data.model_dump(exclude_unset=True)
 
-    updated = await assignment_service.update_assignment(assignment_id, assignment_update)
-    return updated
+        # exclude unchanged data
+        keys_to_pop = []
+        for key, value in assignment.items():
+            if key in update_data and value == update_data[key]:
+                keys_to_pop.append(key)
+        for key in keys_to_pop:
+            update_data.pop(key)
 
+        # check if position is set if status in assigned or accepted
+        if assignment_data.status in [Status.assigned, Status.accepted]:
+            if not assignment_data.position:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Position must be set for status {assignment_data.status}",
+                )
+        # print("update_data", update_data)
+        if "status" not in update_data:
+            # print("no update")
+            # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
+            updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+            return StandardResponse(
+                success=True,
+                data=AssignmentDB(**updated_assignment),
+                message="No changes to apply",
+                status_code=status.HTTP_200_OK,
+            )
+        elif (
+            update_data.get("status")
+            and (
+                assignment["status"] == Status.requested
+                and update_data["status"] == Status.assigned
+            )
+            or (
+                assignment["status"] == Status.assigned
+                and update_data["status"] == Status.unavailable
+            )
+            or (
+                assignment["status"] == Status.accepted
+                and update_data["status"] == Status.unavailable
+            )
+        ):
+            # print("do update")
+            if "ref_admin" in update_data:
+                del update_data["ref_admin"]
 
-# DELETE =====================================================================
-@router.delete("/{assignment_id}", status_code=204)
-async def delete_assignment(
-    request: Request,
-    assignment_id: str = Path(..., description="Assignment ID"),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper),
-    assignment_service: AssignmentService = Depends(get_assignment_service),
-):
-    """Delete an assignment"""
-    # Get existing assignment
-    existing = await assignment_service.get_assignment_by_id(assignment_id)
-    if not existing:
-        raise_http_exception(
-            status_code=404,
-            error_code="ASSIGNMENT_NOT_FOUND",
-            message="Assignment not found",
-        )
+            # Use transaction for assignment and match updates
+            async with await request.app.state.mongodb.client.start_session() as session:
+                async with session.start_transaction():
+                    try:
+                        if update_data["status"] not in [Status.assigned, Status.accepted]:
+                            # Ref wurde aus Ansetzung entfernt
+                            update_data_with_unset = {**update_data}
+                            result = await mongodb["assignments"].update_one(
+                                {"_id": assignment_id},
+                                {"$set": update_data_with_unset, "$unset": {"position": ""}},
+                                session=session,
+                            )
+                            # Add status history entry
+                            await assignment_service.add_status_history(
+                                assignment_id,
+                                update_data["status"],
+                                token_payload.sub,
+                                f"{token_payload.firstName} {token_payload.lastName}",
+                                session=session,
+                            )
+                            # Update match and remove referee
+                            await assignment_service.remove_referee_from_match(
+                                match_id, assignment["position"], session=session
+                            )
+                        else:
+                            result = await mongodb["assignments"].update_one(
+                                {"_id": assignment_id}, {"$set": update_data}, session=session
+                            )
+                            # Add status history entry
+                            await assignment_service.add_status_history(
+                                assignment_id,
+                                update_data["status"],
+                                token_payload.sub,
+                                f"{token_payload.firstName} {token_payload.lastName}",
+                                session=session,
+                            )
+                            if update_data["status"] in [Status.assigned, Status.accepted]:
+                                await assignment_service.set_referee_in_match(
+                                    match_id,
+                                    assignment["referee"],
+                                    assignment_data.position,
+                                    session=session,
+                                )
+                        # Transaction commits automatically on success
+                    except Exception as e:
+                        # Transaction aborts automatically on exception
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Failed to update assignment: {str(e)}",
+                        ) from e
 
-    # Check permissions
-    if UserRoles.REF_ADMIN not in token_payload.roles:
-        raise_http_exception(
-            status_code=403,
-            error_code="PERMISSION_DENIED",
-            message="Only REF_ADMIN can delete assignments",
-        )
+            # Send notifications after transaction commits
+            if update_data["status"] not in [Status.assigned, Status.accepted]:
+                await send_message_to_referee(
+                    mongodb=mongodb,
+                    match=match,
+                    receiver_id=ref_id,
+                    content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
+                    sender_id=token_payload.sub,
+                    sender_name=f"{token_payload.firstName} {token_payload.lastName}",
+                )
+            elif update_data["status"] in [Status.assigned, Status.accepted]:
+                await send_message_to_referee(
+                    mongodb=mongodb,
+                    match=match,
+                    receiver_id=ref_id,
+                    content=f"Hallo {assignment['referee']['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+                    sender_id=token_payload.sub,
+                    sender_name=f"{token_payload.firstName} {token_payload.lastName}",
+                    footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast.",
+                )
+            # print("update_data before update", update_data)
+            if result.modified_count == 1:
+                updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+                return StandardResponse(
+                    success=True,
+                    data=AssignmentDB(**updated_assignment),
+                    message="Assignment updated successfully",
+                    status_code=status.HTTP_200_OK,
+                )
+            else:
+                # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
+                updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+                return StandardResponse(
+                    success=True,
+                    data=AssignmentDB(**updated_assignment),
+                    message="No changes to apply",
+                    status_code=status.HTTP_200_OK,
+                )
 
-    await assignment_service.delete_assignment(assignment_id)
-    return Response(status_code=204)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid assignment status: {assignment['status']} --> {update_data['status']}",
+            )
+    else:
+        # REFEREE mode -------------------------------------------------------------
+        if DEBUG_LEVEL > 0:
+            logger.debug("REFEREE mode")
+
+        if assignment["referee"]["userId"] != user_id:
+            raise AuthorizationException(detail="Not authorized to update assignment of other referee")
+        update_data = assignment_data.model_dump(exclude_unset=True)
+
+        # exclude unchanged data
+        keys_to_pop = []
+        for key, value in assignment.items():
+            if key in update_data and value == update_data[key]:
+                keys_to_pop.append(key)
+        for key in keys_to_pop:
+            update_data.pop(key)
+
+        # print("update_data", update_data)
+        if not update_data:
+            print("no update")
+            # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
+            updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+            return StandardResponse(
+                success=True,
+                data=AssignmentDB(**updated_assignment),
+                message="No changes to apply",
+                status_code=status.HTTP_200_OK,
+            )
+        elif (
+            update_data.get("status")
+            and (
+                assignment["status"] == Status.unavailable
+                and update_data["status"] == Status.requested
+            )
+            or (
+                assignment["status"] == Status.requested
+                and update_data["status"] == Status.unavailable
+            )
+            or (
+                assignment["status"] == Status.assigned and update_data["status"] == Status.accepted
+            )
+        ):
+            # print("do update")
+            result = await mongodb["assignments"].update_one(
+                {"_id": assignment_id}, {"$set": update_data}
+            )
+            # Add status history entry
+            await assignment_service.add_status_history(
+                assignment_id,
+                update_data["status"],
+                user_id,
+                f"{assignment['referee']['firstName']} {assignment['referee']['lastName']}",
+            )
+
+            if result.modified_count == 1:
+                updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+                return StandardResponse(
+                    success=True,
+                    data=AssignmentDB(**updated_assignment),
+                    message="Assignment updated successfully",
+                    status_code=status.HTTP_200_OK,
+                )
+            else:
+                # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
+                updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+                return StandardResponse(
+                    success=True,
+                    data=AssignmentDB(**updated_assignment),
+                    message="No changes to apply",
+                    status_code=status.HTTP_200_OK,
+                )
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid assignment status: {assignment['status']} --> {update_data['status']}",
+            )
+
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Can not update assignment"
+    )
 
 
 # GET matches starting in 14 days with no referees ======
@@ -537,6 +636,8 @@ async def get_unassigned_matches_in_14_days(
     #    raise AuthorizationException(detail="Not authorized")
 
     # Calculate date exactly 14 days from now
+    from datetime import datetime, timedelta
+
     target_date = datetime.now() + timedelta(
         days=14 if os.environ.get("ENV") == "production" else 14
     )
@@ -859,3 +960,37 @@ async def get_unassigned_matches_in_14_days(
         message=f"Found {len(matches)} unassigned matches in 14 days",
         status_code=status.HTTP_200_OK,
     )
+
+
+# DELETE =====================================================================
+@router.delete(
+    "/{id}",
+    response_description="Delete an assignment",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_assignment(
+    request: Request,
+    id: str = Path(..., description="Assignment ID"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+) -> Response:
+    global assignment_service
+    mongodb = request.app.state.mongodb
+    if assignment_service is None:
+        assignment_service = AssignmentService(mongodb)
+
+    if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
+        raise AuthorizationException(
+            message="Admin or Ref Admin role required", details={"user_roles": token_payload.roles}
+        )
+
+    # Check if assignment exists
+    assignment = await assignment_service.get_assignment_by_id(id)
+    if not assignment:
+        raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
+
+    # Delete the assignment
+    result = await mongodb["assignments"].delete_one({"_id": id})
+    if result.deleted_count == 1:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
