@@ -24,9 +24,9 @@ from main import app
 from tests.test_config import TestSettings
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def event_loop():
-    """Create a session-scoped event loop to prevent Motor connection issues."""
+    """Create a new event loop for each test function."""
     policy = asyncio.get_event_loop_policy()
     loop = policy.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -85,9 +85,9 @@ async def cleanup_before_session():
     yield
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def mongodb():
-    """MongoDB client for testing - session scoped to share event loop"""
+    """MongoDB client for testing - function scoped for fresh connection per test"""
     settings = TestSettings()
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
@@ -98,30 +98,25 @@ async def mongodb():
 
     print(f"✅ Verified test database: {actual_db_name}")
 
-    yield db
-
-    # Close client at end of session
-    client.close()
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def clean_db(mongodb):
-    """Auto-cleanup database before each test"""
+    # Clean before test
     collections_to_clean = ["users", "matches", "assignments", "teams", "clubs", "tournaments"]
     for collection_name in collections_to_clean:
         try:
-            await mongodb[collection_name].delete_many({})
+            await db[collection_name].delete_many({})
         except Exception as e:
             print(f"Warning: Could not clean {collection_name}: {e}")
-    
-    yield
-    
-    # Cleanup after test
+
+    yield db
+
+    # Clean after test
     for collection_name in collections_to_clean:
         try:
-            await mongodb[collection_name].delete_many({})
+            await db[collection_name].delete_many({})
         except Exception as e:
             print(f"Warning: Could not cleanup {collection_name}: {e}")
+
+    # Close client to prevent event loop issues
+    client.close()
 
 
 @pytest_asyncio.fixture
