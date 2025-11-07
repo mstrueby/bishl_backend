@@ -1,14 +1,13 @@
 # filename: routers/matchdays.py
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
+from fastapi import APIRouter, Request, HTTPException, Depends, Response, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
-
+from models.responses import StandardResponse
+from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException
 from logging_config import logger
-from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from utils import DEBUG_LEVEL, my_jsonable_encoder
 
 router = APIRouter()
@@ -268,7 +267,7 @@ async def update_matchday(
         )
 
     # get matches for this matchday to determine start/end dates
-    # print(tournament_alias, season_alias, round_alias, tournament["seasons"][season_index]["rounds"][round_index]["matchdays"][matchday_index]['alias'])
+    # print(tournament_alias, season_alias, round_alias, tournament["seasons"][season_index]["rounds"][round_index]['matchdays'][matchday_index]['alias'])
     matches = (
         await mongodb["matches"]
         .find(

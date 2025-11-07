@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse, Response
 from authentication import AuthHandler, TokenPayload
 from exceptions import ResourceNotFoundException
 from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
+from models.responses import StandardResponse
+
 
 router = APIRouter()
 auth = AuthHandler()
@@ -159,24 +161,22 @@ async def update_season(
 
     # Prepare the update by excluding unchanged data
     update_data: dict[str, dict[str, Any]] = {"$set": {}}
-    for field in season_dict:
-        if field != "_id" and season_dict[field] != tournament["seasons"][season_index].get(field):
-            update_data["$set"][f"seasons.{season_index}.{field}"] = season_dict[field]
+    has_changes = False
+    for field, value in season_dict.items():
+        if field != "_id" and value != tournament["seasons"][season_index].get(field):
+            update_data["$set"][f"seasons.{season_index}.{field}"] = value
+            has_changes = True
 
     # Proceed with the update only if there are changes
-    if update_data["$set"]:
+    if has_changes:
         # Update season in tournament
         try:
             result = await mongodb["tournaments"].update_one(
                 {"_id": tournament["_id"], f"seasons.{season_index}._id": season_id}, update_data
             )
             if result.modified_count == 0:
-                # This could happen if the document was found but no fields changed,
-                # or if the season_id somehow didn't match after finding the tournament.
-                # Given we found the tournament and the season index, if modified_count is 0
-                # it implies no fields were actually changed in the update_data.
-                # However, if the season ID was somehow invalid at this point (e.g., race condition),
-                # it might also result in 0 modified. We re-check for the season to be sure.
+                # This case implies no fields were actually changed, or a race condition.
+                # Re-check season existence to be sure.
                 updated_tournament_check = await mongodb["tournaments"].find_one(
                     {"alias": tournament_alias}, {"seasons.$": ""}
                 )
@@ -190,13 +190,20 @@ async def update_season(
                     )
                 else:
                     # If season exists but no changes were applied because data was the same
-                    return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+                    return StandardResponse(
+                        status_code=status.HTTP_304_NOT_MODIFIED,
+                        message="No changes detected, season not modified."
+                    ).response()
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     else:
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        # No changes detected in the payload compared to the existing season data
+        return StandardResponse(
+            status_code=status.HTTP_304_NOT_MODIFIED,
+            message="No changes detected, season not modified."
+        ).response()
 
     # Fetch the current season data after update
     tournament = await mongodb["tournaments"].find_one(
