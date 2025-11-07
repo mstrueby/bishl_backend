@@ -80,6 +80,14 @@ class AssignmentCreate(BaseModel):
     refAdmin: bool = Field(default=False, description="Whether this is being created by a ref admin")
 
 
+class AssignmentDB(MongoBaseModel):
+    matchId: str = Field(...)
+    status: Status = Field(...)
+    referee: Referee = Field(...)
+    position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
+    statusHistory: list[StatusHistory] | None = Field(default_factory=list)
+
+
 class AssignmentRead(AssignmentDB):
     """Model for reading assignment data (API responses)"""
     pass
@@ -90,14 +98,6 @@ class AssignmentStatusUpdate(BaseModel):
     status: Status = Field(..., description="New status for the assignment")
 
     position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
-
-
-class AssignmentDB(MongoBaseModel):
-    matchId: str = Field(...)
-    status: Status = Field(...)
-    referee: Referee = Field(...)
-    position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
-    statusHistory: list[StatusHistory] | None = Field(default_factory=list)
 
 
 class AssignmentUpdate(MongoBaseModel):
