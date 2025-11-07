@@ -21,9 +21,9 @@ from main import app
 from tests.test_config import TestSettings
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def event_loop():
-    """Create an instance of the default event loop for the test session."""
+    """Create an instance of the default event loop for each test."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -93,20 +93,23 @@ async def mongodb():
 
     print(f"✅ Verified test database: {actual_db_name}")
     
-    # Clean up old invalid test data that might cause validation errors
-    # Remove any documents with invalid ObjectIds (string patterns like 'ref-1', 'test-admin-id', etc.)
-    try:
-        await db["users"].delete_many({
-            "$or": [
-                {"_id": {"$type": "string", "$regex": "^(ref-|test-|assign-)"}},
-            ]
-        })
-    except Exception as e:
-        print(f"Warning: Could not clean old test data: {e}")
+    # Clean all test collections before each test to prevent duplicate key errors
+    collections_to_clean = ["users", "matches", "assignments", "teams", "clubs", "tournaments"]
+    for collection_name in collections_to_clean:
+        try:
+            await db[collection_name].delete_many({})
+        except Exception as e:
+            print(f"Warning: Could not clean {collection_name}: {e}")
 
     yield db
 
-    # DO NOT cleanup after tests - keep data for inspection
+    # Cleanup after each test to ensure clean state
+    for collection_name in collections_to_clean:
+        try:
+            await db[collection_name].delete_many({})
+        except Exception as e:
+            print(f"Warning: Could not cleanup {collection_name}: {e}")
+    
     client.close()
 
 
@@ -142,7 +145,7 @@ async def admin_token(mongodb):
         "_id": str(admin_id),  # MongoDB stores as string
         "email": "admin@test.com",
         "password": auth.get_password_hash("admin123"),
-        "roles": ["ADMIN"],
+        "roles": ["ADMIN", "REF_ADMIN"],
         "firstName": "Admin",
         "lastName": "User",
         "club": {
@@ -150,9 +153,6 @@ async def admin_token(mongodb):
             "clubName": "Test Club"
         }
     }
-
-    # Clean up any existing admin users first to avoid conflicts
-    await mongodb["users"].delete_many({"email": "admin@test.com"})
     
     # Insert admin user into database so it exists when endpoints look for it
     await mongodb["users"].insert_one(admin_user)
