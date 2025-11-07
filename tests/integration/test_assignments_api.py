@@ -346,4 +346,4 @@ class TestAssignmentsAPI:
         
         response = await client.post("/assignments", json=assignment_data)
         
-        assert response.status_code == 401
+        assert response.status_code == 403

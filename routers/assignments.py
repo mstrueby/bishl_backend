@@ -251,7 +251,7 @@ async def create_assignment(
         referee = await assignment_service.create_referee_object(ref_id)
 
         # Use transaction to ensure assignment and match are updated together
-        async with await request.app.state.client.start_session() as session:
+        async with await request.app.state.mongodb.client.start_session() as session:
             async with session.start_transaction():
                 try:
                     # Create assignment within transaction
@@ -444,7 +444,7 @@ async def update_assignment(
                 del update_data["ref_admin"]
 
             # Use transaction for assignment and match updates
-            async with await request.app.state.client.start_session() as session:
+            async with await request.app.state.mongodb.client.start_session() as session:
                 async with session.start_transaction():
                     try:
                         if update_data["status"] not in [Status.assigned, Status.accepted]:
