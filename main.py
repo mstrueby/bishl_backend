@@ -206,8 +206,11 @@ async def general_exception_handler(request: Request, exc: Exception):
     correlation_id = str(uuid.uuid4())
 
     # Log full traceback for unexpected errors
+    # Use repr() to avoid KeyError when exception message contains braces
     logger.error(
-        f"[{correlation_id}] Unhandled exception: {str(exc)}",
+        "[{correlation_id}] Unhandled exception: {exception}",
+        correlation_id=correlation_id,
+        exception=repr(exc),
         extra={
             "correlation_id": correlation_id,
             "path": request.url.path,

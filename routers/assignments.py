@@ -176,7 +176,12 @@ async def get_assignments_by_user(
 
 
 # POST =====================================================================
-@router.post("", response_model=AssignmentDB, response_description="create an initial assignment")
+@router.post(
+    "",
+    response_description="Create Assignment",
+    status_code=status.HTTP_201_CREATED,
+    response_model=StandardResponse[AssignmentDB],
+)
 async def create_assignment(
     request: Request,
     assignment_data: AssignmentBase = Body(...),
