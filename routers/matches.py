@@ -882,9 +882,12 @@ async def update_match(
         print("match_to_update: ", match_to_update)
 
     if not match_to_update:
-        if DEBUG_LEVEL > 0:
-            print("PATCH/match: No changes to update")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        logger.info("No changes to update for match", extra={"match_id": match_id})
+        return StandardResponse(
+            success=True,
+            data=jsonable_encoder(existing_match),
+            message="Match data unchanged (already up to date)",
+        )
 
     # Check if this is a date-affecting change that requires round/matchday updates
     date_affecting_fields = ["startDate"]

@@ -337,22 +337,22 @@ async def update_team(
 
 
 # Delete team
-@router.delete("/{team_alias}", response_description="Delete team")
+@router.delete("/{team_id}", response_description="Delete team")
 async def delete_team(
     request: Request,
     club_alias: str = Path(..., description="Club alias to delete team from"),
-    team_alias: str = Path(..., description="Team alias to delete"),
+    team_id: str = Path(..., description="Team ID to delete"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
     delete_result = await mongodb["clubs"].update_one(
-        {"alias": club_alias}, {"$pull": {"teams": {"alias": team_alias}}}
+        {"alias": club_alias}, {"$pull": {"teams": {"_id": team_id}}}
     )
     if delete_result.modified_count == 1:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     raise HTTPException(
-        status_code=404, detail=f"Team with alias {team_alias} not found in club {club_alias}"
+        status_code=404, detail=f"Team with id {team_id} not found in club {club_alias}"
     )

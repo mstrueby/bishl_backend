@@ -1,14 +1,14 @@
 # filename: routers/matchdays.py
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
+from fastapi import APIRouter, Request, HTTPException, Depends, Response, status, Path, Body
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
-
+from fastapi.responses import JSONResponse
+from models.responses import StandardResponse
+from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException
 from logging_config import logger
-from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from utils import DEBUG_LEVEL, my_jsonable_encoder
 
 router = APIRouter()
@@ -268,7 +268,7 @@ async def update_matchday(
         )
 
     # get matches for this matchday to determine start/end dates
-    # print(tournament_alias, season_alias, round_alias, tournament["seasons"][season_index]["rounds"][round_index]["matchdays"][matchday_index]['alias'])
+    # print(tournament_alias, season_alias, round_alias, tournament["seasons"][season_index]["rounds"][round_index]['matchdays'][matchday_index]['alias'])
     matches = (
         await mongodb["matches"]
         .find(
@@ -371,7 +371,7 @@ async def update_matchday(
 
 
 # delete matchday of a round
-@router.delete("/{matchday_alias}", response_description="Delete a matchday of a round")
+@router.delete("/{matchday_id}", response_description="Delete a matchday of a round")
 async def delete_matchday(
     request: Request,
     tournament_alias: str = Path(
@@ -379,7 +379,7 @@ async def delete_matchday(
     ),
     season_alias: str = Path(..., description="The alias of the season to delete"),
     round_alias: str = Path(..., description="The alias of the round to delete"),
-    matchday_alias: str = Path(..., description="The alias of the matchday to delete"),
+    matchday_id: str = Path(..., description="The ID of the matchday to delete"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
@@ -393,25 +393,25 @@ async def delete_matchday(
             "alias": tournament_alias,
             "seasons.alias": season_alias,
             "seasons.rounds.alias": round_alias,
-            "seasons.rounds.matchdays.alias": matchday_alias,
+            "seasons.rounds.matchdays._id": matchday_id,
         },
-        {"$pull": {"seasons.$[s].rounds.$[r].matchdays": {"alias": matchday_alias}}},
+        {"$pull": {"seasons.$[s].rounds.$[r].matchdays": {"_id": matchday_id}}},
         array_filters=[{"s.alias": season_alias}, {"r.alias": round_alias}],
     )
     if result.modified_count == 1:
         logger.info(
-            f"Matchday deleted: {matchday_alias} in {tournament_alias}/{season_alias}/{round_alias}"
+            f"Matchday deleted: {matchday_id} in {tournament_alias}/{season_alias}/{round_alias}"
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     else:
         logger.warning(
-            f"Attempted to delete non-existent matchday: {matchday_alias} in {tournament_alias}/{season_alias}/{round_alias}"
+            f"Attempted to delete non-existent matchday: {matchday_id} in {tournament_alias}/{season_alias}/{round_alias}"
         )
         raise DatabaseOperationException(
             operation="delete",
             collection="tournaments.matchdays",
             details={
-                "matchday_alias": matchday_alias,
+                "matchday_id": matchday_id,
                 "round": round_alias,
                 "season": season_alias,
                 "tournament": tournament_alias,

@@ -95,24 +95,6 @@ class PaginatedResponse[T](BaseModel):
     )
 
 
-class DeleteResponse(BaseModel):
-    """Standard response for delete operations"""
-
-    success: bool = Field(default=True, description="Whether the deletion was successful")
-    deleted_count: int = Field(description="Number of items deleted")
-    message: str | None = Field(default=None, description="Optional success message")
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "success": True,
-                "deleted_count": 1,
-                "message": "Resource deleted successfully",
-            }
-        }
-    )
-
-
 class BulkOperationResponse(BaseModel):
     """Standard response for bulk operations"""
 

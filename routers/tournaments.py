@@ -8,7 +8,7 @@ from pymongo.errors import DuplicateKeyError
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException, ResourceNotFoundException
 from logging_config import logger
-from models.responses import PaginatedResponse
+from models.responses import PaginatedResponse, StandardResponse
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
 from services.pagination import PaginationHelper
 
@@ -146,10 +146,14 @@ async def update_tournament(
                 {"_id": tournament_id}, {"$set": tournament_to_update}
             )
             if update_result.modified_count == 0:
-                raise DatabaseOperationException(
-                    operation="update",
-                    collection="tournaments",
-                    details={"tournament_id": tournament_id, "modified_count": 0},
+                logger.info(
+                    "No changes to update for tournament",
+                    extra={"tournament_alias": tournament_id},
+                )
+                return StandardResponse(
+                    success=True,
+                    data=jsonable_encoder(existing_tournament),
+                    message="Tournament data unchanged (already up to date)",
                 )
         except DuplicateKeyError as e:
             raise DatabaseOperationException(
@@ -166,7 +170,12 @@ async def update_tournament(
             ) from e
     else:
         logger.info(f"No changes to update for tournament {tournament_id}")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        return StandardResponse(
+            success=True,
+            data=jsonable_encoder(existing_tournament),
+            message="Tournament data unchanged (already up to date)",
+        )
+
 
     exclusion_projection = {"seasons.rounds": 0}
     updated_tournament = await mongodb["tournaments"].find_one(
@@ -189,10 +198,10 @@ async def update_tournament(
 
 
 # delete tournament
-@router.delete("/{tournament_alias}", response_description="Delete tournament")
+@router.delete("/{id}", response_description="Delete tournament")
 async def delete_tournament(
     request: Request,
-    tournament_alias: str,
+    id: str,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
@@ -202,11 +211,11 @@ async def delete_tournament(
             details={"user_role": token_payload.roles},
         )
 
-    logger.info(f"Deleting tournament with alias: {tournament_alias}")
-    result = await mongodb["tournaments"].delete_one({"alias": tournament_alias})
+    logger.info(f"Deleting tournament with id: {id}")
+    result = await mongodb["tournaments"].delete_one({"_id": id})
     if result.deleted_count == 1:
-        logger.info(f"Tournament deleted successfully: {tournament_alias}")
+        logger.info(f"Tournament deleted successfully: {id}")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     raise ResourceNotFoundException(
-        resource_type="Tournament", resource_id=tournament_alias, details={"query_field": "alias"}
+        resource_type="Tournament", resource_id=id
     )

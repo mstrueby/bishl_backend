@@ -60,17 +60,10 @@ Used for GET operations that return multiple items.
 
 ### Delete Response
 
-Used for DELETE operations.
+Used for DELETE operations. Returns HTTP 204 No Content with no response body.
 
-```json
-{
-  "success": true,
-  "deleted_count": 1,
-  "message": "Match deleted successfully"
-}
-```
-
-**Model:** `DeleteResponse`
+**Status Code:** `204 No Content`  
+**Response Body:** None (empty)
 
 ### Bulk Operation Response
 
