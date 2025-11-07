@@ -9,6 +9,7 @@ from datetime import datetime
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorClientSession
 
+from config import settings
 from exceptions import (
     ResourceNotFoundException,
     ValidationException,
@@ -143,9 +144,7 @@ class AssignmentService:
         session: AsyncIOMotorClientSession | None = None,
     ) -> None:
         """Update match document with referee assignment"""
-        from config import DEBUG_LEVEL
-        
-        if DEBUG_LEVEL > 0:
+        if settings.DEBUG_LEVEL > 0:
             logger.debug(
                 f"Setting referee in match - match_id: {match_id}, position: {position}, referee: {referee['firstName']} {referee['lastName']} ({referee['userId']})"
             )
@@ -167,7 +166,7 @@ class AssignmentService:
             session=session,
         )
         
-        if DEBUG_LEVEL > 0:
+        if settings.DEBUG_LEVEL > 0:
             logger.debug(f"Referee set in match successfully - match_id: {match_id}, position: referee{position}")
 
     async def remove_referee_from_match(
@@ -203,9 +202,7 @@ class AssignmentService:
         Returns:
             Created assignment document
         """
-        from config import DEBUG_LEVEL
-        
-        if DEBUG_LEVEL > 0:
+        if settings.DEBUG_LEVEL > 0:
             logger.debug(
                 f"Creating assignment - match_id: {match_id}, referee: {referee.firstName} {referee.lastName} ({referee.userId}), status: {status}, position: {position}"
             )
@@ -246,7 +243,7 @@ class AssignmentService:
             },
         )
         
-        if DEBUG_LEVEL > 0:
+        if settings.DEBUG_LEVEL > 0:
             logger.debug(f"Assignment created successfully - assignment_id: {insert_response.inserted_id}")
 
         return created_assignment
