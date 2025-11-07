@@ -953,68 +953,35 @@ async def get_unassigned_matches_in_14_days(
     )
 
 
-# delete assignment
-@router.delete("/{id}", response_description="Delete an assignment")
+# DELETE =====================================================================
+@router.delete(
+    "/{id}",
+    response_description="Delete an assignment",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_assignment(
     request: Request,
     id: str = Path(..., description="Assignment ID"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> StandardResponse[None]:
+) -> Response:
     global assignment_service
     mongodb = request.app.state.mongodb
     if assignment_service is None:
         assignment_service = AssignmentService(mongodb)
 
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
-        raise AuthorizationException(detail="Not authorized")
-    # check if assignment exists
+        raise AuthorizationException(
+            message="Admin or Ref Admin role required", details={"user_roles": token_payload.roles}
+        )
+
+    # Check if assignment exists
     assignment = await assignment_service.get_assignment_by_id(id)
     if not assignment:
         raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
-    match_id = assignment["matchId"]
-    ref_id = assignment["referee"]["userId"]
 
-    # check if match exists
-    match = await assignment_service.get_match(match_id)
+    # Delete the assignment
+    result = await mongodb["assignments"].delete_one({"_id": id})
+    if result.deleted_count == 1:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    # Use transaction to delete assignment and update match together
-    async with await request.app.state.client.start_session() as session:
-        async with session.start_transaction():
-            try:
-                # Delete assignment
-                deleted = await assignment_service.delete_assignment(id, session=session)
-                if deleted:
-                    # Update match and remove referee
-                    await assignment_service.remove_referee_from_match(
-                        match_id, assignment["position"], session=session
-                    )
-                    # Transaction commits automatically on success
-                else:
-                    # This case should ideally not be reached if assignment was found above
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Assignment with id {id} not found during deletion",
-                    )
-            except HTTPException:
-                raise # Re-raise HTTPExceptions to ensure transaction aborts
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to delete assignment: {str(e)}",
-                ) from e
-
-    # Send notification after transaction commits
-    await send_message_to_referee(
-        mongodb=mongodb,
-        match=match,
-        receiver_id=ref_id,
-        content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
-        sender_id=token_payload.sub,
-        sender_name=f"{token_payload.firstName} {token_payload.lastName}",
-    )
-    return StandardResponse(
-        success=True,
-        data=None,
-        message="Assignment deleted successfully",
-        status_code=status.HTTP_200_OK, # Changed from HTTP_204_NO_CONTENT to HTTP_200_OK
-    )
+    raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
