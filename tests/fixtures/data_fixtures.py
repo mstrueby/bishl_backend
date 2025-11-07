@@ -289,40 +289,6 @@ def create_test_player(test_id: str = None, **overrides) -> Dict[str, Any]:
         "displayLastName": "Player",
         "birthdate": datetime(2008, 1, 1),
         "nationality": "deutsch",
-
-
-def get_test_assignment_data():
-    """Create test assignment data with valid ObjectIds"""
-    referee_id = str(ObjectId())
-    match_id = str(ObjectId())
-    
-    return {
-        "_id": str(ObjectId()),
-        "matchId": match_id,
-        "refereeId": referee_id,
-        "status": "REQUESTED",
-        "matchDate": datetime.now() + timedelta(days=7),
-        "referee": {
-            "userId": referee_id,
-            "firstName": "Test",
-            "lastName": "Referee",
-            "clubId": None,
-            "clubName": None,
-            "logoUrl": None,
-            "points": 0,
-            "level": "S2"
-        },
-        "position": None,
-        "statusHistory": [
-            {
-                "status": "REQUESTED",
-                "updateDate": datetime.now(),
-                "updatedBy": referee_id,
-                "updatedByName": "Test Referee"
-            }
-        ]
-    }
-
         "position": "Skater",
         "sex": "männlich",
         "fullFaceReq": False,
@@ -380,3 +346,36 @@ def create_test_roster_player(player_id: str, jersey_number: int = 10, **overrid
     }
     roster_player.update(overrides)
     return roster_player
+
+
+def get_test_assignment_data():
+    """Create test assignment data with valid ObjectIds"""
+    referee_id = str(ObjectId())
+    match_id = str(ObjectId())
+    
+    return {
+        "_id": str(ObjectId()),
+        "matchId": match_id,
+        "refereeId": referee_id,
+        "status": "REQUESTED",
+        "matchDate": datetime.now() + timedelta(days=7),
+        "referee": {
+            "userId": referee_id,
+            "firstName": "Test",
+            "lastName": "Referee",
+            "clubId": None,
+            "clubName": None,
+            "logoUrl": None,
+            "points": 0,
+            "level": "S2"
+        },
+        "position": None,
+        "statusHistory": [
+            {
+                "status": "REQUESTED",
+                "updateDate": datetime.now(),
+                "updatedBy": referee_id,
+                "updatedByName": "Test Referee"
+            }
+        ]
+    }
