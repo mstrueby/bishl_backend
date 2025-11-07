@@ -141,7 +141,7 @@ async def get_assignments_by_match(
 @router.get(
     "/users/{user_id}",
     response_description="List all assignments of a specific user",
-    response_model=AssignmentDB,
+    response_model=StandardResponse[list[AssignmentDB]],
 )
 async def get_assignments_by_user(
     request: Request,
@@ -216,7 +216,7 @@ async def create_assignment(
         global assignment_service
         if assignment_service is None:
             assignment_service = AssignmentService(mongodb)
-        
+
         # check if assignment already exists for match_id and referee.userId = ref_id
         if await assignment_service.check_assignment_exists(match_id, ref_id):
             raise HTTPException(
@@ -235,7 +235,7 @@ async def create_assignment(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Position must be set for this assignment",
             )
-        
+
         if assignment_service is None:
             assignment_service = AssignmentService(mongodb)
 
@@ -302,10 +302,10 @@ async def create_assignment(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="You are not a referee")
         """
-        
+
         if assignment_service is None:
             assignment_service = AssignmentService(mongodb)
-        
+
         # check if assignment already exists for match_id and referee.userId = ref_id
         if await assignment_service.check_assignment_exists(match_id, ref_id):
             raise HTTPException(
@@ -345,7 +345,7 @@ async def create_assignment(
 
 # PATCH =====================================================================
 @router.patch(
-    "/{assignment_id}", response_description="Update an assignment", response_model=AssignmentDB
+    "/{assignment_id}", response_description="Update an assignment", response_model=StandardResponse[AssignmentDB]
 )
 async def update_assignment(
     request: Request,
@@ -357,7 +357,7 @@ async def update_assignment(
     mongodb = request.app.state.mongodb
     if assignment_service is None:
         assignment_service = AssignmentService(mongodb)
-    
+
     if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(detail="Not authorized")
 
@@ -931,12 +931,12 @@ async def delete_assignment(
     request: Request,
     id: str = Path(..., description="Assignment ID"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> Response:
+) -> StandardResponse[None]:
     global assignment_service
     mongodb = request.app.state.mongodb
     if assignment_service is None:
         assignment_service = AssignmentService(mongodb)
-    
+
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(detail="Not authorized")
     # check if assignment exists
@@ -984,4 +984,9 @@ async def delete_assignment(
         sender_id=token_payload.sub,
         sender_name=f"{token_payload.firstName} {token_payload.lastName}",
     )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return StandardResponse(
+        success=True,
+        data=None,
+        message="Assignment deleted successfully",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
