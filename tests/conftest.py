@@ -10,6 +10,9 @@ from contextlib import asynccontextmanager
 from motor.motor_asyncio import AsyncIOMotorClient
 from httpx import AsyncClient
 
+# Configure pytest-asyncio to use function-scoped event loops
+pytest_plugins = ('pytest_asyncio',)
+
 # CRITICAL: Force pytest to use .env.test BEFORE importing any settings
 # This must happen before any Settings objects are created
 os.environ["ENV_FILE"] = ".env.test"
@@ -24,7 +27,8 @@ from tests.test_config import TestSettings
 @pytest.fixture(scope="function")
 def event_loop():
     """Create an instance of the default event loop for each test."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
     yield loop
     loop.close()
 
