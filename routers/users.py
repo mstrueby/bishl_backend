@@ -272,7 +272,7 @@ async def get_assigned_matches(
     global match_service
     if match_service is None:
         match_service = MatchService(mongodb)
-    
+
     user_id = token_payload.sub
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
@@ -287,7 +287,7 @@ async def get_assigned_matches(
     from datetime import datetime
     current_date = datetime.combine(date.today(), datetime.min.time())
     matches = await match_service.get_matches_for_referee(user_id, current_date)
-    
+
     # Parse matches into a list of MatchDB objects
     matches_list = [MatchDB(**match) for match in matches]
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(matches_list))
@@ -303,7 +303,7 @@ async def get_assignments(
     global match_service
     if match_service is None:
         match_service = MatchService(mongodb)
-    
+
     user_id = token_payload.sub
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
@@ -316,7 +316,7 @@ async def get_assignments(
 
     # Fetch assignments assigned to me using MatchService
     assignments = await match_service.get_referee_assignments(user_id)
-    
+
     # Parse assignments into a list of AssignmentDB objects
     assignments_list = [AssignmentDB(**assignment) for assignment in assignments]
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(assignments_list))

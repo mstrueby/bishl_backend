@@ -5,7 +5,6 @@ Replaces HTTP calls to internal tournament API endpoints
 """
 from typing import Any
 
-from config import settings
 from exceptions import DatabaseOperationException, ResourceNotFoundException
 from logging_config import logger
 from services.performance_monitor import monitor_query
@@ -37,26 +36,26 @@ class TournamentService:
             "Fetching standings settings",
             extra={"tournament": tournament_alias, "season": season_alias}
         )
-        
+
         tournament = await self.db["tournaments"].find_one({"alias": tournament_alias})
-        
+
         if not tournament:
             raise ResourceNotFoundException(
                 resource_type="Tournament",
                 resource_id=tournament_alias
             )
-        
+
         season = next(
             (s for s in tournament.get("seasons", []) if s.get("alias") == season_alias),
             None
         )
-        
+
         if not season:
             raise ResourceNotFoundException(
                 resource_type="Season",
                 resource_id=f"{tournament_alias}/{season_alias}"
             )
-        
+
         settings = season.get("standingsSettings")
         if not settings:
             raise ResourceNotFoundException(
@@ -64,7 +63,7 @@ class TournamentService:
                 resource_id=f"{tournament_alias}/{season_alias}",
                 details={"message": "No standings settings found"}
             )
-        
+
         return settings
 
     @monitor_query("get_matchday_info")
@@ -96,48 +95,48 @@ class TournamentService:
                 "matchday": md_alias
             }
         )
-        
+
         tournament = await self.db["tournaments"].find_one({"alias": t_alias})
-        
+
         if not tournament:
             raise ResourceNotFoundException(
                 resource_type="Tournament",
                 resource_id=t_alias
             )
-        
+
         season = next(
             (s for s in tournament.get("seasons", []) if s.get("alias") == s_alias),
             None
         )
-        
+
         if not season:
             raise ResourceNotFoundException(
                 resource_type="Season",
                 resource_id=f"{t_alias}/{s_alias}"
             )
-        
+
         round_data = next(
             (r for r in season.get("rounds", []) if r.get("alias") == r_alias),
             None
         )
-        
+
         if not round_data:
             raise ResourceNotFoundException(
                 resource_type="Round",
                 resource_id=f"{t_alias}/{s_alias}/{r_alias}"
             )
-        
+
         matchday = next(
             (md for md in round_data.get("matchdays", []) if md.get("alias") == md_alias),
             None
         )
-        
+
         if not matchday:
             raise ResourceNotFoundException(
                 resource_type="Matchday",
                 resource_id=f"{t_alias}/{s_alias}/{r_alias}/{md_alias}"
             )
-        
+
         return matchday
 
     @monitor_query("get_round_info")
@@ -161,37 +160,37 @@ class TournamentService:
             "Fetching round info",
             extra={"tournament": t_alias, "season": s_alias, "round": r_alias}
         )
-        
+
         tournament = await self.db["tournaments"].find_one({"alias": t_alias})
-        
+
         if not tournament:
             raise ResourceNotFoundException(
                 resource_type="Tournament",
                 resource_id=t_alias
             )
-        
+
         season = next(
             (s for s in tournament.get("seasons", []) if s.get("alias") == s_alias),
             None
         )
-        
+
         if not season:
             raise ResourceNotFoundException(
                 resource_type="Season",
                 resource_id=f"{t_alias}/{s_alias}"
             )
-        
+
         round_data = next(
             (r for r in season.get("rounds", []) if r.get("alias") == r_alias),
             None
         )
-        
+
         if not round_data:
             raise ResourceNotFoundException(
                 resource_type="Round",
                 resource_id=f"{t_alias}/{s_alias}/{r_alias}"
             )
-        
+
         return round_data
 
     @monitor_query("update_round_dates")
@@ -210,7 +209,7 @@ class TournamentService:
             "Updating round dates",
             extra={"round_id": round_id, "tournament": t_alias, "season": s_alias}
         )
-        
+
         # Get all matches in this round
         matches = await self.db["matches"].find(
             {
@@ -219,14 +218,14 @@ class TournamentService:
                 "round.alias": r_alias
             }
         ).sort("startDate", 1).to_list(length=None)
-        
+
         if not matches:
             logger.warning("No matches found for round date update")
             return
-        
+
         start_date = matches[0]["startDate"]
         end_date = matches[-1]["startDate"]
-        
+
         # Update round dates
         try:
             await self.db["tournaments"].update_one(
@@ -277,7 +276,7 @@ class TournamentService:
                 "round": r_alias
             }
         )
-        
+
         # Get all matches in this matchday
         matches = await self.db["matches"].find(
             {
@@ -287,14 +286,14 @@ class TournamentService:
                 "matchday.alias": md_alias
             }
         ).sort("startDate", 1).to_list(length=None)
-        
+
         if not matches:
             logger.warning("No matches found for matchday date update")
             return
-        
+
         start_date = matches[0]["startDate"]
         end_date = matches[-1]["startDate"]
-        
+
         # Update matchday dates
         try:
             await self.db["tournaments"].update_one(
