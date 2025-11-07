@@ -69,6 +69,26 @@ class AssignmentBase(MongoBaseModel):
     status: Status = Field(...)
     userId: str | None = None
     refAdmin: bool = False
+
+
+class AssignmentCreate(BaseModel):
+    """Model for creating a new assignment"""
+    matchId: str = Field(...)
+    refereeId: str | None = Field(None, description="Referee user ID (required for ref admin)")
+    status: Status = Field(...)
+    position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
+    refAdmin: bool = Field(default=False, description="Whether this is being created by a ref admin")
+
+
+class AssignmentRead(AssignmentDB):
+    """Model for reading assignment data (API responses)"""
+    pass
+
+
+class AssignmentStatusUpdate(BaseModel):
+    """Model for updating assignment status"""
+    status: Status = Field(..., description="New status for the assignment")
+
     position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
 
 
