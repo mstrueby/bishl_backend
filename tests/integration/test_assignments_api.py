@@ -237,8 +237,8 @@ class TestAssignmentsAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ASSIGNED"
-        assert data["position"] == 1
+        assert data["data"]["status"] == "ASSIGNED"
+        assert data["data"]["position"] == 1
 
     @pytest.mark.asyncio
     async def test_referee_accept_assignment(self, client: AsyncClient, mongodb):
@@ -289,7 +289,7 @@ class TestAssignmentsAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ACCEPTED"
+        assert data["data"]["status"] == "ACCEPTED"
 
     @pytest.mark.asyncio
     async def test_delete_assignment(self, client: AsyncClient, mongodb, admin_token):
