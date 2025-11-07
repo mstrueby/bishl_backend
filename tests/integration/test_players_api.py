@@ -147,7 +147,17 @@ class TestPlayersAPI:
         """Test retrieving players for a club"""
         from tests.fixtures.data_fixtures import create_test_player
         
-        # Setup
+        # Setup - Create club first
+        club = {
+            "_id": "club-1",
+            "name": "Test Club",
+            "alias": "test-club",
+            "active": True,
+            "teams": []
+        }
+        await mongodb["clubs"].insert_one(club)
+        
+        # Setup players
         player1 = create_test_player("player-1")
         player1["assignedTeams"] = [{
             "clubId": "club-1",
@@ -180,7 +190,22 @@ class TestPlayersAPI:
         """Test retrieving players for a specific team"""
         from tests.fixtures.data_fixtures import create_test_player
         
-        # Setup
+        # Setup - Create club with team first
+        club = {
+            "_id": "club-1",
+            "name": "Test Club",
+            "alias": "test-club",
+            "active": True,
+            "teams": [{
+                "_id": "team-1",
+                "name": "Team A",
+                "alias": "team-a",
+                "ageGroup": "U15"
+            }]
+        }
+        await mongodb["clubs"].insert_one(club)
+        
+        # Setup player
         player = create_test_player("player-1")
         player["assignedTeams"] = [{
             "clubId": "club-1",
