@@ -14,11 +14,14 @@ from exceptions import (
     AuthorizationException,
     ResourceNotFoundException,
 )
+
+from logging_config import logger
 from mail_service import send_email
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory
 from models.responses import StandardResponse, PaginatedResponse
 from services.assignment_service import AssignmentService
 from services.message_service import MessageService
+DEBUG_LEVEL = int(os.environ.get("DEBUG_LEVEL", 0))
 
 router = APIRouter()
 auth = AuthHandler()
@@ -176,7 +179,12 @@ async def get_assignments_by_user(
 
 
 # POST =====================================================================
-@router.post("", response_model=AssignmentDB, response_description="create an initial assignment")
+@router.post(
+    "",
+    response_description="Create Assignment",
+    status_code=status.HTTP_201_CREATED,
+    response_model=StandardResponse[AssignmentDB],
+)
 async def create_assignment(
     request: Request,
     assignment_data: AssignmentBase = Body(...),
@@ -532,7 +540,8 @@ async def update_assignment(
             )
     else:
         # REFEREE mode -------------------------------------------------------------
-        print("REFEREE mode")
+        if DEBUG_LEVEL > 0:
+            logger.debug("REFEREE mode")
 
         if assignment["referee"]["userId"] != user_id:
             raise AuthorizationException(detail="Not authorized to update assignment of other referee")

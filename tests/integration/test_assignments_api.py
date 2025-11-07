@@ -49,9 +49,9 @@ class TestAssignmentsAPI:
         # Assert response
         assert response.status_code == 201
         data = response.json()
-        assert data["matchId"] == match["_id"]
-        assert data["status"] == "REQUESTED"
-        assert data["referee"]["userId"] == referee["_id"]
+        assert data["data"]["matchId"] == match["_id"]
+        assert data["data"]["status"] == "REQUESTED"
+        assert data["data"]["referee"]["userId"] == referee["_id"]
         
         # Verify database
         assignment = await mongodb["assignments"].find_one({"matchId": match["_id"]})
