@@ -2,7 +2,8 @@
 import pytest
 from httpx import AsyncClient
 from bson import ObjectId
-from tests.fixtures.data_fixtures import get_test_assignment_data
+from tests.fixtures.data_fixtures import get_test_assignment_data, create_test_match
+from authentication import AuthHandler
 
 
 @pytest.mark.asyncio
@@ -11,9 +12,6 @@ class TestAssignmentsAPI:
 
     async def test_create_assignment_as_referee(self, client: AsyncClient, mongodb):
         """Test referee requesting assignment"""
-        from tests.fixtures.data_fixtures import create_test_match
-        from authentication import AuthHandler
-
         # Setup - Create referee user and match
         auth = AuthHandler()
         referee = {
@@ -59,8 +57,6 @@ class TestAssignmentsAPI:
 
     async def test_create_assignment_as_ref_admin(self, client: AsyncClient, mongodb, admin_token):
         """Test ref admin assigning referee to match"""
-        from tests.fixtures.data_fixtures import create_test_match
-
         # Setup - Create referee and match
         referee = {
             "_id": "ref-user-1",
@@ -103,8 +99,6 @@ class TestAssignmentsAPI:
 
     async def test_get_assignments_for_match(self, client: AsyncClient, mongodb, admin_token):
         """Test retrieving all assignments for a match"""
-        from tests.fixtures.data_fixtures import create_test_match
-
         # Setup
         match = create_test_match()
         await mongodb["matches"].insert_one(match)
@@ -189,8 +183,6 @@ class TestAssignmentsAPI:
 
     async def test_update_assignment_status(self, client: AsyncClient, mongodb, admin_token):
         """Test updating assignment status"""
-        from tests.fixtures.data_fixtures import create_test_match
-
         # Setup
         referee = {
             "_id": "ref-user-1",
@@ -235,9 +227,6 @@ class TestAssignmentsAPI:
 
     async def test_referee_accept_assignment(self, client: AsyncClient, mongodb):
         """Test referee accepting their assignment"""
-        from tests.fixtures.data_fixtures import create_test_match
-        from authentication import AuthHandler
-
         # Setup
         auth = AuthHandler()
         referee = {
@@ -283,8 +272,6 @@ class TestAssignmentsAPI:
 
     async def test_delete_assignment(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting an assignment"""
-        from tests.fixtures.data_fixtures import create_test_match
-
         # Setup
         match = create_test_match()
         match["referee1"] = {
@@ -326,8 +313,6 @@ class TestAssignmentsAPI:
 
     async def test_unauthorized_assignment_creation(self, client: AsyncClient, mongodb):
         """Test creating assignment without auth fails"""
-        from tests.fixtures.data_fixtures import create_test_match
-
         match = create_test_match()
         await mongodb["matches"].insert_one(match)
 
