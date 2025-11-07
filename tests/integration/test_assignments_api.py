@@ -124,14 +124,20 @@ class TestAssignmentsAPI:
 
         # Create assignment
         assignment = {
-            "_id": "assign-1",
+            "_id": str(ObjectId()),
             "matchId": match["_id"],
             "referee": {
                 "userId": "ref-1",
                 "firstName": "Ref",
-                "lastName": "One"
+                "lastName": "One",
+                "clubId": None,
+                "clubName": None,
+                "logoUrl": None,
+                "points": 0,
+                "level": "S2"
             },
-            "status": "REQUESTED"
+            "status": "REQUESTED",
+            "statusHistory": []
         }
         await mongodb["assignments"].insert_one(assignment)
 
@@ -200,7 +206,7 @@ class TestAssignmentsAPI:
         await mongodb["matches"].insert_one(match)
 
         assignment = {
-            "_id": "assign-1",
+            "_id": str(ObjectId()),
             "matchId": match["_id"],
             "referee": {
                 "userId": referee["_id"],
@@ -231,8 +237,8 @@ class TestAssignmentsAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ASSIGNED"
-        assert data["position"] == 1
+        assert data["data"]["status"] == "ASSIGNED"
+        assert data["data"]["position"] == 1
 
     @pytest.mark.asyncio
     async def test_referee_accept_assignment(self, client: AsyncClient, mongodb):
@@ -253,12 +259,17 @@ class TestAssignmentsAPI:
         await mongodb["matches"].insert_one(match)
 
         assignment = {
-            "_id": "assign-1",
+            "_id": str(ObjectId()),
             "matchId": match["_id"],
             "referee": {
                 "userId": referee["_id"],
                 "firstName": "John",
-                "lastName": "Referee"
+                "lastName": "Referee",
+                "clubId": None,
+                "clubName": None,
+                "logoUrl": None,
+                "points": 0,
+                "level": "S2"
             },
             "status": "ASSIGNED",
             "position": 1,
@@ -278,7 +289,7 @@ class TestAssignmentsAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ACCEPTED"
+        assert data["data"]["status"] == "ACCEPTED"
 
     @pytest.mark.asyncio
     async def test_delete_assignment(self, client: AsyncClient, mongodb, admin_token):
@@ -293,15 +304,21 @@ class TestAssignmentsAPI:
         await mongodb["matches"].insert_one(match)
 
         assignment = {
-            "_id": "assign-1",
+            "_id": str(ObjectId()),
             "matchId": match["_id"],
             "referee": {
                 "userId": "ref-1",
                 "firstName": "John",
-                "lastName": "Referee"
+                "lastName": "Referee",
+                "clubId": None,
+                "clubName": None,
+                "logoUrl": None,
+                "points": 0,
+                "level": "S2"
             },
             "status": "ASSIGNED",
-            "position": 1
+            "position": 1,
+            "statusHistory": []
         }
         await mongodb["assignments"].insert_one(assignment)
 
