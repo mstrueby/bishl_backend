@@ -205,7 +205,12 @@ class TestAssignmentsAPI:
             "referee": {
                 "userId": referee["_id"],
                 "firstName": "John",
-                "lastName": "Referee"
+                "lastName": "Referee",
+                "clubId": None,
+                "clubName": None,
+                "logoUrl": None,
+                "points": 0,
+                "level": "S2"
             },
             "status": "REQUESTED",
             "statusHistory": []
