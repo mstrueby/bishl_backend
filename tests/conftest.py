@@ -10,6 +10,9 @@ from contextlib import asynccontextmanager
 from motor.motor_asyncio import AsyncIOMotorClient
 from httpx import AsyncClient
 
+# Configure pytest-asyncio to use function-scoped event loops
+pytest_plugins = ('pytest_asyncio',)
+
 # CRITICAL: Force pytest to use .env.test BEFORE importing any settings
 # This must happen before any Settings objects are created
 os.environ["ENV_FILE"] = ".env.test"
@@ -24,7 +27,8 @@ from tests.test_config import TestSettings
 @pytest.fixture(scope="function")
 def event_loop():
     """Create an instance of the default event loop for each test."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
     yield loop
     loop.close()
 
@@ -82,7 +86,7 @@ async def cleanup_before_session():
 
 @pytest_asyncio.fixture(scope="function")
 async def mongodb():
-    """MongoDB client for testing - uses bishl_test database"""
+    """MongoDB client for testing - function scoped to avoid event loop issues"""
     settings = TestSettings()
     client = AsyncIOMotorClient(settings.DB_URL)
     db = client[settings.DB_NAME]
@@ -92,7 +96,7 @@ async def mongodb():
     assert actual_db_name == "bishl_test", f"❌ SAFETY CHECK FAILED: Expected 'bishl_test' but got '{actual_db_name}'"
 
     print(f"✅ Verified test database: {actual_db_name}")
-    
+
     # Clean all test collections before each test to prevent duplicate key errors
     collections_to_clean = ["users", "matches", "assignments", "teams", "clubs", "tournaments"]
     for collection_name in collections_to_clean:
@@ -109,8 +113,9 @@ async def mongodb():
             await db[collection_name].delete_many({})
         except Exception as e:
             print(f"Warning: Could not cleanup {collection_name}: {e}")
-    
-    client.close()
+
+    # Don't close client here - let Python GC handle it
+    # Closing it causes "Event loop is closed" errors when running full suite
 
 
 @pytest_asyncio.fixture
@@ -138,7 +143,7 @@ async def admin_token(mongodb):
     from bson import ObjectId
 
     auth = AuthHandler()
-    
+
     # IMPORTANT: Generate ObjectId and convert to string for MongoDB
     admin_id = ObjectId()
     admin_user = {
@@ -153,7 +158,7 @@ async def admin_token(mongodb):
             "clubName": "Test Club"
         }
     }
-    
+
     # Insert admin user into database so it exists when endpoints look for it
     await mongodb["users"].insert_one(admin_user)
 
@@ -174,9 +179,9 @@ async def create_test_user(mongodb):
     """Helper to create test users directly in DB (faster than API calls)"""
     from authentication import AuthHandler
     from bson import ObjectId
-    
+
     auth = AuthHandler()
-    
+
     async def _create(email: str, password: str, roles: list = None, **kwargs):
         """Create a user directly in the database"""
         user_id = str(ObjectId())
@@ -189,13 +194,13 @@ async def create_test_user(mongodb):
             "lastName": kwargs.get("lastName", "User"),
             "club": kwargs.get("club"),
         }
-        
+
         # Clean up existing user with same email
         await mongodb["users"].delete_many({"email": email})
         await mongodb["users"].insert_one(user_doc)
-        
+
         return user_id
-    
+
     return _create
 
 
