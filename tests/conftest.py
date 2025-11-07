@@ -127,17 +127,24 @@ async def client(mongodb):
     # CRITICAL SAFETY CHECK: Verify test database
     assert mongodb.name == "bishl_test", f"❌ SAFETY: Client using wrong database: {mongodb.name}"
 
-    # Override the app's database connection with test database
-    app.state.mongodb = mongodb
+    # CRITICAL: Create a NEW Motor client bound to the CURRENT event loop
+    # This prevents "Event loop is closed" errors when tests run in sequence
+    import asyncio
+    loop = asyncio.get_event_loop()
+    fresh_client = AsyncIOMotorClient(settings.DB_URL)
+    fresh_db = fresh_client[settings.DB_NAME]
+    
+    # Override the app's database connection with fresh client
+    app.state.mongodb = fresh_db
     app.state.settings = settings
 
-    print(f"✅ Client verified using database: {mongodb.name}")
+    print(f"✅ Client using fresh Motor client for database: {fresh_db.name}")
 
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
     
-    # CRITICAL: Clear the app state to prevent Motor client reuse across tests
-    # This prevents the "Event loop is closed" error
+    # Cleanup: Close the Motor client and clear app state
+    fresh_client.close()
     app.state.mongodb = None
 
 
