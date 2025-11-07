@@ -408,7 +408,14 @@ async def update_assignment(
         # print("update_data", update_data)
         if "status" not in update_data:
             # print("no update")
-            return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+            # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
+            updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+            return StandardResponse(
+                success=True,
+                data=AssignmentDB(**updated_assignment),
+                message="No changes to apply",
+                status_code=status.HTTP_200_OK,
+            )
         elif (
             update_data.get("status")
             and (
@@ -509,7 +516,14 @@ async def update_assignment(
                     status_code=status.HTTP_200_OK,
                 )
             else:
-                return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+                # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
+                updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+                return StandardResponse(
+                    success=True,
+                    data=AssignmentDB(**updated_assignment),
+                    message="No changes to apply",
+                    status_code=status.HTTP_200_OK,
+                )
 
         else:
             raise HTTPException(
@@ -535,7 +549,14 @@ async def update_assignment(
         # print("update_data", update_data)
         if not update_data:
             print("no update")
-            return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+            # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
+            updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+            return StandardResponse(
+                success=True,
+                data=AssignmentDB(**updated_assignment),
+                message="No changes to apply",
+                status_code=status.HTTP_200_OK,
+            )
         elif (
             update_data.get("status")
             and (
@@ -571,7 +592,14 @@ async def update_assignment(
                     status_code=status.HTTP_200_OK,
                 )
             else:
-                return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+                # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
+                updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})
+                return StandardResponse(
+                    success=True,
+                    data=AssignmentDB(**updated_assignment),
+                    message="No changes to apply",
+                    status_code=status.HTTP_200_OK,
+                )
 
         else:
             raise HTTPException(
@@ -988,5 +1016,5 @@ async def delete_assignment(
         success=True,
         data=None,
         message="Assignment deleted successfully",
-        status_code=status.HTTP_204_NO_CONTENT,
+        status_code=status.HTTP_200_OK, # Changed from HTTP_204_NO_CONTENT to HTTP_200_OK
     )
