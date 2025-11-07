@@ -282,8 +282,8 @@ async def create_assignment(
         await send_message_to_referee(
             mongodb=mongodb,
             match=match,
-            receiver_id=referee["userId"],
-            content=f"Hallo {referee['firstName']}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
+            receiver_id=referee.userId,
+            content=f"Hallo {referee.firstName}, du wurdest von {token_payload.firstName} für folgendes Spiel eingeteilt:",
             sender_id=token_payload.sub,
             sender_name=f"{token_payload.firstName} {token_payload.lastName}",
             footer="Du kannst diese Einteilung im Schiedsrichter-Tool bestätigen und damit signalisieren, dass du die Einteilung zur Kenntnis genommen hast.",
