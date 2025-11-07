@@ -246,20 +246,15 @@ class RosterService:
             {"_id": match_id}, {"$set": {f"{team_flag}.roster": jsonable_encoder(roster_data)}}
         )
 
-        if result.modified_count == 0:
+        was_modified = result.modified_count > 0
+
+        if was_modified:
+            logger.info("Roster updated", extra={"match_id": match_id, "team": team_flag})
+            # Update jersey numbers in scores/penalties only if roster changed
+            await self.update_jersey_numbers(match_id, team_flag, jersey_updates)
+        else:
             logger.warning("No changes detected in roster update", extra={"match_id": match_id})
-            raise DatabaseOperationException(
-                operation="update_roster",
-                collection="matches",
-                details={"match_id": match_id, "reason": "No changes detected - roster is identical"}
-            )
-
-        logger.info("Roster updated", extra={"match_id": match_id, "team": team_flag})
-
-        # Update jersey numbers in scores/penalties
-        await self.update_jersey_numbers(match_id, team_flag, jersey_updates)
 
         # Return updated roster and modification flag
         roster = await self.get_roster(match_id, team_flag)
-        was_modified = result.modified_count > 0
         return roster, was_modified

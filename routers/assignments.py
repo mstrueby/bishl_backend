@@ -983,9 +983,33 @@ async def delete_assignment(
     if not assignment:
         raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
 
-    # Delete the assignment
-    result = await mongodb["assignments"].delete_one({"_id": id})
-    if result.deleted_count == 1:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    # Use transaction to ensure both assignment deletion and match update succeed together
+    async with await request.app.state.mongodb.client.start_session() as session:
+        async with session.start_transaction():
+            try:
+                # Delete the assignment
+                result = await mongodb["assignments"].delete_one({"_id": id}, session=session)
+                
+                if result.deleted_count == 0:
+                    raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
+                
+                # Remove referee from match if assignment had a position
+                if assignment.get("position"):
+                    await assignment_service.remove_referee_from_match(
+                        assignment["matchId"], 
+                        assignment["position"], 
+                        session=session
+                    )
+                
+                # Transaction commits automatically on success
+            except ResourceNotFoundException:
+                # Re-raise ResourceNotFoundException
+                raise
+            except Exception as e:
+                # Transaction aborts automatically on exception
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to delete assignment: {str(e)}",
+                ) from e
 
-    raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
