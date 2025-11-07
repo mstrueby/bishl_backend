@@ -57,7 +57,6 @@ class TestAssignmentsAPI:
         assignment = await mongodb["assignments"].find_one({"matchId": match["_id"]})
         assert assignment is not None
 
-    @pytest.mark.asyncio
     async def test_create_assignment_as_ref_admin(self, client: AsyncClient, mongodb, admin_token):
         """Test ref admin assigning referee to match"""
         from tests.fixtures.data_fixtures import create_test_match
@@ -188,7 +187,6 @@ class TestAssignmentsAPI:
         data = response.json()
         assert len(data) >= 1
 
-    @pytest.mark.asyncio
     async def test_update_assignment_status(self, client: AsyncClient, mongodb, admin_token):
         """Test updating assignment status"""
         from tests.fixtures.data_fixtures import create_test_match
@@ -235,7 +233,6 @@ class TestAssignmentsAPI:
         assert data["status"] == "ASSIGNED"
         assert data["position"] == 1
 
-    @pytest.mark.asyncio
     async def test_referee_accept_assignment(self, client: AsyncClient, mongodb):
         """Test referee accepting their assignment"""
         from tests.fixtures.data_fixtures import create_test_match
@@ -284,7 +281,6 @@ class TestAssignmentsAPI:
         data = response.json()
         assert data["status"] == "ACCEPTED"
 
-    @pytest.mark.asyncio
     async def test_delete_assignment(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting an assignment"""
         from tests.fixtures.data_fixtures import create_test_match
@@ -328,7 +324,6 @@ class TestAssignmentsAPI:
         updated_match = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert updated_match["referee1"] is None
 
-    @pytest.mark.asyncio
     async def test_unauthorized_assignment_creation(self, client: AsyncClient, mongodb):
         """Test creating assignment without auth fails"""
         from tests.fixtures.data_fixtures import create_test_match
