@@ -4,7 +4,6 @@ Assignment Service - Business logic for referee assignment management
 
 Handles assignment creation, updates, validation, and synchronization with matches.
 """
-
 from datetime import datetime
 
 from fastapi.encoders import jsonable_encoder
@@ -16,7 +15,6 @@ from exceptions import (
 )
 from logging_config import logger
 from models.assignments import AssignmentDB, Referee, Status, StatusHistory
-
 
 class AssignmentService:
     """Service for managing referee assignments"""
@@ -145,6 +143,13 @@ class AssignmentService:
         session: AsyncIOMotorClientSession | None = None,
     ) -> None:
         """Update match document with referee assignment"""
+        from config import DEBUG_LEVEL
+        
+        if DEBUG_LEVEL > 0:
+            logger.debug(
+                f"Setting referee in match - match_id: {match_id}, position: {position}, referee: {referee['firstName']} {referee['lastName']} ({referee['userId']})"
+            )
+        
         await self.db["matches"].update_one(
             {"_id": match_id},
             {
@@ -161,6 +166,9 @@ class AssignmentService:
             },
             session=session,
         )
+        
+        if DEBUG_LEVEL > 0:
+            logger.debug(f"Referee set in match successfully - match_id: {match_id}, position: referee{position}")
 
     async def remove_referee_from_match(
         self, match_id: str, position: int, session: AsyncIOMotorClientSession | None = None
@@ -195,6 +203,13 @@ class AssignmentService:
         Returns:
             Created assignment document
         """
+        from config import DEBUG_LEVEL
+        
+        if DEBUG_LEVEL > 0:
+            logger.debug(
+                f"Creating assignment - match_id: {match_id}, referee: {referee.firstName} {referee.lastName} ({referee.userId}), status: {status}, position: {position}"
+            )
+        
         # Create initial status history
         initial_status_history = [
             StatusHistory(
@@ -230,6 +245,9 @@ class AssignmentService:
                 "status": status,
             },
         )
+        
+        if DEBUG_LEVEL > 0:
+            logger.debug(f"Assignment created successfully - assignment_id: {insert_response.inserted_id}")
 
         return created_assignment
 
