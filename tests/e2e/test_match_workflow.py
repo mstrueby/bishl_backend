@@ -438,9 +438,9 @@ class TestMatchWorkflow:
         # Verify overtime points
         match_doc = await mongodb["matches"].find_one({"_id": match_id})
         assert match_doc["home"]["stats"]["points"] == 2  # OT win
-        assert match_doc["home"]["stats"]["overtimeWins"] == 1
+        assert match_doc["home"]["stats"]["otWin"] == 1
         assert match_doc["away"]["stats"]["points"] == 1  # OT loss
-        assert match_doc["away"]["stats"]["overtimeLosses"] == 1
+        assert match_doc["away"]["stats"]["otLoss"] == 1
 
     async def test_shootout_match_workflow(self, client: AsyncClient, mongodb, admin_token):
         """Test match ending in shootout with correct point distribution"""
