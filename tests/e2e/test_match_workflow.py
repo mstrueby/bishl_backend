@@ -220,6 +220,28 @@ class TestMatchWorkflow:
         )
         assert response.status_code == 200
 
+        # Add away roster with player4
+        away_roster = [
+            {
+                "player": {
+                    "playerId": player4_id,
+                    "firstName": "Alice",
+                    "lastName": "Goalie",
+                    "jerseyNumber": 1,
+                },
+                "playerPosition": {"key": "GOALIE", "value": "Torwart"},
+                "passNumber": "PASS004",
+                "called": True,
+            },
+        ]
+
+        response = await client.put(
+            f"/matches/{match_id}/away/roster",
+            json=away_roster,
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 200
+
         # 4. Start match
         response = await client.patch(
             f"/matches/{match_id}",
