@@ -340,7 +340,16 @@ async def update_matchday(
     else:
         if DEBUG_LEVEL > 10:
             print("no update needed")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        # Return current matchday state
+        current_matchday = tournament["seasons"][season_index]["rounds"][round_index]["matchdays"][matchday_index]
+        logger.info(
+            "No changes to update for matchday",
+            extra={"matchday_id": matchday_id, "round": round_alias, "season": season_alias}
+        )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(MatchdayDB(**current_matchday))
+        )
 
     # Fetch the updated matchday
     updated_tournament = await mongodb["tournaments"].find_one(

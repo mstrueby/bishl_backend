@@ -331,7 +331,7 @@ class TestUpdateRoster:
     
     @pytest.mark.asyncio
     async def test_update_roster_no_changes(self, roster_service, mock_db):
-        """Test error when no changes detected"""
+        """Test successful handling when no changes detected"""
         from models.matches import RosterPlayer, EventPlayer
         from bson import ObjectId
         
@@ -359,7 +359,10 @@ class TestUpdateRoster:
         ]
         
         with patch('services.roster_service.populate_event_player_fields', new_callable=AsyncMock):
-            with pytest.raises(DatabaseOperationException):
-                await roster_service.update_roster(
-                    match_id, "home", new_roster, user_roles=["ADMIN"]
-                )
+            roster, was_modified = await roster_service.update_roster(
+                match_id, "home", new_roster, user_roles=["ADMIN"]
+            )
+            
+            # Should return successfully with was_modified=False
+            assert was_modified is False
+            assert len(roster) >= 0  # Roster can be empty or contain players
