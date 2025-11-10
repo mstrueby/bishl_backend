@@ -46,6 +46,9 @@ backups/
 .DS_Store
 Thumbs.db
 
+# Attached assets
+attached_assets/
+
 # Poetry
 poetry.lock
 # Python
