@@ -228,8 +228,7 @@ async def update_user(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can update roles"
         )
 
-    print("existing_user", existing_user)
-    print("roles", roles)
+    logger.debug(f"existing_user: {existing_user}")
 
     try:
         user_data = UserUpdate(
@@ -249,12 +248,12 @@ async def update_user(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Failed to parse input data: {e}",
         ) from e
-    print("user_data", user_data)
     user_data.pop("id", None)
+    logger.debug(f"user_data: {user_data}")
 
     user_to_update = {k: v for k, v in user_data.items() if v != existing_user.get(k, None)}
     if not user_to_update:
-        print("No fields to update")
+        logger.debug("No fields to update")
         response = StandardResponse(
             success=True,
             data=CurrentUser(**existing_user),
@@ -262,7 +261,7 @@ async def update_user(
         )
         return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
     try:
-        print("update user:", user_to_update)
+        logger.debug(f"update user: {user_to_update}")
         update_result = await mongodb["users"].update_one(
             {"_id": user_id}, {"$set": user_to_update}
         )
