@@ -30,8 +30,8 @@ class TestUsersAPI:
         assert response.status_code == 201
         data = response.json()
         assert "token" in data
-        assert data["user"]["email"] == "newuser@test.com"
-        assert "REFEREE" in data["user"]["roles"]
+        assert data["data"]["email"] == "newuser@test.com"
+        assert "REFEREE" in data["data"]["roles"]
 
         # Verify database
         user_in_db = await mongodb["users"].find_one({"email": "newuser@test.com"})
@@ -93,7 +93,7 @@ class TestUsersAPI:
         data = response.json()
         assert "access_token" in data
         assert "refresh_token" in data
-        assert data["user"]["email"] == "loginuser@test.com"
+        assert data["data"]["email"] == "loginuser@test.com"
 
     async def test_login_wrong_password(self, client: AsyncClient, create_test_user):
         """Test login with wrong password fails"""
@@ -126,8 +126,8 @@ class TestUsersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert "email" in data
-        assert "_id" in data
+        assert "email" in data["data"]
+        assert "_id" in data["data"]
 
     async def test_update_own_profile(self, client: AsyncClient, admin_token):
         """Test user updating their own profile"""
@@ -147,7 +147,7 @@ class TestUsersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["firstName"] == "UpdatedName"
+        assert data["data"]["firstName"] == "UpdatedName"
 
     async def test_update_other_user_as_admin(self, client: AsyncClient, admin_token):
         """Test admin updating another user"""
@@ -164,7 +164,7 @@ class TestUsersAPI:
             json=other_user_data,
             headers={"Authorization": f"Bearer {admin_token}"}
         )
-        other_user_id = create_response.json()["user"]["_id"]
+        other_user_id = create_response.json()["data"]["_id"]
 
         # Execute
         response = await client.patch(
@@ -176,7 +176,7 @@ class TestUsersAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["firstName"] == "Modified"
+        assert data["data"]["firstName"] == "Modified"
 
     async def test_get_all_referees(self, client: AsyncClient, mongodb, admin_token):
         """Test retrieving all referees"""
