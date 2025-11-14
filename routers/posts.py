@@ -73,7 +73,7 @@ async def delete_from_cloudinary(image_url: str):
 
 
 # list all posts
-@router.get("/", response_description="List all posts", response_model=PaginatedResponse[PostDB])
+@router.get("", response_description="List all posts", response_model=PaginatedResponse[PostDB])
 async def get_posts(
     request: Request,
     featured: bool | None = None,
@@ -121,7 +121,7 @@ async def get_post(request: Request, alias: str) -> JSONResponse:
 
 
 # create post
-@router.post("/", response_model=PostDB, response_description="Create post")
+@router.post("", response_model=PostDB, response_description="Create post")
 async def create_post(
     request: Request,
     title: str = Form(...),
