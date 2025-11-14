@@ -14,7 +14,7 @@ from logging_config import logger
 from mail_service import send_email
 from models.assignments import AssignmentDB
 from models.matches import MatchDB
-from models.responses import PaginatedResponse
+from models.responses import PaginatedResponse, StandardResponse
 from models.users import Club, CurrentUser, LoginBase, Role, UserBase, UserUpdate
 from services.match_service import MatchService
 from services.pagination import PaginationHelper
@@ -61,7 +61,7 @@ async def calculate_referee_points(mongodb, user_id):
     return total_points
 
 
-@router.post("/register", response_description="Register a new user", response_model=CurrentUser)
+@router.post("/register", response_description="Register a new user", response_model=StandardResponse[CurrentUser])
 async def register(
     request: Request,
     newUser: UserBase = Body(...),
@@ -91,16 +91,20 @@ async def register(
     created_user = await request.app.state.mongodb["users"].find_one({"_id": result.inserted_id})
 
     token = auth.encode_token(created_user)
-    response = CurrentUser(**created_user)
+    response = StandardResponse(
+        success=True,
+        data=CurrentUser(**created_user),
+        message="User registered successfully"
+    )
 
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
-        content={"token": token, "user": jsonable_encoder(response)},
+        content={"token": token, **jsonable_encoder(response)},
     )
 
 
 # login user
-@router.post("/login", response_description="Login a user", response_model=CurrentUser)
+@router.post("/login", response_description="Login a user", response_model=StandardResponse[CurrentUser])
 async def login(request: Request, loginUser: LoginBase = Body(...)) -> JSONResponse:
     mongodb = request.app.state.mongodb
     existing_user = await mongodb["users"].find_one(
@@ -139,7 +143,11 @@ async def login(request: Request, loginUser: LoginBase = Body(...)) -> JSONRespo
     access_token = auth.encode_token(existing_user)
     refresh_token = auth.encode_refresh_token(existing_user)
 
-    response = CurrentUser(**existing_user)
+    response = StandardResponse(
+        success=True,
+        data=CurrentUser(**existing_user),
+        message="Login successful"
+    )
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -148,13 +156,13 @@ async def login(request: Request, loginUser: LoginBase = Body(...)) -> JSONRespo
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": 900,  # 15 minutes in seconds
-            "user": jsonable_encoder(response),
+            **jsonable_encoder(response)
         },
     )
 
 
 # get current user
-@router.get("/me", response_description="Get current user", response_model=CurrentUser)
+@router.get("/me", response_description="Get current user", response_model=StandardResponse[CurrentUser])
 async def me(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
@@ -175,12 +183,16 @@ async def me(
         else:
             user["referee"]["points"] = total_points
 
-    response = CurrentUser(**user)
+    response = StandardResponse(
+        success=True,
+        data=CurrentUser(**user),
+        message="User retrieved successfully"
+    )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
 
 # update user details
-@router.patch("/{user_id}", response_description="Update a user", response_model=CurrentUser)
+@router.patch("/{user_id}", response_description="Update a user", response_model=StandardResponse[CurrentUser])
 async def update_user(
     request: Request,
     user_id: str,
@@ -192,7 +204,7 @@ async def update_user(
     roles: list[str] | None = Form(default=None),
     referee: str | None = Form(default=None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> Response:
+) -> JSONResponse:
     mongodb = request.app.state.mongodb
 
     # Check if user is trying to update their own profile or is an admin
@@ -243,7 +255,12 @@ async def update_user(
     user_to_update = {k: v for k, v in user_data.items() if v != existing_user.get(k, None)}
     if not user_to_update:
         print("No fields to update")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        response = StandardResponse(
+            success=True,
+            data=CurrentUser(**existing_user),
+            message="No changes detected"
+        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
     try:
         print("update user:", user_to_update)
         update_result = await mongodb["users"].update_one(
@@ -252,10 +269,20 @@ async def update_user(
 
         if update_result.modified_count == 1:
             updated_user = await mongodb["users"].find_one({"_id": user_id})
-            response = CurrentUser(**updated_user)
+            response = StandardResponse(
+                success=True,
+                data=CurrentUser(**updated_user),
+                message="User updated successfully"
+            )
             return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
-        raise HTTPException(status_code=status.HTTP_304_NOT_MODIFIED, detail="User not modified")
+        # If not modified but no error, return current user
+        response = StandardResponse(
+            success=True,
+            data=CurrentUser(**existing_user),
+            message="No changes applied"
+        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
@@ -263,7 +290,7 @@ async def update_user(
 @router.get(
     "/matches",
     response_description="All assigned matches for me as a referee",
-    response_model=list[MatchDB],
+    response_model=StandardResponse[list[MatchDB]],
 )
 async def get_assigned_matches(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
@@ -290,11 +317,16 @@ async def get_assigned_matches(
 
     # Parse matches into a list of MatchDB objects
     matches_list = [MatchDB(**match) for match in matches]
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(matches_list))
+    response = StandardResponse(
+        success=True,
+        data=matches_list,
+        message=f"Retrieved {len(matches_list)} assigned matches"
+    )
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
 
 @router.get(
-    "/assignments", response_description="All assignments by me", response_model=list[AssignmentDB]
+    "/assignments", response_description="All assignments by me", response_model=StandardResponse[list[AssignmentDB]]
 )
 async def get_assignments(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
@@ -319,7 +351,12 @@ async def get_assignments(
 
     # Parse assignments into a list of AssignmentDB objects
     assignments_list = [AssignmentDB(**assignment) for assignment in assignments]
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(assignments_list))
+    response = StandardResponse(
+        success=True,
+        data=assignments_list,
+        message=f"Retrieved {len(assignments_list)} assignments"
+    )
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
 
 @router.get(
@@ -366,7 +403,7 @@ async def get_all_referees(
 
 
 # get one user
-@router.get("/{user_id}", response_description="Get a user by ID", response_model=CurrentUser)
+@router.get("/{user_id}", response_description="Get a user by ID", response_model=StandardResponse[CurrentUser])
 async def get_user(
     request: Request, user_id: str, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
@@ -385,7 +422,11 @@ async def get_user(
         else:
             user["referee"]["points"] = total_points
 
-    response = CurrentUser(**user)
+    response = StandardResponse(
+        success=True,
+        data=CurrentUser(**user),
+        message="User retrieved successfully"
+    )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
 
