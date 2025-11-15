@@ -18,7 +18,7 @@ auth = AuthHandler()
 
 # get all seasons of a tournament
 @router.get(
-    "/", response_description="List all seasons for a tournament", response_model=list[SeasonDB]
+    "", response_description="List all seasons for a tournament", response_model=list[SeasonDB]
 )
 async def get_seasons_for_tournament(
     request: Request,
@@ -69,7 +69,7 @@ async def get_season(
 
 
 # add new season to tournament
-@router.post("/", response_description="Add new season to tournament", response_model=SeasonDB)
+@router.post("", response_description="Add new season to tournament", response_model=SeasonDB)
 async def create_season(
     request: Request,
     tournament_alias: str = Path(..., description="The alias of the tournament to add a season to"),

@@ -61,7 +61,7 @@ async def delete_from_cloudinary(logo_url: str):
 
 
 # list all teams of one club
-@router.get("/", response_description="List all teams of one club", response_model=list[TeamDB])
+@router.get("", response_description="List all teams of one club", response_model=list[TeamDB])
 async def list_teams_of_one_club(
     request: Request,
     club_alias: str = Path(..., description="Club alias to list teams"),
@@ -102,7 +102,7 @@ async def get_team(
 
 
 # create new team
-@router.post("/", response_description="Add new team to a club", response_model=TeamDB)
+@router.post("", response_description="Add new team to a club", response_model=TeamDB)
 async def create_team(
     request: Request,
     club_alias: str = Path(..., description="Club alias to create team for"),

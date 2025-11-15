@@ -12,7 +12,7 @@ endpoints = [
 ]
 
 
-@router.get("/", response_description="List all entry API endpoints")
+@router.get("", response_description="List all entry API endpoints")
 async def get_root():
     return endpoints
 

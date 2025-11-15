@@ -14,7 +14,7 @@ auth = AuthHandler()
 
 
 # Send a message
-@router.post("/", response_description="Send a message", response_model=MessageDB)
+@router.post("", response_description="Send a message", response_model=MessageDB)
 async def send_message(
     request: Request,
     message: MessageBase = Body(...),
@@ -48,7 +48,7 @@ async def send_message(
 
 
 # Retrieve messages for a user - Inbox
-@router.get("/", response_description="List messages for a user", response_model=list[MessageDB])
+@router.get("", response_description="List messages for a user", response_model=list[MessageDB])
 async def get_messages(
     request: Request,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),

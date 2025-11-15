@@ -18,7 +18,7 @@ auth = AuthHandler()
 
 # get all tournaments
 @router.get(
-    "/", response_description="List all tournaments", response_model=PaginatedResponse[TournamentDB]
+    "", response_description="List all tournaments", response_model=PaginatedResponse[TournamentDB]
 )
 async def get_tournaments(
     request: Request,
@@ -75,7 +75,7 @@ async def get_tournament(
 
 
 # create new tournament
-@router.post("/", response_description="Add new tournament", response_model=TournamentDB)
+@router.post("", response_description="Add new tournament", response_model=TournamentDB)
 async def create_tournament(
     request: Request,
     tournament: TournamentBase = Body(...),

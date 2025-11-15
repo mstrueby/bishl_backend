@@ -21,7 +21,7 @@ auth = AuthHandler()
 
 
 # get all rounds of a season
-@router.get("/", response_description="List all rounds for a season", response_model=list[RoundDB])
+@router.get("", response_description="List all rounds for a season", response_model=list[RoundDB])
 async def get_rounds_for_season(
     request: Request,
     tournament_alias: str = Path(
@@ -91,7 +91,7 @@ async def get_round(
 
 
 # add new round to a season
-@router.post("/", response_description="Add a new round to a season", response_model=RoundDB)
+@router.post("", response_description="Add a new round to a season", response_model=RoundDB)
 async def add_round(
     request: Request,
     tournament_alias: str = Path(

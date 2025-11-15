@@ -17,7 +17,7 @@ auth = AuthHandler()
 
 # get all matchdays of a round
 @router.get(
-    "/", response_description="List all matchdays for a round", response_model=list[MatchdayDB]
+    "", response_description="List all matchdays for a round", response_model=list[MatchdayDB]
 )
 async def get_matchdays_for_round(
     request: Request,
@@ -97,7 +97,7 @@ async def get_matchday(
 
 
 # add new matchday to a round
-@router.post("/", response_description="Add a new matchday to a round", response_model=MatchdayDB)
+@router.post("", response_description="Add a new matchday to a round", response_model=MatchdayDB)
 async def add_matchday(
     request: Request,
     tournament_alias: str = Path(

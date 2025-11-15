@@ -52,7 +52,7 @@ async def delete_from_cloudinary(image_url: str):
 
 
 # list all venues
-@router.get("/", response_description="List all venues", response_model=list[VenueDB])
+@router.get("", response_description="List all venues", response_model=list[VenueDB])
 async def list_venues(
     request: Request,
     active: bool | None = None,
@@ -91,7 +91,7 @@ async def get_venue(alias: str, request: Request) -> JSONResponse:
 
 
 # create new venue
-@router.post("/", response_description="Add new venue", response_model=VenueDB)
+@router.post("", response_description="Add new venue", response_model=VenueDB)
 async def create_venue(
     request: Request,
     name: str = Form(...),

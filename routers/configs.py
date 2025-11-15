@@ -126,7 +126,7 @@ configs: list[Config] = [  # Use List[Config] for type hinting
 
 
 # Get all configs
-@router.get("/", response_model=list[Config], response_description="Get all configs")
+@router.get("", response_model=list[Config], response_description="Get all configs")
 async def get_all_configs(request: Request):
     return JSONResponse(
         status_code=status.HTTP_200_OK, content=[config.model_dump() for config in configs]
