@@ -41,7 +41,7 @@ class ResourceNotFoundException(BISHLException):
         Example:
             raise ResourceNotFoundException('Match', match_id, {'team_flag': 'home'})
         """
-        message = f"{resource_type} with ID '{resource_id}' not found"
+        message = f"{resource_type} with resource ID '{resource_id}' not found"
         extra_details = {"resource_type": resource_type, "resource_id": resource_id}
         if details:
             extra_details.update(details)

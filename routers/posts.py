@@ -56,7 +56,7 @@ async def handle_image_upload(image: UploadFile, public_id: str):
                 }
             ],
         )
-        print(f"Post Image uploaded: {result['url']}")
+        logger.debug(f"Post Image uploaded: {result['url']}")
         return result["url"]
 
 
@@ -202,7 +202,7 @@ async def create_post(
 
     # Insert post
     try:
-        print("post_data", post_data)
+        logger.debug(f"post_data: {post_data}")
         new_post = await mongodb["posts"].insert_one(post_data)
         created_post = await mongodb["posts"].find_one({"_id": new_post.inserted_id})
         if created_post:

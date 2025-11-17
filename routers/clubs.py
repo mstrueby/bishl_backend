@@ -51,8 +51,8 @@ async def delete_from_cloudinary(logo_url: str):
         try:
             public_id = logo_url.rsplit("/", 1)[-1].split(".")[0]
             result = cloudinary.uploader.destroy(f"logos/{public_id}")
-            print("Logo deleted from Cloudinary:", f"logos/{public_id}")
-            print("Result:", result)
+            logger.info(f"Logo deleted from Cloudinary: logos/{public_id}")
+            logger.debug(f"Result: {result}")
             return result
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
@@ -162,7 +162,6 @@ async def create_club(
         active=active,
     )
     club_data = jsonable_encoder(club)
-    club_data.pop("_id", None)
 
     if logo:
         club_data["logoUrl"] = await handle_logo_upload(logo, alias)

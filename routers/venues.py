@@ -5,6 +5,7 @@ import cloudinary.uploader
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
+from loguru import logger
 from pydantic import HttpUrl
 from pymongo.errors import DuplicateKeyError
 
@@ -37,7 +38,7 @@ async def handle_image_upload(image: UploadFile, public_id: str):
                 }
             ],
         )
-        print(f"Venue Image uploaded: {result['url']}")
+        logger.debug(f"Venue Image uploaded: {result['url']}")
         return result["url"]
 
 
@@ -46,8 +47,8 @@ async def delete_from_cloudinary(image_url: str):
         try:
             public_id = image_url.rsplit("/", 1)[-1].split(".")[0]
             result = cloudinary.uploader.destroy(f"venues/{public_id}")
-            print("Venue Image deleted from Cloudinary:", f"venues/{public_id}")
-            print("Result:", result)
+            logger.info(f"Venue Image deleted from Cloudinary: venues/{public_id}")
+            logger.debug(f"Result: {result}")
             return result
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
