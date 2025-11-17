@@ -162,13 +162,16 @@ async def create_club(
         active=active,
     )
     club_data = jsonable_encoder(club)
+    club_data.pop("_id", None)
 
     if logo:
         club_data["logoUrl"] = await handle_logo_upload(logo, alias)
 
     # insert club
     try:
-        logger.info(f"Creating new club: {name} ({alias})")
+        # filter out None values
+        club_data = {k: v for k, v in club_data.items() if v is not None}
+        logger.info(f"Creating new club: {club_data}")
         new_club = await mongodb["clubs"].insert_one(club_data)
         created_club = await mongodb["clubs"].find_one({"_id": new_club.inserted_id})
         if created_club:
