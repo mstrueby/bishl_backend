@@ -2,7 +2,7 @@ from datetime import datetime
 
 import cloudinary
 import cloudinary.uploader
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from pydantic import HttpUrl
@@ -10,7 +10,9 @@ from pymongo.errors import DuplicateKeyError
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ResourceNotFoundException
+from models.responses import PaginatedResponse, StandardResponse
 from models.venues import VenueBase, VenueDB, VenueUpdate
+from services.pagination import PaginationHelper
 
 router = APIRouter()
 auth = AuthHandler()
@@ -52,38 +54,46 @@ async def delete_from_cloudinary(image_url: str):
 
 
 # list all venues
-@router.get("", response_description="List all venues", response_model=list[VenueDB])
+@router.get("", response_description="List all venues", response_model=PaginatedResponse[VenueDB])
 async def list_venues(
     request: Request,
     active: bool | None = None,
-    page: int = 1,
-) -> JSONResponse:
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> PaginatedResponse[VenueDB]:
     mongodb = request.app.state.mongodb
-    # RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
-    RESULTS_PER_PAGE = 100
-    skip = (page - 1) * RESULTS_PER_PAGE
     query = {}
     if active is not None:
         query["active"] = active
-    full_query = (
-        await mongodb["venues"]
-        .find(query)
-        .sort("name", 1)
-        .skip(skip)
-        .limit(RESULTS_PER_PAGE)
-        .to_list(length=None)
+    
+    items, total_count = await PaginationHelper.paginate_query(
+        collection=mongodb["venues"],
+        query=query,
+        page=page,
+        page_size=page_size,
+        sort=[("name", 1)]
     )
-    venues = [VenueDB(**raw_venue) for raw_venue in full_query]
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(venues))
+    
+    venues = [VenueDB(**raw_venue) for raw_venue in items]
+    
+    return PaginationHelper.create_response(
+        items=venues,
+        page=page,
+        page_size=page_size,
+        total_count=total_count,
+        message=f"Retrieved {len(venues)} venue{'s' if len(venues) != 1 else ''}"
+    )
 
 
 # get venue by Alias
-@router.get("/{alias}", response_description="Get a single venue", response_model=VenueDB)
-async def get_venue(alias: str, request: Request) -> JSONResponse:
+@router.get("/{alias}", response_description="Get a single venue", response_model=StandardResponse[VenueDB])
+async def get_venue(alias: str, request: Request) -> StandardResponse[VenueDB]:
     mongodb = request.app.state.mongodb
     if (venue := await mongodb["venues"].find_one({"alias": alias})) is not None:
-        return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(VenueDB(**venue))
+        return StandardResponse(
+            success=True,
+            data=VenueDB(**venue),
+            message="Venue retrieved successfully"
         )
     raise ResourceNotFoundException(
         resource_type="Venue", resource_id=alias, details={"query_field": "alias"}
@@ -91,7 +101,7 @@ async def get_venue(alias: str, request: Request) -> JSONResponse:
 
 
 # create new venue
-@router.post("", response_description="Add new venue", response_model=VenueDB)
+@router.post("", response_description="Add new venue", response_model=StandardResponse[VenueDB])
 async def create_venue(
     request: Request,
     name: str = Form(...),
@@ -110,7 +120,7 @@ async def create_venue(
     usageApprovalValidTo: datetime | None = Form(None),
     legacyId: int | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> JSONResponse:
+) -> StandardResponse[VenueDB]:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
@@ -144,9 +154,10 @@ async def create_venue(
         new_venue = await mongodb["venues"].insert_one(venue_data)
         created_venue = await mongodb["venues"].find_one({"_id": new_venue.inserted_id})
         if created_venue:
-            return JSONResponse(
-                status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(VenueDB(**created_venue)),
+            return StandardResponse(
+                success=True,
+                data=VenueDB(**created_venue),
+                message=f"Venue '{created_venue['name']}' created successfully"
             )
         else:
             raise HTTPException(status_code=500, detail="Failed to create venue")
@@ -159,7 +170,7 @@ async def create_venue(
 
 
 # Update venue
-@router.patch("/{id}", response_description="Update venue", response_model=VenueDB)
+@router.patch("/{id}", response_description="Update venue", response_model=StandardResponse[VenueDB])
 async def update_venue(
     request: Request,
     id: str,
@@ -173,13 +184,13 @@ async def update_venue(
     latitude: str | None = Form(None),
     longitude: str | None = Form(None),
     image: UploadFile | None = Form(None),
-    imageUrl: HttpUrl | None = Form(None),
+    imageUrl: str | None = Form(None),
     description: str | None = Form(None),
     active: bool | None = Form(None),
     usageApprovalId: str | None = Form(None),
     usageApprovalValidTo: datetime | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-):
+) -> StandardResponse[VenueDB]:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
@@ -214,36 +225,40 @@ async def update_venue(
     # Handle image upload
     if image:
         venue_data["imageUrl"] = await handle_image_upload(image, venue_data["alias"])
-    elif imageUrl:
+    elif imageUrl and imageUrl.strip():  # Only set if not empty string
         venue_data["imageUrl"] = imageUrl
-    elif existing_venue.get("imageUrl"):
-        await delete_from_cloudinary(existing_venue["imageUrl"])
-        venue_data["imageUrl"] = None
-    else:
+    elif imageUrl == "":  # Empty string means remove image
+        if existing_venue.get("imageUrl"):
+            await delete_from_cloudinary(existing_venue["imageUrl"])
         venue_data["imageUrl"] = None
 
     print("venue_data: ", venue_data)
-
-    # Remove None values
-    # venue_data = {k: v for k, v in venue_data.items() if v is not None}
 
     # Exclude unchanged data
     venue_to_update = {k: v for k, v in venue_data.items() if v != existing_venue.get(k)}
     print("venue_to_update: ", venue_to_update)
 
     if not venue_to_update:
-        print("No update needed")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        print("No update needed - returning existing venue with 200 OK")
+        return StandardResponse(
+            success=True,
+            data=VenueDB(**existing_venue),
+            message="No changes detected"
+        )
+    
     try:
         update_result = await mongodb["venues"].update_one({"_id": id}, {"$set": venue_to_update})
         if update_result.modified_count == 1:
             if (updated_venue := await mongodb["venues"].find_one({"_id": id})) is not None:
-                return JSONResponse(
-                    status_code=status.HTTP_200_OK,
-                    content=jsonable_encoder(VenueDB(**updated_venue)),
+                return StandardResponse(
+                    success=True,
+                    data=VenueDB(**updated_venue),
+                    message=f"Venue '{updated_venue['name']}' updated successfully"
                 )
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content="Failed to update venue"
+        return StandardResponse(
+            success=False,
+            data=VenueDB(**existing_venue),
+            message="Failed to update venue"
         )
     except DuplicateKeyError as e:
         raise HTTPException(
