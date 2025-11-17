@@ -119,13 +119,33 @@ Used for bulk create/update/delete operations.
 All list endpoints accept these pagination parameters:
 
 - `page` (integer, default: 1): Page number (1-indexed)
-- `page_size` (integer, default: 10-20): Items per page (max: 100)
+- `page_size` (integer, default: 10-100): Items per page (max: 100-500 depending on endpoint)
 
 ### Example Request
 
 ```bash
 GET /matches?page=2&page_size=20
 ```
+
+### Special Cases: Calendar/List-All Views
+
+For use cases where you need ALL items (e.g., displaying a full season calendar), you have two options:
+
+**Option 1: Use large page_size**
+```bash
+GET /matches?season=2024-25&page_size=500
+```
+
+**Option 2: Use dedicated calendar endpoint (recommended)**
+```bash
+GET /matches/calendar?season=2024-25&tournament=league-a
+```
+
+The calendar endpoint:
+- Returns all matches without pagination
+- Uses lightweight projection (excludes roster, scores, penalties)
+- Optimized for displaying match schedules
+- Should be used for read-only calendar/schedule views
 
 ### Pagination Metadata
 

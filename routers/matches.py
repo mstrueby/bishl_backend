@@ -247,6 +247,77 @@ async def get_upcoming_matches(
         if not assigned:  # assigned == False
             base_query["$and"] = [
                 {"referee1.userId": {"$exists": False}},
+
+
+# get matches for calendar view (no pagination, lightweight response)
+@router.get("/calendar", response_description="Get matches for calendar view")
+async def get_matches_calendar(
+    request: Request,
+    tournament: str | None = None,
+    season: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> JSONResponse:
+    """
+    Get matches optimized for calendar display.
+    Returns all matches without pagination, with minimal data per match.
+    Intended for season/tournament calendar views.
+    """
+    mongodb = request.app.state.mongodb
+    
+    query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
+    
+    if tournament:
+        query["tournament.alias"] = tournament
+    
+    if date_from or date_to:
+        date_query = {}
+        try:
+            if date_from:
+                parsed_date_from = isodate.parse_date(date_from)
+                date_query["$gte"] = datetime.combine(parsed_date_from, datetime.min.time())
+            if date_to:
+                parsed_date_to = isodate.parse_date(date_to)
+                date_query["$lte"] = datetime.combine(parsed_date_to, datetime.max.time())
+            query["startDate"] = date_query
+        except Exception as e:
+            raise ValidationException(
+                field="date_from/date_to",
+                message=str(e),
+                details={"date_from": date_from, "date_to": date_to},
+            ) from e
+    
+    # Minimal projection for calendar view - exclude heavy fields
+    projection = {
+        "home.roster": 0,
+        "home.scores": 0,
+        "home.penalties": 0,
+        "home.staff": 0,
+        "away.roster": 0,
+        "away.scores": 0,
+        "away.penalties": 0,
+        "away.staff": 0,
+        "supplementarySheet": 0,
+    }
+    
+    # Fetch all matches (no pagination) - typically a season has 100-300 matches
+    matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+    
+    # Convert to lightweight format
+    results = []
+    for match in matches:
+        match = convert_seconds_to_times(match)
+        results.append(MatchListBase(**match))
+    
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder({
+            "success": True,
+            "data": results,
+            "message": f"Retrieved {len(results)} matches for calendar"
+        })
+    )
+
                 {"referee2.userId": {"$exists": False}},
             ]
         elif assigned:  # assigned == True
@@ -436,7 +507,7 @@ async def get_matches(
     date_from: str | None = None,
     date_to: str | None = None,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(100, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(100, ge=1, le=500, description="Items per page"),
 ) -> JSONResponse:
     query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
     if tournament:

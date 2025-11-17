@@ -177,6 +177,96 @@ Authorization: Bearer <token>
 **Response:**
 ```json
 {
+
+
+### Calendar/Schedule Views
+
+For displaying full season schedules or calendars, use one of these approaches:
+
+**Approach 1: Dedicated Calendar Endpoint (Recommended)**
+```javascript
+// Fetch all matches for a season calendar
+async function fetchSeasonCalendar(season, tournament = null) {
+  const params = new URLSearchParams({ season });
+  if (tournament) params.append('tournament', tournament);
+  
+  const response = await fetch(`/matches/calendar?${params}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  
+  const { data } = await response.json();
+  return data; // All matches, no pagination handling needed
+}
+
+// Usage in calendar component
+const matches = await fetchSeasonCalendar('2024-25', 'league-a');
+// Group by date and display in calendar
+const matchesByDate = groupMatchesByDate(matches);
+```
+
+**Approach 2: Large Page Size**
+```javascript
+// Request all matches with large page size
+async function fetchAllMatches(season) {
+  const response = await fetch(
+    `/matches?season=${season}&page_size=500`,
+    { headers: { 'Authorization': `Bearer ${token}` } }
+  );
+  
+  const result = await response.json();
+  
+  // Check if there are more pages (unlikely with page_size=500)
+  if (result.pagination.has_next) {
+    console.warn('More matches exist, consider fetching next page');
+  }
+  
+  return result.data;
+}
+```
+
+**Performance Considerations:**
+- Calendar endpoint returns ~50-300 matches typically (one season)
+- Response size: ~100-500KB (without rosters/scores)
+- Cache this data client-side, refresh periodically
+- Consider grouping by month/week for better UX
+
+**Example: React Calendar Component**
+```javascript
+function SeasonCalendar({ season, tournament }) {
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    async function loadCalendar() {
+      try {
+        const data = await fetchSeasonCalendar(season, tournament);
+        setMatches(data);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadCalendar();
+  }, [season, tournament]);
+  
+  // Group matches by date
+  const matchesByDate = useMemo(() => {
+    return matches.reduce((acc, match) => {
+      const date = match.startDate.split('T')[0];
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(match);
+      return acc;
+    }, {});
+  }, [matches]);
+  
+  return (
+    <Calendar 
+      events={matchesByDate}
+      loading={loading}
+    />
+  );
+}
+```
+
   "success": true,
   "data": {
     "_id": "67165e0190212e4ad16ca8dd",
