@@ -85,18 +85,21 @@ async def list_venues(
         message=f"Retrieved {len(venues)} venue{'s' if len(venues) != 1 else ''}"
     )
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result)))
 
 
 # get venue by Alias
 @router.get("/{alias}", response_description="Get a single venue", response_model=StandardResponse[VenueDB])
-async def get_venue(alias: str, request: Request) -> StandardResponse[VenueDB]:
+async def get_venue(alias: str, request: Request) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if (venue := await mongodb["venues"].find_one({"alias": alias})) is not None:
-        return StandardResponse(
-            success=True,
-            data=VenueDB(**venue),
-            message="Venue retrieved successfully"
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=VenueDB(**venue),
+                message="Venue retrieved successfully"
+            ))
         )
     raise ResourceNotFoundException(
         resource_type="Venue", resource_id=alias, details={"query_field": "alias"}
@@ -123,7 +126,7 @@ async def create_venue(
     usageApprovalValidTo: datetime | None = Form(None),
     legacyId: int | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> StandardResponse[VenueDB]:
+) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
@@ -157,10 +160,13 @@ async def create_venue(
         new_venue = await mongodb["venues"].insert_one(venue_data)
         created_venue = await mongodb["venues"].find_one({"_id": new_venue.inserted_id})
         if created_venue:
-            return StandardResponse(
-                success=True,
-                data=VenueDB(**created_venue),
-                message=f"Venue '{created_venue['name']}' created successfully"
+            return JSONResponse(
+                status_code=status.HTTP_201_CREATED,
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=VenueDB(**created_venue),
+                    message=f"Venue '{created_venue['name']}' created successfully"
+                ))
             )
         else:
             raise HTTPException(status_code=500, detail="Failed to create venue")
@@ -193,7 +199,7 @@ async def update_venue(
     usageApprovalId: str | None = Form(None),
     usageApprovalValidTo: datetime | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> StandardResponse[VenueDB]:
+) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
@@ -243,25 +249,34 @@ async def update_venue(
 
     if not venue_to_update:
         print("No update needed - returning existing venue with 200 OK")
-        return StandardResponse(
-            success=True,
-            data=VenueDB(**existing_venue),
-            message="No changes detected"
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=VenueDB(**existing_venue),
+                message="No changes detected"
+            ))
         )
 
     try:
         update_result = await mongodb["venues"].update_one({"_id": id}, {"$set": venue_to_update})
         if update_result.modified_count == 1:
             if (updated_venue := await mongodb["venues"].find_one({"_id": id})) is not None:
-                return StandardResponse(
-                    success=True,
-                    data=VenueDB(**updated_venue),
-                    message=f"Venue '{updated_venue['name']}' updated successfully"
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content=jsonable_encoder(StandardResponse(
+                        success=True,
+                        data=VenueDB(**updated_venue),
+                        message=f"Venue '{updated_venue['name']}' updated successfully"
+                    ))
                 )
-        return StandardResponse(
-            success=False,
-            data=VenueDB(**existing_venue),
-            message="Failed to update venue"
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=False,
+                data=VenueDB(**existing_venue),
+                message="Failed to update venue"
+            ))
         )
     except DuplicateKeyError as e:
         raise HTTPException(
