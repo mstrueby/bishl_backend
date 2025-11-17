@@ -59,7 +59,7 @@ async def delete_from_cloudinary(logo_url: str):
 
 
 # list all clubs
-@router.get("/", response_description="List all clubs", response_model=PaginatedResponse[ClubDB])
+@router.get("", response_description="List all clubs", response_model=PaginatedResponse[ClubDB])
 async def list_clubs(
     request: Request,
     active: bool | None = None,
@@ -113,7 +113,7 @@ async def get_club_by_id(id: str, request: Request) -> JSONResponse:
 
 
 # create new club
-@router.post("/", response_description="Add new club", response_model=ClubDB)
+@router.post("", response_description="Add new club", response_model=ClubDB)
 async def create_club(
     request: Request,
     name: str = Form(...),

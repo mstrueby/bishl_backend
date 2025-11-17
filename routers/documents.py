@@ -148,7 +148,7 @@ async def get_document(
 
 # get list of all documents
 @router.get(
-    "/",
+    "",
     response_model=PaginatedResponse[DocumentDB],
     response_description="Get list of all documents",
 )
@@ -181,7 +181,7 @@ async def get_documents(
 
 
 # create/upload new document
-@router.post("/", response_model=DocumentDB, response_description="Upload a new document")
+@router.post("", response_model=DocumentDB, response_description="Upload a new document")
 async def upload_document(
     request: Request,
     title: str = Form(...),
