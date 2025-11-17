@@ -188,15 +188,19 @@ async def create_club(
                 details={"club_name": name, "reason": "Insert acknowledged but club not found"},
             )
     except DuplicateKeyError as e:
+        logger.error(f"Duplicate key error creating club {name}: {str(e)}")
         raise DatabaseOperationException(
             operation="insert",
             collection="clubs",
-            details={"club_name": name, "reason": "Duplicate key - club already exists"},
+            details={"club_name": name, "reason": "Duplicate key - club already exists", "error": str(e)},
         ) from e
     except Exception as e:
-        logger.error(f"Unexpected error creating club {name}: {str(e)}")
+        logger.error(f"Unexpected error creating club {name}: {type(e).__name__}: {str(e)}")
+        logger.error(f"Club data being inserted: {club_data}")
         raise DatabaseOperationException(
-            operation="insert", collection="clubs", details={"club_name": name, "error": str(e)}
+            operation="insert", 
+            collection="clubs", 
+            details={"club_name": name, "error": str(e), "error_type": type(e).__name__}
         ) from e
 
 
