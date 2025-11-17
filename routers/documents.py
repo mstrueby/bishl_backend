@@ -320,7 +320,10 @@ async def update_document(
     print("doc_to_update: ", doc_to_update)
     if not doc_to_update or ("updateDate" in doc_to_update and len(doc_to_update) == 1):
         print("No changes to update")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        # Return 200 with existing data instead of 304
+        return JSONResponse(
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(DocumentDB(**existing_doc))
+        )
 
     # update doc
     try:

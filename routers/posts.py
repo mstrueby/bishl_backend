@@ -292,7 +292,10 @@ async def update_post(
     print("post_to_update", post_to_update)
     if not post_to_update or ("updateDate" in post_to_update and len(post_to_update) == 1):
         print("No changes to update")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        # Return 200 with existing data instead of 304
+        return JSONResponse(
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(PostDB(**existing_post))
+        )
 
     # Create a User instance from dictionary
     update_user_instance = User(

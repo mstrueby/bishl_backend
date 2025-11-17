@@ -253,7 +253,10 @@ async def update_club(
     club_to_update = {k: v for k, v in club_data.items() if v != existing_club.get(k, None)}
     if not club_to_update:
         logger.info(f"No changes to update for club {id}")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        # Return 200 with existing data instead of 304
+        return JSONResponse(
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(ClubDB(**existing_club))
+        )
 
     # update club
     try:
