@@ -186,7 +186,7 @@ async def update_venue(
 
     existing_venue = await mongodb["venues"].find_one({"_id": id})
     if not existing_venue:
-        raise HTTPException(status_code=404, detail=f"Venue with id {id} not found")
+        raise ResourceNotFoundException(resource_type="Venue", resource_id=id)
 
     try:
         venue_data = VenueUpdate(
@@ -267,7 +267,7 @@ async def delete_venue(
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
     existing_venue = await mongodb["venues"].find_one({"_id": id})
     if not existing_venue:
-        raise HTTPException(status_code=404, detail=f"Venue with id {id} not found")
+        raise ResourceNotFoundException(resource_type="Venue", resource_id=id)
     result = await mongodb["venues"].delete_one({"_id": id})
     if result.deleted_count == 1:
         await delete_from_cloudinary(existing_venue["imageUrl"])
