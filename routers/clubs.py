@@ -138,7 +138,7 @@ async def create_club(
     active: bool = Form(False),
     logo: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> StandardResponse[ClubDB]:
+) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
