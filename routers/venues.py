@@ -77,7 +77,7 @@ async def list_venues(
 
     venues = [VenueDB(**raw_venue) for raw_venue in items]
 
-    response_data = PaginationHelper.create_response(
+    paginated_result = PaginationHelper.create_response(
         items=venues,
         page=page,
         page_size=page_size,
@@ -85,7 +85,7 @@ async def list_venues(
         message=f"Retrieved {len(venues)} venue{'s' if len(venues) != 1 else ''}"
     )
 
-    return JSONResponse(content=response_data.model_dump(), status_code=status.HTTP_200_OK)
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
 
 # get venue by Alias
