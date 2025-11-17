@@ -156,7 +156,12 @@ class ClubBase(MongoBaseModel):
     legacyId: int | None = None
     logoUrl: HttpUrl | None = None
 
-    @field_validator("email", "website", "yearOfFoundation", "ishdId", "logoUrl", mode="before")
+    @field_validator(
+        "addressName", "street", "zipCode", "city", "description",
+        "email", "website", "yearOfFoundation", "ishdId", "logoUrl", "legacyId",
+        mode="before"
+    )
+    @classmethod
     def empty_str_to_none(cls, v):
         return None if v == "" else v
 
@@ -190,7 +195,12 @@ class ClubUpdate(MongoBaseModel):
     legacyId: int | None = None
     logoUrl: str | None = None
 
-    @field_validator("email", "website", "logoUrl", mode="before")
+    @field_validator(
+        "addressName", "street", "zipCode", "city", "description",
+        "email", "website", "logoUrl", "yearOfFoundation", "ishdId", "legacyId",
+        mode="before"
+    )
+    @classmethod
     def empty_str_to_none(cls, v):
         return None if v == "" else v
 
