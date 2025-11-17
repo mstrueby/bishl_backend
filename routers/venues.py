@@ -59,8 +59,8 @@ async def delete_from_cloudinary(image_url: str):
 async def list_venues(
     request: Request,
     active: bool | None = None,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=100, description="Items per page"),
 ) -> JSONResponse:  # Changed to JSONResponse
     mongodb = request.app.state.mongodb
     query = {}
@@ -85,7 +85,7 @@ async def list_venues(
         message=f"Retrieved {len(venues)} venue{'s' if len(venues) != 1 else ''}"
     )
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result)))
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
 
 # get venue by Alias
@@ -241,14 +241,14 @@ async def update_venue(
             await delete_from_cloudinary(existing_venue["imageUrl"])
         venue_data["imageUrl"] = None
 
-    print("venue_data: ", venue_data)
+    logger.debug(f"venue_data: {venue_data}")
 
     # Exclude unchanged data
     venue_to_update = {k: v for k, v in venue_data.items() if v != existing_venue.get(k)}
-    print("venue_to_update: ", venue_to_update)
+    logger.debug(f"venue_to_update: {venue_to_update}")
 
     if not venue_to_update:
-        print("No update needed - returning existing venue with 200 OK")
+        logger.debug("No update needed - returning existing venue with 200 OK")
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=jsonable_encoder(StandardResponse(
