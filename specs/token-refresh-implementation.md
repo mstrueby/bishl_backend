@@ -17,6 +17,8 @@ The BISHL backend now uses a **two-token authentication system** to improve user
 
 ## How It Works
 
+**Note:** Access tokens expire after **30 minutes** (not 15 minutes as originally planned).
+
 ### 1. Login Flow
 
 **Endpoint:** `POST /users/login`
@@ -35,7 +37,16 @@ The BISHL backend now uses a **two-token authentication system** to improve user
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "token_type": "bearer",
-  "expires_in": 900
+  "expires_in": 900,
+  "success": true,
+  "data": {
+    "_id": "user_id",
+    "email": "referee@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "roles": ["REFEREE"]
+  },
+  "message": "Login successful"
 }
 ```
 
@@ -223,7 +234,7 @@ This prevents a leaked access token from being used as a refresh token.
 
 ### Token Payload Differences
 
-**Access Token:**
+**Access Token (30 minutes lifetime):**
 ```json
 {
   "sub": "user_id",
@@ -323,10 +334,26 @@ curl -X POST http://localhost:8080/users/refresh \
 
 ## Benefits
 
-✅ **Better UX:** Users stay logged in for 7 days instead of 60 minutes  
-✅ **Security:** Short-lived access tokens limit exposure window  
+✅ **Better UX:** Users stay logged in for 7 days instead of 30 minutes  
+✅ **Security:** Short-lived access tokens (30 min) limit exposure window  
 ✅ **Scalability:** Stateless tokens require no database lookups  
 ✅ **Future-proof:** Can add token revocation later if needed  
+
+---
+
+## Implementation Status
+
+✅ **Implemented:**
+- Login endpoint returns both access and refresh tokens
+- Access token generation (30 minutes lifetime)
+- Refresh token generation (7 days lifetime)
+- Token refresh endpoint (`POST /users/refresh`)
+- Separate secrets for access and refresh tokens
+
+📋 **Frontend Integration Required:**
+- Update token storage logic
+- Implement axios interceptor for automatic token refresh
+- Handle 401 errors and trigger refresh flow
 
 ---
 

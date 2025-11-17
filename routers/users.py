@@ -514,3 +514,52 @@ async def reset_password(request: Request, payload: dict = Body(...)) -> JSONRes
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token"
         ) from e
+
+
+@router.post("/refresh", response_description="Refresh access token")
+async def refresh_token(request: Request, payload: dict = Body(...)) -> JSONResponse:
+    """
+    Refresh access token using a valid refresh token.
+    Returns new access and refresh tokens.
+    """
+    mongodb = request.app.state.mongodb
+    refresh_token = payload.get("refresh_token")
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Refresh token is required"
+        )
+
+    # Decode refresh token and get user ID
+    user_id = auth.decode_refresh_token(refresh_token)
+
+    # Fetch user from database
+    user = await mongodb["users"].find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Calculate referee points if user is a referee
+    if "REFEREE" in user.get("roles", []):
+        total_points = await calculate_referee_points(mongodb, user_id)
+        if not user.get("referee"):
+            user["referee"] = {"points": total_points}
+        else:
+            user["referee"]["points"] = total_points
+
+    # Generate new access and refresh tokens
+    new_access_token = auth.encode_token(user)
+    new_refresh_token = auth.encode_refresh_token(user)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer",
+            "expires_in": 900  # 15 minutes in seconds
+        }
+    )
