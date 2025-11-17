@@ -20,7 +20,7 @@ from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException, ResourceNotFoundException
 from logging_config import logger
 from models.clubs import ClubBase, ClubDB, ClubUpdate
-from models.responses import PaginatedResponse
+from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from utils import configure_cloudinary
 
@@ -87,12 +87,17 @@ async def list_clubs(
 
 
 # get club by Alias
-@router.get("/{alias}", response_description="Get a single club", response_model=ClubDB)
+@router.get("/{alias}", response_description="Get a single club", response_model=StandardResponse[ClubDB])
 async def get_club(alias: str, request: Request) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if (club := await mongodb["clubs"].find_one({"alias": alias})) is not None:
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(ClubDB(**club))
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=ClubDB(**club),
+                message="Club retrieved successfully"
+            ))
         )
     raise ResourceNotFoundException(
         resource_type="Club", resource_id=alias, details={"query_field": "alias"}
@@ -100,12 +105,17 @@ async def get_club(alias: str, request: Request) -> JSONResponse:
 
 
 # get club by ID
-@router.get("/id/{id}", response_description="Get a single club by ID", response_model=ClubDB)
+@router.get("/id/{id}", response_description="Get a single club by ID", response_model=StandardResponse[ClubDB])
 async def get_club_by_id(id: str, request: Request) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if (club := await mongodb["clubs"].find_one({"_id": id})) is not None:
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(ClubDB(**club))
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=ClubDB(**club),
+                message="Club retrieved successfully"
+            ))
         )
     raise ResourceNotFoundException(
         resource_type="Club", resource_id=id, details={"query_field": "_id"}
@@ -113,7 +123,7 @@ async def get_club_by_id(id: str, request: Request) -> JSONResponse:
 
 
 # create new club
-@router.post("", response_description="Add new club", response_model=ClubDB)
+@router.post("", response_description="Add new club", response_model=StandardResponse[ClubDB])
 async def create_club(
     request: Request,
     name: str = Form(...),
@@ -168,7 +178,11 @@ async def create_club(
             logger.info(f"Club created successfully: {name}")
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(ClubDB(**created_club)),
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=ClubDB(**created_club),
+                    message=f"Club '{name}' created successfully"
+                )),
             )
         else:
             raise DatabaseOperationException(
@@ -190,7 +204,7 @@ async def create_club(
 
 
 # Update club
-@router.patch("/{id}", response_description="Update club", response_model=ClubDB)
+@router.patch("/{id}", response_description="Update club", response_model=StandardResponse[ClubDB])
 async def update_club(
     request: Request,
     id: str,
@@ -255,7 +269,12 @@ async def update_club(
         logger.info(f"No changes to update for club {id}")
         # Return 200 with existing data instead of 304
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(ClubDB(**existing_club))
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=ClubDB(**existing_club),
+                message="No changes detected"
+            ))
         )
 
     # update club
@@ -266,7 +285,12 @@ async def update_club(
             updated_club = await mongodb["clubs"].find_one({"_id": id})
             logger.info(f"Club updated successfully: {existing_club.get('name', id)}")
             return JSONResponse(
-                status_code=status.HTTP_200_OK, content=jsonable_encoder(ClubDB(**updated_club))
+                status_code=status.HTTP_200_OK,
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=ClubDB(**updated_club),
+                    message=f"Club '{updated_club.get('name', id)}' updated successfully"
+                ))
             )
         raise DatabaseOperationException(
             operation="update",
