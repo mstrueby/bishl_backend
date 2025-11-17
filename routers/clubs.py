@@ -176,10 +176,13 @@ async def create_club(
         created_club = await mongodb["clubs"].find_one({"_id": new_club.inserted_id})
         if created_club:
             logger.info(f"Club created successfully: {name}")
-            return StandardResponse(
-                success=True,
-                data=ClubDB(**created_club),
-                message=f"Club '{created_club['name']}' created successfully"
+            return JSONResponse(
+                status_code=status.HTTP_201_CREATED,
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=ClubDB(**created_club),
+                    message=f"Club '{created_club['name']}' created successfully"
+                ))
             )
         else:
             raise DatabaseOperationException(
