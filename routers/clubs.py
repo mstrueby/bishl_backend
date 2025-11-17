@@ -88,16 +88,13 @@ async def list_clubs(
 
 # get club by Alias
 @router.get("/{alias}", response_description="Get a single club", response_model=StandardResponse[ClubDB])
-async def get_club(alias: str, request: Request) -> JSONResponse:
+async def get_club(alias: str, request: Request) -> StandardResponse[ClubDB]:
     mongodb = request.app.state.mongodb
     if (club := await mongodb["clubs"].find_one({"alias": alias})) is not None:
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=ClubDB(**club),
-                message="Club retrieved successfully"
-            ))
+        return StandardResponse(
+            success=True,
+            data=ClubDB(**club),
+            message="Club retrieved successfully"
         )
     raise ResourceNotFoundException(
         resource_type="Club", resource_id=alias, details={"query_field": "alias"}
@@ -141,7 +138,7 @@ async def create_club(
     active: bool = Form(False),
     logo: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
-) -> JSONResponse:
+) -> StandardResponse[ClubDB]:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
@@ -176,13 +173,10 @@ async def create_club(
         created_club = await mongodb["clubs"].find_one({"_id": new_club.inserted_id})
         if created_club:
             logger.info(f"Club created successfully: {name}")
-            return JSONResponse(
-                status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(StandardResponse(
-                    success=True,
-                    data=ClubDB(**created_club),
-                    message=f"Club '{name}' created successfully"
-                )),
+            return StandardResponse(
+                success=True,
+                data=ClubDB(**created_club),
+                message=f"Club '{created_club['name']}' created successfully"
             )
         else:
             raise DatabaseOperationException(
@@ -284,18 +278,15 @@ async def update_club(
         if update_result.modified_count == 1:
             updated_club = await mongodb["clubs"].find_one({"_id": id})
             logger.info(f"Club updated successfully: {existing_club.get('name', id)}")
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content=jsonable_encoder(StandardResponse(
-                    success=True,
-                    data=ClubDB(**updated_club),
-                    message=f"Club '{updated_club.get('name', id)}' updated successfully"
-                ))
+            return StandardResponse(
+                success=True,
+                data=ClubDB(**updated_club),
+                message=f"Club '{updated_club['name']}' updated successfully"
             )
-        raise DatabaseOperationException(
-            operation="update",
-            collection="clubs",
-            details={"club_id": id, "modified_count": update_result.modified_count},
+        return StandardResponse(
+            success=False,
+            data=ClubDB(**existing_club),
+            message="Failed to update club"
         )
     except DuplicateKeyError as e:
         raise DatabaseOperationException(
