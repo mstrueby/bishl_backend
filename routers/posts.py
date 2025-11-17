@@ -300,6 +300,10 @@ async def update_post(
             status_code=status.HTTP_200_OK, content=jsonable_encoder(PostDB(**existing_post))
         )
 
+    # Convert HttpUrl to string for MongoDB storage
+    if "imageUrl" in post_to_update and post_to_update["imageUrl"] is not None:
+        post_to_update["imageUrl"] = str(post_to_update["imageUrl"])
+
     # Create a User instance from dictionary
     update_user_instance = User(
         userId=post_data["updateUser"]["userId"],
