@@ -26,7 +26,7 @@ from exceptions import (
     ValidationException,
 )
 from models.documents import DocumentBase, DocumentDB, DocumentUpdate
-from models.responses import PaginatedResponse
+from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from utils import configure_cloudinary
 
@@ -130,7 +130,7 @@ async def get_documents_by_category(
 
 
 # get one document by alias
-@router.get("/{alias}", response_model=DocumentDB, response_description="Get document by alias")
+@router.get("/{alias}", response_model=StandardResponse[DocumentDB], response_description="Get document by alias")
 async def get_document(
     request: Request,
     alias: str,
@@ -143,7 +143,12 @@ async def get_document(
             resource_type="Document", resource_id=alias, details={"query_field": "alias"}
         )
     return JSONResponse(
-        status_code=status.HTTP_200_OK, content=jsonable_encoder(DocumentDB(**document))
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(StandardResponse(
+            success=True,
+            data=DocumentDB(**document),
+            message="Document retrieved successfully"
+        ))
     )
 
 
@@ -182,7 +187,7 @@ async def get_documents(
 
 
 # create/upload new document
-@router.post("", response_model=DocumentDB, response_description="Upload a new document")
+@router.post("", response_model=StandardResponse[DocumentDB], response_description="Upload a new document")
 async def upload_document(
     request: Request,
     title: str = Form(...),
@@ -247,7 +252,11 @@ async def upload_document(
         if created_doc:
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(DocumentDB(**created_doc)),
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=DocumentDB(**created_doc),
+                    message=f"Document '{created_doc['title']}' created successfully"
+                )),
             )
         else:
             raise HTTPException(
@@ -265,7 +274,7 @@ async def upload_document(
 
 # Update document
 @router.patch(
-    "/{id}", response_model=DocumentDB, response_description="Update an existing document"
+    "/{id}", response_model=StandardResponse[DocumentDB], response_description="Update an existing document"
 )
 async def update_document(
     request: Request,
@@ -321,9 +330,14 @@ async def update_document(
     logger.debug(f"doc_to_update: {doc_to_update}")
     if not doc_to_update or ("updateDate" in doc_to_update and len(doc_to_update) == 1):
         logger.debug("No changes to update")
-        # Return 200 with existing data instead of 304
+        # Return 200 with existing data
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(DocumentDB(**existing_doc))
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=DocumentDB(**existing_doc),
+                message="No changes detected"
+            ))
         )
 
     # update doc
@@ -334,10 +348,20 @@ async def update_document(
         if update_result.modified_count == 1:
             updated_doc = await mongodb["documents"].find_one({"_id": id})
             return JSONResponse(
-                status_code=status.HTTP_200_OK, content=jsonable_encoder(DocumentDB(**updated_doc))
+                status_code=status.HTTP_200_OK,
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=DocumentDB(**updated_doc),
+                    message=f"Document '{updated_doc['title']}' updated successfully"
+                ))
             )
         return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content="Failed to update document"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=jsonable_encoder(StandardResponse(
+                success=False,
+                data=DocumentDB(**existing_doc),
+                message="Failed to update document"
+            ))
         )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e

@@ -33,6 +33,10 @@ Used for GET (single item), POST, PUT, PATCH operations.
 
 **Model:** `StandardResponse[T]`
 
+**HTTP Status Codes:**
+- `200 OK` - GET (retrieve), PATCH/PUT (update)
+- `201 Created` - POST (create)
+
 ### Paginated List Response
 
 Used for GET operations that return multiple items.
@@ -64,6 +68,28 @@ Used for DELETE operations. Returns HTTP 204 No Content with no response body.
 
 **Status Code:** `204 No Content`  
 **Response Body:** None (empty)
+
+---
+
+## HTTP Status Code Guidelines
+
+All endpoints must follow these status code standards:
+
+### Success Responses
+
+| Operation | Method | Status Code | Response Body |
+|-----------|--------|-------------|---------------|
+| Create resource | POST | `201 Created` | `StandardResponse[T]` |
+| Retrieve single | GET | `200 OK` | `StandardResponse[T]` |
+| Retrieve list | GET | `200 OK` | `PaginatedResponse[T]` |
+| Update resource | PATCH/PUT | `200 OK` | `StandardResponse[T]` |
+| Delete resource | DELETE | `204 No Content` | None (empty) |
+
+### Important Notes
+
+- **No 304 Not Modified:** Always return `200 OK` for PATCH/PUT, even when no changes detected. Include a message like "No changes detected" in the response.
+- **Consistent Wrappers:** All POST, GET, PATCH/PUT operations must use `StandardResponse` or `PaginatedResponse` wrappers.
+- **DELETE Responses:** DELETE operations must return `204 No Content` with an empty body (no JSON response).
 
 ### Bulk Operation Response
 
@@ -119,21 +145,78 @@ The `pagination` object contains:
 
 ```python
 from models.responses import StandardResponse, PaginatedResponse
+from fastapi.responses import JSONResponse, Response
+from fastapi.encoders import jsonable_encoder
 from utils.pagination import PaginationHelper
 
-# Single resource
+# Single resource - GET
 @router.get("/{id}", response_model=StandardResponse[Match])
-async def get_match(id: str, request: Request):
+async def get_match(id: str, request: Request) -> JSONResponse:
     match = await request.app.state.mongodb["matches"].find_one({"_id": ObjectId(id)})
     
     if not match:
         raise ResourceNotFoundException("Match", id)
     
-    return StandardResponse(
-        success=True,
-        data=match,
-        message="Match retrieved successfully"
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(StandardResponse(
+            success=True,
+            data=Match(**match),
+            message="Match retrieved successfully"
+        ))
     )
+
+# Create resource - POST
+@router.post("", response_model=StandardResponse[Match])
+async def create_match(match_data: MatchCreate, request: Request) -> JSONResponse:
+    new_match = await request.app.state.mongodb["matches"].insert_one(match_data.dict())
+    created_match = await request.app.state.mongodb["matches"].find_one({"_id": new_match.inserted_id})
+    
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=jsonable_encoder(StandardResponse(
+            success=True,
+            data=Match(**created_match),
+            message="Match created successfully"
+        ))
+    )
+
+# Update resource - PATCH
+@router.patch("/{id}", response_model=StandardResponse[Match])
+async def update_match(id: str, updates: MatchUpdate, request: Request) -> JSONResponse:
+    # ... update logic ...
+    
+    # Always return 200, even if no changes
+    if not changes_detected:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=Match(**existing_match),
+                message="No changes detected"
+            ))
+        )
+    
+    # With changes
+    updated_match = await request.app.state.mongodb["matches"].find_one({"_id": id})
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(StandardResponse(
+            success=True,
+            data=Match(**updated_match),
+            message="Match updated successfully"
+        ))
+    )
+
+# Delete resource - DELETE
+@router.delete("/{id}")
+async def delete_match(id: str, request: Request) -> Response:
+    result = await request.app.state.mongodb["matches"].delete_one({"_id": id})
+    
+    if result.deleted_count == 1:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    raise ResourceNotFoundException("Match", id)
 
 # Paginated list
 @router.get("", response_model=PaginatedResponse[Match])

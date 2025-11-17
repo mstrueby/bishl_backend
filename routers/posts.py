@@ -26,7 +26,7 @@ from exceptions import (
 )
 from logging_config import logger
 from models.posts import PostBase, PostDB, PostUpdate, Revision, User
-from models.responses import PaginatedResponse
+from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from utils import configure_cloudinary, my_jsonable_encoder
 
@@ -109,7 +109,7 @@ async def get_posts(
 
 
 # get post by alias
-@router.get("/{alias}", response_description="Get post by alias", response_model=PostDB)
+@router.get("/{alias}", response_description="Get post by alias", response_model=StandardResponse[PostDB])
 async def get_post(request: Request, alias: str) -> JSONResponse:
     mongodb = request.app.state.mongodb
     query = {"alias": alias}
@@ -118,11 +118,18 @@ async def get_post(request: Request, alias: str) -> JSONResponse:
         raise ResourceNotFoundException(
             resource_type="Post", resource_id=alias, details={"query_field": "alias"}
         )
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(PostDB(**post)))
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(StandardResponse(
+            success=True,
+            data=PostDB(**post),
+            message="Post retrieved successfully"
+        ))
+    )
 
 
 # create post
-@router.post("", response_model=PostDB, response_description="Create post")
+@router.post("", response_model=StandardResponse[PostDB], response_description="Create post")
 async def create_post(
     request: Request,
     title: str = Form(...),
@@ -201,7 +208,11 @@ async def create_post(
         if created_post:
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(PostDB(**created_post)),
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=PostDB(**created_post),
+                    message=f"Post '{created_post['title']}' created successfully"
+                )),
             )
         else:
             raise HTTPException(
@@ -212,7 +223,7 @@ async def create_post(
 
 
 # update Post
-@router.patch("/{id}", response_model=PostDB, response_model_by_alias=True)
+@router.patch("/{id}", response_model=StandardResponse[PostDB], response_model_by_alias=True)
 async def update_post(
     request: Request,
     id: str,
@@ -295,9 +306,14 @@ async def update_post(
     logger.debug(f"post_to_update: {post_to_update}")
     if not post_to_update or ("updateDate" in post_to_update and len(post_to_update) == 1):
         logger.debug("No changes to update")
-        # Return 200 with existing data instead of 304
+        # Return 200 with existing data
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(PostDB(**existing_post))
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=PostDB(**existing_post),
+                message="No changes detected"
+            ))
         )
 
     # Convert HttpUrl to string for MongoDB storage
@@ -330,10 +346,20 @@ async def update_post(
         if update_result.modified_count == 1:
             updated_post = await mongodb["posts"].find_one({"_id": id})
             return JSONResponse(
-                status_code=status.HTTP_200_OK, content=jsonable_encoder(PostDB(**updated_post))
+                status_code=status.HTTP_200_OK,
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=PostDB(**updated_post),
+                    message=f"Post '{updated_post['title']}' updated successfully"
+                ))
             )
         return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content="Failed to update post"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=jsonable_encoder(StandardResponse(
+                success=False,
+                data=PostDB(**existing_post),
+                message="Failed to update post"
+            ))
         )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
