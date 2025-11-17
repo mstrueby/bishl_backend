@@ -277,10 +277,12 @@ async def update_post(
 
     # Handle image upload
     if image:
-        post_data["imageUrl"] = await handle_image_upload(image, post_data["alias"])
+        # Use the provided alias or fall back to existing post's alias
+        image_alias = post_data.get("alias", existing_post.get("alias", id))
+        post_data["imageUrl"] = await handle_image_upload(image, image_alias)
     elif imageUrl:
         post_data["imageUrl"] = imageUrl
-    elif existing_post["imageUrl"]:
+    elif existing_post.get("imageUrl"):
         await delete_from_cloudinary(existing_post["imageUrl"])
         post_data["imageUrl"] = None
     else:
