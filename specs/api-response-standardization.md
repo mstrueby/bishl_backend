@@ -170,12 +170,12 @@ async def get_matches(
 - [x] Update `routers/players.py` with pagination
 
 ### Phase 2: Remaining Routers
-- [ ] `routers/tournaments.py` - Add pagination to GET /tournaments
-- [ ] `routers/clubs.py` - Add pagination to GET /clubs
-- [ ] `routers/users.py` - Add pagination to GET /users
-- [ ] `routers/assignments.py` - Add pagination to GET /assignments
-- [ ] `routers/posts.py` - Add pagination to GET /posts
-- [ ] `routers/documents.py` - Add pagination to GET /documents
+- [x] `routers/tournaments.py` - Add pagination to GET /tournaments
+- [x] `routers/clubs.py` - Add pagination to GET /clubs
+- [x] `routers/users.py` - Add pagination to GET /users
+- [x] `routers/assignments.py` - Add pagination to GET /assignments
+- [x] `routers/posts.py` - Add pagination to GET /posts
+- [x] `routers/documents.py` - Add pagination to GET /documents
 
 ### Phase 3: Testing & Documentation
 - [ ] Test all paginated endpoints

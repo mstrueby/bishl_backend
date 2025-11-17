@@ -24,6 +24,7 @@ from exceptions import (
     AuthorizationException,
     ResourceNotFoundException,
 )
+from logging_config import logger
 from models.posts import PostBase, PostDB, PostUpdate, Revision, User
 from models.responses import PaginatedResponse
 from services.pagination import PaginationHelper
@@ -285,13 +286,13 @@ async def update_post(
     else:
         post_data["imageUrl"] = None
 
-    print("post_data", post_data)
+    logger.debug(f"post_data: {post_data}")
 
     # Exclude unchanged data
     post_to_update = {k: v for k, v in post_data.items() if v != existing_post.get(k, None)}
-    print("post_to_update", post_to_update)
+    logger.debug(f"post_to_update: {post_to_update}")
     if not post_to_update or ("updateDate" in post_to_update and len(post_to_update) == 1):
-        print("No changes to update")
+        logger.debug("No changes to update")
         # Return 200 with existing data instead of 304
         return JSONResponse(
             status_code=status.HTTP_200_OK, content=jsonable_encoder(PostDB(**existing_post))
