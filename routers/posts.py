@@ -66,8 +66,8 @@ async def delete_from_cloudinary(image_url: str):
         try:
             public_id = image_url.rsplit("/", 1)[-1].split(".")[0]
             result = cloudinary.uploader.destroy(f"posts/{public_id}")
-            print("Post Image deleted from Cloudinary:", f"posts/{public_id}")
-            print("Result:", result)
+            logger.debug(f"Post Image deleted from Cloudinary: posts/{public_id}")
+            logger.debug(f"Result: {result}")
             return result
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e

@@ -16,6 +16,7 @@ from fastapi import (
 )
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
+from loguru import logger
 from pymongo.errors import DuplicateKeyError
 
 from authentication import AuthHandler, TokenPayload
@@ -40,7 +41,7 @@ def upload_to_cloudinary(title: str, file: UploadFile):
         result = cloudinary.uploader.upload(
             file.file, public_id=file.filename, resource_type="raw", folder="docs/"
         )
-        print("Document uploaded to Cloudinary:", result["public_id"])
+        logger.info(f"Document uploaded to Cloudinary: {result["public_id"]}")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -66,7 +67,7 @@ def validate_file_type(file: UploadFile):
 async def delete_from_cloudinary(public_id: str):
     try:
         result = cloudinary.uploader.destroy(public_id, resource_type="raw")
-        print("Document deleted from Cloudinary:", public_id)
+        logger.info(f"Document deleted from Cloudinary: {public_id}")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -240,7 +241,7 @@ async def upload_document(
     document_data["updateDate"] = document_data["createDate"]
 
     try:
-        print("document_data: ", document_data)
+        logger.debug(f"document_data: {document_data}")
         new_doc = await mongodb["documents"].insert_one(document_data)
         created_doc = await mongodb["documents"].find_one({"_id": new_doc.inserted_id})
         if created_doc:
@@ -291,7 +292,7 @@ async def update_document(
         published=published,
     ).model_dump(exclude_none=True)
     doc_data.pop("id", None)
-    print("doc_data: ", doc_data)
+    logger.debug(f"doc_data: {doc_data}")
 
     if file:
         if title is None:
@@ -317,9 +318,9 @@ async def update_document(
 
     # Exclude unchanged data
     doc_to_update = {k: v for k, v in doc_data.items() if v != existing_doc.get(k, None)}
-    print("doc_to_update: ", doc_to_update)
+    logger.debug(f"doc_to_update: {doc_to_update}")
     if not doc_to_update or ("updateDate" in doc_to_update and len(doc_to_update) == 1):
-        print("No changes to update")
+        logger.debug("No changes to update")
         # Return 200 with existing data instead of 304
         return JSONResponse(
             status_code=status.HTTP_200_OK, content=jsonable_encoder(DocumentDB(**existing_doc))
