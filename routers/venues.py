@@ -61,12 +61,12 @@ async def list_venues(
     active: bool | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-) -> PaginatedResponse[VenueDB]:
+) -> JSONResponse:  # Changed to JSONResponse
     mongodb = request.app.state.mongodb
     query = {}
     if active is not None:
         query["active"] = active
-    
+
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["venues"],
         query=query,
@@ -74,16 +74,18 @@ async def list_venues(
         page_size=page_size,
         sort=[("name", 1)]
     )
-    
+
     venues = [VenueDB(**raw_venue) for raw_venue in items]
-    
-    return PaginationHelper.create_response(
+
+    response_data = PaginationHelper.create_response(
         items=venues,
         page=page,
         page_size=page_size,
         total_count=total_count,
         message=f"Retrieved {len(venues)} venue{'s' if len(venues) != 1 else ''}"
     )
+
+    return JSONResponse(content=response_data.model_dump(), status_code=status.HTTP_200_OK)
 
 
 # get venue by Alias
@@ -246,7 +248,7 @@ async def update_venue(
             data=VenueDB(**existing_venue),
             message="No changes detected"
         )
-    
+
     try:
         update_result = await mongodb["venues"].update_one({"_id": id}, {"$set": venue_to_update})
         if update_result.modified_count == 1:
