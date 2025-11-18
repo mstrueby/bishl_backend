@@ -1301,6 +1301,7 @@ async def get_players(
             {"lastName": {"$regex": search, "$options": "i"}},
             {"displayFirstName": {"$regex": search, "$options": "i"}},
             {"displayLastName": {"$regex": search, "$options": "i"}},
+            {"assignedTeams.teams.passNo": {"$regex": search, "$options": "i"}}
         ]
     if active is not None:
         # This part needs to be adapted if 'active' is a field within 'assignedTeams.teams'
