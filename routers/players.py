@@ -1517,7 +1517,7 @@ async def update_player(
                 field="imageUrl",
                 message="Invalid URL format",
                 details={"provided_value": imageUrl, "error": str(e)}
-            )
+            ) from e
 
     current_first_name = firstName or existing_player.get("firstName")
     current_last_name = lastName or existing_player.get("lastName")
