@@ -1211,11 +1211,11 @@ async def get_players_for_club(
     paginated_result = PaginationHelper.create_response(
         items=[player.model_dump() for player in result["results"]],
         page=result["page"],
-        page_size=settings.RESULTS_PER_PAGE if all else settings.RESULTS_PER_PAGE,
+        page_size=settings.RESULTS_PER_PAGE if not all else result["total"],
         total_count=result["total"],
         message=f"Retrieved {len(result['results'])} players for club {club_alias}",
     )
-    return JSONResponse(status_code=status.HTTP_200_OK, content=paginated_result)
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
 
 # GET ALL PLAYERS FOR ONE CLUB/TEAM
@@ -1266,11 +1266,11 @@ async def get_players_for_team(
     paginated_result = PaginationHelper.create_response(
         items=[player.model_dump() for player in result["results"]],
         page=result["page"],
-        page_size=settings.RESULTS_PER_PAGE if all else settings.RESULTS_PER_PAGE,
+        page_size=settings.RESULTS_PER_PAGE if not all else result["total"],
         total_count=result["total"],
         message=f"Retrieved {len(result['results'])} players for team {team_alias} in club {club_alias}",
     )
-    return JSONResponse(status_code=status.HTTP_200_OK, content=paginated_result)
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
 
 # GET ALL PLAYERS
@@ -1315,24 +1315,36 @@ async def get_players(
     # if team_alias:
     #     search_query["assignedTeams.teams.teamAlias"] = team_alias
 
-    # Use PaginationHelper to paginate the query
-    items, total_count = await PaginationHelper.paginate_query(
-        collection=mongodb["players"],
-        query=search_query,
-        page=page,
-        page_size=page_size if not all else 0,  # Use 0 for page_size if 'all' is true to fetch all
-        sort=[(sortby, 1)],  # Default sort order
-    )
+    # Configure German collation for proper sorting of umlauts
+    collation = {
+        "locale": "de",
+        "strength": 1,
+    }
+
+    # Determine actual page_size to use
+    actual_page_size = 0 if all else page_size
+    skip = 0 if all else (page - 1) * page_size
+
+    # Get total count
+    total_count = await mongodb["players"].count_documents(search_query)
+
+    # Get paginated items with collation
+    cursor = mongodb["players"].find(search_query).collation(collation).sort(sortby, 1).skip(skip)
+    
+    if actual_page_size > 0:
+        cursor = cursor.limit(actual_page_size)
+    
+    items = await cursor.to_list(length=None)
 
     # Create the paginated response
     paginated_result = PaginationHelper.create_response(
         items=[PlayerDB(**item).model_dump() for item in items],
         page=page,
-        page_size=page_size if not all else total_count,  # Adjust page_size for 'all' case
+        page_size=page_size if not all else total_count,
         total_count=total_count,
         message=f"Retrieved {len(items)} players",
     )
-    return JSONResponse(status_code=status.HTTP_200_OK, content=paginated_result)
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
 
 # GET ONE PLAYER
