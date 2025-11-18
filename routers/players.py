@@ -1575,7 +1575,14 @@ async def update_player(
     logger.debug(f"player_to_update: {player_to_update}")
     if not player_to_update:
         logger.debug("No changes to update")
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(StandardResponse(
+                success=True,
+                data=PlayerDB(**existing_player).model_dump(by_alias=True),
+                message="No changes detected"
+            ))
+        )
 
     try:
         update_result = await mongodb["players"].update_one(
