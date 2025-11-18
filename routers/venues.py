@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Upl
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from loguru import logger
-from pydantic import HttpUrl
+from pydantic import HttpUrl, ValidationError as PydanticValidationError
 from pymongo.errors import DuplicateKeyError
 
 from authentication import AuthHandler, TokenPayload
@@ -231,15 +231,52 @@ async def update_venue(
 
     venue_data.pop("id", None)
 
-    # Handle image upload
+    # Validate imageUrl as HttpUrl if it's a non-empty string
+    validated_image_url: HttpUrl | None = None
+    if imageUrl and imageUrl != "":
+        try:
+            validated_image_url = HttpUrl(imageUrl)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "field": "imageUrl",
+                    "message": "Invalid URL format",
+                    "provided_value": imageUrl,
+                    "error": str(e)
+                }
+            ) from e
+
+    # Debug: Log what was received for image handling
+    logger.debug(f"Image upload handling - image file provided: {image is not None}")
+    logger.debug(f"Image upload handling - imageUrl value: {repr(imageUrl)}")
+    logger.debug(f"Image upload handling - existing imageUrl: {existing_venue.get('imageUrl')}")
+
+    # Handle image upload/deletion/keeping
     if image:
-        venue_data["imageUrl"] = await handle_image_upload(image, venue_data["alias"])
-    elif imageUrl and imageUrl.strip():  # Only set if not empty string
-        venue_data["imageUrl"] = imageUrl
-    elif imageUrl == "":  # Empty string means remove image
+        # Case 1: New file uploaded - always replace/set image
+        logger.debug("Image handling: Uploading new image file")
+        if existing_venue.get("imageUrl"):
+            logger.debug(f"Image handling: Deleting existing image: {existing_venue['imageUrl']}")
+            await delete_from_cloudinary(existing_venue["imageUrl"])
+        venue_data["imageUrl"] = await handle_image_upload(image, existing_venue["alias"])
+        logger.debug(f"Image handling: New image uploaded: {venue_data['imageUrl']}")
+    elif imageUrl == "":
+        # Case 2: Empty string means delete the image
+        logger.debug("Image handling: Deleting image (empty string received)")
         if existing_venue.get("imageUrl"):
             await delete_from_cloudinary(existing_venue["imageUrl"])
+            logger.debug(f"Image handling: Deleted existing image: {existing_venue['imageUrl']}")
         venue_data["imageUrl"] = None
+    elif imageUrl is not None:
+        # Case 3: imageUrl has a value (URL string) - keep/update URL
+        logger.debug(f"Image handling: Setting imageUrl to provided value: {imageUrl}")
+        # Use the validated URL if it's valid
+        venue_data["imageUrl"] = validated_image_url or imageUrl
+    else:
+        # Case 4: imageUrl not in FormData - don't include in update (keep existing)
+        logger.debug("Image handling: imageUrl not provided, removing from update data")
+        venue_data.pop("imageUrl", None)
 
     logger.debug(f"venue_data: {venue_data}")
 
