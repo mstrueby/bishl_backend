@@ -1209,7 +1209,7 @@ async def get_players_for_club(
 
     # Use PaginationHelper to create the response
     paginated_result = PaginationHelper.create_response(
-        items=[player.model_dump() for player in result["results"]],
+        items=[player.model_dump(by_alias=True) for player in result["results"]],
         page=result["page"],
         page_size=settings.RESULTS_PER_PAGE if not all else result["total"],
         total_count=result["total"],
@@ -1264,7 +1264,7 @@ async def get_players_for_team(
 
     # Use PaginationHelper to create the response
     paginated_result = PaginationHelper.create_response(
-        items=[player.model_dump() for player in result["results"]],
+        items=[player.model_dump(by_alias=True) for player in result["results"]],
         page=result["page"],
         page_size=settings.RESULTS_PER_PAGE if not all else result["total"],
         total_count=result["total"],
@@ -1338,7 +1338,7 @@ async def get_players(
 
     # Create the paginated response
     paginated_result = PaginationHelper.create_response(
-        items=[PlayerDB(**item).model_dump() for item in items],
+        items=[PlayerDB(**item).model_dump(by_alias=True) for item in items],
         page=page,
         page_size=page_size if not all else total_count,
         total_count=total_count,
@@ -1363,7 +1363,7 @@ async def get_player(
         status_code=status.HTTP_200_OK,
         content=jsonable_encoder(StandardResponse(
             success=True,
-            data=player_obj.model_dump(),
+            data=player_obj.model_dump(by_alias=True),
             message="Player retrieved successfully"
         ))
     )
