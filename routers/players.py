@@ -1551,16 +1551,38 @@ async def update_player(
     ).model_dump(exclude_none=True)
 
     player_data.pop("id", None)
+    
+    # Debug: Log what was received for image handling
+    logger.debug(f"Image upload handling - image file provided: {image is not None}")
+    logger.debug(f"Image upload handling - imageUrl value: {repr(imageUrl)}")
+    logger.debug(f"Image upload handling - existing imageUrl: {existing_player.get('imageUrl')}")
+    
+    # Handle image upload/deletion/keeping
     if image:
+        # Case 1: New file uploaded - always replace/set image
+        logger.debug("Image handling: Uploading new image file")
+        if existing_player.get("imageUrl"):
+            logger.debug(f"Image handling: Deleting existing image: {existing_player['imageUrl']}")
+            await delete_from_cloudinary(existing_player["imageUrl"])
         player_data["imageUrl"] = await handle_image_upload(image, id)
-    elif imageUrl:
+        logger.debug(f"Image handling: New image uploaded: {player_data['imageUrl']}")
+    elif imageUrl == "":
+        # Case 2: Empty string means delete the image
+        logger.debug("Image handling: Deleting image (empty string received)")
+        if existing_player.get("imageUrl"):
+            await delete_from_cloudinary(existing_player["imageUrl"])
+            logger.debug(f"Image handling: Deleted existing image: {existing_player['imageUrl']}")
+        player_data["imageUrl"] = None
+    elif imageUrl is not None:
+        # Case 3: imageUrl has a value (URL string) - keep/update URL
+        logger.debug(f"Image handling: Setting imageUrl to provided value: {imageUrl}")
         player_data["imageUrl"] = imageUrl
-    elif existing_player.get("imageUrl"):
-        await delete_from_cloudinary(existing_player["imageUrl"])
-        player_data["imageUrl"] = None
     else:
-        player_data["imageUrl"] = None
-    logger.debug(f"player_data: f{player_data}")
+        # Case 4: imageUrl not in FormData - don't include in update (keep existing)
+        logger.debug("Image handling: imageUrl not provided, removing from update data")
+        player_data.pop("imageUrl", None)
+    
+    logger.debug(f"player_data: {player_data}")
 
     # exclude unchanged data
     player_to_update = {
