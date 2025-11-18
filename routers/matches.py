@@ -49,13 +49,17 @@ def convert_times_to_seconds(data):
     for score in data.get("away", {}).get("scores", []) or []:
         score["matchSeconds"] = parse_time_to_seconds(score["matchTime"])
     for penalty in data.get("home", {}).get("penalties", []) or []:
-        penalty["matchSecondsStart"] = parse_time_to_seconds(penalty["matchTimeStart"])
+        penalty["matchSecondsStart"] = parse_time_to_seconds(
+            penalty["matchTimeStart"])
         if penalty.get("matchTimeEnd") is not None:
-            penalty["matchSecondsEnd"] = parse_time_to_seconds(penalty["matchTimeEnd"])
+            penalty["matchSecondsEnd"] = parse_time_to_seconds(
+                penalty["matchTimeEnd"])
     for penalty in data.get("away", {}).get("penalties", []) or []:
-        penalty["matchSecondsStart"] = parse_time_to_seconds(penalty["matchTimeStart"])
+        penalty["matchSecondsStart"] = parse_time_to_seconds(
+            penalty["matchTimeStart"])
         if penalty.get("matchTimeEnd") is not None:
-            penalty["matchSecondsEnd"] = parse_time_to_seconds(penalty["matchTimeEnd"])
+            penalty["matchSecondsEnd"] = parse_time_to_seconds(
+                penalty["matchTimeEnd"])
     return data
 
 
@@ -69,14 +73,18 @@ def convert_seconds_to_times(data):
     # parse penalties.matchSeconds[Start|End] to a string format
     for penalty in data.get("home", {}).get("penalties") or []:
         if penalty is not None:
-            penalty["matchTimeStart"] = parse_time_from_seconds(penalty["matchSecondsStart"])
+            penalty["matchTimeStart"] = parse_time_from_seconds(
+                penalty["matchSecondsStart"])
             if penalty.get("matchSecondsEnd") is not None:
-                penalty["matchTimeEnd"] = parse_time_from_seconds(penalty["matchSecondsEnd"])
+                penalty["matchTimeEnd"] = parse_time_from_seconds(
+                    penalty["matchSecondsEnd"])
     for penalty in data.get("away", {}).get("penalties") or []:
         if penalty is not None:
-            penalty["matchTimeStart"] = parse_time_from_seconds(penalty["matchSecondsStart"])
+            penalty["matchTimeStart"] = parse_time_from_seconds(
+                penalty["matchSecondsStart"])
             if penalty.get("matchSecondsEnd") is not None:
-                penalty["matchTimeEnd"] = parse_time_from_seconds(penalty["matchSecondsEnd"])
+                penalty["matchTimeEnd"] = parse_time_from_seconds(
+                    penalty["matchSecondsEnd"])
     if DEBUG_LEVEL > 100:
         print("data", data)
     return data
@@ -85,7 +93,8 @@ def convert_seconds_to_times(data):
 async def get_match_object(mongodb, match_id: str) -> MatchDB:
     match = await mongodb["matches"].find_one({"_id": match_id})
     if not match:
-        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+        raise ResourceNotFoundException(resource_type="Match",
+                                        resource_id=match_id)
 
     # Populate EventPlayer display fields for scores and penalties
     for team_key in ["home", "away"]:
@@ -95,34 +104,115 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
         roster = team.get("roster", [])
         for roster_entry in roster:
             if roster_entry.get("player"):
-                await populate_event_player_fields(mongodb, roster_entry["player"])
+                await populate_event_player_fields(mongodb,
+                                                   roster_entry["player"])
 
         # Populate score player fields
         scores = team.get("scores", [])
         for score in scores:
             if score.get("goalPlayer"):
-                await populate_event_player_fields(mongodb, score["goalPlayer"])
+                await populate_event_player_fields(mongodb,
+                                                   score["goalPlayer"])
             if score.get("assistPlayer"):
-                await populate_event_player_fields(mongodb, score["assistPlayer"])
+                await populate_event_player_fields(mongodb,
+                                                   score["assistPlayer"])
 
         # Populate penalty player fields
         penalties = team.get("penalties", [])
         for penalty in penalties:
             if penalty.get("penaltyPlayer"):
-                await populate_event_player_fields(mongodb, penalty["penaltyPlayer"])
+                await populate_event_player_fields(mongodb,
+                                                   penalty["penaltyPlayer"])
 
     # parse scores.matchSeconds to a string format
     match = convert_seconds_to_times(match)
     return MatchDB(**match)
 
 
+# get matches for calendar view (no pagination, lightweight response)
+@router.get("/calendar", response_description="Get matches for calendar view")
+async def get_matches_calendar(
+    request: Request,
+    tournament: str | None = None,
+    season: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> JSONResponse:
+    """
+    Get matches optimized for calendar display.
+    Returns all matches without pagination, with minimal data per match.
+    Intended for season/tournament calendar views.
+    """
+    mongodb = request.app.state.mongodb
 
+    query: dict[str, Any] = {
+        "season.alias": season if season else os.environ["CURRENT_SEASON"]
+    }
+
+    if tournament:
+        query["tournament.alias"] = tournament
+
+    if date_from or date_to:
+        date_query = {}
+        try:
+            if date_from:
+                parsed_date_from = isodate.parse_date(date_from)
+                date_query["$gte"] = datetime.combine(parsed_date_from,
+                                                      datetime.min.time())
+            if date_to:
+                parsed_date_to = isodate.parse_date(date_to)
+                date_query["$lte"] = datetime.combine(parsed_date_to,
+                                                      datetime.max.time())
+            query["startDate"] = date_query
+        except Exception as e:
+            raise ValidationException(
+                field="date_from/date_to",
+                message=str(e),
+                details={
+                    "date_from": date_from,
+                    "date_to": date_to
+                },
+            ) from e
+
+    # Minimal projection for calendar view - exclude heavy fields
+    projection = {
+        "home.roster": 0,
+        "home.scores": 0,
+        "home.penalties": 0,
+        "home.staff": 0,
+        "away.roster": 0,
+        "away.scores": 0,
+        "away.penalties": 0,
+        "away.staff": 0,
+        "supplementarySheet": 0,
+    }
+
+    # Fetch all matches (no pagination) - typically a season has 100-300 matches
+    matches = await mongodb["matches"].find(query,
+                                            projection).sort("startDate",
+                                                             1).to_list(None)
+
+    # Convert to lightweight format
+    results = []
+    for match in matches:
+        match = convert_seconds_to_times(match)
+        results.append(MatchListBase(**match))
+
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder({
+                            "success":
+                            True,
+                            "data":
+                            results,
+                            "message":
+                            f"Retrieved {len(results)} matches for calendar"
+                        }))
 
 
 # get today's matches
-@router.get(
-    "/today", response_model=list[MatchListBase], response_description="Get today's matches"
-)
+@router.get("/today",
+            response_model=list[MatchListBase],
+            response_description="Get today's matches")
 async def get_todays_matches(
     request: Request,
     tournament: str | None = None,
@@ -143,7 +233,10 @@ async def get_todays_matches(
 
     query: dict[str, Any] = {
         "season.alias": season if season else os.environ["CURRENT_SEASON"],
-        "startDate": {"$gte": start_of_day, "$lte": end_of_day},
+        "startDate": {
+            "$gte": start_of_day,
+            "$lte": end_of_day
+        },
     }
 
     if tournament:
@@ -153,25 +246,57 @@ async def get_todays_matches(
     if matchday:
         query["matchday.alias"] = matchday
     if referee:
-        query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+        query["$or"] = [{
+            "referee1.userId": referee
+        }, {
+            "referee2.userId": referee
+        }]
     if club:
         if team:
             query["$or"] = [
-                {"$and": [{"home.clubAlias": club}, {"home.teamAlias": team}]},
-                {"$and": [{"away.clubAlias": club}, {"away.teamAlias": team}]},
+                {
+                    "$and": [{
+                        "home.clubAlias": club
+                    }, {
+                        "home.teamAlias": team
+                    }]
+                },
+                {
+                    "$and": [{
+                        "away.clubAlias": club
+                    }, {
+                        "away.teamAlias": team
+                    }]
+                },
             ]
         else:
             query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
     if assigned is not None:
         if not assigned:  # assigned == False
             query["$and"] = [
-                {"referee1.userId": {"$exists": False}},
-                {"referee2.userId": {"$exists": False}},
+                {
+                    "referee1.userId": {
+                        "$exists": False
+                    }
+                },
+                {
+                    "referee2.userId": {
+                        "$exists": False
+                    }
+                },
             ]
         elif assigned:  # assigned == True
             query["$or"] = [
-                {"referee1.userId": {"$exists": True}},
-                {"referee2.userId": {"$exists": True}},
+                {
+                    "referee1.userId": {
+                        "$exists": True
+                    }
+                },
+                {
+                    "referee2.userId": {
+                        "$exists": True
+                    }
+                },
             ]
 
     if DEBUG_LEVEL > 20:
@@ -187,7 +312,9 @@ async def get_todays_matches(
         "away.penalties": 0,
     }
 
-    matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+    matches = await mongodb["matches"].find(query,
+                                            projection).sort("startDate",
+                                                             1).to_list(None)
 
     # Convert to MatchListBase objects and parse time fields
     results = []
@@ -195,14 +322,16 @@ async def get_todays_matches(
         match = convert_seconds_to_times(match)
         results.append(MatchListBase(**match))
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(results))
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(results))
 
 
 # get upcoming matches (next day with matches)
 @router.get(
     "/upcoming",
     response_model=list[MatchListBase],
-    response_description="Get upcoming matches for next day where matches exist",
+    response_description=
+    "Get upcoming matches for next day where matches exist",
 )
 async def get_upcoming_matches(
     request: Request,
@@ -219,12 +348,15 @@ async def get_upcoming_matches(
 
     # Get current time and start searching from tomorrow
     today = datetime.now()
-    tomorrow_start = datetime.combine(today.date() + timedelta(days=1), datetime.min.time())
+    tomorrow_start = datetime.combine(today.date() + timedelta(days=1),
+                                      datetime.min.time())
 
     # Build base query to find minimum start date
     base_query: dict[str, Any] = {
         "season.alias": season if season else os.environ["CURRENT_SEASON"],
-        "startDate": {"$gte": tomorrow_start},
+        "startDate": {
+            "$gte": tomorrow_start
+        },
     }
 
     if tournament:
@@ -234,109 +366,74 @@ async def get_upcoming_matches(
     if matchday:
         base_query["matchday.alias"] = matchday
     if referee:
-        base_query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+        base_query["$or"] = [{
+            "referee1.userId": referee
+        }, {
+            "referee2.userId": referee
+        }]
     if club:
         if team:
             base_query["$or"] = [
-                {"$and": [{"home.clubAlias": club}, {"home.teamAlias": team}]},
-                {"$and": [{"away.clubAlias": club}, {"away.teamAlias": team}]},
+                {
+                    "$and": [{
+                        "home.clubAlias": club
+                    }, {
+                        "home.teamAlias": team
+                    }]
+                },
+                {
+                    "$and": [{
+                        "away.clubAlias": club
+                    }, {
+                        "away.teamAlias": team
+                    }]
+                },
             ]
         else:
-            base_query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+            base_query["$or"] = [{
+                "home.clubAlias": club
+            }, {
+                "away.clubAlias": club
+            }]
     if assigned is not None:
         if not assigned:  # assigned == False
             base_query["$and"] = [
-                {"referee1.userId": {"$exists": False}},
-
-
-# get matches for calendar view (no pagination, lightweight response)
-@router.get("/calendar", response_description="Get matches for calendar view")
-async def get_matches_calendar(
-    request: Request,
-    tournament: str | None = None,
-    season: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-) -> JSONResponse:
-    """
-    Get matches optimized for calendar display.
-    Returns all matches without pagination, with minimal data per match.
-    Intended for season/tournament calendar views.
-    """
-    mongodb = request.app.state.mongodb
-    
-    query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
-    
-    if tournament:
-        query["tournament.alias"] = tournament
-    
-    if date_from or date_to:
-        date_query = {}
-        try:
-            if date_from:
-                parsed_date_from = isodate.parse_date(date_from)
-                date_query["$gte"] = datetime.combine(parsed_date_from, datetime.min.time())
-            if date_to:
-                parsed_date_to = isodate.parse_date(date_to)
-                date_query["$lte"] = datetime.combine(parsed_date_to, datetime.max.time())
-            query["startDate"] = date_query
-        except Exception as e:
-            raise ValidationException(
-                field="date_from/date_to",
-                message=str(e),
-                details={"date_from": date_from, "date_to": date_to},
-            ) from e
-    
-    # Minimal projection for calendar view - exclude heavy fields
-    projection = {
-        "home.roster": 0,
-        "home.scores": 0,
-        "home.penalties": 0,
-        "home.staff": 0,
-        "away.roster": 0,
-        "away.scores": 0,
-        "away.penalties": 0,
-        "away.staff": 0,
-        "supplementarySheet": 0,
-    }
-    
-    # Fetch all matches (no pagination) - typically a season has 100-300 matches
-    matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
-    
-    # Convert to lightweight format
-    results = []
-    for match in matches:
-        match = convert_seconds_to_times(match)
-        results.append(MatchListBase(**match))
-    
-    return JSONResponse(
-        status_code=status.HTTP_200_OK,
-        content=jsonable_encoder({
-            "success": True,
-            "data": results,
-            "message": f"Retrieved {len(results)} matches for calendar"
-        })
-    )
-
-                {"referee2.userId": {"$exists": False}},
+                {
+                    "referee1.userId": {
+                        "$exists": False
+                    }
+                },
+                {
+                    "referee2.userId": {
+                        "$exists": False
+                    }
+                },
             ]
         elif assigned:  # assigned == True
             base_query["$or"] = [
-                {"referee1.userId": {"$exists": True}},
-                {"referee2.userId": {"$exists": True}},
+                {
+                    "referee1.userId": {
+                        "$exists": True
+                    }
+                },
+                {
+                    "referee2.userId": {
+                        "$exists": True
+                    }
+                },
             ]
 
     if DEBUG_LEVEL > 20:
         print("upcoming matches base query: ", base_query)
 
     # Find the minimum start date for upcoming matches
-    min_date_result = (
-        await mongodb["matches"].find(base_query).sort("startDate", 1).limit(1).to_list(1)
-    )
+    min_date_result = (await mongodb["matches"].find(base_query).sort(
+        "startDate", 1).limit(1).to_list(1))
 
     if not min_date_result:
         # No upcoming matches found
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder([]))
+        return JSONResponse(status_code=status.HTTP_200_OK,
+                            content=jsonable_encoder([]))
 
     min_start_date = min_date_result[0]["startDate"]
     match_date = min_start_date.date()
@@ -362,9 +459,9 @@ async def get_matches_calendar(
         "away.penalties": 0,
     }
 
-    matches = (
-        await mongodb["matches"].find(final_query, projection).sort("startDate", 1).to_list(None)
-    )
+    matches = (await mongodb["matches"].find(final_query,
+                                             projection).sort("startDate",
+                                                              1).to_list(None))
 
     # Convert to MatchListBase objects and parse time fields
     results = []
@@ -372,13 +469,15 @@ async def get_matches_calendar(
         match = convert_seconds_to_times(match)
         results.append(MatchListBase(**match))
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(results))
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(results))
 
 
 # get this week's matches (tomorrow until Sunday)
 @router.get(
     "/rest-of-week",
-    response_description="Get matches for rest of current week (tomorrow until Sunday)",
+    response_description=
+    "Get matches for rest of current week (tomorrow until Sunday)",
 )
 async def get_rest_of_week_matches(
     request: Request,
@@ -416,25 +515,61 @@ async def get_rest_of_week_matches(
     if matchday:
         base_query["matchday.alias"] = matchday
     if referee:
-        base_query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+        base_query["$or"] = [{
+            "referee1.userId": referee
+        }, {
+            "referee2.userId": referee
+        }]
     if club:
         if team:
             base_query["$or"] = [
-                {"$and": [{"home.clubAlias": club}, {"home.teamAlias": team}]},
-                {"$and": [{"away.clubAlias": club}, {"away.teamAlias": team}]},
+                {
+                    "$and": [{
+                        "home.clubAlias": club
+                    }, {
+                        "home.teamAlias": team
+                    }]
+                },
+                {
+                    "$and": [{
+                        "away.clubAlias": club
+                    }, {
+                        "away.teamAlias": team
+                    }]
+                },
             ]
         else:
-            base_query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
+            base_query["$or"] = [{
+                "home.clubAlias": club
+            }, {
+                "away.clubAlias": club
+            }]
     if assigned is not None:
         if not assigned:  # assigned == False
             base_query["$and"] = [
-                {"referee1.userId": {"$exists": False}},
-                {"referee2.userId": {"$exists": False}},
+                {
+                    "referee1.userId": {
+                        "$exists": False
+                    }
+                },
+                {
+                    "referee2.userId": {
+                        "$exists": False
+                    }
+                },
             ]
         elif assigned:  # assigned == True
             base_query["$or"] = [
-                {"referee1.userId": {"$exists": True}},
-                {"referee2.userId": {"$exists": True}},
+                {
+                    "referee1.userId": {
+                        "$exists": True
+                    }
+                },
+                {
+                    "referee2.userId": {
+                        "$exists": True
+                    }
+                },
             ]
 
     if DEBUG_LEVEL > 20:
@@ -466,9 +601,10 @@ async def get_rest_of_week_matches(
             "away.penalties": 0,
         }
 
-        matches = (
-            await mongodb["matches"].find(day_query, projection).sort("startDate", 1).to_list(None)
-        )
+        matches = (await
+                   mongodb["matches"].find(day_query,
+                                           projection).sort("startDate",
+                                                            1).to_list(None))
 
         # Convert to MatchListBase objects and parse time fields
         day_matches = []
@@ -477,18 +613,17 @@ async def get_rest_of_week_matches(
             day_matches.append(MatchListBase(**match))
 
         # Add day data to result
-        week_matches.append(
-            {
-                "date": current_date.isoformat(),
-                "dayName": current_date.strftime("%A"),
-                "matches": day_matches,
-            }
-        )
+        week_matches.append({
+            "date": current_date.isoformat(),
+            "dayName": current_date.strftime("%A"),
+            "matches": day_matches,
+        })
 
         # Move to next day
         current_date += timedelta(days=1)
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(week_matches))
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(week_matches))
 
 
 # get matches
@@ -509,7 +644,9 @@ async def get_matches(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(100, ge=1, le=500, description="Items per page"),
 ) -> JSONResponse:
-    query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
+    query: dict[str, Any] = {
+        "season.alias": season if season else os.environ["CURRENT_SEASON"]
+    }
     if tournament:
         query["tournament.alias"] = tournament
     if round:
@@ -519,25 +656,57 @@ async def get_matches(
     if status_key:
         query["matchStatus.key"] = status_key
     if referee:
-        query["$or"] = [{"referee1.userId": referee}, {"referee2.userId": referee}]
+        query["$or"] = [{
+            "referee1.userId": referee
+        }, {
+            "referee2.userId": referee
+        }]
     if club:
         if team:
             query["$or"] = [
-                {"$and": [{"home.clubAlias": club}, {"home.teamAlias": team}]},
-                {"$and": [{"away.clubAlias": club}, {"away.teamAlias": team}]},
+                {
+                    "$and": [{
+                        "home.clubAlias": club
+                    }, {
+                        "home.teamAlias": team
+                    }]
+                },
+                {
+                    "$and": [{
+                        "away.clubAlias": club
+                    }, {
+                        "away.teamAlias": team
+                    }]
+                },
             ]
         else:
             query["$or"] = [{"home.clubAlias": club}, {"away.clubAlias": club}]
     if assigned is not None:
         if not assigned:  # assigned == False
             query["$and"] = [
-                {"referee1.userId": {"$exists": False}},
-                {"referee2.userId": {"$exists": False}},
+                {
+                    "referee1.userId": {
+                        "$exists": False
+                    }
+                },
+                {
+                    "referee2.userId": {
+                        "$exists": False
+                    }
+                },
             ]
         elif assigned:  # assigned == True
             query["$or"] = [
-                {"referee1.userId": {"$exists": True}},
-                {"referee2.userId": {"$exists": True}},
+                {
+                    "referee1.userId": {
+                        "$exists": True
+                    }
+                },
+                {
+                    "referee2.userId": {
+                        "$exists": True
+                    }
+                },
             ]
 
     if date_from or date_to:
@@ -545,16 +714,21 @@ async def get_matches(
         try:
             if date_from:
                 parsed_date_from = isodate.parse_date(date_from)
-                date_query["$gte"] = datetime.combine(parsed_date_from, datetime.min.time())
+                date_query["$gte"] = datetime.combine(parsed_date_from,
+                                                      datetime.min.time())
             if date_to:
                 parsed_date_to = isodate.parse_date(date_to)
-                date_query["$lte"] = datetime.combine(parsed_date_to, datetime.max.time())
+                date_query["$lte"] = datetime.combine(parsed_date_to,
+                                                      datetime.max.time())
             query["startDate"] = date_query
         except Exception as e:
             raise ValidationException(
                 field="date_from/date_to",
                 message=str(e),
-                details={"date_from": date_from, "date_to": date_to},
+                details={
+                    "date_from": date_from,
+                    "date_to": date_to
+                },
             ) from e
     if DEBUG_LEVEL > 20:
         print("query: ", query)
@@ -582,9 +756,8 @@ async def get_matches(
         message=f"Retrieved {len(results)} matches",
     )
 
-    return JSONResponse(
-        status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_response)
-    )
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=jsonable_encoder(paginated_response))
 
 
 # get one match by id
@@ -596,11 +769,15 @@ async def get_match(
     mongodb = request.app.state.mongodb
     match = await get_match_object(mongodb, match_id)
     # get_match_object already raises ResourceNotFoundException if not found
-    return StandardResponse(success=True, data=match, message="Match retrieved successfully")
+    return StandardResponse(success=True,
+                            data=match,
+                            message="Match retrieved successfully")
 
 
 # create new match
-@router.post("", response_description="Add new match", response_model=StandardResponse[MatchDB])
+@router.post("",
+             response_description="Add new match",
+             response_model=StandardResponse[MatchDB])
 async def create_match(
     request: Request,
     match: MatchBase = Body(...),
@@ -610,7 +787,10 @@ async def create_match(
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
             message="Admin role required to create matches",
-            details={"user_roles": token_payload.roles, "required_role": "ADMIN"},
+            details={
+                "user_roles": token_payload.roles,
+                "required_role": "ADMIN"
+            },
         )
 
     logger.info(
@@ -624,33 +804,24 @@ async def create_match(
 
     try:
         # get standingsSettings and set points per team
-        if (
-            match.tournament is not None
-            and match.season is not None
-            and match.home is not None
-            and match.away is not None
-            and hasattr(match.tournament, "alias")
-            and hasattr(match.season, "alias")
-        ):
+        if (match.tournament is not None and match.season is not None
+                and match.home is not None and match.away is not None
+                and hasattr(match.tournament, "alias")
+                and hasattr(match.season, "alias")):
             if DEBUG_LEVEL > 10:
                 print("get standingsSettings")
             # fetch standing settings
             stats_service = StatsService(mongodb)
             standings_settings = await stats_service.get_standings_settings(
-                match.tournament.alias, match.season.alias
-            )
+                match.tournament.alias, match.season.alias)
             if DEBUG_LEVEL > 10:
                 print(standings_settings)
-            home_score = (
-                0
-                if match.home is None or not match.home.stats or match.home.stats.goalsFor is None
-                else match.home.stats.goalsFor
-            )
-            away_score = (
-                0
-                if match.away is None or not match.away.stats or match.away.stats.goalsFor is None
-                else match.away.stats.goalsFor
-            )
+            home_score = (0 if match.home is None or not match.home.stats
+                          or match.home.stats.goalsFor is None else
+                          match.home.stats.goalsFor)
+            away_score = (0 if match.away is None or not match.away.stats
+                          or match.away.stats.goalsFor is None else
+                          match.away.stats.goalsFor)
 
             match_stats = stats_service.calculate_match_stats(
                 match.matchStatus.key,
@@ -675,8 +846,7 @@ async def create_match(
             try:
                 tournament_service = TournamentService(mongodb)
                 matchday_info = await tournament_service.get_matchday_info(
-                    t_alias, s_alias, r_alias, md_alias
-                )
+                    t_alias, s_alias, r_alias, md_alias)
                 ref_points = matchday_info.get("refPoints", 0)
                 if DEBUG_LEVEL > 20:
                     print("ref_points: ", ref_points)
@@ -713,9 +883,10 @@ async def create_match(
                     tzinfo=start_date_parts.tzinfo,
                 )
             except ValueError as e:
-                raise ValidationException(
-                    field="startDate", message=str(e), details={"value": start_date_str}
-                ) from e
+                raise ValidationException(field="startDate",
+                                          message=str(e),
+                                          details={"value":
+                                                   start_date_str}) from e
 
         if DEBUG_LEVEL > 0:
             print("match_data: ", match_data)
@@ -724,45 +895,50 @@ async def create_match(
         try:
             result = await mongodb["matches"].insert_one(match_data)
         except Exception as e:
-            raise DatabaseOperationException(
-                operation="insert_one", collection="matches", details={"error": str(e)}
-            ) from e
+            raise DatabaseOperationException(operation="insert_one",
+                                             collection="matches",
+                                             details={"error": str(e)}) from e
 
         logger.info(
             "Match created successfully",
-            extra={"match_id": result.inserted_id, "tournament": t_alias, "season": s_alias},
+            extra={
+                "match_id": result.inserted_id,
+                "tournament": t_alias,
+                "season": s_alias
+            },
         )
 
         # Update rounds and matchdays dates, and calc standings
         if t_alias and s_alias and r_alias and md_alias:
-            tournament = await mongodb["tournaments"].find_one({"alias": t_alias})
+            tournament = await mongodb["tournaments"].find_one(
+                {"alias": t_alias})
             if tournament:
-                season = next(
-                    (s for s in tournament.get("seasons", []) if s.get("alias") == s_alias), None
-                )
+                season = next((s for s in tournament.get("seasons", [])
+                               if s.get("alias") == s_alias), None)
                 if season:
-                    round_data = next(
-                        (r for r in season.get("rounds", []) if r.get("alias") == r_alias), None
-                    )
+                    round_data = next((r for r in season.get("rounds", [])
+                                       if r.get("alias") == r_alias), None)
                     if round_data and "_id" in round_data:
                         round_id = round_data["_id"]
                         matchday_data = next(
-                            (
-                                md
-                                for md in round_data.get("matchdays", [])
-                                if md.get("alias") == md_alias
-                            ),
+                            (md for md in round_data.get("matchdays", [])
+                             if md.get("alias") == md_alias),
                             None,
                         )
                         if matchday_data and "_id" in matchday_data:
                             md_id = matchday_data["_id"]
                             tournament_service = TournamentService(mongodb)
-                            await tournament_service.update_round_dates(round_id, t_alias, s_alias, r_alias)
-                            await tournament_service.update_matchday_dates(md_id, t_alias, s_alias, r_alias, md_alias)
+                            await tournament_service.update_round_dates(
+                                round_id, t_alias, s_alias, r_alias)
+                            await tournament_service.update_matchday_dates(
+                                md_id, t_alias, s_alias, r_alias, md_alias)
                         else:
-                            print(f"Warning: Matchday {md_alias} not found or has no ID")
+                            print(
+                                f"Warning: Matchday {md_alias} not found or has no ID"
+                            )
                     else:
-                        print(f"Warning: Round {r_alias} not found or has no ID")
+                        print(
+                            f"Warning: Round {r_alias} not found or has no ID")
 
         stats_service = StatsService(mongodb)
         await stats_service.calculate_roster_stats(result.inserted_id, "home")
@@ -771,23 +947,26 @@ async def create_match(
         # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
         # Player stats will be calculated when match status changes to FINISHED
         if DEBUG_LEVEL > 0:
-            logger.debug("Match created - player card stats will be calculated when match finishes")
+            logger.debug(
+                "Match created - player card stats will be calculated when match finishes"
+            )
 
         # return complete match document
         new_match = await get_match_object(mongodb, result.inserted_id)
-        response = StandardResponse(
-            success=True, data=new_match, message="Match created successfully"
-        )
-        return JSONResponse(
-            status_code=status.HTTP_201_CREATED, content=jsonable_encoder(response)
-        )
+        response = StandardResponse(success=True,
+                                    data=new_match,
+                                    message="Match created successfully")
+        return JSONResponse(status_code=status.HTTP_201_CREATED,
+                            content=jsonable_encoder(response))
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ------ update match
-@router.patch("/{match_id}", response_description="Update match", response_model=StandardResponse[MatchDB])
+@router.patch("/{match_id}",
+              response_description="Update match",
+              response_model=StandardResponse[MatchDB])
 async def update_match(
     request: Request,
     match_id: str,
@@ -795,7 +974,8 @@ async def update_match(
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
 ) -> StandardResponse[MatchDB] | Response:
     mongodb = request.app.state.mongodb
-    if not any(role in token_payload.roles for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
+    if not any(role in token_payload.roles
+               for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
         raise AuthorizationException(
             message="Admin, League Admin, or Club Admin role required",
             details={
@@ -816,20 +996,22 @@ async def update_match(
     # Get existing match
     existing_match = await mongodb["matches"].find_one({"_id": match_id})
     if existing_match is None:
-        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+        raise ResourceNotFoundException(resource_type="Match",
+                                        resource_id=match_id)
 
     # Extract tournament info for potential use
-    t_alias = getattr(
-        match.tournament, "alias", existing_match.get("tournament", {}).get("alias", None)
-    )
-    s_alias = getattr(match.season, "alias", existing_match.get("season", {}).get("alias", None))
-    r_alias = getattr(match.round, "alias", existing_match.get("round", {}).get("alias", None))
-    md_alias = getattr(
-        match.matchday, "alias", existing_match.get("matchday", {}).get("alias", None)
-    )
+    t_alias = getattr(match.tournament, "alias",
+                      existing_match.get("tournament", {}).get("alias", None))
+    s_alias = getattr(match.season, "alias",
+                      existing_match.get("season", {}).get("alias", None))
+    r_alias = getattr(match.round, "alias",
+                      existing_match.get("round", {}).get("alias", None))
+    md_alias = getattr(match.matchday, "alias",
+                       existing_match.get("matchday", {}).get("alias", None))
 
     # Get current and new match status/finish type
-    current_match_status = existing_match.get("matchStatus", {}).get("key", None)
+    current_match_status = existing_match.get("matchStatus",
+                                              {}).get("key", None)
     new_match_status = getattr(match.matchStatus, "key", current_match_status)
     current_finish_type = existing_match.get("finishType", {}).get("key", None)
     new_finish_type = getattr(match.finishType, "key", current_finish_type)
@@ -838,57 +1020,46 @@ async def update_match(
         print("passed match: ", match)
     # Check if this is a stats-affecting change - only check fields that were explicitly provided
     match_data_provided = match.model_dump(exclude_unset=True)
-    stats_affecting_fields = ["matchStatus", "finishType", "home.stats", "away.stats"]
+    stats_affecting_fields = [
+        "matchStatus", "finishType", "home.stats", "away.stats"
+    ]
     stats_change_detected = any(
-        field in match_data_provided
-        or (
-            field.count(".") == 1
-            and field.split(".")[0] in match_data_provided
-            and field.split(".")[1] in match_data_provided.get(field.split(".")[0], {})
-        )
-        for field in stats_affecting_fields
-    )
+        field in match_data_provided or (field.count(".") == 1 and field.split(
+            ".")[0] in match_data_provided and field.split(
+                ".")[1] in match_data_provided.get(field.split(".")[0], {}))
+        for field in stats_affecting_fields)
     if DEBUG_LEVEL > 10:
         print("stats_change_detected: ", stats_change_detected)
 
     # Only calculate match stats if stats-affecting fields changed
     if stats_change_detected and new_finish_type and t_alias:
-        home_stats_data = (
-            match.home.stats
-            if (match.home and match.home.stats and match.home.stats != {})
-            else existing_match.get("home", {}).get("stats", {})
-        )
-        away_stats_data = (
-            match.away.stats
-            if (match.away and match.away.stats and match.away.stats != {})
-            else existing_match.get("away", {}).get("stats", {})
-        )
+        home_stats_data = (match.home.stats if
+                           (match.home and match.home.stats
+                            and match.home.stats != {}) else
+                           existing_match.get("home", {}).get("stats", {}))
+        away_stats_data = (match.away.stats if
+                           (match.away and match.away.stats
+                            and match.away.stats != {}) else
+                           existing_match.get("away", {}).get("stats", {}))
 
-        home_stats = (
-            home_stats_data
-            if isinstance(home_stats_data, MatchStats)
-            else MatchStats(**(home_stats_data or {}))
-        )
-        away_stats = (
-            away_stats_data
-            if isinstance(away_stats_data, MatchStats)
-            else MatchStats(**(away_stats_data or {}))
-        )
+        home_stats = (home_stats_data if isinstance(
+            home_stats_data, MatchStats) else MatchStats(
+                **(home_stats_data or {})))
+        away_stats = (away_stats_data if isinstance(
+            away_stats_data, MatchStats) else MatchStats(
+                **(away_stats_data or {})))
 
-        home_goals = (
-            home_stats.goalsFor
-            if (home_stats and home_stats.goalsFor is not None)
-            else existing_match["home"]["stats"]["goalsFor"]
-        )
-        away_goals = (
-            away_stats.goalsFor
-            if (away_stats and away_stats.goalsFor is not None)
-            else existing_match["away"]["stats"]["goalsFor"]
-        )
+        home_goals = (home_stats.goalsFor if
+                      (home_stats and home_stats.goalsFor is not None) else
+                      existing_match["home"]["stats"]["goalsFor"])
+        away_goals = (away_stats.goalsFor if
+                      (away_stats and away_stats.goalsFor is not None) else
+                      existing_match["away"]["stats"]["goalsFor"])
 
         # fetch standing settings
         stats_service = StatsService(mongodb)
-        standings_settings = await stats_service.get_standings_settings(t_alias, s_alias)
+        standings_settings = await stats_service.get_standings_settings(
+            t_alias, s_alias)
 
         match_stats = stats_service.calculate_match_stats(
             new_match_status,
@@ -912,10 +1083,12 @@ async def update_match(
     match_data.pop("id", None)
 
     # Only update referee points if match status changed to FINISHED/FORFEITED
-    if new_match_status in ["FINISHED", "FORFEITED"] and current_match_status != new_match_status:
+    if new_match_status in ["FINISHED", "FORFEITED"
+                            ] and current_match_status != new_match_status:
         if t_alias and s_alias and r_alias and md_alias:
             tournament_service = TournamentService(mongodb)
-            matchday_info = await tournament_service.get_matchday_info(t_alias, s_alias, r_alias, md_alias)
+            matchday_info = await tournament_service.get_matchday_info(
+                t_alias, s_alias, r_alias, md_alias)
             ref_points = matchday_info.get("refPoints", 0)
             if existing_match["referee1"] is not None:
                 match_data["referee1"]["points"] = ref_points
@@ -953,7 +1126,8 @@ async def update_match(
         print("match_to_update: ", match_to_update)
 
     if not match_to_update:
-        logger.info("No changes to update for match", extra={"match_id": match_id})
+        logger.info("No changes to update for match",
+                    extra={"match_id": match_id})
         return StandardResponse(
             success=True,
             data=jsonable_encoder(existing_match),
@@ -962,14 +1136,17 @@ async def update_match(
 
     # Check if this is a date-affecting change that requires round/matchday updates
     date_affecting_fields = ["startDate"]
-    date_change_detected = any(field in match_to_update for field in date_affecting_fields)
+    date_change_detected = any(field in match_to_update
+                               for field in date_affecting_fields)
 
     try:
         set_data = {"$set": flatten_dict(match_to_update)}
-        update_result = await mongodb["matches"].update_one({"_id": match_id}, set_data)
+        update_result = await mongodb["matches"].update_one({"_id": match_id},
+                                                            set_data)
 
         if update_result.modified_count == 0:
-            raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+            raise ResourceNotFoundException(resource_type="Match",
+                                            resource_id=match_id)
 
         logger.info(
             "Match updated",
@@ -983,38 +1160,42 @@ async def update_match(
 
         # Only update round/matchday dates if date-affecting fields changed
         if date_change_detected and t_alias and s_alias and r_alias and md_alias:
-            tournament = await mongodb["tournaments"].find_one({"alias": t_alias})
+            tournament = await mongodb["tournaments"].find_one(
+                {"alias": t_alias})
             if tournament:
-                season = next(
-                    (s for s in tournament.get("seasons", []) if s.get("alias") == s_alias), None
-                )
+                season = next((s for s in tournament.get("seasons", [])
+                               if s.get("alias") == s_alias), None)
                 if season:
-                    round_data = next(
-                        (r for r in season.get("rounds", []) if r.get("alias") == r_alias), None
-                    )
+                    round_data = next((r for r in season.get("rounds", [])
+                                       if r.get("alias") == r_alias), None)
                     if round_data and "_id" in round_data:
                         round_id = round_data["_id"]
                         matchday_data = next(
-                            (
-                                md
-                                for md in round_data.get("matchdays", [])
-                                if md.get("alias") == md_alias
-                            ),
+                            (md for md in round_data.get("matchdays", [])
+                             if md.get("alias") == md_alias),
                             None,
                         )
                         if matchday_data and "_id" in matchday_data:
                             md_id = matchday_data["_id"]
                             tournament_service = TournamentService(mongodb)
-                            await tournament_service.update_round_dates(round_id, t_alias, s_alias, r_alias)
-                            await tournament_service.update_matchday_dates(md_id, t_alias, s_alias, r_alias, md_alias)
+                            await tournament_service.update_round_dates(
+                                round_id, t_alias, s_alias, r_alias)
+                            await tournament_service.update_matchday_dates(
+                                md_id, t_alias, s_alias, r_alias, md_alias)
                         else:
-                            print(f"WARNING: Matchday {md_alias} not found or has no ID")
+                            print(
+                                f"WARNING: Matchday {md_alias} not found or has no ID"
+                            )
                     else:
-                        print(f"WARNING: Round {r_alias} not found or has no ID")
+                        print(
+                            f"WARNING: Round {r_alias} not found or has no ID")
 
         # Only recalculate roster stats if scores or penalties changed (not for roster-only changes)
-        stats_recalc_fields = ["home.scores", "away.scores", "home.penalties", "away.penalties"]
-        stats_recalc_needed = any(field in match_to_update for field in stats_recalc_fields)
+        stats_recalc_fields = [
+            "home.scores", "away.scores", "home.penalties", "away.penalties"
+        ]
+        stats_recalc_needed = any(field in match_to_update
+                                  for field in stats_recalc_fields)
 
         if stats_recalc_needed:
             # Recalculate roster stats since goals/assists/penalties changed
@@ -1029,14 +1210,9 @@ async def update_match(
 
     # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
     # Player stats will be calculated when match status changes to FINISHED
-    if (
-        stats_change_detected
-        and "FINISHED" in {new_match_status, current_match_status}
-        and t_alias
-        and s_alias
-        and r_alias
-        and md_alias
-    ):
+    if (stats_change_detected
+            and "FINISHED" in {new_match_status, current_match_status}
+            and t_alias and s_alias and r_alias and md_alias):
         home_players = [
             player.get("player", {}).get("playerId")
             for player in existing_match.get("home", {}).get("roster", [])
@@ -1055,34 +1231,38 @@ async def update_match(
         if player_ids:
             stats_service = StatsService(mongodb)
             await stats_service.calculate_player_card_stats(
-                player_ids, t_alias, s_alias, r_alias, md_alias, token_payload
-            )
+                player_ids, t_alias, s_alias, r_alias, md_alias, token_payload)
 
     if DEBUG_LEVEL > 0:
         change_type = "stats-affecting" if stats_change_detected else "minor"
-        player_calc_note = (
-            " + player stats calculated"
-            if (stats_change_detected and "FINISHED" in {new_match_status, current_match_status})
-            else ""
-        )
+        player_calc_note = (" + player stats calculated" if
+                            (stats_change_detected and "FINISHED"
+                             in {new_match_status, current_match_status}) else
+                            "")
         print(
             f"Match updated - {change_type} change detected for match {match_id}{player_calc_note}"
         )
 
-    return StandardResponse(success=True, data=updated_match, message="Match updated successfully")
+    return StandardResponse(success=True,
+                            data=updated_match,
+                            message="Match updated successfully")
 
 
 # delete match
-@router.delete(
-    "/{match_id}",
-    response_description="Delete match",
-    status_code=status.HTTP_204_NO_CONTENT,
-    responses={
-        204: {"description": "Match deleted successfully"},
-        404: {"description": "Match not found"},
-        403: {"description": "Not authorized"}
-    }
-)
+@router.delete("/{match_id}",
+               response_description="Delete match",
+               status_code=status.HTTP_204_NO_CONTENT,
+               responses={
+                   204: {
+                       "description": "Match deleted successfully"
+                   },
+                   404: {
+                       "description": "Match not found"
+                   },
+                   403: {
+                       "description": "Not authorized"
+                   }
+               })
 async def delete_match(
     request: Request,
     match_id: str,
@@ -1092,13 +1272,17 @@ async def delete_match(
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
             message="Admin role required to delete matches",
-            details={"user_roles": token_payload.roles, "required_role": "ADMIN"},
+            details={
+                "user_roles": token_payload.roles,
+                "required_role": "ADMIN"
+            },
         )
 
     # check and get match
     match = await mongodb["matches"].find_one({"_id": match_id})
     if match is None:
-        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+        raise ResourceNotFoundException(resource_type="Match",
+                                        resource_id=match_id)
 
     try:
         tournament = match.get("tournament") or {}
@@ -1112,10 +1296,12 @@ async def delete_match(
         md_alias = matchday.get("alias", None)
 
         home_players = [
-            player["player"]["playerId"] for player in match.get("home", {}).get("roster") or []
+            player["player"]["playerId"]
+            for player in match.get("home", {}).get("roster") or []
         ]
         away_players = [
-            player["player"]["playerId"] for player in match.get("away", {}).get("roster") or []
+            player["player"]["playerId"]
+            for player in match.get("away", {}).get("roster") or []
         ]
         if DEBUG_LEVEL > 0:
             print("### home_players: ", home_players)
@@ -1126,7 +1312,8 @@ async def delete_match(
         # delete in matches
         result = await mongodb["matches"].delete_one({"_id": match_id})
         if result.deleted_count == 0:
-            raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+            raise ResourceNotFoundException(resource_type="Match",
+                                            resource_id=match_id)
 
         logger.info(
             "Match deleted",
@@ -1141,22 +1328,25 @@ async def delete_match(
         # Only update standings if we have all required aliases
         if t_alias and s_alias and r_alias:
             stats_service = StatsService(mongodb)
-            await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+            await stats_service.aggregate_round_standings(
+                t_alias, s_alias, r_alias)
 
         if t_alias and s_alias and r_alias and md_alias:
             stats_service = StatsService(mongodb)
-            await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
+            await stats_service.aggregate_matchday_standings(
+                t_alias, s_alias, r_alias, md_alias)
         # for each player in player_ids loop through stats list and compare tournament, season and round. if found then remove item from list
         if player_ids and t_alias and s_alias and r_alias:
             for player_id in player_ids:
                 if DEBUG_LEVEL > 10:
                     print("player_id: ", player_id)
-                player = await mongodb["players"].find({"_id": player_id}).to_list(length=1)
+                player = await mongodb["players"].find({
+                    "_id": player_id
+                }).to_list(length=1)
                 if DEBUG_LEVEL > 10:
                     print("player: ", player)
                 updated_stats = [
-                    entry
-                    for entry in player[0]["stats"]
+                    entry for entry in player[0]["stats"]
                     if entry["tournament"].get("alias") != t_alias
                     and entry["season"].get("alias") != s_alias
                     and entry["round"].get("alias") != r_alias
@@ -1164,12 +1354,12 @@ async def delete_match(
                 if DEBUG_LEVEL > 10:
                     print("### DEL / updated_stats: ", updated_stats)
                 await mongodb["players"].update_one(
-                    {"_id": player_id}, {"$set": {"stats": updated_stats}}
-                )
+                    {"_id": player_id}, {"$set": {
+                        "stats": updated_stats
+                    }})
             stats_service = StatsService(mongodb)
             await stats_service.calculate_player_card_stats(
-                player_ids, t_alias, s_alias, r_alias, md_alias, token_payload
-            )
+                player_ids, t_alias, s_alias, r_alias, md_alias, token_payload)
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
