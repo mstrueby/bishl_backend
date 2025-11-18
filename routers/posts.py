@@ -17,7 +17,7 @@ from fastapi import (
 )
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from pydantic import HttpUrl
+from pydantic import HttpUrl, ValidationError as PydanticValidationError
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import (
@@ -237,7 +237,7 @@ async def update_post(
     publishDateFrom: datetime | None = Form(None),
     publishDateTo: datetime | None = Form(None),
     image: UploadFile | None = File(None),
-    imageUrl: HttpUrl | None = Form(None),
+    imageUrl: str | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     # Handle alias uniqueness if alias is being updated
@@ -286,18 +286,54 @@ async def update_post(
     post_data["publishDateFrom"] = publishDateFrom
     post_data["publishDateTo"] = publishDateTo
 
-    # Handle image upload
+    # Validate imageUrl as HttpUrl if it's a non-empty string
+    validated_image_url: HttpUrl | None = None
+    if imageUrl and imageUrl != "":
+        try:
+            validated_image_url = HttpUrl(imageUrl)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "field": "imageUrl",
+                    "message": "Invalid URL format",
+                    "provided_value": imageUrl,
+                    "error": str(e)
+                }
+            ) from e
+
+    # Debug: Log what was received for image handling
+    logger.debug(f"Image upload handling - image file provided: {image is not None}")
+    logger.debug(f"Image upload handling - imageUrl value: {repr(imageUrl)}")
+    logger.debug(f"Image upload handling - existing imageUrl: {existing_post.get('imageUrl')}")
+
+    # Handle image upload/deletion/keeping
     if image:
+        # Case 1: New file uploaded - always replace/set image
+        logger.debug("Image handling: Uploading new image file")
+        if existing_post.get("imageUrl"):
+            logger.debug(f"Image handling: Deleting existing image: {existing_post['imageUrl']}")
+            await delete_from_cloudinary(existing_post["imageUrl"])
         # Use the provided alias or fall back to existing post's alias
         image_alias = post_data.get("alias", existing_post.get("alias", id))
         post_data["imageUrl"] = await handle_image_upload(image, image_alias)
-    elif imageUrl:
-        post_data["imageUrl"] = imageUrl
-    elif existing_post.get("imageUrl"):
-        await delete_from_cloudinary(existing_post["imageUrl"])
+        logger.debug(f"Image handling: New image uploaded: {post_data['imageUrl']}")
+    elif imageUrl == "":
+        # Case 2: Empty string means delete the image
+        logger.debug("Image handling: Deleting image (empty string received)")
+        if existing_post.get("imageUrl"):
+            await delete_from_cloudinary(existing_post["imageUrl"])
+            logger.debug(f"Image handling: Deleted existing image: {existing_post['imageUrl']}")
         post_data["imageUrl"] = None
+    elif imageUrl is not None:
+        # Case 3: imageUrl has a value (URL string) - keep/update URL
+        logger.debug(f"Image handling: Setting imageUrl to provided value: {imageUrl}")
+        # Use the validated URL if it's valid
+        post_data["imageUrl"] = validated_image_url or imageUrl
     else:
-        post_data["imageUrl"] = None
+        # Case 4: imageUrl not in FormData - don't include in update (keep existing)
+        logger.debug("Image handling: imageUrl not provided, removing from update data")
+        post_data.pop("imageUrl", None)
 
     logger.debug(f"post_data: {post_data}")
 
