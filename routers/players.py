@@ -1559,7 +1559,7 @@ async def update_player(
         player_data["imageUrl"] = None
     else:
         player_data["imageUrl"] = None
-    print("player_data", player_data)
+    logger.debug(f"player_data: f{player_data}")
 
     # exclude unchanged data
     player_to_update = {
@@ -1572,9 +1572,9 @@ async def update_player(
         or (k != "birthdate" and v != existing_player.get(k, None))
     }
 
-    print("player_to_update", player_to_update)
+    logger.debug(f"player_to_update: {player_to_update}")
     if not player_to_update:
-        print("No changes to update")
+        logger.debug("No changes to update")
         return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
     try:
