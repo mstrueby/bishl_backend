@@ -1349,11 +1349,11 @@ async def get_player(
     player_obj = PlayerDB(**player)
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content={
-            "success": True,
-            "data": player_obj.model_dump(),
-            "message": "Player retrieved successfully"
-        }
+        content=jsonable_encoder(StandardResponse(
+            success=True,
+            data=player_obj,
+            message="Player retrieved successfully"
+        ))
     )
 
 
@@ -1441,11 +1441,11 @@ async def create_player(
             logger.info(f"Player created successfully: {player_id}")
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content={
-                    "success": True,
-                    "data": PlayerDB(**created_player).model_dump(),
-                    "message": "Player created successfully"
-                },
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=PlayerDB(**created_player),
+                    message="Player created successfully"
+                )),
             )
         else:
             raise DatabaseOperationException(
@@ -1574,11 +1574,11 @@ async def update_player(
             logger.info(f"Player updated successfully: {id}")
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
-                content={
-                    "success": True,
-                    "data": PlayerDB(**updated_player).model_dump(),
-                    "message": "Player updated successfully"
-                }
+                content=jsonable_encoder(StandardResponse(
+                    success=True,
+                    data=PlayerDB(**updated_player),
+                    message="Player updated successfully"
+                ))
             )
         raise DatabaseOperationException(
             operation="update_one",
