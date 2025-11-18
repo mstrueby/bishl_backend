@@ -1351,7 +1351,7 @@ async def get_player(
         status_code=status.HTTP_200_OK,
         content=jsonable_encoder(StandardResponse(
             success=True,
-            data=player_obj,
+            data=player_obj.model_dump(),
             message="Player retrieved successfully"
         ))
     )
@@ -1443,7 +1443,7 @@ async def create_player(
                 status_code=status.HTTP_201_CREATED,
                 content=jsonable_encoder(StandardResponse(
                     success=True,
-                    data=PlayerDB(**created_player),
+                    data=PlayerDB(**created_player).model_dump(),
                     message="Player created successfully"
                 )),
             )
@@ -1576,7 +1576,7 @@ async def update_player(
                 status_code=status.HTTP_200_OK,
                 content=jsonable_encoder(StandardResponse(
                     success=True,
-                    data=PlayerDB(**updated_player),
+                    data=PlayerDB(**updated_player).model_dump(),
                     message="Player updated successfully"
                 ))
             )
