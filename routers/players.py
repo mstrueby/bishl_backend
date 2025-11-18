@@ -1331,10 +1331,10 @@ async def get_players(
 
     # Get paginated items with collation
     cursor = mongodb["players"].find(search_query).collation(collation).sort(sortby, 1).skip(skip)
-    
+
     if actual_page_size > 0:
         cursor = cursor.limit(actual_page_size)
-    
+
     items = await cursor.to_list(length=None)
 
     # Create the paginated response
@@ -1493,7 +1493,7 @@ async def update_player(
     source: SourceEnum | None = Form(None),
     sex: SexEnum | None = Form(None),
     image: UploadFile | None = File(None),
-    imageUrl: HttpUrl | None = Form(None),
+    imageUrl: str | None = Form(None),
     imageVisible: bool | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
@@ -1506,6 +1506,18 @@ async def update_player(
     existing_player = await mongodb["players"].find_one({"_id": id})
     if not existing_player:
         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+
+    # Validate imageUrl as HttpUrl if it's a non-empty string
+    validated_image_url: HttpUrl | None = None
+    if imageUrl and imageUrl != "":
+        try:
+            validated_image_url = HttpUrl(imageUrl)
+        except Exception as e:
+            raise ValidationException(
+                field="imageUrl",
+                message="Invalid URL format",
+                details={"provided_value": imageUrl, "error": str(e)}
+            )
 
     current_first_name = firstName or existing_player.get("firstName")
     current_last_name = lastName or existing_player.get("lastName")
@@ -1551,12 +1563,12 @@ async def update_player(
     ).model_dump(exclude_none=True)
 
     player_data.pop("id", None)
-    
+
     # Debug: Log what was received for image handling
     logger.debug(f"Image upload handling - image file provided: {image is not None}")
     logger.debug(f"Image upload handling - imageUrl value: {repr(imageUrl)}")
     logger.debug(f"Image upload handling - existing imageUrl: {existing_player.get('imageUrl')}")
-    
+
     # Handle image upload/deletion/keeping
     if image:
         # Case 1: New file uploaded - always replace/set image
@@ -1576,12 +1588,13 @@ async def update_player(
     elif imageUrl is not None:
         # Case 3: imageUrl has a value (URL string) - keep/update URL
         logger.debug(f"Image handling: Setting imageUrl to provided value: {imageUrl}")
-        player_data["imageUrl"] = imageUrl
+        # Use the validated URL if it's valid, otherwise keep the provided string (which might be invalid but was passed)
+        player_data["imageUrl"] = validated_image_url or imageUrl
     else:
         # Case 4: imageUrl not in FormData - don't include in update (keep existing)
         logger.debug("Image handling: imageUrl not provided, removing from update data")
         player_data.pop("imageUrl", None)
-    
+
     logger.debug(f"player_data: {player_data}")
 
     # exclude unchanged data
