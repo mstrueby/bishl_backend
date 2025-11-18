@@ -1209,13 +1209,13 @@ async def get_players_for_club(
 
     # Use PaginationHelper to create the response
     paginated_result = PaginationHelper.create_response(
-        items=result["results"],
+        items=[player.model_dump() for player in result["results"]],
         page=result["page"],
         page_size=settings.RESULTS_PER_PAGE if all else settings.RESULTS_PER_PAGE,
         total_count=result["total"],
         message=f"Retrieved {len(result['results'])} players for club {club_alias}",
     )
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
+    return JSONResponse(status_code=status.HTTP_200_OK, content=paginated_result)
 
 
 # GET ALL PLAYERS FOR ONE CLUB/TEAM
@@ -1264,13 +1264,13 @@ async def get_players_for_team(
 
     # Use PaginationHelper to create the response
     paginated_result = PaginationHelper.create_response(
-        items=result["results"],
+        items=[player.model_dump() for player in result["results"]],
         page=result["page"],
         page_size=settings.RESULTS_PER_PAGE if all else settings.RESULTS_PER_PAGE,
         total_count=result["total"],
         message=f"Retrieved {len(result['results'])} players for team {team_alias} in club {club_alias}",
     )
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
+    return JSONResponse(status_code=status.HTTP_200_OK, content=paginated_result)
 
 
 # GET ALL PLAYERS
@@ -1326,13 +1326,13 @@ async def get_players(
 
     # Create the paginated response
     paginated_result = PaginationHelper.create_response(
-        items=[PlayerDB(**item) for item in items],
+        items=[PlayerDB(**item).model_dump() for item in items],
         page=page,
         page_size=page_size if not all else total_count,  # Adjust page_size for 'all' case
         total_count=total_count,
         message=f"Retrieved {len(items)} players",
     )
-    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
+    return JSONResponse(status_code=status.HTTP_200_OK, content=paginated_result)
 
 
 # GET ONE PLAYER
@@ -1346,15 +1346,14 @@ async def get_player(
     if player is None:
         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
 
+    player_obj = PlayerDB(**player)
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content=jsonable_encoder(
-            StandardResponse(
-                success=True,
-                data=PlayerDB(**player),
-                message="Player retrieved successfully"
-            )
-        )
+        content={
+            "success": True,
+            "data": player_obj.model_dump(),
+            "message": "Player retrieved successfully"
+        }
     )
 
 
@@ -1442,13 +1441,11 @@ async def create_player(
             logger.info(f"Player created successfully: {player_id}")
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(
-                    StandardResponse(
-                        success=True,
-                        data=PlayerDB(**created_player),
-                        message="Player created successfully"
-                    )
-                ),
+                content={
+                    "success": True,
+                    "data": PlayerDB(**created_player).model_dump(),
+                    "message": "Player created successfully"
+                },
             )
         else:
             raise DatabaseOperationException(
@@ -1577,13 +1574,11 @@ async def update_player(
             logger.info(f"Player updated successfully: {id}")
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
-                content=jsonable_encoder(
-                    StandardResponse(
-                        success=True,
-                        data=PlayerDB(**updated_player),
-                        message="Player updated successfully"
-                    )
-                )
+                content={
+                    "success": True,
+                    "data": PlayerDB(**updated_player).model_dump(),
+                    "message": "Player updated successfully"
+                }
             )
         raise DatabaseOperationException(
             operation="update_one",
