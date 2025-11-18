@@ -225,7 +225,7 @@ async def update_club(
     ishdId: int | None = Form(None),
     active: bool | None = Form(None),
     logo: UploadFile | None = File(None),
-    logoUrl: HttpUrl | None = Form(None),
+    logoUrl: str | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
     mongodb = request.app.state.mongodb
@@ -257,14 +257,37 @@ async def update_club(
     ).model_dump(exclude_none=True)
     club_data.pop("id", None)
 
-    # handle image upload
+    # Debug: Log what was received for logo handling
+    logger.debug(f"Logo upload handling - logo file provided: {logo is not None}")
+    logger.debug(f"Logo upload handling - logoUrl value: {repr(logoUrl)}")
+    logger.debug(f"Logo upload handling - existing logoUrl: {existing_club.get('logoUrl')}")
+    
+    # Handle logo upload/deletion/keeping
     if logo:
+        # Case 1: New file uploaded - always replace/set logo
+        logger.debug("Logo handling: Uploading new logo file")
+        if existing_club.get("logoUrl"):
+            logger.debug(f"Logo handling: Deleting existing logo: {existing_club['logoUrl']}")
+            await delete_from_cloudinary(existing_club["logoUrl"])
         club_data["logoUrl"] = await handle_logo_upload(logo, existing_club["alias"])
-    elif logoUrl:
-        club_data["logoUrl"] = logoUrl
-    elif existing_club.get("logoUrl"):
-        await delete_from_cloudinary(existing_club["logoUrl"])
+        logger.debug(f"Logo handling: New logo uploaded: {club_data['logoUrl']}")
+    elif logoUrl == "":
+        # Case 2: Empty string means delete the logo
+        logger.debug("Logo handling: Deleting logo (empty string received)")
+        if existing_club.get("logoUrl"):
+            await delete_from_cloudinary(existing_club["logoUrl"])
+            logger.debug(f"Logo handling: Deleted existing logo: {existing_club['logoUrl']}")
         club_data["logoUrl"] = None
+    elif logoUrl is not None:
+        # Case 3: logoUrl has a value (URL string) - keep/update URL
+        logger.debug(f"Logo handling: Setting logoUrl to provided value: {logoUrl}")
+        club_data["logoUrl"] = logoUrl
+    else:
+        # Case 4: logoUrl not in FormData - don't include in update (keep existing)
+        logger.debug("Logo handling: logoUrl not provided, removing from update data")
+        club_data.pop("logoUrl", None)
+    
+    logger.debug(f"club_data: {club_data}")
 
     # Exclude unchanged data
     club_to_update = {k: v for k, v in club_data.items() if v != existing_club.get(k, None)}
