@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import (
@@ -300,11 +300,15 @@ async def create_assignment(
         )
 
         if new_assignment:
-            return StandardResponse(
-                success=True,
-                data=AssignmentDB(**new_assignment),
-                message="Assignment created and referee assigned successfully",
+            return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=AssignmentDB(**new_assignment),
+                        message="Assignment created and referee assigned successfully",
+                    )
+                ),
             )
         else:
             raise HTTPException(
@@ -341,11 +345,15 @@ async def create_assignment(
         )
 
         if new_assignment:
-            return StandardResponse(
-                success=True,
-                data=AssignmentDB(**new_assignment),
-                message="Assignment created successfully",
+            return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=AssignmentDB(**new_assignment),
+                        message="Assignment created successfully",
+                    )
+                ),
             )
         else:
             raise HTTPException(
