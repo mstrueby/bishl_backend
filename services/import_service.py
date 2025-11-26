@@ -101,6 +101,273 @@ class ImportService:
             raise RuntimeError("Database not connected. Call connect_db() first.")
         return self.db[collection_name]
 
+    def import_schedule(
+        self, csv_path: str, import_all: bool = False
+    ) -> tuple[bool, str]:
+        """
+        Import match schedule from CSV file
+
+        Args:
+            csv_path: Path to CSV file containing schedule data
+            import_all: If True, import all matches. If False, stop after first match
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        import csv
+        import json
+        from datetime import datetime
+
+        import requests
+        from fastapi.encoders import jsonable_encoder
+
+        from models.matches import (
+            MatchBase,
+            MatchMatchday,
+            MatchRound,
+            MatchSeason,
+            MatchTeam,
+            MatchTournament,
+            MatchVenue,
+        )
+        from models.tournaments import MatchdayBase, RoundDB
+
+        if not self.token or not self.headers:
+            return False, "Not authenticated. Call authenticate() first."
+
+        collection = self.get_collection("matches")
+        
+        try:
+            with open(csv_path, encoding="utf-8") as f:
+                reader = csv.DictReader(
+                    f, delimiter=";", quotechar='"', doublequote=True, skipinitialspace=True
+                )
+                rows = list(reader)
+
+            progress = ImportProgress(len(rows), "Importing schedule")
+            matches_created = 0
+            matches_skipped = 0
+
+            for row in rows:
+                try:
+                    # Parse tournament data
+                    tournament_data = row.get("tournament")
+                    if isinstance(tournament_data, str):
+                        tournament_data = json.loads(tournament_data)
+                    tournament = MatchTournament(**tournament_data)
+
+                    # Parse season data
+                    season_data = row.get("season")
+                    if isinstance(season_data, str):
+                        season_data = json.loads(season_data)
+                    season = MatchSeason(**season_data)
+
+                    # Parse round data
+                    round_data = row.get("round")
+                    if isinstance(round_data, str):
+                        round_data = json.loads(round_data)
+                    round = MatchRound(**round_data)
+
+                    # Parse matchday data
+                    matchday_data = row.get("matchday")
+                    if isinstance(matchday_data, str):
+                        matchday_data = json.loads(matchday_data)
+                    matchday = MatchMatchday(**matchday_data)
+
+                    # Parse venue data
+                    venue_data = row.get("venue")
+                    if isinstance(venue_data, str):
+                        venue_data = json.loads(venue_data)
+                    venue = MatchVenue(**venue_data)
+
+                    # Parse published flag
+                    published_value = row.get("published")
+                    if isinstance(published_value, str):
+                        published_value = published_value.lower() == "true"
+                    published_value = published_value if isinstance(published_value, bool) else False
+
+                    # Parse start date
+                    start_date_str = row.get("startDate")
+                    start_date = None
+                    if start_date_str:
+                        try:
+                            start_date = datetime.strptime(start_date_str, "%Y-%m-%d %H:%M:%S%z")
+                        except ValueError:
+                            progress.add_error(f"Invalid startDate format: {start_date_str}")
+                            continue
+
+                    # Get aliases
+                    t_alias = tournament.alias
+                    s_alias = season.alias
+                    r_alias = round.alias
+                    md_alias = matchday.alias
+
+                    # Check if round exists
+                    round_url = f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
+                    round_response = requests.get(round_url, headers=self.headers)
+                    if round_response.status_code != 200:
+                        progress.add_error(f"Round does not exist: {t_alias}/{s_alias}/{r_alias}")
+                        continue
+
+                    round_db = RoundDB(**round_response.json())
+
+                    # Check if matchday exists, create if needed
+                    if not round_db.matchdays or not any(md.alias == md_alias for md in round_db.matchdays):
+                        new_matchday_data = row.get("newMatchday")
+                        if isinstance(new_matchday_data, str):
+                            new_matchday_data = json.loads(new_matchday_data)
+                        
+                        new_matchday = MatchdayBase(**new_matchday_data)
+                        new_matchday.published = True
+                        new_matchday.matchSettings = round_db.matchSettings
+
+                        create_md_response = requests.post(
+                            f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/",
+                            json=jsonable_encoder(new_matchday),
+                            headers=self.headers,
+                        )
+                        if create_md_response.status_code != 201:
+                            progress.add_error(
+                                f"Failed to create matchday: {t_alias}/{s_alias}/{r_alias}/{md_alias}"
+                            )
+                            continue
+
+                    # Fetch home club and team
+                    home_club_alias = row.get("homeClubAlias")
+                    home_team_alias = row.get("homeTeamAlias")
+                    
+                    home_club_response = requests.get(
+                        f"{self.base_url}/clubs/{home_club_alias}", headers=self.headers
+                    )
+                    if home_club_response.status_code != 200:
+                        progress.add_error(f"Home club not found: {home_club_alias}")
+                        continue
+                    home_club = home_club_response.json()
+
+                    home_team_response = requests.get(
+                        f"{self.base_url}/clubs/{home_club_alias}/teams/{home_team_alias}",
+                        headers=self.headers,
+                    )
+                    if home_team_response.status_code != 200:
+                        progress.add_error(f"Home team not found: {home_club_alias}/{home_team_alias}")
+                        continue
+                    home_team = home_team_response.json()
+
+                    home = MatchTeam(
+                        clubId=home_club.get("_id"),
+                        clubName=home_club.get("name"),
+                        clubAlias=home_club.get("alias"),
+                        teamId=home_team.get("_id"),
+                        teamAlias=home_team.get("alias"),
+                        name=home_team.get("name"),
+                        fullName=home_team.get("fullName"),
+                        shortName=home_team.get("shortName"),
+                        tinyName=home_team.get("tinyName"),
+                        logo=home_club.get("logoUrl"),
+                    )
+
+                    # Fetch away club and team
+                    away_club_alias = row.get("awayClubAlias")
+                    away_team_alias = row.get("awayTeamAlias")
+                    
+                    away_club_response = requests.get(
+                        f"{self.base_url}/clubs/{away_club_alias}", headers=self.headers
+                    )
+                    if away_club_response.status_code != 200:
+                        progress.add_error(f"Away club not found: {away_club_alias}")
+                        continue
+                    away_club = away_club_response.json()
+
+                    away_team_response = requests.get(
+                        f"{self.base_url}/clubs/{away_club_alias}/teams/{away_team_alias}",
+                        headers=self.headers,
+                    )
+                    if away_team_response.status_code != 200:
+                        progress.add_error(f"Away team not found: {away_club_alias}/{away_team_alias}")
+                        continue
+                    away_team = away_team_response.json()
+
+                    away = MatchTeam(
+                        clubId=away_club.get("_id"),
+                        clubName=away_club.get("name"),
+                        clubAlias=away_club.get("alias"),
+                        teamId=away_team.get("_id"),
+                        teamAlias=away_team.get("alias"),
+                        name=away_team.get("name"),
+                        fullName=away_team.get("fullName"),
+                        shortName=away_team.get("shortName"),
+                        tinyName=away_team.get("tinyName"),
+                        logo=away_club.get("logoUrl"),
+                    )
+
+                    # Create match
+                    new_match = MatchBase(
+                        tournament=tournament,
+                        season=season,
+                        round=round,
+                        matchday=matchday,
+                        venue=venue,
+                        published=published_value,
+                        home=home,
+                        away=away,
+                        startDate=start_date,
+                    )
+
+                    new_match_data = jsonable_encoder(new_match)
+
+                    # Check if match already exists
+                    query = {
+                        "startDate": start_date,
+                        "home.clubId": home.clubId,
+                        "home.teamId": home.teamId,
+                        "away.clubId": away.clubId,
+                        "away.teamId": away.teamId,
+                    }
+                    match_exists = collection.find_one(query)
+
+                    if not match_exists:
+                        response = requests.post(
+                            f"{self.base_url}/matches/", json=new_match_data, headers=self.headers
+                        )
+                        if response.status_code == 201:
+                            matches_created += 1
+                            progress.update(
+                                message=f"Created: {home.fullName} - {away.fullName} in {t_alias}/{r_alias}/{md_alias}"
+                            )
+                            
+                            if not import_all:
+                                logger.info("import_all flag not set, stopping after first match")
+                                break
+                        else:
+                            progress.add_error(
+                                f"Failed to create match (HTTP {response.status_code}): {home.fullName} - {away.fullName}"
+                            )
+                    else:
+                        matches_skipped += 1
+                        progress.update(
+                            message=f"Skipped (exists): {home.fullName} - {away.fullName}"
+                        )
+
+                except json.JSONDecodeError as e:
+                    progress.add_error(f"Invalid JSON in row: {str(e)}")
+                except Exception as e:
+                    progress.add_error(f"Error processing row: {str(e)}")
+
+            summary = progress.summary()
+            logger.info(summary)
+            
+            result_msg = f"Created {matches_created} matches, skipped {matches_skipped} existing matches"
+            return True, result_msg
+
+        except FileNotFoundError:
+            error_msg = f"CSV file not found: {csv_path}"
+            logger.error(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Schedule import failed: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+
     def import_with_rollback(
         self, import_func: Callable, collection_name: str, backup_before: bool = True
     ) -> tuple[bool, str]:
