@@ -343,6 +343,8 @@ class TestStatsServiceIntegration:
             match["round"] = {"alias": tournament["seasons"][0]["rounds"][0]["alias"], "name": tournament["seasons"][0]["rounds"][0]["name"]}
             match["matchday"] = {"alias": tournament["seasons"][0]["rounds"][0]["matchdays"][0]["alias"], "name": tournament["seasons"][0]["rounds"][0]["matchdays"][0]["name"]}
             match["matchStatus"] = {"key": "FINISHED", "value": "Beendet"}
+            match["home"]["team"] = {"teamId": "test-team-id", "name": "Test Team", "alias": "test-team", "ageGroup": "U20", "ishdId": "123"}
+            match["home"]["club"] = {"clubId": "test-club-id", "name": "Test Club", "alias": "test-club", "ishdId": "456"}
 
             roster_player = create_test_roster_player("player-1")
             roster_player["called"] = True
@@ -350,8 +352,6 @@ class TestStatsServiceIntegration:
             match["home"]["roster"] = [roster_player]
             await mongodb["matches"].insert_one(match)
 
-        # Execute stats calculation first to populate player stats
-        stats_service = StatsService(mongodb)
         # Create a mock token payload
         from types import SimpleNamespace
         token_payload = SimpleNamespace(
@@ -387,6 +387,8 @@ class TestStatsServiceIntegration:
             mock_patch_response.raise_for_status = AsyncMock()
             mock_instance.patch.return_value = mock_patch_response
 
+            # Execute
+            stats_service = StatsService(mongodb)
             await stats_service.calculate_player_card_stats(
                 ["player-1"],
                 tournament["alias"],
@@ -397,8 +399,13 @@ class TestStatsServiceIntegration:
             )
 
             # Assert - Verify PATCH was called to add team assignment
-            # (In real scenario, this would update assignedTeams)
-            assert mock_instance.patch.called
+            # The player should have 5 called matches, triggering the assignment logic
+            assert mock_instance.patch.called, "PATCH should have been called to update player assignments"
+            
+            # Verify the call was made with correct data
+            patch_call_args = mock_instance.patch.call_args
+            assert patch_call_args is not None
+            assert "assignedTeams" in patch_call_args[1]["json"]
 
 
 @pytest.mark.asyncio
