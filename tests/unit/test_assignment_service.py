@@ -220,7 +220,7 @@ class TestCreateRefereeObject:
         with pytest.raises(ResourceNotFoundException) as exc_info:
             await assignment_service.create_referee_object("invalid-id")
 
-        assert "User with ID 'invalid-id' not found" in str(exc_info.value)
+        assert "User with resource ID 'invalid-id' not found" in str(exc_info.value)
         assert exc_info.value.details.get("reason") == "Referee not found or not a referee"
 
     @pytest.mark.asyncio
