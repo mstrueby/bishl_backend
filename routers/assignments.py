@@ -82,7 +82,8 @@ async def get_assignments_by_match(
 
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(
-            message="Admin or Ref Admin role required", details={"user_roles": token_payload.roles}
+            message="Admin or Ref Admin role required",
+            details={"user_roles": token_payload.roles}
         )
 
     match = await mongodb["matches"].find_one({"_id": match_id})
@@ -970,12 +971,13 @@ async def delete_assignment(
     id: str = Path(..., description="Assignment ID"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
     assignment_service: AssignmentService = Depends(get_assignment_service),
-) -> Response:
+):
     mongodb = request.app.state.mongodb
 
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(
-            message="Admin or Ref Admin role required", details={"user_roles": token_payload.roles}
+            message="Admin or Ref Admin role required",
+            details={"user_roles": token_payload.roles}
         )
 
     # Check if assignment exists
