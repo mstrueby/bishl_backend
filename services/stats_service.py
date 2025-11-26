@@ -3,6 +3,7 @@ import time
 from functools import wraps
 from typing import Any
 
+import httpx
 from exceptions.custom_exceptions import (
     DatabaseOperationException,
     ResourceNotFoundException,
