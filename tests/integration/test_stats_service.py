@@ -347,7 +347,8 @@ class TestStatsServiceIntegration:
             await mongodb["matches"].insert_one(match)
 
         # Mock HTTP calls for player data fetch and update
-        with patch('httpx.AsyncClient') as mock_client:
+        # Patch httpx.AsyncClient in the stats_service module where it's actually used
+        with patch('services.stats_service.httpx.AsyncClient') as mock_client:
             mock_instance = AsyncMock()
             mock_client.return_value.__aenter__.return_value = mock_instance
 
