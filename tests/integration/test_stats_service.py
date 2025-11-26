@@ -369,23 +369,27 @@ class TestStatsServiceIntegration:
             mock_instance = AsyncMock()
             mock_client.return_value.__aenter__.return_value = mock_instance
 
-            # Mock GET player response - this will be called after stats are saved to DB
-            # We need to return the player with the stats that were just calculated
-            async def mock_get(*args, **kwargs):
-                # Fetch the actual player from DB to get the calculated stats
-                actual_player = await mongodb["players"].find_one({"_id": "player-1"})
-                mock_response = AsyncMock()
-                mock_response.status_code = 200
-                mock_response.json.return_value = actual_player
-                return mock_response
+            # Mock GET player response - return the player data synchronously
+            # The actual player data will be fetched from DB after stats calculation
+            mock_get_response = AsyncMock()
+            mock_get_response.status_code = 200
             
-            mock_instance.get.side_effect = mock_get
+            # Create a side effect that fetches actual data from DB
+            async def get_player_data(*args, **kwargs):
+                actual_player = await mongodb["players"].find_one({"_id": "player-1"})
+                # Make json() return the actual player data directly (not a coroutine)
+                response = AsyncMock()
+                response.status_code = 200
+                response.json = lambda: actual_player
+                return response
+            
+            mock_instance.get = get_player_data
 
             # Mock PATCH update response
             mock_patch_response = AsyncMock()
             mock_patch_response.status_code = 200
             mock_patch_response.raise_for_status = AsyncMock()
-            mock_instance.patch.return_value = mock_patch_response
+            mock_instance.patch = AsyncMock(return_value=mock_patch_response)
 
             # Execute
             stats_service = StatsService(mongodb)
