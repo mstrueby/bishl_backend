@@ -64,4 +64,4 @@ class MatchService:
             await self.db["assignments"].find({"referee.userId": referee_id}).to_list(length=None)
         )
 
-        return assignments
+        return list(assignments)
