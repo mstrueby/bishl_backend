@@ -352,7 +352,7 @@ def get_test_assignment_data():
     """Create test assignment data with valid ObjectIds"""
     referee_id = str(ObjectId())
     match_id = str(ObjectId())
-    
+
     return {
         "_id": str(ObjectId()),
         "matchId": match_id,
