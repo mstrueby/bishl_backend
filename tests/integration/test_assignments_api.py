@@ -218,6 +218,7 @@ class TestAssignmentsAPI:
                 "points": 0,
                 "level": "S2"
             },
+            "position": 1,
             "status": "REQUESTED",
             "statusHistory": []
         }

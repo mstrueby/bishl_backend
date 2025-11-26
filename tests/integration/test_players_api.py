@@ -25,7 +25,7 @@ class TestPlayersAPI:
             }]
         }
         await mongodb["clubs"].insert_one(club)
-        
+
         # Execute - Create player with form data
         player_data = {
             "firstName": "John",
@@ -39,13 +39,13 @@ class TestPlayersAPI:
             "managedByISHD": "false",
             "source": "BISHL"
         }
-        
+
         response = await client.post(
             "/players",
             data=player_data,
             headers={"Authorization": f"Bearer {admin_token}"}
         )
-        
+
         # Assert response
         assert response.status_code == 201
         data = response.json()
@@ -53,7 +53,7 @@ class TestPlayersAPI:
         assert data["data"]["firstName"] == "John"
         assert data["data"]["lastName"] == "Doe"
         assert "_id" in data["data"]
-        
+
         # Verify database
         player_in_db = await mongodb["players"].find_one({"_id": data["data"]["_id"]})
         assert player_in_db is not None
