@@ -293,9 +293,7 @@ class AssignmentService:
                 assignment_id, update_data["status"], updated_by, updated_by_name, session
             )
 
-        result = await self.db["assignments"].find_one(
-            {"_id": assignment_id}, session=session
-        )
+        result = await self.db["assignments"].find_one({"_id": assignment_id}, session=session)
         updated_assignment = dict(result) if result else None
 
         logger.info(
