@@ -26,7 +26,8 @@ class AssignmentService:
 
     async def get_assignment_by_id(self, assignment_id: str) -> dict | None:
         """Get assignment by ID"""
-        return await self.db["assignments"].find_one({"_id": assignment_id})
+        result = await self.db["assignments"].find_one({"_id": assignment_id})
+        return dict(result) if result else None
 
     async def get_assignments_by_match(self, match_id: str) -> list[dict]:
         """Get all assignments for a match"""
@@ -236,9 +237,10 @@ class AssignmentService:
             jsonable_encoder(assignment), session=session
         )
 
-        created_assignment = await self.db["assignments"].find_one(
+        result = await self.db["assignments"].find_one(
             {"_id": insert_response.inserted_id}, session=session
         )
+        created_assignment = dict(result) if result else {}
 
         logger.info(
             "Assignment created",
@@ -291,9 +293,10 @@ class AssignmentService:
                 assignment_id, update_data["status"], updated_by, updated_by_name, session
             )
 
-        updated_assignment = await self.db["assignments"].find_one(
+        result = await self.db["assignments"].find_one(
             {"_id": assignment_id}, session=session
         )
+        updated_assignment = dict(result) if result else None
 
         logger.info(
             "Assignment updated",
@@ -342,4 +345,4 @@ class AssignmentService:
         match = await self.db["matches"].find_one({"_id": match_id})
         if not match:
             raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
-        return match
+        return dict(match)
