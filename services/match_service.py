@@ -44,7 +44,7 @@ class MatchService:
 
         matches = await self.db["matches"].find(query).sort("startDate", 1).to_list(length=None)
 
-        return matches
+        return list(matches)
 
     @monitor_query("get_referee_assignments")
     async def get_referee_assignments(self, referee_id: str) -> list[dict[str, Any]]:
