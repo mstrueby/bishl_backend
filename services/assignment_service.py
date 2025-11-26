@@ -5,6 +5,7 @@ Handles assignment creation, updates, validation, and synchronization with match
 """
 
 from datetime import datetime
+from typing import Any
 
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorClientSession
@@ -30,13 +31,15 @@ class AssignmentService:
 
     async def get_assignments_by_match(self, match_id: str) -> list[dict]:
         """Get all assignments for a match"""
-        return await self.db["assignments"].find({"matchId": match_id}).to_list(length=None)
+        assignments = await self.db["assignments"].find({"matchId": match_id}).to_list(length=None)
+        return list(assignments)
 
     async def get_assignments_by_referee(self, referee_id: str) -> list[dict]:
         """Get all assignments for a referee"""
-        return (
+        assignments = (
             await self.db["assignments"].find({"referee.userId": referee_id}).to_list(length=None)
         )
+        return list(assignments)
 
     async def validate_assignment_status_transition(
         self, current_status: Status, new_status: Status, is_ref_admin: bool
