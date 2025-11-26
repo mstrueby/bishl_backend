@@ -231,7 +231,7 @@ async def create_assignment(
             and "REF_ADMIN" not in token_payload.roles
             and "ADMIN" not in token_payload.roles
         ):
-            raise AuthorizationException(detail="Not authorized to be referee admin")
+            raise AuthorizationException(message="Not authorized to be referee admin")
 
         # check if assignment already exists for match_id and referee.userId = ref_id
         if await assignment_service.check_assignment_exists(match_id, ref_id):
@@ -376,14 +376,14 @@ async def update_assignment(
     mongodb = request.app.state.mongodb
 
     if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
-        raise AuthorizationException(detail="Not authorized")
+        raise AuthorizationException(message="Not authorized")
 
     user_id = token_payload.sub
     ref_admin = assignment_data.refAdmin
 
     # check if really ref_admin
     if ref_admin and "REF_ADMIN" not in token_payload.roles and "ADMIN" not in token_payload.roles:
-        raise AuthorizationException(detail="Not authorized to be ref_admin")
+        raise AuthorizationException(message="Not authorized to be ref_admin")
 
     # get assignment from db
     assignment = await assignment_service.get_assignment_by_id(assignment_id)
@@ -551,7 +551,7 @@ async def update_assignment(
 
         if assignment["referee"]["userId"] != user_id:
             raise AuthorizationException(
-                detail="Not authorized to update assignment of other referee"
+                message="Not authorized to update assignment of other referee"
             )
         update_data = assignment_data.model_dump(exclude_unset=True)
 
