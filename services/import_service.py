@@ -136,7 +136,7 @@ class ImportService:
             return False, "Not authenticated. Call authenticate() first."
 
         collection = self.get_collection("matches")
-        
+
         try:
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(
@@ -216,13 +216,13 @@ class ImportService:
                         new_matchday_data = row.get("newMatchday")
                         if isinstance(new_matchday_data, str):
                             new_matchday_data = json.loads(new_matchday_data)
-                        
+
                         new_matchday = MatchdayBase(**new_matchday_data)
                         new_matchday.published = True
                         new_matchday.matchSettings = round_db.matchSettings
 
                         create_md_response = requests.post(
-                            f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/",
+                            f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays",
                             json=jsonable_encoder(new_matchday),
                             headers=self.headers,
                         )
@@ -235,7 +235,7 @@ class ImportService:
                     # Fetch home club and team
                     home_club_alias = row.get("homeClubAlias")
                     home_team_alias = row.get("homeTeamAlias")
-                    
+
                     home_club_response = requests.get(
                         f"{self.base_url}/clubs/{home_club_alias}", headers=self.headers
                     )
@@ -269,7 +269,7 @@ class ImportService:
                     # Fetch away club and team
                     away_club_alias = row.get("awayClubAlias")
                     away_team_alias = row.get("awayTeamAlias")
-                    
+
                     away_club_response = requests.get(
                         f"{self.base_url}/clubs/{away_club_alias}", headers=self.headers
                     )
@@ -327,14 +327,14 @@ class ImportService:
 
                     if not match_exists:
                         response = requests.post(
-                            f"{self.base_url}/matches/", json=new_match_data, headers=self.headers
+                            f"{self.base_url}/matches", json=new_match_data, headers=self.headers
                         )
                         if response.status_code == 201:
                             matches_created += 1
                             progress.update(
                                 message=f"Created: {home.fullName} - {away.fullName} in {t_alias}/{r_alias}/{md_alias}"
                             )
-                            
+
                             if not import_all:
                                 logger.info("import_all flag not set, stopping after first match")
                                 break
@@ -355,7 +355,7 @@ class ImportService:
 
             summary = progress.summary()
             logger.info(summary)
-            
+
             result_msg = f"Created {matches_created} matches, skipped {matches_skipped} existing matches"
             return True, result_msg
 

@@ -17,7 +17,7 @@ from fastapi import (
 )
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from pydantic import HttpUrl, ValidationError as PydanticValidationError
+from pydantic import HttpUrl
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import (

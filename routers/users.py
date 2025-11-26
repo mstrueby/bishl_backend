@@ -5,7 +5,7 @@ from datetime import date
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 
 from authentication import AuthHandler, TokenPayload
 from config import settings

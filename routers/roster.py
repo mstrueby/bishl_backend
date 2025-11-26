@@ -1,6 +1,5 @@
 # filename: routers/roster.py
-from fastapi import APIRouter, Body, Depends, Path, Request, Response, status
-from fastapi.encoders import jsonable_encoder
+from fastapi import APIRouter, Body, Depends, Path, Request
 
 from authentication import AuthHandler, TokenPayload
 from models.matches import RosterPlayer

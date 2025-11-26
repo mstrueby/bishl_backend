@@ -23,11 +23,11 @@ class MatchService:
         """
         Get matches assigned to a referee.
         Replaces: GET /matches/?referee={referee_id}&date_from={date}
-        
+
         Args:
             referee_id: User ID of referee
             date_from: Optional start date filter
-            
+
         Returns:
             List of match documents
         """
@@ -55,10 +55,10 @@ class MatchService:
         """
         Get assignment records for a referee.
         Replaces: GET /assignments/?referee={referee_id}
-        
+
         Args:
             referee_id: User ID of referee
-            
+
         Returns:
             List of assignment documents
         """

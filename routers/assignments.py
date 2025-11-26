@@ -8,18 +8,17 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import (
     AuthorizationException,
     ResourceNotFoundException,
 )
-
 from logging_config import logger
 from mail_service import send_email
-from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status, StatusHistory
-from models.responses import StandardResponse, PaginatedResponse
+from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status
+from models.responses import StandardResponse
 from services.assignment_service import AssignmentService
 from services.message_service import MessageService
 
@@ -81,7 +80,7 @@ async def get_assignments_by_match(
     assignment_service: AssignmentService = Depends(get_assignment_service),
 ):
     mongodb = request.app.state.mongodb
-    
+
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
         raise AuthorizationException(
             message="Admin or Ref Admin role required", details={"user_roles": token_payload.roles}
@@ -206,7 +205,7 @@ async def create_assignment(
     message_service: MessageService = Depends(get_message_service),
 ) -> StandardResponse:
     mongodb = request.app.state.mongodb
-    
+
     if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
@@ -633,7 +632,7 @@ async def get_unassigned_matches_in_14_days(
     mongodb = request.app.state.mongodb
 
     # Calculate date exactly 14 days from now
-    from datetime import datetime, timedelta
+    from datetime import timedelta
 
     target_date = datetime.now() + timedelta(
         days=14 if os.environ.get("ENV") == "production" else 14
@@ -989,18 +988,18 @@ async def delete_assignment(
             try:
                 # Delete the assignment
                 result = await mongodb["assignments"].delete_one({"_id": id}, session=session)
-                
+
                 if result.deleted_count == 0:
                     raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
-                
+
                 # Remove referee from match if assignment had a position
                 if assignment.get("position"):
                     await assignment_service.remove_referee_from_match(
-                        assignment["matchId"], 
-                        assignment["position"], 
+                        assignment["matchId"],
+                        assignment["position"],
                         session=session
                     )
-                
+
                 # Transaction commits automatically on success
             except ResourceNotFoundException:
                 # Re-raise ResourceNotFoundException

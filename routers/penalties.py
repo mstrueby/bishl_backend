@@ -21,7 +21,7 @@ async def get_penalty_sheet(
 ) -> StandardResponse[list[PenaltiesDB]]:
     mongodb = request.app.state.mongodb
     service = PenaltyService(mongodb)
-    
+
     penalty_entries = await service.get_penalties(match_id, team_flag)
     return StandardResponse(
         success=True,
@@ -41,7 +41,7 @@ async def create_penalty(
 ) -> StandardResponse[PenaltiesDB]:
     mongodb = request.app.state.mongodb
     service = PenaltyService(mongodb)
-    
+
     new_penalty = await service.create_penalty(match_id, team_flag, penalty)
     return StandardResponse(
         success=True,
@@ -60,7 +60,7 @@ async def get_one_penalty(
 ) -> StandardResponse[PenaltiesDB]:
     mongodb = request.app.state.mongodb
     service = PenaltyService(mongodb)
-    
+
     penalty = await service.get_penalty_by_id(match_id, team_flag, penalty_id)
     return StandardResponse(
         success=True,
@@ -83,7 +83,7 @@ async def patch_one_penalty(
 ) -> StandardResponse[PenaltiesDB]:
     mongodb = request.app.state.mongodb
     service = PenaltyService(mongodb)
-    
+
     updated_penalty = await service.update_penalty(match_id, team_flag, penalty_id, penalty)
     return StandardResponse(
         success=True,
@@ -103,6 +103,6 @@ async def delete_one_penalty(
 ) -> Response:
     mongodb = request.app.state.mongodb
     service = PenaltyService(mongodb)
-    
+
     await service.delete_penalty(match_id, team_flag, penalty_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

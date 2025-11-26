@@ -33,7 +33,7 @@ class MessageService:
         """
         Send notification to referee directly in database.
         Replaces: POST /messages/
-        
+
         Args:
             referee_id: User ID of referee
             match: Match document
@@ -41,10 +41,10 @@ class MessageService:
             sender_id: User ID of sender
             sender_name: Full name of sender
             footer: Optional footer text
-            
+
         Returns:
             Created message document
-            
+
         Raises:
             ResourceNotFoundException: If referee not found
             DatabaseOperationException: If message creation fails
@@ -106,10 +106,10 @@ class MessageService:
     def format_match_notification(self, match: dict) -> str:
         """
         Format match details for notification message.
-        
+
         Args:
             match: Match document
-            
+
         Returns:
             Formatted match text
         """
@@ -140,7 +140,7 @@ class MessageService:
     async def _send_email_notification(self, referee: dict, content: str) -> None:
         """
         Send email notification to referee.
-        
+
         Args:
             referee: Referee user document
             content: Email content

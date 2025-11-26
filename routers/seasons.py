@@ -9,8 +9,6 @@ from fastapi.responses import JSONResponse, Response
 from authentication import AuthHandler, TokenPayload
 from exceptions import ResourceNotFoundException
 from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
-from models.responses import StandardResponse
-
 
 router = APIRouter()
 auth = AuthHandler()

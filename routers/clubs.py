@@ -200,8 +200,8 @@ async def create_club(
         logger.error(f"Unexpected error creating club {name}: {type(e).__name__}: {str(e)}")
         logger.error(f"Club data being inserted: {club_data}")
         raise DatabaseOperationException(
-            operation="insert", 
-            collection="clubs", 
+            operation="insert",
+            collection="clubs",
             details={"club_name": name, "error": str(e), "error_type": type(e).__name__}
         ) from e
 
@@ -261,7 +261,7 @@ async def update_club(
     logger.debug(f"Logo upload handling - logo file provided: {logo is not None}")
     logger.debug(f"Logo upload handling - logoUrl value: {repr(logoUrl)}")
     logger.debug(f"Logo upload handling - existing logoUrl: {existing_club.get('logoUrl')}")
-    
+
     # Handle logo upload/deletion/keeping
     if logo:
         # Case 1: New file uploaded - always replace/set logo
@@ -286,7 +286,7 @@ async def update_club(
         # Case 4: logoUrl not in FormData - don't include in update (keep existing)
         logger.debug("Logo handling: logoUrl not provided, removing from update data")
         club_data.pop("logoUrl", None)
-    
+
     logger.debug(f"club_data: {club_data}")
 
     # Exclude unchanged data

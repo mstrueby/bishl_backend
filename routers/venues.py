@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Upl
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from loguru import logger
-from pydantic import HttpUrl, ValidationError as PydanticValidationError
+from pydantic import HttpUrl
 from pymongo.errors import DuplicateKeyError
 
 from authentication import AuthHandler, TokenPayload

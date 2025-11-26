@@ -1,7 +1,6 @@
 # filename: routers/scores.py
 from fastapi import APIRouter, Body, Depends, Path, Request, status
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 
 from authentication import AuthHandler, TokenPayload
 from models.matches import ScoresBase, ScoresDB, ScoresUpdate
