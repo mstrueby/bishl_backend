@@ -33,7 +33,7 @@ class PenaltyService:
         match = await self.db["matches"].find_one({"_id": match_id})
         if match is None:
             raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
-        return match
+        return dict(match)
 
     async def _validate_match_status(self, match: dict) -> None:
         """Validate match status allows modifications"""
