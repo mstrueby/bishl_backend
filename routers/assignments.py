@@ -488,10 +488,12 @@ async def update_assignment(
                                 session=session,
                             )
                             if update_data["status"] in [Status.assigned, Status.accepted]:
+                                # Use position from update_data if provided, otherwise from existing assignment
+                                position = update_data.get("position", assignment["position"])
                                 await assignment_service.set_referee_in_match(
                                     match_id,
                                     assignment["referee"],
-                                    assignment_data.position,
+                                    position,
                                     session=session,
                                 )
                         # Transaction commits automatically on success
