@@ -1082,6 +1082,12 @@ class StatsService:
         flag: str,
     ) -> None:
         """Save calculated player statistics to the database."""
+        if self.db is None:
+            raise DatabaseOperationException(
+                operation="save_player_stats",
+                message="MongoDB instance required for saving player stats",
+            )
+
         logger.debug(f"Saving stats for {len(player_card_stats)} players ({flag})")
 
         for player_id, stats_by_team in player_card_stats.items():
