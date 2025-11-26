@@ -152,30 +152,45 @@ class ImportService:
                     tournament_data = row.get("tournament")
                     if isinstance(tournament_data, str):
                         tournament_data = json.loads(tournament_data)
+                    if not tournament_data:
+                        progress.add_error("Missing tournament data")
+                        continue
                     tournament = MatchTournament(**tournament_data)
 
                     # Parse season data
                     season_data = row.get("season")
                     if isinstance(season_data, str):
                         season_data = json.loads(season_data)
+                    if not season_data:
+                        progress.add_error("Missing season data")
+                        continue
                     season = MatchSeason(**season_data)
 
                     # Parse round data
                     round_data = row.get("round")
                     if isinstance(round_data, str):
                         round_data = json.loads(round_data)
+                    if not round_data:
+                        progress.add_error("Missing round data")
+                        continue
                     round = MatchRound(**round_data)
 
                     # Parse matchday data
                     matchday_data = row.get("matchday")
                     if isinstance(matchday_data, str):
                         matchday_data = json.loads(matchday_data)
+                    if not matchday_data:
+                        progress.add_error("Missing matchday data")
+                        continue
                     matchday = MatchMatchday(**matchday_data)
 
                     # Parse venue data
                     venue_data = row.get("venue")
                     if isinstance(venue_data, str):
                         venue_data = json.loads(venue_data)
+                    if not venue_data:
+                        progress.add_error("Missing venue data")
+                        continue
                     venue = MatchVenue(**venue_data)
 
                     # Parse published flag
@@ -220,6 +235,10 @@ class ImportService:
                         new_matchday_data = row.get("newMatchday")
                         if isinstance(new_matchday_data, str):
                             new_matchday_data = json.loads(new_matchday_data)
+                        
+                        if not new_matchday_data:
+                            progress.add_error("Missing newMatchday data for matchday creation")
+                            continue
 
                         new_matchday = MatchdayBase(**new_matchday_data)
                         new_matchday.published = True
