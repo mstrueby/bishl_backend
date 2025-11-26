@@ -97,7 +97,7 @@ class ImportService:
 
     def get_collection(self, collection_name: str):
         """Get a database collection"""
-        if not self.db:
+        if self.db is None:
             raise RuntimeError("Database not connected. Call connect_db() first.")
         return self.db[collection_name]
 
@@ -423,7 +423,7 @@ class ImportService:
 
     def close(self) -> None:
         """Close database connection"""
-        if self.client:
+        if self.client is not None:
             self.client.close()
             logger.info("Database connection closed")
 
