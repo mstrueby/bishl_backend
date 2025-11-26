@@ -235,7 +235,7 @@ class ImportService:
                         new_matchday_data = row.get("newMatchday")
                         if isinstance(new_matchday_data, str):
                             new_matchday_data = json.loads(new_matchday_data)
-                        
+
                         if not new_matchday_data:
                             progress.add_error("Missing newMatchday data for matchday creation")
                             continue
