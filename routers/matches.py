@@ -603,7 +603,7 @@ async def create_match(
     request: Request,
     match: MatchBase = Body(...),
     token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
-) -> StandardResponse[MatchDB]:
+) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(

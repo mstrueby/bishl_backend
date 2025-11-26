@@ -668,7 +668,6 @@ async def get_unassigned_matches_in_14_days(
                 "target_date": target_date.strftime("%Y-%m-%d"),
             },
             message="No unassigned matches found for 14 days from now",
-            status_code=status.HTTP_200_OK,
         )
 
     emails_sent = 0
