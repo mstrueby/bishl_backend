@@ -1461,7 +1461,7 @@ async def create_player(
                 content=jsonable_encoder(
                     StandardResponse(
                         success=True,
-                        data=PlayerDB(**created_player).model_dump(),
+                        data=PlayerDB(**created_player).model_dump(by_alias=True),
                         message="Player created successfully",
                     )
                 ),
@@ -1642,7 +1642,7 @@ async def update_player(
                 content=jsonable_encoder(
                     StandardResponse(
                         success=True,
-                        data=PlayerDB(**updated_player).model_dump(),
+                        data=PlayerDB(**updated_player).model_dump(by_alias=True),
                         message="Player updated successfully",
                     )
                 ),
