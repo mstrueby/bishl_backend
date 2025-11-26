@@ -341,6 +341,8 @@ class TestStatsServiceIntegration:
             match["tournament"] = {"alias": tournament["alias"], "name": tournament["name"]}
             match["season"] = {"alias": tournament["seasons"][0]["alias"], "name": tournament["seasons"][0]["name"]}
             match["round"] = {"alias": tournament["seasons"][0]["rounds"][0]["alias"], "name": tournament["seasons"][0]["rounds"][0]["name"]}
+            match["matchday"] = {"alias": tournament["seasons"][0]["rounds"][0]["matchdays"][0]["alias"], "name": tournament["seasons"][0]["rounds"][0]["matchdays"][0]["name"]}
+            match["matchStatus"] = {"key": "FINISHED", "value": "Beendet"}
 
             roster_player = create_test_roster_player("player-1")
             roster_player["called"] = True
@@ -348,40 +350,42 @@ class TestStatsServiceIntegration:
             match["home"]["roster"] = [roster_player]
             await mongodb["matches"].insert_one(match)
 
+        # Execute stats calculation first to populate player stats
+        stats_service = StatsService(mongodb)
+        # Create a mock token payload
+        from types import SimpleNamespace
+        token_payload = SimpleNamespace(
+            sub="user-1",
+            roles=["ADMIN"],
+            firstName="Test",
+            lastName="User",
+            clubId=None,
+            clubName=None
+        )
+
         # Mock HTTP calls for player data fetch and update
         # Patch httpx.AsyncClient in the stats_service module where it's actually used
         with patch('services.stats_service.httpx.AsyncClient') as mock_client:
             mock_instance = AsyncMock()
             mock_client.return_value.__aenter__.return_value = mock_instance
 
-            # Mock GET player response
-            mock_get_response = AsyncMock()
-            mock_get_response.status_code = 200
-            mock_get_response.json.return_value = {
-                "_id": "player-1",
-                "assignedTeams": [],
-                "stats": []
-            }
-            mock_instance.get.return_value = mock_get_response
+            # Mock GET player response - this will be called after stats are saved to DB
+            # We need to return the player with the stats that were just calculated
+            async def mock_get(*args, **kwargs):
+                # Fetch the actual player from DB to get the calculated stats
+                actual_player = await mongodb["players"].find_one({"_id": "player-1"})
+                mock_response = AsyncMock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = actual_player
+                return mock_response
+            
+            mock_instance.get.side_effect = mock_get
 
             # Mock PATCH update response
             mock_patch_response = AsyncMock()
             mock_patch_response.status_code = 200
             mock_patch_response.raise_for_status = AsyncMock()
             mock_instance.patch.return_value = mock_patch_response
-
-            # Execute
-            stats_service = StatsService(mongodb)
-            # Create a mock token payload
-            from types import SimpleNamespace
-            token_payload = SimpleNamespace(
-                sub="user-1",
-                roles=["ADMIN"],
-                firstName="Test",
-                lastName="User",
-                clubId=None,
-                clubName=None
-            )
 
             await stats_service.calculate_player_card_stats(
                 ["player-1"],
