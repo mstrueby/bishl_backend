@@ -433,7 +433,6 @@ async def update_assignment(
                 success=True,
                 data=AssignmentDB(**updated_assignment),
                 message="No changes to apply",
-                status_code=status.HTTP_200_OK,
             )
         elif (
             update_data.get("status")
@@ -532,7 +531,6 @@ async def update_assignment(
                     success=True,
                     data=AssignmentDB(**updated_assignment),
                     message="Assignment updated successfully",
-                    status_code=status.HTTP_200_OK,
                 )
             else:
                 # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
@@ -541,7 +539,6 @@ async def update_assignment(
                     success=True,
                     data=AssignmentDB(**updated_assignment),
                     message="No changes to apply",
-                    status_code=status.HTTP_200_OK,
                 )
 
         else:
@@ -577,7 +574,6 @@ async def update_assignment(
                 success=True,
                 data=AssignmentDB(**updated_assignment),
                 message="No changes to apply",
-                status_code=status.HTTP_200_OK,
             )
         elif (
             update_data.get("status")
@@ -611,7 +607,6 @@ async def update_assignment(
                     success=True,
                     data=AssignmentDB(**updated_assignment),
                     message="Assignment updated successfully",
-                    status_code=status.HTTP_200_OK,
                 )
             else:
                 # Original Response(status_code=status.HTTP_304_NOT_MODIFIED) replaced with StandardResponse
@@ -620,7 +615,6 @@ async def update_assignment(
                     success=True,
                     data=AssignmentDB(**updated_assignment),
                     message="No changes to apply",
-                    status_code=status.HTTP_200_OK,
                 )
 
         else:
