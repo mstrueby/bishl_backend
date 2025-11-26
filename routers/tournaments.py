@@ -176,7 +176,6 @@ async def update_tournament(
             message="Tournament data unchanged (already up to date)",
         )
 
-
     exclusion_projection = {"seasons.rounds": 0}
     updated_tournament = await mongodb["tournaments"].find_one(
         {"_id": tournament_id}, exclusion_projection
@@ -216,6 +215,4 @@ async def delete_tournament(
     if result.deleted_count == 1:
         logger.info(f"Tournament deleted successfully: {id}")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    raise ResourceNotFoundException(
-        resource_type="Tournament", resource_id=id
-    )
+    raise ResourceNotFoundException(resource_type="Tournament", resource_id=id)

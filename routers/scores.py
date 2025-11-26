@@ -12,7 +12,9 @@ auth = AuthHandler()
 
 
 # get score sheet of a team
-@router.get("", response_description="Get score sheet", response_model=StandardResponse[list[ScoresDB]])
+@router.get(
+    "", response_description="Get score sheet", response_model=StandardResponse[list[ScoresDB]]
+)
 async def get_score_sheet(
     request: Request,
     match_id: str = Path(..., description="The ID of the match"),
@@ -25,12 +27,17 @@ async def get_score_sheet(
     return StandardResponse(
         success=True,
         data=score_entries,
-        message=f"Retrieved {len(score_entries)} score entries for {team_flag} team"
+        message=f"Retrieved {len(score_entries)} score entries for {team_flag} team",
     )
 
 
 # create one score
-@router.post("", response_description="Create one score", response_model=StandardResponse[ScoresDB], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_description="Create one score",
+    response_model=StandardResponse[ScoresDB],
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_score(
     request: Request,
     match_id: str = Path(..., description="The id of the match"),
@@ -42,15 +49,13 @@ async def create_score(
     service = ScoreService(mongodb)
 
     new_score = await service.create_score(match_id, team_flag, score)
-    return StandardResponse(
-        success=True,
-        data=new_score,
-        message="Score created successfully"
-    )
+    return StandardResponse(success=True, data=new_score, message="Score created successfully")
 
 
 # get one score
-@router.get("/{score_id}", response_description="Get one score", response_model=StandardResponse[ScoresDB])
+@router.get(
+    "/{score_id}", response_description="Get one score", response_model=StandardResponse[ScoresDB]
+)
 async def get_one_score(
     request: Request,
     match_id: str = Path(..., description="The id of the match"),
@@ -61,15 +66,13 @@ async def get_one_score(
     service = ScoreService(mongodb)
 
     score = await service.get_score_by_id(match_id, team_flag, score_id)
-    return StandardResponse(
-        success=True,
-        data=score,
-        message="Score retrieved successfully"
-    )
+    return StandardResponse(success=True, data=score, message="Score retrieved successfully")
 
 
 # update one score
-@router.patch("/{score_id}", response_description="Patch one score", response_model=StandardResponse[ScoresDB])
+@router.patch(
+    "/{score_id}", response_description="Patch one score", response_model=StandardResponse[ScoresDB]
+)
 async def patch_one_score(
     request: Request,
     match_id: str = Path(..., description="The id of the match"),
@@ -82,15 +85,13 @@ async def patch_one_score(
     service = ScoreService(mongodb)
 
     updated_score = await service.update_score(match_id, team_flag, score_id, score)
-    return StandardResponse(
-        success=True,
-        data=updated_score,
-        message="Score updated successfully"
-    )
+    return StandardResponse(success=True, data=updated_score, message="Score updated successfully")
 
 
 # delete one score
-@router.delete("/{score_id}", response_description="Delete one score", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{score_id}", response_description="Delete one score", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_one_score(
     request: Request,
     match_id: str = Path(..., description="The id of the match"),

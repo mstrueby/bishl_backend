@@ -101,9 +101,7 @@ class ImportService:
             raise RuntimeError("Database not connected. Call connect_db() first.")
         return self.db[collection_name]
 
-    def import_schedule(
-        self, csv_path: str, import_all: bool = False
-    ) -> tuple[bool, str]:
+    def import_schedule(self, csv_path: str, import_all: bool = False) -> tuple[bool, str]:
         """
         Import match schedule from CSV file
 
@@ -184,7 +182,9 @@ class ImportService:
                     published_value = row.get("published")
                     if isinstance(published_value, str):
                         published_value = published_value.lower() == "true"
-                    published_value = published_value if isinstance(published_value, bool) else False
+                    published_value = (
+                        published_value if isinstance(published_value, bool) else False
+                    )
 
                     # Parse start date
                     start_date_str = row.get("startDate")
@@ -203,7 +203,9 @@ class ImportService:
                     md_alias = matchday.alias
 
                     # Check if round exists
-                    round_url = f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
+                    round_url = (
+                        f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
+                    )
                     round_response = requests.get(round_url, headers=self.headers)
                     if round_response.status_code != 200:
                         progress.add_error(f"Round does not exist: {t_alias}/{s_alias}/{r_alias}")
@@ -212,7 +214,9 @@ class ImportService:
                     round_db = RoundDB(**round_response.json())
 
                     # Check if matchday exists, create if needed
-                    if not round_db.matchdays or not any(md.alias == md_alias for md in round_db.matchdays):
+                    if not round_db.matchdays or not any(
+                        md.alias == md_alias for md in round_db.matchdays
+                    ):
                         new_matchday_data = row.get("newMatchday")
                         if isinstance(new_matchday_data, str):
                             new_matchday_data = json.loads(new_matchday_data)
@@ -249,7 +253,9 @@ class ImportService:
                         headers=self.headers,
                     )
                     if home_team_response.status_code != 200:
-                        progress.add_error(f"Home team not found: {home_club_alias}/{home_team_alias}")
+                        progress.add_error(
+                            f"Home team not found: {home_club_alias}/{home_team_alias}"
+                        )
                         continue
                     home_team = home_team_response.json()
 
@@ -283,7 +289,9 @@ class ImportService:
                         headers=self.headers,
                     )
                     if away_team_response.status_code != 200:
-                        progress.add_error(f"Away team not found: {away_club_alias}/{away_team_alias}")
+                        progress.add_error(
+                            f"Away team not found: {away_club_alias}/{away_team_alias}"
+                        )
                         continue
                     away_team = away_team_response.json()
 
@@ -356,7 +364,9 @@ class ImportService:
             summary = progress.summary()
             logger.info(summary)
 
-            result_msg = f"Created {matches_created} matches, skipped {matches_skipped} existing matches"
+            result_msg = (
+                f"Created {matches_created} matches, skipped {matches_skipped} existing matches"
+            )
             return True, result_msg
 
         except FileNotFoundError:

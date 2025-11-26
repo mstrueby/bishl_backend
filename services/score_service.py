@@ -1,4 +1,3 @@
-
 """
 Score Service - Business logic for score management
 
@@ -146,9 +145,7 @@ class ScoreService:
 
         return ScoresDB(**score_data)
 
-    async def create_score(
-        self, match_id: str, team_flag: str, score: ScoresBase
-    ) -> ScoresDB:
+    async def create_score(self, match_id: str, team_flag: str, score: ScoresBase) -> ScoresDB:
         """
         Create a new score with incremental stats updates
 

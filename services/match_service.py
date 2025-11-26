@@ -1,8 +1,8 @@
-
 """
 Match Service - Direct database operations for matches
 Replaces HTTP calls to internal match API endpoints
 """
+
 from datetime import datetime
 from typing import Any
 
@@ -32,15 +32,11 @@ class MatchService:
             List of match documents
         """
         logger.debug(
-            "Fetching matches for referee",
-            extra={"referee_id": referee_id, "date_from": date_from}
+            "Fetching matches for referee", extra={"referee_id": referee_id, "date_from": date_from}
         )
 
         query: dict[str, Any] = {
-            "$or": [
-                {"referee1.userId": referee_id},
-                {"referee2.userId": referee_id}
-            ]
+            "$or": [{"referee1.userId": referee_id}, {"referee2.userId": referee_id}]
         }
 
         if date_from:
@@ -62,13 +58,10 @@ class MatchService:
         Returns:
             List of assignment documents
         """
-        logger.debug(
-            "Fetching assignments for referee",
-            extra={"referee_id": referee_id}
-        )
+        logger.debug("Fetching assignments for referee", extra={"referee_id": referee_id})
 
-        assignments = await self.db["assignments"].find(
-            {"referee.userId": referee_id}
-        ).to_list(length=None)
+        assignments = (
+            await self.db["assignments"].find({"referee.userId": referee_id}).to_list(length=None)
+        )
 
         return assignments

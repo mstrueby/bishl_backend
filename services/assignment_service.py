@@ -3,6 +3,7 @@ Assignment Service - Business logic for referee assignment management
 
 Handles assignment creation, updates, validation, and synchronization with matches.
 """
+
 from datetime import datetime
 
 from fastapi.encoders import jsonable_encoder
@@ -29,19 +30,17 @@ class AssignmentService:
 
     async def get_assignments_by_match(self, match_id: str) -> list[dict]:
         """Get all assignments for a match"""
-        return await self.db["assignments"].find({
-            "matchId": match_id
-        }).to_list(length=None)
+        return await self.db["assignments"].find({"matchId": match_id}).to_list(length=None)
 
     async def get_assignments_by_referee(self, referee_id: str) -> list[dict]:
         """Get all assignments for a referee"""
-        return await self.db["assignments"].find({
-            "referee.userId": referee_id
-        }).to_list(length=None)
+        return (
+            await self.db["assignments"].find({"referee.userId": referee_id}).to_list(length=None)
+        )
 
     async def validate_assignment_status_transition(
-            self, current_status: Status, new_status: Status,
-            is_ref_admin: bool) -> bool:
+        self, current_status: Status, new_status: Status, is_ref_admin: bool
+    ) -> bool:
         """
         Validate if status transition is allowed
 
@@ -75,8 +74,7 @@ class AssignmentService:
         if new_status not in allowed:
             raise ValidationException(
                 field="status",
-                message=
-                f"Invalid status transition: {current_status} -> {new_status}",
+                message=f"Invalid status transition: {current_status} -> {new_status}",
                 details={
                     "current_status": current_status,
                     "new_status": new_status,
@@ -103,9 +101,7 @@ class AssignmentService:
 
         await self.db["assignments"].update_one(
             {"_id": assignment_id},
-            {"$push": {
-                "statusHistory": jsonable_encoder(status_entry)
-            }},
+            {"$push": {"statusHistory": jsonable_encoder(status_entry)}},
             session=session,
         )
 
@@ -179,16 +175,12 @@ class AssignmentService:
             )
 
     async def remove_referee_from_match(
-            self,
-            match_id: str,
-            position: int,
-            session: AsyncIOMotorClientSession | None = None) -> None:
+        self, match_id: str, position: int, session: AsyncIOMotorClientSession | None = None
+    ) -> None:
         """Remove referee from match document"""
         await self.db["matches"].update_one(
-            {"_id": match_id}, {"$set": {
-                f"referee{position}": None
-            }},
-            session=session)
+            {"_id": match_id}, {"$set": {f"referee{position}": None}}, session=session
+        )
 
     async def create_assignment(
         self,
@@ -239,10 +231,12 @@ class AssignmentService:
         )
 
         insert_response = await self.db["assignments"].insert_one(
-            jsonable_encoder(assignment), session=session)
+            jsonable_encoder(assignment), session=session
+        )
 
         created_assignment = await self.db["assignments"].find_one(
-            {"_id": insert_response.inserted_id}, session=session)
+            {"_id": insert_response.inserted_id}, session=session
+        )
 
         logger.info(
             "Assignment created",
@@ -283,18 +277,21 @@ class AssignmentService:
             Updated assignment or None if no changes
         """
         result = await self.db["assignments"].update_one(
-            {"_id": assignment_id}, {"$set": update_data}, session=session)
+            {"_id": assignment_id}, {"$set": update_data}, session=session
+        )
 
         if result.modified_count == 0:
             return None
 
         # Add status history if status changed
         if "status" in update_data:
-            await self.add_status_history(assignment_id, update_data["status"],
-                                          updated_by, updated_by_name, session)
+            await self.add_status_history(
+                assignment_id, update_data["status"], updated_by, updated_by_name, session
+            )
 
         updated_assignment = await self.db["assignments"].find_one(
-            {"_id": assignment_id}, session=session)
+            {"_id": assignment_id}, session=session
+        )
 
         logger.info(
             "Assignment updated",
@@ -307,9 +304,8 @@ class AssignmentService:
         return updated_assignment
 
     async def delete_assignment(
-            self,
-            assignment_id: str,
-            session: AsyncIOMotorClientSession | None = None) -> bool:
+        self, assignment_id: str, session: AsyncIOMotorClientSession | None = None
+    ) -> bool:
         """
         Delete assignment
 
@@ -320,24 +316,18 @@ class AssignmentService:
         Returns:
             True if deleted, False otherwise
         """
-        result = await self.db["assignments"].delete_one(
-            {"_id": assignment_id}, session=session)
+        result = await self.db["assignments"].delete_one({"_id": assignment_id}, session=session)
 
         if result.deleted_count == 1:
-            logger.info("Assignment deleted",
-                        extra={"assignment_id": assignment_id})
+            logger.info("Assignment deleted", extra={"assignment_id": assignment_id})
             return True
         return False
 
-    async def check_assignment_exists(self, match_id: str,
-                                      referee_id: str) -> bool:
+    async def check_assignment_exists(self, match_id: str, referee_id: str) -> bool:
         """Check if assignment already exists for match and referee"""
-        existing = await self.db["assignments"].find_one({
-            "matchId":
-            match_id,
-            "referee.userId":
-            referee_id
-        })
+        existing = await self.db["assignments"].find_one(
+            {"matchId": match_id, "referee.userId": referee_id}
+        )
         return existing is not None
 
     async def get_match(self, match_id: str) -> dict:
@@ -349,6 +339,5 @@ class AssignmentService:
         """
         match = await self.db["matches"].find_one({"_id": match_id})
         if not match:
-            raise ResourceNotFoundException(resource_type="Match",
-                                            resource_id=match_id)
+            raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
         return match

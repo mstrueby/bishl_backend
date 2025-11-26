@@ -1,4 +1,3 @@
-
 # filename: routers/penalties.py
 from fastapi import APIRouter, Body, Depends, Path, Request, status
 from fastapi.responses import Response
@@ -13,7 +12,9 @@ auth = AuthHandler()
 
 
 # get penalty sheet of a team
-@router.get("", response_description="Get penalty sheet", response_model=StandardResponse[list[PenaltiesDB]])
+@router.get(
+    "", response_description="Get penalty sheet", response_model=StandardResponse[list[PenaltiesDB]]
+)
 async def get_penalty_sheet(
     request: Request,
     match_id: str = Path(..., description="The ID of the match"),
@@ -24,14 +25,17 @@ async def get_penalty_sheet(
 
     penalty_entries = await service.get_penalties(match_id, team_flag)
     return StandardResponse(
-        success=True,
-        data=penalty_entries,
-        message=f"Retrieved {len(penalty_entries)} penalties"
+        success=True, data=penalty_entries, message=f"Retrieved {len(penalty_entries)} penalties"
     )
 
 
 # create one penalty
-@router.post("", response_description="Create one penalty", response_model=StandardResponse[PenaltiesDB], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_description="Create one penalty",
+    response_model=StandardResponse[PenaltiesDB],
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_penalty(
     request: Request,
     match_id: str = Path(..., description="The id of the match"),
@@ -43,15 +47,15 @@ async def create_penalty(
     service = PenaltyService(mongodb)
 
     new_penalty = await service.create_penalty(match_id, team_flag, penalty)
-    return StandardResponse(
-        success=True,
-        data=new_penalty,
-        message="Penalty created successfully"
-    )
+    return StandardResponse(success=True, data=new_penalty, message="Penalty created successfully")
 
 
 # get one penalty
-@router.get("/{penalty_id}", response_description="Get one penalty", response_model=StandardResponse[PenaltiesDB])
+@router.get(
+    "/{penalty_id}",
+    response_description="Get one penalty",
+    response_model=StandardResponse[PenaltiesDB],
+)
 async def get_one_penalty(
     request: Request,
     match_id: str = Path(..., description="The id of the match"),
@@ -62,15 +66,15 @@ async def get_one_penalty(
     service = PenaltyService(mongodb)
 
     penalty = await service.get_penalty_by_id(match_id, team_flag, penalty_id)
-    return StandardResponse(
-        success=True,
-        data=penalty,
-        message="Penalty retrieved successfully"
-    )
+    return StandardResponse(success=True, data=penalty, message="Penalty retrieved successfully")
 
 
 # update one penalty
-@router.patch("/{penalty_id}", response_description="Patch one penalty", response_model=StandardResponse[PenaltiesDB])
+@router.patch(
+    "/{penalty_id}",
+    response_description="Patch one penalty",
+    response_model=StandardResponse[PenaltiesDB],
+)
 async def patch_one_penalty(
     request: Request,
     match_id: str = Path(..., description="The id of the match"),
@@ -86,9 +90,7 @@ async def patch_one_penalty(
 
     updated_penalty = await service.update_penalty(match_id, team_flag, penalty_id, penalty)
     return StandardResponse(
-        success=True,
-        data=updated_penalty,
-        message="Penalty updated successfully"
+        success=True, data=updated_penalty, message="Penalty updated successfully"
     )
 
 

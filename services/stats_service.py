@@ -587,9 +587,7 @@ class StatsService:
     # ==================== ROSTER STATISTICS ====================
 
     @log_performance
-    async def calculate_roster_stats(
-        self, match_id: str, team_flag: str
-    ) -> None:
+    async def calculate_roster_stats(self, match_id: str, team_flag: str) -> None:
         """
         Calculate and update roster statistics for a team in a match.
         Updates goals, assists, points, and penalty minutes for each player.

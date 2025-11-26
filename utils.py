@@ -118,5 +118,3 @@ def validate_match_time(v, field_name: str):
     if not isinstance(v, str) or not re.match(r"^\d{1,3}:[0-5][0-9]$", v):
         raise ValueError(f"Field {field_name} must be in the format MIN:SS")
     return v
-
-

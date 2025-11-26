@@ -157,9 +157,18 @@ class ClubBase(MongoBaseModel):
     logoUrl: HttpUrl | None = None
 
     @field_validator(
-        "addressName", "street", "zipCode", "city", "description",
-        "email", "website", "yearOfFoundation", "ishdId", "logoUrl", "legacyId",
-        mode="before"
+        "addressName",
+        "street",
+        "zipCode",
+        "city",
+        "description",
+        "email",
+        "website",
+        "yearOfFoundation",
+        "ishdId",
+        "logoUrl",
+        "legacyId",
+        mode="before",
     )
     @classmethod
     def empty_str_to_none(cls, v):
@@ -196,9 +205,18 @@ class ClubUpdate(MongoBaseModel):
     logoUrl: str | None = None
 
     @field_validator(
-        "addressName", "street", "zipCode", "city", "description",
-        "email", "website", "logoUrl", "yearOfFoundation", "ishdId", "legacyId",
-        mode="before"
+        "addressName",
+        "street",
+        "zipCode",
+        "city",
+        "description",
+        "email",
+        "website",
+        "logoUrl",
+        "yearOfFoundation",
+        "ishdId",
+        "legacyId",
+        mode="before",
     )
     @classmethod
     def empty_str_to_none(cls, v):

@@ -109,7 +109,9 @@ async def get_posts(
 
 
 # get post by alias
-@router.get("/{alias}", response_description="Get post by alias", response_model=StandardResponse[PostDB])
+@router.get(
+    "/{alias}", response_description="Get post by alias", response_model=StandardResponse[PostDB]
+)
 async def get_post(request: Request, alias: str) -> JSONResponse:
     mongodb = request.app.state.mongodb
     query = {"alias": alias}
@@ -120,11 +122,11 @@ async def get_post(request: Request, alias: str) -> JSONResponse:
         )
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content=jsonable_encoder(StandardResponse(
-            success=True,
-            data=PostDB(**post),
-            message="Post retrieved successfully"
-        ))
+        content=jsonable_encoder(
+            StandardResponse(
+                success=True, data=PostDB(**post), message="Post retrieved successfully"
+            )
+        ),
     )
 
 
@@ -208,11 +210,13 @@ async def create_post(
         if created_post:
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(StandardResponse(
-                    success=True,
-                    data=PostDB(**created_post),
-                    message=f"Post '{created_post['title']}' created successfully"
-                )),
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=PostDB(**created_post),
+                        message=f"Post '{created_post['title']}' created successfully",
+                    )
+                ),
             )
         else:
             raise HTTPException(
@@ -298,8 +302,8 @@ async def update_post(
                     "field": "imageUrl",
                     "message": "Invalid URL format",
                     "provided_value": imageUrl,
-                    "error": str(e)
-                }
+                    "error": str(e),
+                },
             ) from e
 
     # Debug: Log what was received for image handling
@@ -345,11 +349,11 @@ async def update_post(
         # Return 200 with existing data
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=PostDB(**existing_post),
-                message="No changes detected"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=PostDB(**existing_post), message="No changes detected"
+                )
+            ),
         )
 
     # Convert HttpUrl to string for MongoDB storage
@@ -383,19 +387,21 @@ async def update_post(
             updated_post = await mongodb["posts"].find_one({"_id": id})
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
-                content=jsonable_encoder(StandardResponse(
-                    success=True,
-                    data=PostDB(**updated_post),
-                    message=f"Post '{updated_post['title']}' updated successfully"
-                ))
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=PostDB(**updated_post),
+                        message=f"Post '{updated_post['title']}' updated successfully",
+                    )
+                ),
             )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=jsonable_encoder(StandardResponse(
-                success=False,
-                data=PostDB(**existing_post),
-                message="Failed to update post"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=False, data=PostDB(**existing_post), message="Failed to update post"
+                )
+            ),
         )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e

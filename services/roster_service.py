@@ -5,7 +5,6 @@ Handles roster validation, updates, and jersey number synchronization across
 scores and penalties.
 """
 
-
 from fastapi.encoders import jsonable_encoder
 
 from exceptions import (
@@ -116,7 +115,10 @@ class RosterService:
                         "missing_player": score["goalPlayer"]["playerId"],
                     },
                 )
-            if score.get("assistPlayer") and score["assistPlayer"]["playerId"] not in new_player_ids:
+            if (
+                score.get("assistPlayer")
+                and score["assistPlayer"]["playerId"] not in new_player_ids
+            ):
                 raise ValidationException(
                     field="roster",
                     message="All players in scores must be in roster",
@@ -157,13 +159,15 @@ class RosterService:
         # Update scores - goal players
         for player_id, jersey_number in jersey_updates.items():
             await self.db["matches"].update_one(
-                {"_id": match_id}, {"$set": {f"{team_flag}.scores.$[score].goalPlayer.jerseyNumber": jersey_number}},
+                {"_id": match_id},
+                {"$set": {f"{team_flag}.scores.$[score].goalPlayer.jerseyNumber": jersey_number}},
                 array_filters=[{"score.goalPlayer.playerId": player_id}],
             )
 
             # Update scores - assist players
             await self.db["matches"].update_one(
-                {"_id": match_id}, {"$set": {f"{team_flag}.scores.$[score].assistPlayer.jerseyNumber": jersey_number}},
+                {"_id": match_id},
+                {"$set": {f"{team_flag}.scores.$[score].assistPlayer.jerseyNumber": jersey_number}},
                 array_filters=[{"score.assistPlayer.playerId": player_id}],
             )
 

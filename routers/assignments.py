@@ -1,4 +1,3 @@
-
 # filename: routers/assignments.py
 import os
 from datetime import datetime
@@ -55,7 +54,7 @@ async def send_message_to_referee(
     content,
     sender_id,
     sender_name,
-    footer=None
+    footer=None,
 ):
     """
     Send notification to referee using MessageService.
@@ -66,7 +65,7 @@ async def send_message_to_referee(
         content=content,
         sender_id=sender_id,
         sender_name=sender_name,
-        footer=footer
+        footer=footer,
     )
 
 
@@ -275,7 +274,10 @@ async def create_assignment(
 
                     # Update match document within same transaction
                     await assignment_service.set_referee_in_match(
-                        match_id, jsonable_encoder(referee), assignment_data.position, session=session
+                        match_id,
+                        jsonable_encoder(referee),
+                        assignment_data.position,
+                        session=session,
                     )
 
                     # Transaction commits automatically on success
@@ -353,7 +355,9 @@ async def create_assignment(
 
 # PATCH =====================================================================
 @router.patch(
-    "/{assignment_id}", response_description="Update an assignment", response_model=StandardResponse[AssignmentDB]
+    "/{assignment_id}",
+    response_description="Update an assignment",
+    response_model=StandardResponse[AssignmentDB],
 )
 async def update_assignment(
     request: Request,
@@ -543,7 +547,9 @@ async def update_assignment(
             logger.debug("REFEREE mode")
 
         if assignment["referee"]["userId"] != user_id:
-            raise AuthorizationException(detail="Not authorized to update assignment of other referee")
+            raise AuthorizationException(
+                detail="Not authorized to update assignment of other referee"
+            )
         update_data = assignment_data.model_dump(exclude_unset=True)
 
         # exclude unchanged data
@@ -995,9 +1001,7 @@ async def delete_assignment(
                 # Remove referee from match if assignment had a position
                 if assignment.get("position"):
                     await assignment_service.remove_referee_from_match(
-                        assignment["matchId"],
-                        assignment["position"],
-                        session=session
+                        assignment["matchId"], assignment["position"], session=session
                     )
 
                 # Transaction commits automatically on success

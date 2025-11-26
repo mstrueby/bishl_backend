@@ -72,7 +72,7 @@ async def list_venues(
         query=query,
         page=page,
         page_size=page_size,
-        sort=[("name", 1)]
+        sort=[("name", 1)],
     )
 
     venues = [VenueDB(**raw_venue) for raw_venue in items]
@@ -82,24 +82,26 @@ async def list_venues(
         page=page,
         page_size=page_size,
         total_count=total_count,
-        message=f"Retrieved {len(venues)} venue{'s' if len(venues) != 1 else ''}"
+        message=f"Retrieved {len(venues)} venue{'s' if len(venues) != 1 else ''}",
     )
 
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
 
 # get venue by Alias
-@router.get("/{alias}", response_description="Get a single venue", response_model=StandardResponse[VenueDB])
+@router.get(
+    "/{alias}", response_description="Get a single venue", response_model=StandardResponse[VenueDB]
+)
 async def get_venue(alias: str, request: Request) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if (venue := await mongodb["venues"].find_one({"alias": alias})) is not None:
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=VenueDB(**venue),
-                message="Venue retrieved successfully"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=VenueDB(**venue), message="Venue retrieved successfully"
+                )
+            ),
         )
     raise ResourceNotFoundException(
         resource_type="Venue", resource_id=alias, details={"query_field": "alias"}
@@ -162,11 +164,13 @@ async def create_venue(
         if created_venue:
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(StandardResponse(
-                    success=True,
-                    data=VenueDB(**created_venue),
-                    message=f"Venue '{created_venue['name']}' created successfully"
-                ))
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=VenueDB(**created_venue),
+                        message=f"Venue '{created_venue['name']}' created successfully",
+                    )
+                ),
             )
         else:
             raise HTTPException(status_code=500, detail="Failed to create venue")
@@ -179,7 +183,9 @@ async def create_venue(
 
 
 # Update venue
-@router.patch("/{id}", response_description="Update venue", response_model=StandardResponse[VenueDB])
+@router.patch(
+    "/{id}", response_description="Update venue", response_model=StandardResponse[VenueDB]
+)
 async def update_venue(
     request: Request,
     id: str,
@@ -243,8 +249,8 @@ async def update_venue(
                     "field": "imageUrl",
                     "message": "Invalid URL format",
                     "provided_value": imageUrl,
-                    "error": str(e)
-                }
+                    "error": str(e),
+                },
             ) from e
 
     # Debug: Log what was received for image handling
@@ -288,11 +294,11 @@ async def update_venue(
         logger.debug("No update needed - returning existing venue with 200 OK")
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=VenueDB(**existing_venue),
-                message="No changes detected"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=VenueDB(**existing_venue), message="No changes detected"
+                )
+            ),
         )
 
     try:
@@ -301,19 +307,21 @@ async def update_venue(
             if (updated_venue := await mongodb["venues"].find_one({"_id": id})) is not None:
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
-                    content=jsonable_encoder(StandardResponse(
-                        success=True,
-                        data=VenueDB(**updated_venue),
-                        message=f"Venue '{updated_venue['name']}' updated successfully"
-                    ))
+                    content=jsonable_encoder(
+                        StandardResponse(
+                            success=True,
+                            data=VenueDB(**updated_venue),
+                            message=f"Venue '{updated_venue['name']}' updated successfully",
+                        )
+                    ),
                 )
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=False,
-                data=VenueDB(**existing_venue),
-                message="Failed to update venue"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=False, data=VenueDB(**existing_venue), message="Failed to update venue"
+                )
+            ),
         )
     except DuplicateKeyError as e:
         raise HTTPException(

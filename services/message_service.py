@@ -1,8 +1,8 @@
-
 """
 Message Service - Direct database operations for messages
 Replaces HTTP calls to internal message API endpoints
 """
+
 from datetime import datetime
 
 from bson import ObjectId
@@ -28,7 +28,7 @@ class MessageService:
         content: str,
         sender_id: str,
         sender_name: str,
-        footer: str | None = None
+        footer: str | None = None,
     ) -> dict:
         """
         Send notification to referee directly in database.
@@ -50,17 +50,13 @@ class MessageService:
             DatabaseOperationException: If message creation fails
         """
         logger.info(
-            "Sending referee notification",
-            extra={"referee_id": referee_id, "sender_id": sender_id}
+            "Sending referee notification", extra={"referee_id": referee_id, "sender_id": sender_id}
         )
 
         # Get referee user
         referee = await self.db["users"].find_one({"_id": referee_id})
         if not referee:
-            raise ResourceNotFoundException(
-                resource_type="User",
-                resource_id=referee_id
-            )
+            raise ResourceNotFoundException(resource_type="User", resource_id=referee_id)
 
         # Format match text
         match_text = self.format_match_notification(match)
@@ -76,16 +72,16 @@ class MessageService:
             "sender": {
                 "userId": sender_id,
                 "firstName": sender_name.split()[0] if sender_name else "",
-                "lastName": " ".join(sender_name.split()[1:]) if sender_name else ""
+                "lastName": " ".join(sender_name.split()[1:]) if sender_name else "",
             },
             "receiver": {
                 "userId": referee_id,
                 "firstName": referee.get("firstName", ""),
-                "lastName": referee.get("lastName", "")
+                "lastName": referee.get("lastName", ""),
             },
             "content": full_content,
             "timestamp": datetime.now().replace(microsecond=0),
-            "read": False
+            "read": False,
         }
 
         # Insert message
@@ -95,7 +91,7 @@ class MessageService:
             raise DatabaseOperationException(
                 operation="insert_message",
                 collection="messages",
-                details={"error": str(e), "referee_id": referee_id}
+                details={"error": str(e), "referee_id": referee_id},
             ) from e
 
         # Send email notification
@@ -148,10 +144,7 @@ class MessageService:
         referee_email = referee.get("email")
 
         if not referee_email:
-            logger.warning(
-                "Referee has no email address",
-                extra={"referee_id": referee.get("_id")}
-            )
+            logger.warning("Referee has no email address", extra={"referee_id": referee.get("_id")})
             return
 
         try:
@@ -160,14 +153,12 @@ class MessageService:
                 email_content = f"<p>{content.replace('\n', '<br>')}</p>"
 
                 await send_email(
-                    subject=email_subject,
-                    recipients=[referee_email],
-                    body=email_content
+                    subject=email_subject, recipients=[referee_email], body=email_content
                 )
 
                 logger.info(
                     "Email sent to referee",
-                    extra={"referee_id": referee.get("_id"), "email": referee_email}
+                    extra={"referee_id": referee.get("_id"), "email": referee_email},
                 )
             else:
                 logger.info(
@@ -176,5 +167,5 @@ class MessageService:
         except Exception as e:
             logger.error(
                 "Failed to send email to referee",
-                extra={"referee_id": referee.get("_id"), "error": str(e)}
+                extra={"referee_id": referee.get("_id"), "error": str(e)},
             )

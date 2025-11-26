@@ -61,7 +61,11 @@ async def calculate_referee_points(mongodb, user_id):
     return total_points
 
 
-@router.post("/register", response_description="Register a new user", response_model=StandardResponse[CurrentUser])
+@router.post(
+    "/register",
+    response_description="Register a new user",
+    response_model=StandardResponse[CurrentUser],
+)
 async def register(
     request: Request,
     newUser: UserBase = Body(...),
@@ -92,9 +96,7 @@ async def register(
 
     token = auth.encode_token(created_user)
     response = StandardResponse(
-        success=True,
-        data=CurrentUser(**created_user),
-        message="User registered successfully"
+        success=True, data=CurrentUser(**created_user), message="User registered successfully"
     )
 
     return JSONResponse(
@@ -104,7 +106,9 @@ async def register(
 
 
 # login user
-@router.post("/login", response_description="Login a user", response_model=StandardResponse[CurrentUser])
+@router.post(
+    "/login", response_description="Login a user", response_model=StandardResponse[CurrentUser]
+)
 async def login(request: Request, loginUser: LoginBase = Body(...)) -> JSONResponse:
     mongodb = request.app.state.mongodb
     existing_user = await mongodb["users"].find_one(
@@ -144,9 +148,7 @@ async def login(request: Request, loginUser: LoginBase = Body(...)) -> JSONRespo
     refresh_token = auth.encode_refresh_token(existing_user)
 
     response = StandardResponse(
-        success=True,
-        data=CurrentUser(**existing_user),
-        message="Login successful"
+        success=True, data=CurrentUser(**existing_user), message="Login successful"
     )
 
     return JSONResponse(
@@ -156,13 +158,15 @@ async def login(request: Request, loginUser: LoginBase = Body(...)) -> JSONRespo
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": 900,  # 15 minutes in seconds
-            **jsonable_encoder(response)
+            **jsonable_encoder(response),
         },
     )
 
 
 # get current user
-@router.get("/me", response_description="Get current user", response_model=StandardResponse[CurrentUser])
+@router.get(
+    "/me", response_description="Get current user", response_model=StandardResponse[CurrentUser]
+)
 async def me(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
@@ -184,15 +188,15 @@ async def me(
             user["referee"]["points"] = total_points
 
     response = StandardResponse(
-        success=True,
-        data=CurrentUser(**user),
-        message="User retrieved successfully"
+        success=True, data=CurrentUser(**user), message="User retrieved successfully"
     )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
 
 # update user details
-@router.patch("/{user_id}", response_description="Update a user", response_model=StandardResponse[CurrentUser])
+@router.patch(
+    "/{user_id}", response_description="Update a user", response_model=StandardResponse[CurrentUser]
+)
 async def update_user(
     request: Request,
     user_id: str,
@@ -255,9 +259,7 @@ async def update_user(
     if not user_to_update:
         logger.debug("No fields to update")
         response = StandardResponse(
-            success=True,
-            data=CurrentUser(**existing_user),
-            message="No changes detected"
+            success=True, data=CurrentUser(**existing_user), message="No changes detected"
         )
         return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
     try:
@@ -269,17 +271,13 @@ async def update_user(
         if update_result.modified_count == 1:
             updated_user = await mongodb["users"].find_one({"_id": user_id})
             response = StandardResponse(
-                success=True,
-                data=CurrentUser(**updated_user),
-                message="User updated successfully"
+                success=True, data=CurrentUser(**updated_user), message="User updated successfully"
             )
             return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
         # If not modified but no error, return current user
         response = StandardResponse(
-            success=True,
-            data=CurrentUser(**existing_user),
-            message="No changes applied"
+            success=True, data=CurrentUser(**existing_user), message="No changes applied"
         )
         return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
     except Exception as e:
@@ -311,21 +309,22 @@ async def get_assigned_matches(
 
     # Fetch matches assigned to me as referee using MatchService
     from datetime import datetime
+
     current_date = datetime.combine(date.today(), datetime.min.time())
     matches = await match_service.get_matches_for_referee(user_id, current_date)
 
     # Parse matches into a list of MatchDB objects
     matches_list = [MatchDB(**match) for match in matches]
     response = StandardResponse(
-        success=True,
-        data=matches_list,
-        message=f"Retrieved {len(matches_list)} assigned matches"
+        success=True, data=matches_list, message=f"Retrieved {len(matches_list)} assigned matches"
     )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
 
 @router.get(
-    "/assignments", response_description="All assignments by me", response_model=StandardResponse[list[AssignmentDB]]
+    "/assignments",
+    response_description="All assignments by me",
+    response_model=StandardResponse[list[AssignmentDB]],
 )
 async def get_assignments(
     request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
@@ -353,7 +352,7 @@ async def get_assignments(
     response = StandardResponse(
         success=True,
         data=assignments_list,
-        message=f"Retrieved {len(assignments_list)} assignments"
+        message=f"Retrieved {len(assignments_list)} assignments",
     )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
@@ -402,7 +401,11 @@ async def get_all_referees(
 
 
 # get one user
-@router.get("/{user_id}", response_description="Get a user by ID", response_model=StandardResponse[CurrentUser])
+@router.get(
+    "/{user_id}",
+    response_description="Get a user by ID",
+    response_model=StandardResponse[CurrentUser],
+)
 async def get_user(
     request: Request, user_id: str, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
@@ -422,9 +425,7 @@ async def get_user(
             user["referee"]["points"] = total_points
 
     response = StandardResponse(
-        success=True,
-        data=CurrentUser(**user),
-        message="User retrieved successfully"
+        success=True, data=CurrentUser(**user), message="User retrieved successfully"
     )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
 
@@ -453,8 +454,8 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     # Send password reset email (skip in test and development environments)
     reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
 
-     # Only send email in production environment
-    if settings.ENVIRONMENT == 'production':
+    # Only send email in production environment
+    if settings.ENVIRONMENT == "production":
         try:
             email_body = f"""
                 <p>Hallo,</p>
@@ -467,7 +468,9 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
         except Exception as e:
             logger.error(f"Error sending password reset email: {e}")
     else:
-        logger.info(f"Non-production mode ({settings.ENVIRONMENT}): Skipping password reset email to {email}. Reset URL: {reset_url}")
+        logger.info(
+            f"Non-production mode ({settings.ENVIRONMENT}): Skipping password reset email to {email}. Reset URL: {reset_url}"
+        )
         logger.info(f"Reset token: {reset_token}")
 
     return JSONResponse(
@@ -527,8 +530,7 @@ async def refresh_token(request: Request, payload: dict = Body(...)) -> JSONResp
 
     if not refresh_token:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Refresh token is required"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Refresh token is required"
         )
 
     # Decode refresh token and get user ID
@@ -537,10 +539,7 @@ async def refresh_token(request: Request, payload: dict = Body(...)) -> JSONResp
     # Fetch user from database
     user = await mongodb["users"].find_one({"_id": user_id})
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Calculate referee points if user is a referee
     if "REFEREE" in user.get("roles", []):
@@ -560,6 +559,6 @@ async def refresh_token(request: Request, payload: dict = Body(...)) -> JSONResp
             "access_token": new_access_token,
             "refresh_token": new_refresh_token,
             "token_type": "bearer",
-            "expires_in": 900  # 15 minutes in seconds
-        }
+            "expires_in": 900,  # 15 minutes in seconds
+        },
     )

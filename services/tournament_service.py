@@ -1,8 +1,8 @@
-
 """
 Tournament Service - Direct database operations for tournament data
 Replaces HTTP calls to internal tournament API endpoints
 """
+
 from typing import Any
 
 from exceptions import DatabaseOperationException, ResourceNotFoundException
@@ -17,43 +17,42 @@ class TournamentService:
         self.db = mongodb
 
     @monitor_query("get_standings_settings")
-    async def get_standings_settings(self, tournament_alias: str, season_alias: str) -> dict[str, Any]:
+    async def get_standings_settings(
+        self, tournament_alias: str, season_alias: str
+    ) -> dict[str, Any]:
         """
         Get standings settings for a tournament/season directly from database.
         Replaces: GET /tournaments/{t_alias}/seasons/{s_alias}
-        
+
         Args:
             tournament_alias: Tournament identifier
             season_alias: Season identifier
-            
+
         Returns:
             Dictionary containing standings settings
-            
+
         Raises:
             ResourceNotFoundException: If tournament/season not found
         """
         logger.debug(
             "Fetching standings settings",
-            extra={"tournament": tournament_alias, "season": season_alias}
+            extra={"tournament": tournament_alias, "season": season_alias},
         )
 
         tournament = await self.db["tournaments"].find_one({"alias": tournament_alias})
 
         if not tournament:
             raise ResourceNotFoundException(
-                resource_type="Tournament",
-                resource_id=tournament_alias
+                resource_type="Tournament", resource_id=tournament_alias
             )
 
         season = next(
-            (s for s in tournament.get("seasons", []) if s.get("alias") == season_alias),
-            None
+            (s for s in tournament.get("seasons", []) if s.get("alias") == season_alias), None
         )
 
         if not season:
             raise ResourceNotFoundException(
-                resource_type="Season",
-                resource_id=f"{tournament_alias}/{season_alias}"
+                resource_type="Season", resource_id=f"{tournament_alias}/{season_alias}"
             )
 
         settings = season.get("standingsSettings")
@@ -61,7 +60,7 @@ class TournamentService:
             raise ResourceNotFoundException(
                 resource_type="StandingsSettings",
                 resource_id=f"{tournament_alias}/{season_alias}",
-                details={"message": "No standings settings found"}
+                details={"message": "No standings settings found"},
             )
 
         return settings
@@ -73,16 +72,16 @@ class TournamentService:
         """
         Get matchday information including referee points.
         Replaces: GET /tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}
-        
+
         Args:
             t_alias: Tournament alias
             s_alias: Season alias
             r_alias: Round alias
             md_alias: Matchday alias
-            
+
         Returns:
             Dictionary containing matchday data
-            
+
         Raises:
             ResourceNotFoundException: If matchday not found
         """
@@ -92,49 +91,36 @@ class TournamentService:
                 "tournament": t_alias,
                 "season": s_alias,
                 "round": r_alias,
-                "matchday": md_alias
-            }
+                "matchday": md_alias,
+            },
         )
 
         tournament = await self.db["tournaments"].find_one({"alias": t_alias})
 
         if not tournament:
-            raise ResourceNotFoundException(
-                resource_type="Tournament",
-                resource_id=t_alias
-            )
+            raise ResourceNotFoundException(resource_type="Tournament", resource_id=t_alias)
 
-        season = next(
-            (s for s in tournament.get("seasons", []) if s.get("alias") == s_alias),
-            None
-        )
+        season = next((s for s in tournament.get("seasons", []) if s.get("alias") == s_alias), None)
 
         if not season:
             raise ResourceNotFoundException(
-                resource_type="Season",
-                resource_id=f"{t_alias}/{s_alias}"
+                resource_type="Season", resource_id=f"{t_alias}/{s_alias}"
             )
 
-        round_data = next(
-            (r for r in season.get("rounds", []) if r.get("alias") == r_alias),
-            None
-        )
+        round_data = next((r for r in season.get("rounds", []) if r.get("alias") == r_alias), None)
 
         if not round_data:
             raise ResourceNotFoundException(
-                resource_type="Round",
-                resource_id=f"{t_alias}/{s_alias}/{r_alias}"
+                resource_type="Round", resource_id=f"{t_alias}/{s_alias}/{r_alias}"
             )
 
         matchday = next(
-            (md for md in round_data.get("matchdays", []) if md.get("alias") == md_alias),
-            None
+            (md for md in round_data.get("matchdays", []) if md.get("alias") == md_alias), None
         )
 
         if not matchday:
             raise ResourceNotFoundException(
-                resource_type="Matchday",
-                resource_id=f"{t_alias}/{s_alias}/{r_alias}/{md_alias}"
+                resource_type="Matchday", resource_id=f"{t_alias}/{s_alias}/{r_alias}/{md_alias}"
             )
 
         return matchday
@@ -144,61 +130,52 @@ class TournamentService:
         """
         Get round information.
         Replaces: GET /tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}
-        
+
         Args:
             t_alias: Tournament alias
             s_alias: Season alias
             r_alias: Round alias
-            
+
         Returns:
             Dictionary containing round data
-            
+
         Raises:
             ResourceNotFoundException: If round not found
         """
         logger.debug(
             "Fetching round info",
-            extra={"tournament": t_alias, "season": s_alias, "round": r_alias}
+            extra={"tournament": t_alias, "season": s_alias, "round": r_alias},
         )
 
         tournament = await self.db["tournaments"].find_one({"alias": t_alias})
 
         if not tournament:
-            raise ResourceNotFoundException(
-                resource_type="Tournament",
-                resource_id=t_alias
-            )
+            raise ResourceNotFoundException(resource_type="Tournament", resource_id=t_alias)
 
-        season = next(
-            (s for s in tournament.get("seasons", []) if s.get("alias") == s_alias),
-            None
-        )
+        season = next((s for s in tournament.get("seasons", []) if s.get("alias") == s_alias), None)
 
         if not season:
             raise ResourceNotFoundException(
-                resource_type="Season",
-                resource_id=f"{t_alias}/{s_alias}"
+                resource_type="Season", resource_id=f"{t_alias}/{s_alias}"
             )
 
-        round_data = next(
-            (r for r in season.get("rounds", []) if r.get("alias") == r_alias),
-            None
-        )
+        round_data = next((r for r in season.get("rounds", []) if r.get("alias") == r_alias), None)
 
         if not round_data:
             raise ResourceNotFoundException(
-                resource_type="Round",
-                resource_id=f"{t_alias}/{s_alias}/{r_alias}"
+                resource_type="Round", resource_id=f"{t_alias}/{s_alias}/{r_alias}"
             )
 
         return round_data
 
     @monitor_query("update_round_dates")
-    async def update_round_dates(self, round_id: str, t_alias: str, s_alias: str, r_alias: str) -> None:
+    async def update_round_dates(
+        self, round_id: str, t_alias: str, s_alias: str, r_alias: str
+    ) -> None:
         """
         Update round start/end dates based on matches.
         Replaces: PATCH /tournaments/{t_alias}/seasons/{s_alias}/rounds/{round_id}
-        
+
         Args:
             round_id: Round document ID
             t_alias: Tournament alias
@@ -207,17 +184,16 @@ class TournamentService:
         """
         logger.debug(
             "Updating round dates",
-            extra={"round_id": round_id, "tournament": t_alias, "season": s_alias}
+            extra={"round_id": round_id, "tournament": t_alias, "season": s_alias},
         )
 
         # Get all matches in this round
-        matches = await self.db["matches"].find(
-            {
-                "tournament.alias": t_alias,
-                "season.alias": s_alias,
-                "round.alias": r_alias
-            }
-        ).sort("startDate", 1).to_list(length=None)
+        matches = (
+            await self.db["matches"]
+            .find({"tournament.alias": t_alias, "season.alias": s_alias, "round.alias": r_alias})
+            .sort("startDate", 1)
+            .to_list(length=None)
+        )
 
         if not matches:
             logger.warning("No matches found for round date update")
@@ -229,27 +205,20 @@ class TournamentService:
         # Update round dates
         try:
             await self.db["tournaments"].update_one(
-                {
-                    "alias": t_alias,
-                    "seasons.alias": s_alias,
-                    "seasons.rounds._id": round_id
-                },
+                {"alias": t_alias, "seasons.alias": s_alias, "seasons.rounds._id": round_id},
                 {
                     "$set": {
                         "seasons.$[season].rounds.$[round].startDate": start_date,
-                        "seasons.$[season].rounds.$[round].endDate": end_date
+                        "seasons.$[season].rounds.$[round].endDate": end_date,
                     }
                 },
-                array_filters=[
-                    {"season.alias": s_alias},
-                    {"round._id": round_id}
-                ]
+                array_filters=[{"season.alias": s_alias}, {"round._id": round_id}],
             )
         except Exception as e:
             raise DatabaseOperationException(
                 operation="update_round_dates",
                 collection="tournaments",
-                details={"error": str(e), "round_id": round_id}
+                details={"error": str(e), "round_id": round_id},
             ) from e
 
     @monitor_query("update_matchday_dates")
@@ -259,7 +228,7 @@ class TournamentService:
         """
         Update matchday start/end dates based on matches.
         Replaces: PATCH /tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_id}
-        
+
         Args:
             matchday_id: Matchday document ID
             t_alias: Tournament alias
@@ -273,19 +242,24 @@ class TournamentService:
                 "matchday_id": matchday_id,
                 "tournament": t_alias,
                 "season": s_alias,
-                "round": r_alias
-            }
+                "round": r_alias,
+            },
         )
 
         # Get all matches in this matchday
-        matches = await self.db["matches"].find(
-            {
-                "tournament.alias": t_alias,
-                "season.alias": s_alias,
-                "round.alias": r_alias,
-                "matchday.alias": md_alias
-            }
-        ).sort("startDate", 1).to_list(length=None)
+        matches = (
+            await self.db["matches"]
+            .find(
+                {
+                    "tournament.alias": t_alias,
+                    "season.alias": s_alias,
+                    "round.alias": r_alias,
+                    "matchday.alias": md_alias,
+                }
+            )
+            .sort("startDate", 1)
+            .to_list(length=None)
+        )
 
         if not matches:
             logger.warning("No matches found for matchday date update")
@@ -301,23 +275,23 @@ class TournamentService:
                     "alias": t_alias,
                     "seasons.alias": s_alias,
                     "seasons.rounds.alias": r_alias,
-                    "seasons.rounds.matchdays._id": matchday_id
+                    "seasons.rounds.matchdays._id": matchday_id,
                 },
                 {
                     "$set": {
                         "seasons.$[season].rounds.$[round].matchdays.$[matchday].startDate": start_date,
-                        "seasons.$[season].rounds.$[round].matchdays.$[matchday].endDate": end_date
+                        "seasons.$[season].rounds.$[round].matchdays.$[matchday].endDate": end_date,
                     }
                 },
                 array_filters=[
                     {"season.alias": s_alias},
                     {"round.alias": r_alias},
-                    {"matchday._id": matchday_id}
-                ]
+                    {"matchday._id": matchday_id},
+                ],
             )
         except Exception as e:
             raise DatabaseOperationException(
                 operation="update_matchday_dates",
                 collection="tournaments",
-                details={"error": str(e), "matchday_id": matchday_id}
+                details={"error": str(e), "matchday_id": matchday_id},
             ) from e

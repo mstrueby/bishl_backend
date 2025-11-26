@@ -1301,7 +1301,7 @@ async def get_players(
             {"lastName": {"$regex": search, "$options": "i"}},
             {"displayFirstName": {"$regex": search, "$options": "i"}},
             {"displayLastName": {"$regex": search, "$options": "i"}},
-            {"assignedTeams.teams.passNo": {"$regex": search, "$options": "i"}}
+            {"assignedTeams.teams.passNo": {"$regex": search, "$options": "i"}},
         ]
     if active is not None:
         # This part needs to be adapted if 'active' is a field within 'assignedTeams.teams'
@@ -1350,7 +1350,9 @@ async def get_players(
 
 # GET ONE PLAYER
 # --------------------
-@router.get("/{id}", response_description="Get a player by ID", response_model=StandardResponse[PlayerDB])
+@router.get(
+    "/{id}", response_description="Get a player by ID", response_model=StandardResponse[PlayerDB]
+)
 async def get_player(
     id: str, request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
@@ -1362,11 +1364,13 @@ async def get_player(
     player_obj = PlayerDB(**player)
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content=jsonable_encoder(StandardResponse(
-            success=True,
-            data=player_obj.model_dump(by_alias=True),
-            message="Player retrieved successfully"
-        ))
+        content=jsonable_encoder(
+            StandardResponse(
+                success=True,
+                data=player_obj.model_dump(by_alias=True),
+                message="Player retrieved successfully",
+            )
+        ),
     )
 
 
@@ -1454,11 +1458,13 @@ async def create_player(
             logger.info(f"Player created successfully: {player_id}")
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(StandardResponse(
-                    success=True,
-                    data=PlayerDB(**created_player).model_dump(),
-                    message="Player created successfully"
-                )),
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=PlayerDB(**created_player).model_dump(),
+                        message="Player created successfully",
+                    )
+                ),
             )
         else:
             raise DatabaseOperationException(
@@ -1475,7 +1481,9 @@ async def create_player(
 
 # UPDATE PLAYER
 # ----------------------
-@router.patch("/{id}", response_description="Update player", response_model=StandardResponse[PlayerDB])
+@router.patch(
+    "/{id}", response_description="Update player", response_model=StandardResponse[PlayerDB]
+)
 async def update_player(
     request: Request,
     id: str,
@@ -1516,7 +1524,7 @@ async def update_player(
             raise ValidationException(
                 field="imageUrl",
                 message="Invalid URL format",
-                details={"provided_value": imageUrl, "error": str(e)}
+                details={"provided_value": imageUrl, "error": str(e)},
             ) from e
 
     current_first_name = firstName or existing_player.get("firstName")
@@ -1613,11 +1621,13 @@ async def update_player(
         logger.debug("No changes to update")
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=PlayerDB(**existing_player).model_dump(by_alias=True),
-                message="No changes detected"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True,
+                    data=PlayerDB(**existing_player).model_dump(by_alias=True),
+                    message="No changes detected",
+                )
+            ),
         )
 
     try:
@@ -1629,11 +1639,13 @@ async def update_player(
             logger.info(f"Player updated successfully: {id}")
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
-                content=jsonable_encoder(StandardResponse(
-                    success=True,
-                    data=PlayerDB(**updated_player).model_dump(),
-                    message="Player updated successfully"
-                ))
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=PlayerDB(**updated_player).model_dump(),
+                        message="Player updated successfully",
+                    )
+                ),
             )
         raise DatabaseOperationException(
             operation="update_one",
@@ -1656,8 +1668,8 @@ async def update_player(
     responses={
         204: {"description": "Player deleted successfully"},
         404: {"description": "Player not found"},
-        403: {"description": "Not authorized"}
-    }
+        403: {"description": "Not authorized"},
+    },
 )
 async def delete_player(
     request: Request, id: str, token_payload: TokenPayload = Depends(auth.auth_wrapper)

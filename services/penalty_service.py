@@ -1,4 +1,3 @@
-
 """
 Penalty Service - Business logic for penalty management
 
@@ -249,7 +248,9 @@ class PenaltyService:
 
         # Prepare update data
         if "matchTimeStart" in penalty_dict:
-            penalty_dict["matchSecondsStart"] = parse_time_to_seconds(penalty_dict["matchTimeStart"])
+            penalty_dict["matchSecondsStart"] = parse_time_to_seconds(
+                penalty_dict["matchTimeStart"]
+            )
         if "matchTimeEnd" in penalty_dict:
             penalty_dict["matchSecondsEnd"] = parse_time_to_seconds(penalty_dict["matchTimeEnd"])
         penalty_dict = jsonable_encoder(penalty_dict)

@@ -87,14 +87,14 @@ async def list_clubs(
 
 
 # get club by Alias
-@router.get("/{alias}", response_description="Get a single club", response_model=StandardResponse[ClubDB])
+@router.get(
+    "/{alias}", response_description="Get a single club", response_model=StandardResponse[ClubDB]
+)
 async def get_club(alias: str, request: Request) -> StandardResponse[ClubDB]:
     mongodb = request.app.state.mongodb
     if (club := await mongodb["clubs"].find_one({"alias": alias})) is not None:
         return StandardResponse(
-            success=True,
-            data=ClubDB(**club),
-            message="Club retrieved successfully"
+            success=True, data=ClubDB(**club), message="Club retrieved successfully"
         )
     raise ResourceNotFoundException(
         resource_type="Club", resource_id=alias, details={"query_field": "alias"}
@@ -102,17 +102,21 @@ async def get_club(alias: str, request: Request) -> StandardResponse[ClubDB]:
 
 
 # get club by ID
-@router.get("/id/{id}", response_description="Get a single club by ID", response_model=StandardResponse[ClubDB])
+@router.get(
+    "/id/{id}",
+    response_description="Get a single club by ID",
+    response_model=StandardResponse[ClubDB],
+)
 async def get_club_by_id(id: str, request: Request) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if (club := await mongodb["clubs"].find_one({"_id": id})) is not None:
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=ClubDB(**club),
-                message="Club retrieved successfully"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=ClubDB(**club), message="Club retrieved successfully"
+                )
+            ),
         )
     raise ResourceNotFoundException(
         resource_type="Club", resource_id=id, details={"query_field": "_id"}
@@ -177,11 +181,13 @@ async def create_club(
             logger.info(f"Club created successfully: {name}")
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(StandardResponse(
-                    success=True,
-                    data=ClubDB(**created_club),
-                    message=f"Club '{created_club['name']}' created successfully"
-                ))
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=ClubDB(**created_club),
+                        message=f"Club '{created_club['name']}' created successfully",
+                    )
+                ),
             )
         else:
             raise DatabaseOperationException(
@@ -194,7 +200,11 @@ async def create_club(
         raise DatabaseOperationException(
             operation="insert",
             collection="clubs",
-            details={"club_name": name, "reason": "Duplicate key - club already exists", "error": str(e)},
+            details={
+                "club_name": name,
+                "reason": "Duplicate key - club already exists",
+                "error": str(e),
+            },
         ) from e
     except Exception as e:
         logger.error(f"Unexpected error creating club {name}: {type(e).__name__}: {str(e)}")
@@ -202,7 +212,7 @@ async def create_club(
         raise DatabaseOperationException(
             operation="insert",
             collection="clubs",
-            details={"club_name": name, "error": str(e), "error_type": type(e).__name__}
+            details={"club_name": name, "error": str(e), "error_type": type(e).__name__},
         ) from e
 
 
@@ -296,11 +306,11 @@ async def update_club(
         # Return 200 with existing data instead of 304
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=ClubDB(**existing_club),
-                message="No changes detected"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=ClubDB(**existing_club), message="No changes detected"
+                )
+            ),
         )
 
     # update club
@@ -313,12 +323,10 @@ async def update_club(
             return StandardResponse(
                 success=True,
                 data=ClubDB(**updated_club),
-                message=f"Club '{updated_club['name']}' updated successfully"
+                message=f"Club '{updated_club['name']}' updated successfully",
             )
         return StandardResponse(
-            success=False,
-            data=ClubDB(**existing_club),
-            message="Failed to update club"
+            success=False, data=ClubDB(**existing_club), message="Failed to update club"
         )
     except DuplicateKeyError as e:
         raise DatabaseOperationException(
