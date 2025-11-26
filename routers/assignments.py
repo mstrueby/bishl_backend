@@ -147,7 +147,6 @@ async def get_assignments_by_match(
         success=True,
         data=assignment_list,
         message="Assignments retrieved successfully",
-        status_code=status.HTTP_200_OK,
     )
 
 
@@ -185,7 +184,6 @@ async def get_assignments_by_user(
         success=True,
         data=assignments_list,
         message="User assignments retrieved successfully",
-        status_code=status.HTTP_200_OK,
     )
 
 
@@ -202,7 +200,7 @@ async def create_assignment(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
     assignment_service: AssignmentService = Depends(get_assignment_service),
     message_service: MessageService = Depends(get_message_service),
-) -> StandardResponse:
+) -> JSONResponse:
     mongodb = request.app.state.mongodb
 
     if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN"] for role in token_payload.roles):
@@ -623,10 +621,6 @@ async def update_assignment(
                 detail=f"Invalid assignment status: {assignment['status']} --> {update_data['status']}",
             )
 
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Can not update assignment"
-    )
-
 
 # GET matches starting in 14 days with no referees ======
 @router.get(
@@ -962,7 +956,6 @@ async def get_unassigned_matches_in_14_days(
             "target_date": target_date.strftime("%Y-%m-%d"),
         },
         message=f"Found {len(matches)} unassigned matches in 14 days",
-        status_code=status.HTTP_200_OK,
     )
 
 
