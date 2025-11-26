@@ -82,7 +82,8 @@ class StatsService:
         )
 
         tournament_service = TournamentService(self.db)
-        return await tournament_service.get_standings_settings(tournament_alias, season_alias)
+        result = await tournament_service.get_standings_settings(tournament_alias, season_alias)
+        return dict(result) if result else {}
 
     def calculate_match_stats(
         self,
@@ -1318,9 +1319,11 @@ class StatsService:
             for team in teams:
                 current_team_id = team.get("teamId")
                 if current_team_id is not None and str(current_team_id) == team_id_str:
-                    return True
+                    found: bool = True
+                    return found
 
-        return False
+        not_found: bool = False
+        return not_found
 
     async def _add_called_team_assignment(
         self,
