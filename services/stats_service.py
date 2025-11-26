@@ -1319,11 +1319,9 @@ class StatsService:
             for team in teams:
                 current_team_id = team.get("teamId")
                 if current_team_id is not None and str(current_team_id) == team_id_str:
-                    found: bool = True
-                    return found
+                    return True
 
-        not_found: bool = False
-        return not_found
+        return False
 
     async def _add_called_team_assignment(
         self,
