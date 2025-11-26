@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import csv
+import os
 from collections.abc import Callable
 from typing import Any
 
