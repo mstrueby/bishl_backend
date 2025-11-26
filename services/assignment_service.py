@@ -5,7 +5,6 @@ Handles assignment creation, updates, validation, and synchronization with match
 """
 
 from datetime import datetime
-from typing import Any
 
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorClientSession
