@@ -328,7 +328,9 @@ class TestStatsServiceIntegration:
         tournament["seasons"][0]["rounds"][0]["createStats"] = True
         await mongodb["tournaments"].insert_one(tournament)
 
+        # Create player with matching _id
         player = create_test_player("player-1")
+        player["_id"] = "player-1"  # Override _id to match roster player ID
         player["stats"] = []
         player["assignedTeams"] = []
         await mongodb["players"].insert_one(player)
