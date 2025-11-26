@@ -63,7 +63,7 @@ class TournamentService:
                 details={"message": "No standings settings found"},
             )
 
-        return settings
+        return dict(settings)
 
     @monitor_query("get_matchday_info")
     async def get_matchday_info(
@@ -123,7 +123,7 @@ class TournamentService:
                 resource_type="Matchday", resource_id=f"{t_alias}/{s_alias}/{r_alias}/{md_alias}"
             )
 
-        return matchday
+        return dict(matchday)
 
     @monitor_query("get_round_info")
     async def get_round_info(self, t_alias: str, s_alias: str, r_alias: str) -> dict[str, Any]:
@@ -166,7 +166,7 @@ class TournamentService:
                 resource_type="Round", resource_id=f"{t_alias}/{s_alias}/{r_alias}"
             )
 
-        return round_data
+        return dict(round_data)
 
     @monitor_query("update_round_dates")
     async def update_round_dates(
