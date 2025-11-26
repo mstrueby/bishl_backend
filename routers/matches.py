@@ -780,9 +780,7 @@ async def create_match(
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
             content=jsonable_encoder(
-                StandardResponse(
-                    success=True, data=new_match, message="Match created successfully"
-                )
+                StandardResponse(success=True, data=new_match, message="Match created successfully")
             ),
         )
 
