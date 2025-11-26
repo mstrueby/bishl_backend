@@ -1274,13 +1274,27 @@ class StatsService:
         flag: str,
     ) -> bool:
         """Check if an existing stat entry should be updated with new data."""
-        return (existing_stat.get("tournament", {}).get("alias") == t_alias
-                and existing_stat.get("season", {}).get("alias") == s_alias
-                and existing_stat.get("round", {}).get("alias") == r_alias
-                and existing_stat.get("team", {}).get("fullName")
-                == new_stats["team"]["fullName"]
-                and (existing_stat.get("matchday", {}).get("alias") == md_alias
-                     if flag == "MATCHDAY" else True))
+        # Check basic tournament/season/round/team match
+        basic_match = (
+            existing_stat.get("tournament", {}).get("alias") == t_alias
+            and existing_stat.get("season", {}).get("alias") == s_alias
+            and existing_stat.get("round", {}).get("alias") == r_alias
+            and existing_stat.get("team", {}).get("fullName") == new_stats["team"]["fullName"]
+        )
+        
+        if not basic_match:
+            return False
+        
+        # For MATCHDAY stats, also check matchday matches
+        if flag == "MATCHDAY":
+            existing_matchday = existing_stat.get("matchday")
+            # Handle None matchday (ROUND stats don't have matchday)
+            if existing_matchday is None:
+                return False
+            return existing_matchday.get("alias") == md_alias
+        
+        # For ROUND stats, matchday should be None
+        return existing_stat.get("matchday") is None
 
     async def _process_called_teams_assignments(self, player_ids: list[str],
                                                 matches: list[dict],
