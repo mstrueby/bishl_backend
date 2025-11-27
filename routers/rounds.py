@@ -22,7 +22,11 @@ auth = AuthHandler()
 
 
 # get all rounds of a season
-@router.get("", response_description="List all rounds for a season", response_model=StandardResponse[list[RoundDB]])
+@router.get(
+    "",
+    response_description="List all rounds for a season",
+    response_model=StandardResponse[list[RoundDB]],
+)
 async def get_rounds_for_season(
     request: Request,
     tournament_alias: str = Path(
@@ -47,11 +51,11 @@ async def get_rounds_for_season(
                 ]
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
-                    content=jsonable_encoder(StandardResponse(
-                        success=True,
-                        data=rounds,
-                        message=f"Retrieved {len(rounds)} rounds"
-                    ))
+                    content=jsonable_encoder(
+                        StandardResponse(
+                            success=True, data=rounds, message=f"Retrieved {len(rounds)} rounds"
+                        )
+                    ),
                 )
         raise ResourceNotFoundException(
             resource_type="Season",
@@ -63,7 +67,9 @@ async def get_rounds_for_season(
 
 # get one round of a season
 @router.get(
-    "/{round_alias}", response_description="Get one round of a season", response_model=StandardResponse[RoundDB]
+    "/{round_alias}",
+    response_description="Get one round of a season",
+    response_model=StandardResponse[RoundDB],
 )
 async def get_round(
     request: Request,
@@ -87,11 +93,13 @@ async def get_round(
                         round_response = RoundDB(**round)
                         return JSONResponse(
                             status_code=status.HTTP_200_OK,
-                            content=jsonable_encoder(StandardResponse(
-                                success=True,
-                                data=round_response,
-                                message="Round retrieved successfully"
-                            ))
+                            content=jsonable_encoder(
+                                StandardResponse(
+                                    success=True,
+                                    data=round_response,
+                                    message="Round retrieved successfully",
+                                )
+                            ),
                         )
         raise ResourceNotFoundException(
             resource_type="Round",
@@ -102,7 +110,9 @@ async def get_round(
 
 
 # add new round to a season
-@router.post("", response_description="Add a new round to a season", response_model=StandardResponse[RoundDB])
+@router.post(
+    "", response_description="Add a new round to a season", response_model=StandardResponse[RoundDB]
+)
 async def add_round(
     request: Request,
     tournament_alias: str = Path(
@@ -174,11 +184,13 @@ async def add_round(
                         round_response = RoundDB(**new_round)
                         return JSONResponse(
                             status_code=status.HTTP_201_CREATED,
-                            content=jsonable_encoder(StandardResponse(
-                                success=True,
-                                data=round_response,
-                                message="Round created successfully"
-                            )),
+                            content=jsonable_encoder(
+                                StandardResponse(
+                                    success=True,
+                                    data=round_response,
+                                    message="Round created successfully",
+                                )
+                            ),
                         )
                 else:
                     raise HTTPException(
@@ -211,7 +223,9 @@ async def add_round(
 
 # update a round of a season
 @router.patch(
-    "/{round_id}", response_description="Update a round of a season", response_model=StandardResponse[RoundDB]
+    "/{round_id}",
+    response_description="Update a round of a season",
+    response_model=StandardResponse[RoundDB],
 )
 async def update_round(
     request: Request,
@@ -358,11 +372,11 @@ async def update_round(
                     del matchday["matches"]
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=RoundDB(**current_round),
-                message="No changes detected"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=RoundDB(**current_round), message="No changes detected"
+                )
+            ),
         )
 
     # Fetch the currrent round data
@@ -385,11 +399,11 @@ async def update_round(
                 round_response = RoundDB(**updated_round)
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
-                    content=jsonable_encoder(StandardResponse(
-                        success=True,
-                        data=round_response,
-                        message="Round updated successfully"
-                    ))
+                    content=jsonable_encoder(
+                        StandardResponse(
+                            success=True, data=round_response, message="Round updated successfully"
+                        )
+                    ),
                 )
         else:
             raise HTTPException(

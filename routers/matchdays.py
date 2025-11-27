@@ -18,7 +18,9 @@ auth = AuthHandler()
 
 # get all matchdays of a round
 @router.get(
-    "", response_description="List all matchdays for a round", response_model=StandardResponse[list[MatchdayDB]]
+    "",
+    response_description="List all matchdays for a round",
+    response_model=StandardResponse[list[MatchdayDB]],
 )
 async def get_matchdays_for_round(
     request: Request,
@@ -44,11 +46,13 @@ async def get_matchdays_for_round(
                         ]
                         return JSONResponse(
                             status_code=status.HTTP_200_OK,
-                            content=jsonable_encoder(StandardResponse(
-                                success=True,
-                                data=matchdays,
-                                message=f"Retrieved {len(matchdays)} matchdays"
-                            ))
+                            content=jsonable_encoder(
+                                StandardResponse(
+                                    success=True,
+                                    data=matchdays,
+                                    message=f"Retrieved {len(matchdays)} matchdays",
+                                )
+                            ),
                         )
                 raise HTTPException(
                     status_code=404,
@@ -94,11 +98,13 @@ async def get_matchday(
                                 matchday_response = MatchdayDB(**matchday)
                                 return JSONResponse(
                                     status_code=status.HTTP_200_OK,
-                                    content=jsonable_encoder(StandardResponse(
-                                        success=True,
-                                        data=matchday_response,
-                                        message="Matchday retrieved successfully"
-                                    )),
+                                    content=jsonable_encoder(
+                                        StandardResponse(
+                                            success=True,
+                                            data=matchday_response,
+                                            message="Matchday retrieved successfully",
+                                        )
+                                    ),
                                 )
     raise HTTPException(
         status_code=404,
@@ -107,7 +113,11 @@ async def get_matchday(
 
 
 # add new matchday to a round
-@router.post("", response_description="Add a new matchday to a round", response_model=StandardResponse[MatchdayDB])
+@router.post(
+    "",
+    response_description="Add a new matchday to a round",
+    response_model=StandardResponse[MatchdayDB],
+)
 async def add_matchday(
     request: Request,
     tournament_alias: str = Path(
@@ -185,11 +195,13 @@ async def add_matchday(
                             )
                             return JSONResponse(
                                 status_code=status.HTTP_201_CREATED,
-                                content=jsonable_encoder(StandardResponse(
-                                    success=True,
-                                    data=MatchdayDB(**inserted_matchday),
-                                    message="Matchday created successfully"
-                                )),
+                                content=jsonable_encoder(
+                                    StandardResponse(
+                                        success=True,
+                                        data=MatchdayDB(**inserted_matchday),
+                                        message="Matchday created successfully",
+                                    )
+                                ),
                             )
         raise DatabaseOperationException(
             operation="insert",
@@ -213,7 +225,9 @@ async def add_matchday(
 
 # update matchday of a round
 @router.patch(
-    "/{matchday_id}", response_description="Update a matchday of a round", response_model=StandardResponse[MatchdayDB]
+    "/{matchday_id}",
+    response_description="Update a matchday of a round",
+    response_model=StandardResponse[MatchdayDB],
 )
 async def update_matchday(
     request: Request,
@@ -364,11 +378,11 @@ async def update_matchday(
         )
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=MatchdayDB(**current_matchday),
-                message="No changes detected"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=MatchdayDB(**current_matchday), message="No changes detected"
+                )
+            ),
         )
 
     # Fetch the updated matchday
@@ -390,11 +404,13 @@ async def update_matchday(
             if updated_matchday:
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
-                    content=jsonable_encoder(StandardResponse(
-                        success=True,
-                        data=MatchdayDB(**updated_matchday),
-                        message="Matchday updated successfully"
-                    )),
+                    content=jsonable_encoder(
+                        StandardResponse(
+                            success=True,
+                            data=MatchdayDB(**updated_matchday),
+                            message="Matchday updated successfully",
+                        )
+                    ),
                 )
             else:
                 raise HTTPException(

@@ -17,7 +17,9 @@ auth = AuthHandler()
 
 # get all seasons of a tournament
 @router.get(
-    "", response_description="List all seasons for a tournament", response_model=StandardResponse[list[SeasonDB]]
+    "",
+    response_description="List all seasons for a tournament",
+    response_model=StandardResponse[list[SeasonDB]],
 )
 async def get_seasons_for_tournament(
     request: Request,
@@ -35,17 +37,21 @@ async def get_seasons_for_tournament(
         seasons = [SeasonDB(**season) for season in (tournament.get("seasons") or [])]
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=seasons,
-                message=f"Retrieved {len(seasons)} seasons"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=seasons, message=f"Retrieved {len(seasons)} seasons"
+                )
+            ),
         )
     raise ResourceNotFoundException(resource_type="Tournament", resource_id=tournament_alias)
 
 
 # get one season of a tournament
-@router.get("/{season_alias}", response_description="Get a single season", response_model=StandardResponse[SeasonDB])
+@router.get(
+    "/{season_alias}",
+    response_description="Get a single season",
+    response_model=StandardResponse[SeasonDB],
+)
 async def get_season(
     request: Request,
     tournament_alias: str = Path(
@@ -65,11 +71,13 @@ async def get_season(
                 season_response = SeasonDB(**season)
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
-                    content=jsonable_encoder(StandardResponse(
-                        success=True,
-                        data=season_response,
-                        message="Season retrieved successfully"
-                    ))
+                    content=jsonable_encoder(
+                        StandardResponse(
+                            success=True,
+                            data=season_response,
+                            message="Season retrieved successfully",
+                        )
+                    ),
                 )
         raise ResourceNotFoundException(
             resource_type="Season",
@@ -80,7 +88,11 @@ async def get_season(
 
 
 # add new season to tournament
-@router.post("", response_description="Add new season to tournament", response_model=StandardResponse[SeasonDB])
+@router.post(
+    "",
+    response_description="Add new season to tournament",
+    response_model=StandardResponse[SeasonDB],
+)
 async def create_season(
     request: Request,
     tournament_alias: str = Path(..., description="The alias of the tournament to add a season to"),
@@ -118,11 +130,13 @@ async def create_season(
                 season_response = SeasonDB(**season_data)
                 return JSONResponse(
                     status_code=status.HTTP_201_CREATED,
-                    content=jsonable_encoder(StandardResponse(
-                        success=True,
-                        data=season_response,
-                        message="Season created successfully"
-                    ))
+                    content=jsonable_encoder(
+                        StandardResponse(
+                            success=True,
+                            data=season_response,
+                            message="Season created successfully",
+                        )
+                    ),
                 )
             else:
                 raise ResourceNotFoundException(
@@ -143,7 +157,9 @@ async def create_season(
 
 # update season in tournament
 @router.patch(
-    "/{season_id}", response_description="Update a season in tournament", response_model=StandardResponse[SeasonDB]
+    "/{season_id}",
+    response_description="Update a season in tournament",
+    response_model=StandardResponse[SeasonDB],
 )
 async def update_season(
     request: Request,
@@ -214,11 +230,11 @@ async def update_season(
                     season_response = SeasonDB(**current_season)
                     return JSONResponse(
                         status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(StandardResponse(
-                            success=True,
-                            data=season_response,
-                            message="No changes detected"
-                        ))
+                        content=jsonable_encoder(
+                            StandardResponse(
+                                success=True, data=season_response, message="No changes detected"
+                            )
+                        ),
                     )
 
         except Exception as e:
@@ -235,11 +251,9 @@ async def update_season(
         season_response = SeasonDB(**current_season)
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=season_response,
-                message="No changes detected"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(success=True, data=season_response, message="No changes detected")
+            ),
         )
 
     # Fetch the current season data after update
@@ -255,11 +269,11 @@ async def update_season(
         season_response = SeasonDB(**updated_season)
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(StandardResponse(
-                success=True,
-                data=season_response,
-                message="Season updated successfully"
-            ))
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=season_response, message="Season updated successfully"
+                )
+            ),
         )
     else:
         # This case means the season was not found after the update, which is unexpected if modified_count was > 0
