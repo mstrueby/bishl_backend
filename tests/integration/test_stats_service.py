@@ -323,14 +323,17 @@ class TestStatsServiceIntegration:
         if not os.environ.get("BE_API_URL"):
             pytest.skip("BE_API_URL not configured")
 
+        # Clean up any existing player data from previous tests
+        await mongodb["players"].delete_many({"_id": "player-called-1"})
+
         # Setup
         tournament = create_test_tournament()
         tournament["seasons"][0]["rounds"][0]["createStats"] = True
         await mongodb["tournaments"].insert_one(tournament)
 
-        # Create player with matching _id
-        player = create_test_player("player-1")
-        player["_id"] = "player-1"  # Override _id to match roster player ID
+        # Create player with unique _id for this test
+        player = create_test_player("player-called-1")
+        player["_id"] = "player-called-1"  # Override _id to match roster player ID
         player["stats"] = []
         player["assignedTeams"] = []
         await mongodb["players"].insert_one(player)
@@ -346,7 +349,7 @@ class TestStatsServiceIntegration:
             match["home"]["team"] = {"teamId": "test-team-id", "name": "Test Team", "alias": "test-team", "ageGroup": "U20", "ishdId": "123"}
             match["home"]["club"] = {"clubId": "test-club-id", "name": "Test Club", "alias": "test-club", "ishdId": "456"}
 
-            roster_player = create_test_roster_player("player-1")
+            roster_player = create_test_roster_player("player-called-1")
             roster_player["called"] = True
             roster_player["goals"] = 1
             match["home"]["roster"] = [roster_player]
@@ -376,7 +379,7 @@ class TestStatsServiceIntegration:
             
             # Create a side effect that fetches actual data from DB
             async def get_player_data(*args, **kwargs):
-                actual_player = await mongodb["players"].find_one({"_id": "player-1"})
+                actual_player = await mongodb["players"].find_one({"_id": "player-called-1"})
                 # Make json() return the actual player data directly (not a coroutine)
                 response = AsyncMock()
                 response.status_code = 200
@@ -394,7 +397,7 @@ class TestStatsServiceIntegration:
             # Execute
             stats_service = StatsService(mongodb)
             await stats_service.calculate_player_card_stats(
-                ["player-1"],
+                ["player-called-1"],
                 tournament["alias"],
                 tournament["seasons"][0]["alias"],
                 tournament["seasons"][0]["rounds"][0]["alias"],

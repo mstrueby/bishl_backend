@@ -103,7 +103,7 @@ async def mongodb():
     print(f"✅ Verified test database: {actual_db_name}")
 
     # Clean before test
-    collections_to_clean = ["users", "matches", "assignments", "teams", "clubs", "tournaments"]
+    collections_to_clean = ["users", "matches", "assignments", "teams", "clubs", "tournaments", "players"]
     for collection_name in collections_to_clean:
         try:
             await db[collection_name].delete_many({})
