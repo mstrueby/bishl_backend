@@ -26,7 +26,7 @@ async def get_tournaments(
     page_size: int = Query(100, ge=1, le=100, description="Items per page"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection: dict[str, int] = {"seasons.rounds": 0}
+    exclusion_projection: dict[str, int] = {"seasons": 0}
     query: dict[str, Any] = {}
 
     items, total_count = await PaginationHelper.paginate_query(
@@ -38,8 +38,18 @@ async def get_tournaments(
         projection=exclusion_projection,
     )
 
+    # Add _links to each tournament
+    tournaments_with_links = []
+    for tournament in items:
+        tournament_data = TournamentDB(**tournament).model_dump()
+        tournament_data["_links"] = {
+            "self": f"/tournaments/{tournament['alias']}",
+            "seasons": f"/tournaments/{tournament['alias']}/seasons"
+        }
+        tournaments_with_links.append(tournament_data)
+
     paginated_result = PaginationHelper.create_response(
-        items=[TournamentDB(**tournament) for tournament in items],
+        items=tournaments_with_links,
         page=page,
         page_size=page_size,
         total_count=total_count,
@@ -60,14 +70,19 @@ async def get_tournament(
     tournament_alias: str,
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection = {"seasons.rounds": 0}
+    exclusion_projection = {"seasons": 0}
     if (
         tournament := await mongodb["tournaments"].find_one(
             {"alias": tournament_alias}, exclusion_projection
         )
     ) is not None:
+        tournament_data = TournamentDB(**tournament).model_dump()
+        tournament_data["_links"] = {
+            "self": f"/tournaments/{tournament_alias}",
+            "seasons": f"/tournaments/{tournament_alias}/seasons"
+        }
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(TournamentDB(**tournament))
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(tournament_data)
         )
     raise ResourceNotFoundException(
         resource_type="Tournament", resource_id=tournament_alias, details={"query_field": "alias"}
@@ -93,14 +108,21 @@ async def create_tournament(
     try:
         logger.info(f"Creating new tournament: {tournament_data.get('name', 'unknown')}")
         new_tournament = await mongodb["tournaments"].insert_one(tournament_data)
-        exclusioin_projection = {"seasons.rounds": 0}
+        exclusion_projection = {"seasons": 0}
         created_tournament = await mongodb["tournaments"].find_one(
-            {"_id": new_tournament.inserted_id}, exclusioin_projection
+            {"_id": new_tournament.inserted_id}, exclusion_projection
         )
         logger.info(f"Tournament created successfully: {tournament_data.get('name', 'unknown')}")
+        
+        tournament_response = TournamentDB(**created_tournament).model_dump()
+        tournament_response["_links"] = {
+            "self": f"/tournaments/{created_tournament['alias']}",
+            "seasons": f"/tournaments/{created_tournament['alias']}/seasons"
+        }
+        
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
-            content=jsonable_encoder(TournamentDB(**created_tournament)),
+            content=jsonable_encoder(tournament_response),
         )
     except DuplicateKeyError as e:
         raise DatabaseOperationException(
@@ -176,7 +198,7 @@ async def update_tournament(
             message="Tournament data unchanged (already up to date)",
         )
 
-    exclusion_projection = {"seasons.rounds": 0}
+    exclusion_projection = {"seasons": 0}
     updated_tournament = await mongodb["tournaments"].find_one(
         {"_id": tournament_id}, exclusion_projection
     )
@@ -184,9 +206,13 @@ async def update_tournament(
         logger.info(
             f"Tournament updated successfully: {updated_tournament.get('name', tournament_id)}"
         )
-        tournament_respomse = TournamentDB(**updated_tournament)
+        tournament_response = TournamentDB(**updated_tournament).model_dump()
+        tournament_response["_links"] = {
+            "self": f"/tournaments/{updated_tournament['alias']}",
+            "seasons": f"/tournaments/{updated_tournament['alias']}/seasons"
+        }
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(tournament_respomse)
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(tournament_response)
         )
     else:
         raise ResourceNotFoundException(
