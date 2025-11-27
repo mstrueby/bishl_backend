@@ -377,14 +377,27 @@ class TestStatsServiceIntegration:
             mock_context_manager.__aenter__.return_value = mock_client_instance
             mock_client_class.return_value = mock_context_manager
             
-            # Create a side effect that fetches actual data from DB
+            # Create a side effect that returns player data with stats showing 5 called matches
             async def get_player_data(*args, **kwargs):
                 actual_player = await mongodb["players"].find_one({"_id": "player-called-1"})
+                
+                # Add stats that show 5 called matches for the test team
+                actual_player["stats"] = [{
+                    "tournament": {"alias": tournament["alias"], "name": tournament["name"]},
+                    "season": {"alias": tournament["seasons"][0]["alias"], "name": tournament["seasons"][0]["name"]},
+                    "round": {"alias": tournament["seasons"][0]["rounds"][0]["alias"], "name": tournament["seasons"][0]["rounds"][0]["name"]},
+                    "team": {"name": "Test Team", "fullName": "Test Team", "shortName": "TT", "tinyName": "TT"},
+                    "gamesPlayed": 5,
+                    "goals": 5,
+                    "assists": 0,
+                    "points": 5,
+                    "penaltyMinutes": 0,
+                    "calledMatches": 5  # This triggers the assignment logic
+                }]
+                
                 # Create response mock
                 response = AsyncMock()
                 response.status_code = 200
-                # The actual code calls .json() synchronously (not await .json())
-                # So we need json to return the actual data directly
                 response.json = AsyncMock(return_value=actual_player)
                 return response
             
