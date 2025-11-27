@@ -49,6 +49,7 @@ def create_test_tournament():
         "active": True,
         "seasons": [
             {
+                "_id": str(ObjectId()),
                 "name": "2024",
                 "alias": "2024",
                 "published": True,
@@ -63,6 +64,7 @@ def create_test_tournament():
                 },
                 "rounds": [
                     {
+                        "_id": str(ObjectId()),
                         "name": "Hauptrunde",
                         "alias": "hauptrunde",
                         "sortOrder": 1,
@@ -79,6 +81,7 @@ def create_test_tournament():
                         "published": True,
                         "matchdays": [
                             {
+                                "_id": str(ObjectId()),
                                 "name": "1. Spieltag",
                                 "alias": "1-spieltag",
                                 "type": {
