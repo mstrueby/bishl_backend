@@ -383,10 +383,9 @@ class TestStatsServiceIntegration:
                 # Create response mock
                 response = AsyncMock()
                 response.status_code = 200
-                # Make json() an async method that returns the data
-                async def json_method():
-                    return actual_player
-                response.json = json_method
+                # The actual code calls .json() synchronously (not await .json())
+                # So we need json to return the actual data directly
+                response.json = AsyncMock(return_value=actual_player)
                 return response
             
             # Set up GET to use our side effect
@@ -411,12 +410,16 @@ class TestStatsServiceIntegration:
 
             # Assert - Verify PATCH was called to add team assignment
             # The player should have 5 called matches, triggering the assignment logic
-            assert mock_client_instance.patch.called, "PATCH should have been called to update player assignments"
+            assert mock_client_instance.patch.called, f"PATCH should have been called to update player assignments. Call count: {mock_client_instance.patch.call_count}"
             
             # Verify the call was made with correct data
             patch_call_args = mock_client_instance.patch.call_args
-            assert patch_call_args is not None
-            assert "assignedTeams" in patch_call_args[1]["json"]
+            assert patch_call_args is not None, "PATCH was called but call_args is None"
+            
+            # Check the JSON payload contains assignedTeams
+            call_kwargs = patch_call_args[1]  # kwargs from the call
+            assert "json" in call_kwargs, f"No 'json' key in PATCH call. Keys: {call_kwargs.keys()}"
+            assert "assignedTeams" in call_kwargs["json"], f"No 'assignedTeams' in JSON payload. Keys: {call_kwargs['json'].keys()}"
 
 
 @pytest.mark.asyncio

@@ -1349,7 +1349,7 @@ class StatsService:
                         )
                         continue
 
-                    player_data = player_response.json()
+                    player_data = await player_response.json()
                     teams_to_check = self._find_called_teams(
                         player_id, matches)
 
