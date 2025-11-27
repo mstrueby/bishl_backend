@@ -9,11 +9,17 @@ from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException, ResourceNotFoundException
 from logging_config import logger
 from models.responses import PaginatedResponse, StandardResponse
+from pydantic import BaseModel
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
 from services.pagination import PaginationHelper
 
 router = APIRouter()
 auth = AuthHandler()
+
+
+class TournamentLinks(BaseModel):
+    self: str
+    seasons: str
 
 
 # get all tournaments
@@ -41,7 +47,7 @@ async def get_tournaments(
     # Add _links to each tournament
     tournaments_with_links = []
     for tournament in items:
-        tournament_data = TournamentDB(**tournament).model_dump()
+        tournament_data = TournamentDB(**tournament).model_dump(by_alias=True)
         tournament_data["_links"] = {
             "self": f"/tournaments/{tournament['alias']}",
             "seasons": f"/tournaments/{tournament['alias']}/seasons"
@@ -76,13 +82,18 @@ async def get_tournament(
             {"alias": tournament_alias}, exclusion_projection
         )
     ) is not None:
-        tournament_data = TournamentDB(**tournament).model_dump()
+        tournament_data = TournamentDB(**tournament).model_dump(by_alias=True)
         tournament_data["_links"] = {
             "self": f"/tournaments/{tournament_alias}",
             "seasons": f"/tournaments/{tournament_alias}/seasons"
         }
+        response = StandardResponse(
+            success=True,
+            data=tournament_data,
+            message=f"Retrieved tournament: {tournament_alias}"
+        )
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(tournament_data)
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(response)
         )
     raise ResourceNotFoundException(
         resource_type="Tournament", resource_id=tournament_alias, details={"query_field": "alias"}
@@ -114,15 +125,21 @@ async def create_tournament(
         )
         logger.info(f"Tournament created successfully: {tournament_data.get('name', 'unknown')}")
         
-        tournament_response = TournamentDB(**created_tournament).model_dump()
+        tournament_response = TournamentDB(**created_tournament).model_dump(by_alias=True)
         tournament_response["_links"] = {
             "self": f"/tournaments/{created_tournament['alias']}",
             "seasons": f"/tournaments/{created_tournament['alias']}/seasons"
         }
         
+        response = StandardResponse(
+            success=True,
+            data=tournament_response,
+            message=f"Tournament created: {created_tournament.get('name', 'unknown')}"
+        )
+        
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
-            content=jsonable_encoder(tournament_response),
+            content=jsonable_encoder(response),
         )
     except DuplicateKeyError as e:
         raise DatabaseOperationException(
@@ -172,9 +189,10 @@ async def update_tournament(
                     "No changes to update for tournament",
                     extra={"tournament_alias": tournament_id},
                 )
+                tournament_unchanged = TournamentDB(**existing_tournament).model_dump(by_alias=True)
                 return StandardResponse(
                     success=True,
-                    data=jsonable_encoder(existing_tournament),
+                    data=tournament_unchanged,
                     message="Tournament data unchanged (already up to date)",
                 )
         except DuplicateKeyError as e:
@@ -192,9 +210,10 @@ async def update_tournament(
             ) from e
     else:
         logger.info(f"No changes to update for tournament {tournament_id}")
+        tournament_unchanged = TournamentDB(**existing_tournament).model_dump(by_alias=True)
         return StandardResponse(
             success=True,
-            data=jsonable_encoder(existing_tournament),
+            data=tournament_unchanged,
             message="Tournament data unchanged (already up to date)",
         )
 
@@ -206,13 +225,18 @@ async def update_tournament(
         logger.info(
             f"Tournament updated successfully: {updated_tournament.get('name', tournament_id)}"
         )
-        tournament_response = TournamentDB(**updated_tournament).model_dump()
+        tournament_response = TournamentDB(**updated_tournament).model_dump(by_alias=True)
         tournament_response["_links"] = {
             "self": f"/tournaments/{updated_tournament['alias']}",
             "seasons": f"/tournaments/{updated_tournament['alias']}/seasons"
         }
+        response = StandardResponse(
+            success=True,
+            data=tournament_response,
+            message=f"Tournament updated: {updated_tournament.get('name', tournament_id)}"
+        )
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content=jsonable_encoder(tournament_response)
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(response)
         )
     else:
         raise ResourceNotFoundException(
@@ -240,5 +264,10 @@ async def delete_tournament(
     result = await mongodb["tournaments"].delete_one({"_id": id})
     if result.deleted_count == 1:
         logger.info(f"Tournament deleted successfully: {id}")
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        response = StandardResponse(
+            success=True,
+            data=None,
+            message=f"Tournament deleted: {id}"
+        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
     raise ResourceNotFoundException(resource_type="Tournament", resource_id=id)

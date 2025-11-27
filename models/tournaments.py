@@ -34,10 +34,13 @@ class PyObjectId(ObjectId):
 
 class MongoBaseModel(BaseModel):
     model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
+        populate_by_name=True, 
+        arbitrary_types_allowed=True, 
+        json_encoders={ObjectId: str},
+        by_alias=True
     )
 
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id", serialization_alias="_id")
 
 
 # sub documents
