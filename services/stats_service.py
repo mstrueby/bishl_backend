@@ -1325,12 +1325,13 @@ class StatsService:
         self, stat: dict, t_alias: str, s_alias: str, team_name: str
     ) -> bool:
         """Check if a player has enough called matches for a team."""
-        return (
+        result = (
             stat.get("tournament", {}).get("alias") == t_alias
             and stat.get("season", {}).get("alias") == s_alias
             and stat.get("team", {}).get("name") == team_name
             and stat.get("calledMatches", 0) >= 5
         )
+        return bool(result)
 
     def _team_already_assigned(self, player_data: dict, team_id: str) -> bool:
         """Check if team is already in player's assignedTeams."""
@@ -1346,7 +1347,7 @@ class StatsService:
                 continue
             for team in teams:
                 current_team_id = team.get("teamId")
-                if current_team_id is not None and str(current_team_id) == team_id_str:
+                if current_team_id is not None and bool(str(current_team_id) == team_id_str):
                     return True
 
         return False
