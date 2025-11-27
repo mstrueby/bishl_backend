@@ -368,31 +368,32 @@ class TestStatsServiceIntegration:
 
         # Mock HTTP calls for player data fetch and update
         # Patch httpx.AsyncClient in the stats_service module where it's actually used
-        with patch('services.stats_service.httpx.AsyncClient') as mock_client:
-            mock_instance = AsyncMock()
-            mock_client.return_value.__aenter__.return_value = mock_instance
-
-            # Mock GET player response - return the player data synchronously
-            # The actual player data will be fetched from DB after stats calculation
-            mock_get_response = AsyncMock()
-            mock_get_response.status_code = 200
+        with patch('services.stats_service.httpx.AsyncClient') as mock_client_class:
+            # Create the mock instance that will be returned by __aenter__
+            mock_client_instance = AsyncMock()
+            
+            # Set up the context manager to return our mock instance
+            mock_context_manager = AsyncMock()
+            mock_context_manager.__aenter__.return_value = mock_client_instance
+            mock_client_class.return_value = mock_context_manager
             
             # Create a side effect that fetches actual data from DB
             async def get_player_data(*args, **kwargs):
                 actual_player = await mongodb["players"].find_one({"_id": "player-called-1"})
-                # Make json() return the actual player data directly (not a coroutine)
+                # Create response mock
                 response = AsyncMock()
                 response.status_code = 200
-                response.json = lambda: actual_player
+                response.json.return_value = actual_player
                 return response
             
-            mock_instance.get = get_player_data
+            # Set up GET to use our side effect
+            mock_client_instance.get = AsyncMock(side_effect=get_player_data)
 
             # Mock PATCH update response
             mock_patch_response = AsyncMock()
             mock_patch_response.status_code = 200
             mock_patch_response.raise_for_status = AsyncMock()
-            mock_instance.patch = AsyncMock(return_value=mock_patch_response)
+            mock_client_instance.patch = AsyncMock(return_value=mock_patch_response)
 
             # Execute
             stats_service = StatsService(mongodb)
@@ -407,10 +408,10 @@ class TestStatsServiceIntegration:
 
             # Assert - Verify PATCH was called to add team assignment
             # The player should have 5 called matches, triggering the assignment logic
-            assert mock_instance.patch.called, "PATCH should have been called to update player assignments"
+            assert mock_client_instance.patch.called, "PATCH should have been called to update player assignments"
             
             # Verify the call was made with correct data
-            patch_call_args = mock_instance.patch.call_args
+            patch_call_args = mock_client_instance.patch.call_args
             assert patch_call_args is not None
             assert "assignedTeams" in patch_call_args[1]["json"]
 
