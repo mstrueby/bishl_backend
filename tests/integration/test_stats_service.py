@@ -383,7 +383,10 @@ class TestStatsServiceIntegration:
                 # Create response mock
                 response = AsyncMock()
                 response.status_code = 200
-                response.json.return_value = actual_player
+                # Make json() an async method that returns the data
+                async def json_method():
+                    return actual_player
+                response.json = json_method
                 return response
             
             # Set up GET to use our side effect
