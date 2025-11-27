@@ -264,10 +264,5 @@ async def delete_tournament(
     result = await mongodb["tournaments"].delete_one({"_id": id})
     if result.deleted_count == 1:
         logger.info(f"Tournament deleted successfully: {id}")
-        response = StandardResponse(
-            success=True,
-            data=None,
-            message=f"Tournament deleted: {id}"
-        )
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     raise ResourceNotFoundException(resource_type="Tournament", resource_id=id)
