@@ -9,22 +9,17 @@ from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException, ResourceNotFoundException
 from logging_config import logger
 from models.responses import PaginatedResponse, StandardResponse
-from pydantic import BaseModel
 from models.tournaments import TournamentBase, TournamentDB, TournamentUpdate
+from models.tournament_responses import TournamentResponse, TournamentLinks
 from services.pagination import PaginationHelper
 
 router = APIRouter()
 auth = AuthHandler()
 
 
-class TournamentLinks(BaseModel):
-    self: str
-    seasons: str
-
-
 # get all tournaments
 @router.get(
-    "", response_description="List all tournaments", response_model=PaginatedResponse[TournamentDB]
+    "", response_description="List all tournaments", response_model=PaginatedResponse[TournamentResponse]
 )
 async def get_tournaments(
     request: Request,
@@ -44,14 +39,18 @@ async def get_tournaments(
         projection=exclusion_projection,
     )
 
-    # Add _links to each tournament
+    # Build response with links
     tournaments_with_links = []
     for tournament in items:
-        tournament_data = TournamentDB(**tournament).model_dump(by_alias=True)
-        tournament_data["_links"] = {
-            "self": f"/tournaments/{tournament['alias']}",
-            "seasons": f"/tournaments/{tournament['alias']}/seasons"
-        }
+        # Remove seasons array from response
+        tournament_copy = {k: v for k, v in tournament.items() if k != "seasons"}
+        tournament_data = TournamentResponse(
+            **tournament_copy,
+            links=TournamentLinks(
+                self=f"/tournaments/{tournament['alias']}",
+                seasons=f"/tournaments/{tournament['alias']}/seasons"
+            )
+        ).model_dump(by_alias=True)
         tournaments_with_links.append(tournament_data)
 
     paginated_result = PaginationHelper.create_response(
@@ -69,7 +68,7 @@ async def get_tournaments(
 @router.get(
     "/{tournament_alias}",
     response_description="Get a single tournament",
-    response_model=TournamentDB,
+    response_model=StandardResponse[TournamentResponse],
 )
 async def get_tournament(
     request: Request,
@@ -82,14 +81,16 @@ async def get_tournament(
             {"alias": tournament_alias}, exclusion_projection
         )
     ) is not None:
-        tournament_data = TournamentDB(**tournament).model_dump(by_alias=True)
-        tournament_data["_links"] = {
-            "self": f"/tournaments/{tournament_alias}",
-            "seasons": f"/tournaments/{tournament_alias}/seasons"
-        }
+        tournament_response = TournamentResponse(
+            **{k: v for k, v in tournament.items() if k != "seasons"},
+            links=TournamentLinks(
+                self=f"/tournaments/{tournament_alias}",
+                seasons=f"/tournaments/{tournament_alias}/seasons"
+            )
+        )
         response = StandardResponse(
             success=True,
-            data=tournament_data,
+            data=tournament_response,
             message=f"Retrieved tournament: {tournament_alias}"
         )
         return JSONResponse(
@@ -101,7 +102,7 @@ async def get_tournament(
 
 
 # create new tournament
-@router.post("", response_description="Add new tournament", response_model=TournamentDB)
+@router.post("", response_description="Add new tournament", response_model=StandardResponse[TournamentResponse])
 async def create_tournament(
     request: Request,
     tournament: TournamentBase = Body(...),
@@ -125,11 +126,13 @@ async def create_tournament(
         )
         logger.info(f"Tournament created successfully: {tournament_data.get('name', 'unknown')}")
         
-        tournament_response = TournamentDB(**created_tournament).model_dump(by_alias=True)
-        tournament_response["_links"] = {
-            "self": f"/tournaments/{created_tournament['alias']}",
-            "seasons": f"/tournaments/{created_tournament['alias']}/seasons"
-        }
+        tournament_response = TournamentResponse(
+            **{k: v for k, v in created_tournament.items() if k != "seasons"},
+            links=TournamentLinks(
+                self=f"/tournaments/{created_tournament['alias']}",
+                seasons=f"/tournaments/{created_tournament['alias']}/seasons"
+            )
+        )
         
         response = StandardResponse(
             success=True,
@@ -154,7 +157,7 @@ async def create_tournament(
 
 # update tournament
 @router.patch(
-    "/{tournament_id}", response_description="Update tournament", response_model=TournamentDB
+    "/{tournament_id}", response_description="Update tournament", response_model=StandardResponse[TournamentResponse]
 )
 async def update_tournament(
     request: Request,
@@ -189,7 +192,13 @@ async def update_tournament(
                     "No changes to update for tournament",
                     extra={"tournament_alias": tournament_id},
                 )
-                tournament_unchanged = TournamentDB(**existing_tournament).model_dump(by_alias=True)
+                tournament_unchanged = TournamentResponse(
+                    **{k: v for k, v in existing_tournament.items() if k != "seasons"},
+                    links=TournamentLinks(
+                        self=f"/tournaments/{existing_tournament['alias']}",
+                        seasons=f"/tournaments/{existing_tournament['alias']}/seasons"
+                    )
+                )
                 return StandardResponse(
                     success=True,
                     data=tournament_unchanged,
@@ -210,7 +219,13 @@ async def update_tournament(
             ) from e
     else:
         logger.info(f"No changes to update for tournament {tournament_id}")
-        tournament_unchanged = TournamentDB(**existing_tournament).model_dump(by_alias=True)
+        tournament_unchanged = TournamentResponse(
+            **{k: v for k, v in existing_tournament.items() if k != "seasons"},
+            links=TournamentLinks(
+                self=f"/tournaments/{existing_tournament['alias']}",
+                seasons=f"/tournaments/{existing_tournament['alias']}/seasons"
+            )
+        )
         return StandardResponse(
             success=True,
             data=tournament_unchanged,
@@ -225,11 +240,13 @@ async def update_tournament(
         logger.info(
             f"Tournament updated successfully: {updated_tournament.get('name', tournament_id)}"
         )
-        tournament_response = TournamentDB(**updated_tournament).model_dump(by_alias=True)
-        tournament_response["_links"] = {
-            "self": f"/tournaments/{updated_tournament['alias']}",
-            "seasons": f"/tournaments/{updated_tournament['alias']}/seasons"
-        }
+        tournament_response = TournamentResponse(
+            **{k: v for k, v in updated_tournament.items() if k != "seasons"},
+            links=TournamentLinks(
+                self=f"/tournaments/{updated_tournament['alias']}",
+                seasons=f"/tournaments/{updated_tournament['alias']}/seasons"
+            )
+        )
         response = StandardResponse(
             success=True,
             data=tournament_response,
