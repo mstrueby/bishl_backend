@@ -9,6 +9,7 @@ from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException
 from logging_config import logger
 from models.responses import StandardResponse
+from models.matchday_responses import MatchdayResponse, MatchdayLinks
 from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from utils import DEBUG_LEVEL, my_jsonable_encoder
 
@@ -20,7 +21,7 @@ auth = AuthHandler()
 @router.get(
     "",
     response_description="List all matchdays for a round",
-    response_model=StandardResponse[list[MatchdayDB]],
+    response_model=StandardResponse[list[MatchdayResponse]],
 )
 async def get_matchdays_for_round(
     request: Request,
@@ -31,7 +32,7 @@ async def get_matchdays_for_round(
     round_alias: str = Path(..., description="The alias of the round to get"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection: dict[str, Any] = {}  # display all matches
+    exclusion_projection: dict[str, Any] = {}
     if (
         tournament := await mongodb["tournaments"].find_one(
             {"alias": tournament_alias}, exclusion_projection
@@ -39,11 +40,30 @@ async def get_matchdays_for_round(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
-                for round in season.get("rounds", []):
-                    if round.get("alias") == round_alias:
-                        matchdays = [
-                            MatchdayDB(**matchday) for matchday in round.get("matchdays", [])
-                        ]
+                for round_data in season.get("rounds", []):
+                    if round_data.get("alias") == round_alias:
+                        matchdays = []
+                        for matchday in round_data.get("matchdays", []):
+                            matchday_response = MatchdayResponse(
+                                _id=matchday["_id"],
+                                name=matchday["name"],
+                                alias=matchday["alias"],
+                                type=matchday["type"],
+                                startDate=matchday.get("startDate"),
+                                endDate=matchday.get("endDate"),
+                                createStandings=matchday.get("createStandings", False),
+                                createStats=matchday.get("createStats", False),
+                                matchSettings=matchday.get("matchSettings"),
+                                published=matchday.get("published", False),
+                                standings=matchday.get("standings"),
+                                owner=matchday.get("owner"),
+                                links=MatchdayLinks(
+                                    self=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday['alias']}",
+                                    matches=f"/matches?tournament={tournament_alias}&season={season_alias}&round={round_alias}&matchday={matchday['alias']}",
+                                    round=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}"
+                                )
+                            )
+                            matchdays.append(matchday_response)
                         return JSONResponse(
                             status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(
@@ -71,7 +91,7 @@ async def get_matchdays_for_round(
 @router.get(
     "/{matchday_alias}",
     response_description="Get one matchday of a round",
-    response_model=StandardResponse[MatchdayDB],
+    response_model=StandardResponse[MatchdayResponse],
 )
 async def get_matchday(
     request: Request,
@@ -91,11 +111,29 @@ async def get_matchday(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
-                for round in season.get("rounds", []):
-                    if round.get("alias") == round_alias:
-                        for matchday in round.get("matchdays", []):
+                for round_data in season.get("rounds", []):
+                    if round_data.get("alias") == round_alias:
+                        for matchday in round_data.get("matchdays", []):
                             if matchday.get("alias") == matchday_alias:
-                                matchday_response = MatchdayDB(**matchday)
+                                matchday_response = MatchdayResponse(
+                                    _id=matchday["_id"],
+                                    name=matchday["name"],
+                                    alias=matchday["alias"],
+                                    type=matchday["type"],
+                                    startDate=matchday.get("startDate"),
+                                    endDate=matchday.get("endDate"),
+                                    createStandings=matchday.get("createStandings", False),
+                                    createStats=matchday.get("createStats", False),
+                                    matchSettings=matchday.get("matchSettings"),
+                                    published=matchday.get("published", False),
+                                    standings=matchday.get("standings"),
+                                    owner=matchday.get("owner"),
+                                    links=MatchdayLinks(
+                                        self=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_alias}",
+                                        matches=f"/matches?tournament={tournament_alias}&season={season_alias}&round={round_alias}&matchday={matchday_alias}",
+                                        round=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}"
+                                    )
+                                )
                                 return JSONResponse(
                                     status_code=status.HTTP_200_OK,
                                     content=jsonable_encoder(

@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, Response
 from authentication import AuthHandler, TokenPayload
 from exceptions import ResourceNotFoundException
 from models.responses import StandardResponse
+from models.season_responses import SeasonResponse, SeasonLinks
 from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
 
 router = APIRouter()
@@ -19,7 +20,7 @@ auth = AuthHandler()
 @router.get(
     "",
     response_description="List all seasons for a tournament",
-    response_model=StandardResponse[list[SeasonDB]],
+    response_model=StandardResponse[list[SeasonResponse]],
 )
 async def get_seasons_for_tournament(
     request: Request,
@@ -28,13 +29,27 @@ async def get_seasons_for_tournament(
     ),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection = {"seasons.rounds.matchdays": 0}
+    exclusion_projection = {"seasons.rounds": 0}
     if (
         tournament := await mongodb["tournaments"].find_one(
             {"alias": tournament_alias}, exclusion_projection
         )
     ) is not None:
-        seasons = [SeasonDB(**season) for season in (tournament.get("seasons") or [])]
+        seasons = []
+        for season in (tournament.get("seasons") or []):
+            season_response = SeasonResponse(
+                _id=season["_id"],
+                name=season["name"],
+                alias=season["alias"],
+                standingsSettings=season.get("standingsSettings"),
+                published=season.get("published", False),
+                links=SeasonLinks(
+                    self=f"/tournaments/{tournament_alias}/seasons/{season['alias']}",
+                    rounds=f"/tournaments/{tournament_alias}/seasons/{season['alias']}/rounds",
+                    tournament=f"/tournaments/{tournament_alias}"
+                )
+            )
+            seasons.append(season_response)
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=jsonable_encoder(
@@ -50,7 +65,7 @@ async def get_seasons_for_tournament(
 @router.get(
     "/{season_alias}",
     response_description="Get a single season",
-    response_model=StandardResponse[SeasonDB],
+    response_model=StandardResponse[SeasonResponse],
 )
 async def get_season(
     request: Request,
@@ -60,7 +75,7 @@ async def get_season(
     season_alias: str = Path(..., description="The alias of the season to get"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection = {"seasons.rounds.matchdays": 0}
+    exclusion_projection = {"seasons.rounds": 0}
     if (
         tournament := await mongodb["tournaments"].find_one(
             {"alias": tournament_alias}, exclusion_projection
@@ -68,7 +83,18 @@ async def get_season(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
-                season_response = SeasonDB(**season)
+                season_response = SeasonResponse(
+                    _id=season["_id"],
+                    name=season["name"],
+                    alias=season["alias"],
+                    standingsSettings=season.get("standingsSettings"),
+                    published=season.get("published", False),
+                    links=SeasonLinks(
+                        self=f"/tournaments/{tournament_alias}/seasons/{season_alias}",
+                        rounds=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds",
+                        tournament=f"/tournaments/{tournament_alias}"
+                    )
+                )
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
                     content=jsonable_encoder(

@@ -14,6 +14,7 @@ from exceptions import (
 )
 from logging_config import logger
 from models.responses import StandardResponse
+from models.round_responses import RoundResponse, RoundLinks
 from models.tournaments import RoundBase, RoundDB, RoundUpdate
 from utils import DEBUG_LEVEL, my_jsonable_encoder
 
@@ -25,7 +26,7 @@ auth = AuthHandler()
 @router.get(
     "",
     response_description="List all rounds for a season",
-    response_model=StandardResponse[list[RoundDB]],
+    response_model=StandardResponse[list[RoundResponse]],
 )
 async def get_rounds_for_season(
     request: Request,
@@ -35,7 +36,7 @@ async def get_rounds_for_season(
     season_alias: str = Path(..., description="The alias of the season to get"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection = {"seasons.rounds.matchdays.matches": 0}
+    exclusion_projection = {"seasons.rounds.matchdays": 0}
     if (
         tournament := await mongodb["tournaments"].find_one(
             {"alias": tournament_alias}, exclusion_projection
@@ -43,12 +44,31 @@ async def get_rounds_for_season(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
-                rounds = [
-                    RoundDB(**round)
-                    for round in sorted(
-                        (season.get("rounds") or []), key=lambda r: r.get("sortOrder", 0)
+                rounds = []
+                for round_data in sorted(
+                    (season.get("rounds") or []), key=lambda r: r.get("sortOrder", 0)
+                ):
+                    round_response = RoundResponse(
+                        _id=round_data["_id"],
+                        name=round_data["name"],
+                        alias=round_data["alias"],
+                        sortOrder=round_data.get("sortOrder", 0),
+                        createStandings=round_data.get("createStandings", False),
+                        createStats=round_data.get("createStats", False),
+                        matchdaysType=round_data["matchdaysType"],
+                        matchdaysSortedBy=round_data["matchdaysSortedBy"],
+                        startDate=round_data.get("startDate"),
+                        endDate=round_data.get("endDate"),
+                        matchSettings=round_data.get("matchSettings"),
+                        published=round_data.get("published", False),
+                        standings=round_data.get("standings"),
+                        links=RoundLinks(
+                            self=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_data['alias']}",
+                            matchdays=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_data['alias']}/matchdays",
+                            season=f"/tournaments/{tournament_alias}/seasons/{season_alias}"
+                        )
                     )
-                ]
+                    rounds.append(round_response)
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
                     content=jsonable_encoder(
@@ -69,7 +89,7 @@ async def get_rounds_for_season(
 @router.get(
     "/{round_alias}",
     response_description="Get one round of a season",
-    response_model=StandardResponse[RoundDB],
+    response_model=StandardResponse[RoundResponse],
 )
 async def get_round(
     request: Request,
@@ -80,7 +100,7 @@ async def get_round(
     round_alias: str = Path(..., description="The alias of the round to get"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    exclusion_projection = {"seasons.rounds.matchdays.matches": 0}
+    exclusion_projection = {"seasons.rounds.matchdays": 0}
     if (
         tournament := await mongodb["tournaments"].find_one(
             {"alias": tournament_alias}, exclusion_projection
@@ -88,9 +108,28 @@ async def get_round(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
-                for round in season.get("rounds", []):
-                    if round.get("alias") == round_alias:
-                        round_response = RoundDB(**round)
+                for round_data in season.get("rounds", []):
+                    if round_data.get("alias") == round_alias:
+                        round_response = RoundResponse(
+                            _id=round_data["_id"],
+                            name=round_data["name"],
+                            alias=round_data["alias"],
+                            sortOrder=round_data.get("sortOrder", 0),
+                            createStandings=round_data.get("createStandings", False),
+                            createStats=round_data.get("createStats", False),
+                            matchdaysType=round_data["matchdaysType"],
+                            matchdaysSortedBy=round_data["matchdaysSortedBy"],
+                            startDate=round_data.get("startDate"),
+                            endDate=round_data.get("endDate"),
+                            matchSettings=round_data.get("matchSettings"),
+                            published=round_data.get("published", False),
+                            standings=round_data.get("standings"),
+                            links=RoundLinks(
+                                self=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}",
+                                matchdays=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays",
+                                season=f"/tournaments/{tournament_alias}/seasons/{season_alias}"
+                            )
+                        )
                         return JSONResponse(
                             status_code=status.HTTP_200_OK,
                             content=jsonable_encoder(
