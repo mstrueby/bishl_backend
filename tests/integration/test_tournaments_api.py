@@ -48,8 +48,8 @@ class TestTournamentsAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["_id"] == tournament["_id"]
-        assert data["alias"] == tournament["alias"]
+        assert data["data"]["_id"] == tournament["_id"]
+        assert data["data"]["alias"] == tournament["alias"]
 
     async def test_get_tournament_not_found(self, client: AsyncClient):
         """Test retrieving non-existent tournament returns 404"""
@@ -80,8 +80,8 @@ class TestTournamentsAPI:
 
         assert response.status_code == 201
         data = response.json()
-        assert data["name"] == "New League"
-        assert data["alias"] == "new-league"
+        assert data["data"]["name"] == "New League"
+        assert data["data"]["alias"] == "new-league"
 
         # Verify in database
         tournament_in_db = await mongodb["tournaments"].find_one({"alias": "new-league"})
@@ -118,7 +118,7 @@ class TestTournamentsAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Updated League Name"
+        assert data["data"]["name"] == "Updated League Name"
 
         # Verify in database
         updated = await mongodb["tournaments"].find_one({"_id": tournament["_id"]})
