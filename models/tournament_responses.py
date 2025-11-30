@@ -22,9 +22,9 @@ class TournamentResponse(MongoBaseModel):
     alias: str
     tinyName: str
     ageGroup: dict[str, str]
-    published: bool
-    active: bool
-    external: bool
+    published: bool = False
+    active: bool = False
+    external: bool = False
     website: HttpUrl | None = None
     legacyId: int | None = None
     links: TournamentLinks | None = None
