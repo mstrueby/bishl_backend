@@ -19,7 +19,47 @@ auth = AuthHandler()
 
 # get all tournaments
 @router.get(
-    "", response_description="List all tournaments", response_model=PaginatedResponse[TournamentResponse]
+    "",
+    response_description="List all tournaments",
+    response_model=PaginatedResponse[TournamentResponse],
+    responses={
+        200: {
+            "description": "Successful response with paginated tournaments",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "data": [
+                            {
+                                "_id": "507f1f77bcf86cd799439011",
+                                "name": "BISHL 2024/25",
+                                "alias": "bishl-2024",
+                                "tinyName": "BISHL",
+                                "ageGroup": {"key": "ADULTS", "value": "Adults"},
+                                "published": True,
+                                "active": True,
+                                "external": False,
+                                "website": "https://bishl.de",
+                                "links": {
+                                    "self": "/tournaments/bishl-2024",
+                                    "seasons": "/tournaments/bishl-2024/seasons"
+                                }
+                            }
+                        ],
+                        "pagination": {
+                            "page": 1,
+                            "page_size": 100,
+                            "total_items": 5,
+                            "total_pages": 1,
+                            "has_next": False,
+                            "has_prev": False
+                        },
+                        "message": "Retrieved 5 tournaments"
+                    }
+                }
+            }
+        }
+    }
 )
 async def get_tournaments(
     request: Request,
