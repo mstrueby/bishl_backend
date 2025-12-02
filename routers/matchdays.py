@@ -440,6 +440,17 @@ async def update_matchday(
                 (md for md in matchdays if str(md.get("_id")) == matchday_id), None
             )
             if updated_matchday:
+                # Recalculate standings if createStandings was updated
+                if matchday_dict.get("createStandings") is not None:
+                    from services.stats_service import StatsService
+                    stats_service = StatsService(mongodb)
+                    await stats_service.aggregate_matchday_standings(
+                        tournament_alias, season_alias, round_alias, updated_matchday["alias"]
+                    )
+                    logger.info(
+                        f"Recalculated standings for matchday {updated_matchday['alias']}"
+                    )
+                
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
                     content=jsonable_encoder(
