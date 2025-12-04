@@ -11,6 +11,7 @@ from fastapi import (
     Form,
     HTTPException,
     Path,
+    Query,
     Request,
     UploadFile,
     status,
@@ -25,7 +26,9 @@ from exceptions import (
     ResourceNotFoundException,
 )
 from models.clubs import TeamBase, TeamDB, TeamPartnerships, TeamUpdate
+from models.responses import PaginatedResponse, StandardResponse
 from utils import configure_cloudinary
+from utils.pagination import PaginationHelper
 
 router = APIRouter()
 auth = AuthHandler()
@@ -62,22 +65,45 @@ async def delete_from_cloudinary(logo_url: str):
 
 
 # list all teams of one club
-@router.get("", response_description="List all teams of one club", response_model=list[TeamDB])
+@router.get("", response_description="List all teams of one club", response_model=PaginatedResponse[TeamDB])
 async def list_teams_of_one_club(
     request: Request,
     club_alias: str = Path(..., description="Club alias to list teams"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=100, description="Items per page"),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if (club := await mongodb["clubs"].find_one({"alias": club_alias})) is not None:
-        teams = [TeamDB(**team) for team in (club.get("teams") or [])]
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(teams))
+        all_teams = club.get("teams") or []
+        total_count = len(all_teams)
+        
+        # Validate pagination params
+        page, page_size = PaginationHelper.validate_params(page, page_size)
+        
+        # Calculate pagination
+        skip = PaginationHelper.calculate_skip(page, page_size)
+        teams_page = all_teams[skip:skip + page_size]
+        
+        # Convert to TeamDB models
+        teams = [TeamDB(**team) for team in teams_page]
+        
+        # Create paginated response
+        paginated_result = PaginationHelper.create_response(
+            items=teams,
+            page=page,
+            page_size=page_size,
+            total_count=total_count,
+            message=f"Retrieved {len(teams)} teams for club {club_alias}"
+        )
+        
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
     raise ResourceNotFoundException(
         resource_type="Club", resource_id=club_alias, details={"query_field": "alias"}
     )
 
 
 # get one team of a club
-@router.get("/{team_alias}", response_description="Get one team of a club", response_model=TeamDB)
+@router.get("/{team_alias}", response_description="Get one team of a club", response_model=StandardResponse[TeamDB])
 async def get_team(
     request: Request,
     club_alias: str = Path(..., description="Club alias to get team"),
@@ -91,19 +117,25 @@ async def get_team(
                 if not team.get("logoUrl") and club.get("logoUrl"):
                     team["logoUrl"] = club["logoUrl"]
                 team_response = TeamDB(**team)
-                return JSONResponse(
-                    status_code=status.HTTP_200_OK, content=jsonable_encoder(team_response)
+                standard_response = StandardResponse(
+                    success=True,
+                    data=team_response,
+                    message=f"Team {team_alias} retrieved successfully"
                 )
-        raise HTTPException(
-            status_code=404, detail=f"Team with alias {team_alias} not found for club {club_alias}"
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK, content=jsonable_encoder(standard_response)
+                )
+        raise ResourceNotFoundException(
+            resource_type="Team", resource_id=team_alias, details={"club_alias": club_alias}
         )
     else:
-        # Raise HTTPException if the club is not found
-        raise HTTPException(status_code=404, detail=f"Club with alias {club_alias} not found")
+        raise ResourceNotFoundException(
+            resource_type="Club", resource_id=club_alias, details={"query_field": "alias"}
+        )
 
 
 # create new team
-@router.post("", response_description="Add new team to a club", response_model=TeamDB)
+@router.post("", response_description="Add new team to a club", response_model=StandardResponse[TeamDB])
 async def create_team(
     request: Request,
     club_alias: str = Path(..., description="Club alias to create team for"),
@@ -198,8 +230,13 @@ async def create_team(
             if updated_club and "teams" in updated_club:
                 inserted_team = updated_club["teams"][0]
                 team_response = TeamDB(**inserted_team)
+                standard_response = StandardResponse(
+                    success=True,
+                    data=team_response,
+                    message=f"Team {alias} created successfully"
+                )
                 return JSONResponse(
-                    status_code=status.HTTP_201_CREATED, content=jsonable_encoder(team_response)
+                    status_code=status.HTTP_201_CREATED, content=jsonable_encoder(standard_response)
                 )
             else:
                 raise ResourceNotFoundException(
@@ -220,7 +257,7 @@ async def create_team(
 
 
 # Update team in club
-@router.patch("/{team_id}", response_description="Update team", response_model=TeamDB)
+@router.patch("/{team_id}", response_description="Update team", response_model=StandardResponse[TeamDB])
 async def update_team(
     request: Request,
     team_id: str,
@@ -350,18 +387,21 @@ async def update_team(
                 message=f"Failed to update team {team_id} in club {club_alias}",
                 details={"error": str(e)}
             ) from e
-    else:
-        # No changes were made
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
-    # Get the updated team from the club to return
+    # Get the team from the club to return (whether updated or not)
     updated_club = await mongodb["clubs"].find_one(
         {"alias": club_alias},
         {"_id": 0, "teams": {"$elemMatch": {"_id": team_id}}}
     )
     if updated_club and "teams" in updated_club and updated_club["teams"]:
         team_response = TeamDB(**updated_club["teams"][0])
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(team_response))
+        message = "No changes detected" if not update_data["$set"] else f"Team {team_id} updated successfully"
+        standard_response = StandardResponse(
+            success=True,
+            data=team_response,
+            message=message
+        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(standard_response))
     else:
         # This case indicates an inconsistency if update succeeded but fetch failed.
         raise ResourceNotFoundException(
