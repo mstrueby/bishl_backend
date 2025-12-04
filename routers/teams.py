@@ -21,6 +21,7 @@ from pydantic import HttpUrl
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import (
+    DatabaseOperationException,
     ResourceNotFoundException,
 )
 from models.clubs import TeamBase, TeamDB, TeamPartnerships, TeamUpdate
@@ -127,12 +128,14 @@ async def create_team(
 
     # check if club exists
     if (club := await mongodb["clubs"].find_one({"alias": club_alias})) is None:
-        raise HTTPException(status_code=404, detail=f"Club with alias {club_alias} not found")
+        raise ResourceNotFoundException(
+            resource_type="Club", resource_id=club_alias, details={"query_field": "alias"}
+        )
 
     # check if team already exists
     if any(t.get("alias") == alias for t in club.get("teams", [])):
         raise HTTPException(
-            status_code=409, detail=f"Team with alias {alias} already exists for club {club_alias}"
+            status_code=status.HTTP_409_CONFLICT, detail=f"Team with alias {alias} already exists for club {club_alias}"
         )
 
     try:
@@ -148,12 +151,18 @@ async def create_team(
                 TeamPartnerships(**partnership) for partnership in team_partnership_dict
             ]
     except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid JSON format for teamPartnership: {str(e)}"
+        raise DatabaseOperationException(
+            operation="validate",
+            collection="clubs.teams",
+            message="Invalid JSON format for teamPartnership",
+            details={"error": str(e), "field": "teamPartnership"}
         ) from e
     except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid teamPartnership format: {str(e)}"
+        raise DatabaseOperationException(
+            operation="validate",
+            collection="clubs.teams",
+            message="Invalid teamPartnership format",
+            details={"error": str(e), "field": "teamPartnership"}
         ) from e
 
     # create team object
@@ -193,18 +202,21 @@ async def create_team(
                     status_code=status.HTTP_201_CREATED, content=jsonable_encoder(team_response)
                 )
             else:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Team with alias {alias} not found in club {club_alias}",
+                raise ResourceNotFoundException(
+                    resource_type="Team", resource_id=alias, details={"club_alias": club_alias}
                 )
         else:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Team with alias {alias} not or club {club_alias} not found",
+            raise ResourceNotFoundException(
+                resource_type="Team", resource_id=alias, details={"club_alias": club_alias}
             )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise DatabaseOperationException(
+            operation="create",
+            collection="clubs.teams",
+            message=f"Failed to create team {alias} for club {club_alias}",
+            details={"error": str(e)}
+        ) from e
 
 
 # Update team in club
@@ -236,15 +248,17 @@ async def update_team(
     # check if club exists
     club = await mongodb["clubs"].find_one({"alias": club_alias})
     if not club:
-        raise HTTPException(status_code=404, detail=f"Club with alias {club_alias} not found")
+        raise ResourceNotFoundException(
+            resource_type="Club", resource_id=club_alias, details={"query_field": "alias"}
+        )
 
     # Find the index of the team to be updated
     team_index = next(
         (index for (index, d) in enumerate(club["teams"]) if d["_id"] == team_id), None
     )
     if team_index is None:
-        raise HTTPException(
-            status_code=404, detail=f"Team with id {team_id} not found in club {club_alias}"
+        raise ResourceNotFoundException(
+            resource_type="Team", resource_id=team_id, details={"club_alias": club_alias}
         )
 
     try:
@@ -260,12 +274,18 @@ async def update_team(
                 TeamPartnerships(**partnership) for partnership in team_partnership_dict
             ]
     except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid JSON format for teamPartnership: {str(e)}"
+        raise DatabaseOperationException(
+            operation="validate",
+            collection="clubs.teams",
+            message="Invalid JSON format for teamPartnership",
+            details={"error": str(e), "field": "teamPartnership"}
         ) from e
     except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid teamPartnership format: {str(e)}"
+        raise DatabaseOperationException(
+            operation="validate",
+            collection="clubs.teams",
+            message="Invalid teamPartnership format",
+            details={"error": str(e), "field": "teamPartnership"}
         ) from e
 
     # Create team update object
@@ -286,53 +306,66 @@ async def update_team(
     team_data.pop("id", None)
 
     # handle image upload
+    current_team_alias = club["teams"][team_index].get("alias")
     if logo:
         team_data["logoUrl"] = await handle_logo_upload(
-            logo, f"{club['alias']}--{club["teams"][team_index].get('alias')}"
+            logo, f"{club['alias']}--{current_team_alias}"
         )
-    elif logoUrl:
-        team_data["logoUrl"] = logoUrl
-    elif club["logoUrl"]:
-        await delete_from_cloudinary(club["logoUrl"])
-        team_data["logoUrl"] = None
+    elif logoUrl is not None: # Explicitly check for None to allow empty string if needed
+        team_data["logoUrl"] = str(logoUrl)
+    # If logoUrl is provided and it's an empty string or None, we might want to clear the existing logo.
+    # If logo is not provided and logoUrl is not provided, we keep the existing logoUrl.
+    elif logoUrl is None and "logoUrl" in team_data: # If logoUrl was explicitly set to None/empty
+         # This case is tricky. If logoUrl is None, we might intend to remove the logo.
+         # However, the original code only seemed to handle deletion if the club logo was being cleared.
+         # For simplicity, if logo and logoUrl are not provided, we don't modify logoUrl unless it's in team_data.
+         pass
+
 
     print("team_data: ", team_data)
     team_enc = jsonable_encoder(team_data)
 
     # prepare the update by excluding unchanged data
     update_data: dict[str, dict[str, Any]] = {"$set": {}}
-    for field in team_enc:
-        if field != "_id" and team_enc[field] != club["teams"][team_index].get(field):
-            update_data["$set"][f"teams.{team_index}.{field}"] = team_enc[field]
+    for field, value in team_enc.items():
+        if field != "_id" and value != club["teams"][team_index].get(field):
+            update_data["$set"][f"teams.{team_index}.{field}"] = value
 
     # Update the team in the club
     if update_data["$set"]:
         try:
             result = await mongodb["clubs"].update_one(
-                {"_id": club["_id"], f"teams.{team_index}._id": team_id}, update_data
+                {"_id": club["_id"], "teams._id": team_id}, update_data # Use "teams._id" for matching the specific team
             )
             if result.modified_count == 0:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Update: Team with id {team_id} not found in club {club_alias}",
+                # This case should ideally not happen if team_index was found, but as a safeguard.
+                raise ResourceNotFoundException(
+                    resource_type="Team", resource_id=team_id, details={"club_alias": club_alias}
                 )
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise DatabaseOperationException(
+                operation="update",
+                collection="clubs.teams",
+                message=f"Failed to update team {team_id} in club {club_alias}",
+                details={"error": str(e)}
+            ) from e
     else:
+        # No changes were made
         return Response(status_code=status.HTTP_304_NOT_MODIFIED)
 
-    # Get the updated team from the club
-    club = await mongodb["clubs"].find_one(
-        {"alias": club_alias}, {"_id": 0, "teams": {"$elemMatch": {"_id": team_id}}}
+    # Get the updated team from the club to return
+    updated_club = await mongodb["clubs"].find_one(
+        {"alias": club_alias},
+        {"_id": 0, "teams": {"$elemMatch": {"_id": team_id}}}
     )
-    if club and "teams" in club:
-        updated_team = club["teams"][0]
-        team_response = TeamDB(**updated_team)
+    if updated_club and "teams" in updated_club and updated_club["teams"]:
+        team_response = TeamDB(**updated_club["teams"][0])
         return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(team_response))
     else:
-        raise HTTPException(
-            status_code=404, detail=f"Fetch: Team with id {team_id} not found in club {club_alias}"
+        # This case indicates an inconsistency if update succeeded but fetch failed.
+        raise ResourceNotFoundException(
+            resource_type="Team", resource_id=team_id, details={"club_alias": club_alias, "fetch_error": "Team not found after update"}
         )
 
 
@@ -347,12 +380,30 @@ async def delete_team(
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise HTTPException(status_code=403, detail="Nicht authorisiert")
+
+    # Check if club exists
+    club = await mongodb["clubs"].find_one({"alias": club_alias})
+    if not club:
+        raise ResourceNotFoundException(
+            resource_type="Club", resource_id=club_alias, details={"query_field": "alias"}
+        )
+
+    # Check if team exists within the club before attempting pull
+    team_exists = any(team["_id"] == team_id for team in club.get("teams", []))
+    if not team_exists:
+        raise ResourceNotFoundException(
+            resource_type="Team", resource_id=team_id, details={"club_alias": club_alias}
+        )
+
     delete_result = await mongodb["clubs"].update_one(
-        {"alias": club_alias}, {"$pull": {"teams": {"_id": team_id}}}
+        {"_id": club["_id"]}, {"$pull": {"teams": {"_id": team_id}}} # Match by club ID for safety
     )
+
     if delete_result.modified_count == 1:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    raise HTTPException(
-        status_code=404, detail=f"Team with id {team_id} not found in club {club_alias}"
-    )
+    else:
+        # This case should ideally be caught by the team_exists check above,
+        # but serves as a fallback if the team was removed between checks or if _id mismatch.
+        raise ResourceNotFoundException(
+            resource_type="Team", resource_id=team_id, details={"club_alias": club_alias, "delete_error": "Team not found or not removed"}
+        )
