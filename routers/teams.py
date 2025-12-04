@@ -27,8 +27,8 @@ from exceptions import (
 )
 from models.clubs import TeamBase, TeamDB, TeamPartnerships, TeamUpdate
 from models.responses import PaginatedResponse, StandardResponse
+from services.pagination import PaginationHelper
 from utils import configure_cloudinary
-from utils.pagination import PaginationHelper
 
 router = APIRouter()
 auth = AuthHandler()
@@ -78,7 +78,7 @@ async def list_teams_of_one_club(
         total_count = len(all_teams)
         
         # Validate pagination params
-        page, page_size = PaginationHelper.validate_params(page, page_size)
+        page, page_size = PaginationHelper.validate_params(page, page_size, max_page_size=100)
         
         # Calculate pagination
         skip = PaginationHelper.calculate_skip(page, page_size)
