@@ -265,7 +265,7 @@ class ImportService:
                     if home_club_response.status_code != 200:
                         progress.add_error(f"Home club not found: {home_club_alias}")
                         continue
-                    home_club = home_club_response.json()
+                    home_club = home_club_response.json().get("data")
 
                     home_team_response = requests.get(
                         f"{self.base_url}/clubs/{home_club_alias}/teams/{home_team_alias}",
@@ -276,7 +276,7 @@ class ImportService:
                             f"Home team not found: {home_club_alias}/{home_team_alias}"
                         )
                         continue
-                    home_team = home_team_response.json()
+                    home_team = home_team_response.json().get("data")
 
                     home = MatchTeam(
                         clubId=home_club.get("_id"),
@@ -301,7 +301,7 @@ class ImportService:
                     if away_club_response.status_code != 200:
                         progress.add_error(f"Away club not found: {away_club_alias}")
                         continue
-                    away_club = away_club_response.json()
+                    away_club = away_club_response.json().get("data")
 
                     away_team_response = requests.get(
                         f"{self.base_url}/clubs/{away_club_alias}/teams/{away_team_alias}",
@@ -312,7 +312,7 @@ class ImportService:
                             f"Away team not found: {away_club_alias}/{away_team_alias}"
                         )
                         continue
-                    away_team = away_team_response.json()
+                    away_team = away_team_response.json().get("data")
 
                     away = MatchTeam(
                         clubId=away_club.get("_id"),
