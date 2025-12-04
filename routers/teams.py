@@ -77,11 +77,10 @@ async def list_teams_of_one_club(
         all_teams = club.get("teams") or []
         total_count = len(all_teams)
         
-        # Validate pagination params
-        page, page_size = PaginationHelper.validate_params(page, page_size, max_page_size=100)
-        
-        # Calculate pagination
-        skip = PaginationHelper.calculate_skip(page, page_size)
+        # Calculate pagination manually for in-memory list
+        page = max(1, page)  # Ensure page is at least 1
+        page_size = max(1, min(page_size, 100))  # Ensure page_size is between 1 and 100
+        skip = (page - 1) * page_size
         teams_page = all_teams[skip:skip + page_size]
         
         # Convert to TeamDB models
