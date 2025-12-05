@@ -17,7 +17,12 @@ from pydantic import EmailStr, HttpUrl
 from pymongo.errors import DuplicateKeyError
 
 from authentication import AuthHandler, TokenPayload
-from exceptions import AuthorizationException, DatabaseOperationException, ResourceNotFoundException
+from exceptions import (
+    AuthorizationException,
+    DatabaseOperationException,
+    ResourceNotFoundException,
+    ValidationException,
+)
 from logging_config import logger
 from models.clubs import ClubBase, ClubDB, ClubUpdate
 from models.responses import PaginatedResponse, StandardResponse
@@ -166,6 +171,15 @@ async def create_club(
         active=active,
     )
     club_data = jsonable_encoder(club)
+
+    # Check for duplicate alias
+    existing_club = await mongodb["clubs"].find_one({"alias": alias})
+    if existing_club:
+        raise ValidationException(
+            field="alias",
+            message=f"Club with alias '{alias}' already exists",
+            details={"alias": alias, "existing_club_id": str(existing_club["_id"])},
+        )
 
     if logo:
         club_data["logoUrl"] = await handle_logo_upload(logo, alias)

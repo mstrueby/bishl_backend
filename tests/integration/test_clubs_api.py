@@ -64,8 +64,11 @@ class TestClubsAPI:
         )
 
         # Assert
-        assert response.status_code == 500
-        assert "error" in response.json()
+        assert response.status_code == 400
+        data = response.json()
+        assert "error" in data
+        assert "alias" in data["error"]["message"].lower()
+        assert "already exists" in data["error"]["message"].lower()
 
     async def test_get_club_by_alias(self, client: AsyncClient, mongodb):
         """Test retrieving a club by alias"""
