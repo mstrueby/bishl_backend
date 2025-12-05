@@ -1,4 +1,3 @@
-
 # BISHL Backend Refactoring Roadmap
 
 *Generated: 2025 Post-Season Analysis*
@@ -95,7 +94,7 @@ argon2-cffi = "^23.1.0"
 class Model(BaseModel):
     class Config:
         schema_extra = {...}
-    
+
 # New (v2)
 from pydantic import ConfigDict
 class Model(BaseModel):
@@ -205,11 +204,11 @@ class Model(BaseModel):
      - `get_round_info(t_alias, s_alias, r_alias)` - Extract round data
      - `update_round_dates(round_id, mongodb)` - Direct DB update
      - `update_matchday_dates(matchday_id, mongodb)` - Direct DB update
-   
+
    - Create `services/message_service.py`:
      - `send_referee_notification(referee_id, match, content, mongodb)` - Direct DB insert
      - `format_match_notification(match)` - Reusable formatter
-   
+
    - Create `services/match_service.py`:
      - `get_matches_for_referee(referee_id, date_from, mongodb)` - Direct DB query
      - `get_referee_assignments(referee_id, mongodb)` - Direct DB query
@@ -218,14 +217,14 @@ class Model(BaseModel):
    - Update `routers/matches.py`:
      - Replace `fetch_ref_points()` with `TournamentService.get_matchday_info()`
      - Replace HTTP calls to update rounds/matchdays with direct service calls
-   
+
    - Update `routers/assignments.py`:
      - Replace `send_message_to_referee()` HTTP call with `MessageService.send_referee_notification()`
-   
+
    - Update `routers/users.py`:
      - Replace HTTP calls with `MatchService.get_matches_for_referee()`
      - Replace HTTP calls with `MatchService.get_referee_assignments()`
-   
+
    - Update `services/stats_service.py`:
      - Replace HTTP calls with `TournamentService` methods
 
@@ -310,13 +309,13 @@ matchday_info = await tournament_service.get_matchday_info(...)
 **Actions:**
 
 1. ✅ **Phase 1: Create Service Layer** (10-12 hours)
-   
+
    Created `services/roster_service.py`:
    - ✅ `get_roster(match_id, team_flag)` - Fetch and populate roster data
    - ✅ `update_roster(match_id, team_flag, roster_data, user_roles)` - Validate and update roster
    - ✅ `validate_roster_changes(match, team_flag, new_roster)` - Check scores/penalties dependencies
    - ✅ `update_jersey_numbers(match_id, team_flag, jersey_updates)` - Update jerseys in scores/penalties
-   
+
    Created `services/score_service.py`:
    - ✅ `get_scores(match_id, team_flag)` - Fetch and populate score sheet
    - ✅ `get_score_by_id(match_id, team_flag, score_id)` - Fetch single score
@@ -324,7 +323,7 @@ matchday_info = await tournament_service.get_matchday_info(...)
    - ✅ `update_score(match_id, team_flag, score_id, score_data)` - Update existing score
    - ✅ `delete_score(match_id, team_flag, score_id)` - Remove score with decremental updates
    - ✅ `validate_score_player_in_roster(match, team_flag, score)` - Check roster membership
-   
+
    Created `services/penalty_service.py`:
    - ✅ `get_penalties(match_id, team_flag)` - Fetch and populate penalty sheet
    - ✅ `get_penalty_by_id(match_id, team_flag, penalty_id)` - Fetch single penalty
@@ -334,19 +333,19 @@ matchday_info = await tournament_service.get_matchday_info(...)
    - ✅ `validate_penalty_player_in_roster(match, team_flag, penalty)` - Check roster membership
 
 2. ✅ **Phase 2: Update Routers to Use Services** (6-8 hours)
-   
+
    Updated `routers/roster.py`:
    - ✅ Replaced inline validation with `RosterService.validate_roster_changes()`
    - ✅ Replaced jersey update logic with `RosterService.update_jersey_numbers()`
    - ✅ Uses `RosterService.update_roster()` for main update operation
    - ✅ Router is now thin wrapper with HTTP concerns only
-   
+
    Updated `routers/scores.py`:
    - ✅ Replaced inline player validation with `ScoreService.validate_score_player_in_roster()`
    - ✅ Replaced incremental update logic with `ScoreService.create_score()`
    - ✅ Uses `ScoreService.update_score()` and `ScoreService.delete_score()`
    - ✅ Removed direct database operations from router
-   
+
    Updated `routers/penalties.py`:
    - ✅ Replaced inline player validation with `PenaltyService.validate_penalty_player_in_roster()`
    - ✅ Replaced incremental update logic with `PenaltyService.create_penalty()`
@@ -354,19 +353,19 @@ matchday_info = await tournament_service.get_matchday_info(...)
    - ✅ Removed direct database operations from router
 
 3. ✅ **Phase 3: Create Unit Tests** (8-10 hours)
-   
+
    Created `tests/unit/test_roster_service.py`:
    - ✅ Test roster validation (players in scores/penalties)
    - ✅ Test jersey number updates across scores/penalties
    - ✅ Test roster update with authorization checks
    - ✅ Test edge cases (empty roster, invalid team_flag)
-   
+
    Created `tests/unit/test_score_service.py`:
    - ✅ Test score creation with incremental stats updates
    - ✅ Test score deletion with decremental stats updates
    - ✅ Test player roster validation
    - ✅ Test match status validation (INPROGRESS only)
-   
+
    Created `tests/unit/test_penalty_service.py`:
    - ✅ Test penalty creation with penalty minute increments
    - ✅ Test penalty deletion with penalty minute decrements
@@ -374,17 +373,17 @@ matchday_info = await tournament_service.get_matchday_info(...)
    - ✅ Test match status validation (INPROGRESS only)
 
 4. ✅ **Phase 4: Update Integration Tests** (4-6 hours)
-   
+
    Updated `tests/integration/test_roster_api.py`:
    - ✅ Removed API mocking, tests service layer directly
    - ✅ Verified roster updates persist to database
    - ✅ Tested jersey number propagation
-   
+
    Updated `tests/integration/test_scores_api.py`:
    - ✅ Verified incremental stats updates in database
    - ✅ Tested standings recalculation triggers
    - ✅ Tested INPROGRESS status requirement
-   
+
    Updated `tests/integration/test_penalties_api.py`:
    - ✅ Verified penalty minutes increment in roster
    - ✅ Tested penalty deletion decrements
@@ -408,13 +407,13 @@ matchday_info = await tournament_service.get_matchday_info(...)
 @router.post("/")
 async def create_score(request, match_id, team_flag, score, token):
     mongodb = request.app.state.mongodb
-    
+
     # Validation logic
     match = await mongodb["matches"].find_one({"_id": match_id})
-    if not any(player["player"]["playerId"] == score.goalPlayer.playerId 
+    if not any(player["player"]["playerId"] == score.goalPlayer.playerId
                for player in match[team_flag]["roster"]):
         raise HTTPException(400, "Player not in roster")
-    
+
     # Database operations
     score_data = score.model_dump()
     update_operations = {
@@ -422,7 +421,7 @@ async def create_score(request, match_id, team_flag, score, token):
         "$inc": {f"{team_flag}.stats.goalsFor": 1}
     }
     await mongodb["matches"].update_one({"_id": match_id}, update_operations)
-    
+
     # Stats recalculation
     stats_service = StatsService(mongodb)
     await stats_service.aggregate_round_standings(...)
@@ -434,17 +433,17 @@ async def create_score(request, match_id, team_flag, score, token):
 class ScoreService:
     def __init__(self, db):
         self.db = db
-    
+
     async def create_score(self, match_id, team_flag, score_data):
         """Create score with validation and incremental updates"""
         match = await self._get_match(match_id)
         await self._validate_match_status(match)
         await self._validate_player_in_roster(match, team_flag, score_data)
-        
+
         score_id = await self._save_score(match_id, team_flag, score_data)
         await self._update_incremental_stats(match_id, team_flag, score_data)
         await self._recalculate_standings(match)
-        
+
         return await self.get_score_by_id(match_id, team_flag, score_id)
 
 # In routers/scores.py
@@ -803,12 +802,16 @@ make check-all    # Run pre-commit on all files
 
 **Total: ~26-38 hours**
 
-### Phase 2: Modernization (Week 3-4)
-- Pydantic v2 migration
-- Error handling standardization
-- Stats service extraction
+### Phase 2: Remaining Routers
+- [x] `routers/tournaments.py` - Add pagination to GET /tournaments
+- [x] `routers/clubs.py` - Add pagination to GET /clubs and standard responses
+- [x] `routers/teams.py` - Add pagination to GET /teams and standard responses
+- [x] `routers/users.py` - Add pagination to GET /users
+- [x] `routers/assignments.py` - Add pagination to GET /assignments
+- [x] `routers/posts.py` - Add pagination to GET /posts
+- [x] `routers/documents.py` - Add pagination to GET /documents
 
-**Total: ~32-48 hours**
+**Total: ~30-40 hours**
 
 ### Phase 3: Quality (Week 5-6)
 - Testing infrastructure
