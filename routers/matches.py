@@ -78,7 +78,7 @@ def convert_seconds_to_times(data):
             if penalty.get("matchSecondsEnd") is not None:
                 penalty["matchTimeEnd"] = parse_time_from_seconds(penalty["matchSecondsEnd"])
     if DEBUG_LEVEL > 100:
-        print("data", data)
+        logger.debug(f"data: {data}")
     return data
 
 
@@ -244,7 +244,7 @@ async def get_todays_matches(
             ]
 
     if DEBUG_LEVEL > 20:
-        print("today's matches query: ", query)
+        logger.debug(f"today's matches query: {query}")
 
     # Project only necessary fields, excluding roster, scores, and penalties
     projection = {
@@ -325,7 +325,7 @@ async def get_upcoming_matches(
             ]
 
     if DEBUG_LEVEL > 20:
-        print("upcoming matches base query: ", base_query)
+        logger.debug(f"upcoming matches base query: {base_query}")
 
     # Find the minimum start date for upcoming matches
     min_date_result = (
@@ -348,7 +348,7 @@ async def get_upcoming_matches(
     final_query["startDate"] = {"$gte": start_of_day, "$lte": end_of_day}
 
     if DEBUG_LEVEL > 20:
-        print(f"upcoming matches final query for {match_date}: ", final_query)
+        logger.debug(f"upcoming matches final query for {match_date}: {final_query}")
 
     # Project only necessary fields, excluding roster, scores, and penalties
     projection = {
@@ -436,7 +436,7 @@ async def get_rest_of_week_matches(
             ]
 
     if DEBUG_LEVEL > 20:
-        print("this week matches base query: ", base_query)
+        logger.debug(f"this week matches base query: {base_query}")
 
     # Initialize result structure
     week_matches = []
@@ -452,7 +452,7 @@ async def get_rest_of_week_matches(
         day_query["startDate"] = {"$gte": start_of_day, "$lte": end_of_day}
 
         if DEBUG_LEVEL > 20:
-            print(f"this week matches query for {current_date}: ", day_query)
+            logger.debug(f"this week matches query for {current_date}: {day_query}")
 
         # Project only necessary fields, excluding roster, scores, and penalties
         projection = {
@@ -555,7 +555,7 @@ async def get_matches(
                 details={"date_from": date_from, "date_to": date_to},
             ) from e
     if DEBUG_LEVEL > 20:
-        print("query: ", query)
+        logger.debug(f"query: {query}")
 
     # Use pagination helper
     items, total_count = await PaginationHelper.paginate_query(
@@ -631,14 +631,14 @@ async def create_match(
             and hasattr(match.season, "alias")
         ):
             if DEBUG_LEVEL > 10:
-                print("get standingsSettings")
+                logger.debug("get standingsSettings")
             # fetch standing settings
             stats_service = StatsService(mongodb)
             standings_settings = await stats_service.get_standings_settings(
                 match.tournament.alias, match.season.alias
             )
             if DEBUG_LEVEL > 10:
-                print(standings_settings)
+                logger.debug(f"standings_settings: {standings_settings}")
             home_score = (
                 0
                 if match.home is None or not match.home.stats or match.home.stats.goalsFor is None
@@ -658,7 +658,7 @@ async def create_match(
                 away_score=away_score,
             )
             if DEBUG_LEVEL > 20:
-                print("stats: ", match_stats)
+                logger.debug(f"stats: {match_stats}")
 
             # Now safely assign the stats
             match.home.stats = MatchStats(**match_stats["home"])
@@ -677,7 +677,7 @@ async def create_match(
                 )
                 ref_points = matchday_info.get("refPoints", 0)
                 if DEBUG_LEVEL > 20:
-                    print("ref_points: ", ref_points)
+                    logger.debug(f"ref_points: {ref_points}")
                 if match.matchStatus.key in ["FINISHED", "FORFEITED"]:
                     if match.referee1 is not None:
                         match.referee1.points = ref_points
@@ -687,7 +687,7 @@ async def create_match(
                 raise
 
         if DEBUG_LEVEL > 20:
-            print("match: ", match)
+            logger.debug(f"match: {match}")
         match_data = my_jsonable_encoder(match)
         match_data = convert_times_to_seconds(match_data)
 
@@ -695,11 +695,11 @@ async def create_match(
         if "startDate" in match_data and match_data["startDate"] is not None:
             start_date_str = match_data["startDate"]
             if DEBUG_LEVEL > 10:
-                print("Start Date: ", start_date_str)
+                logger.debug(f"Start Date: {start_date_str}")
             try:
                 start_date_parts = datetime.fromisoformat(str(start_date_str))
                 if DEBUG_LEVEL > 100:
-                    print("Start Date Parts:", start_date_parts)
+                    logger.debug(f"Start Date Parts: {start_date_parts}")
                 match_data["startDate"] = datetime(
                     start_date_parts.year,
                     start_date_parts.month,
@@ -716,7 +716,7 @@ async def create_match(
                 ) from e
 
         if DEBUG_LEVEL > 0:
-            print("match_data: ", match_data)
+            logger.debug(f"match_data: {match_data}")
 
         # add match to collection matches
         try:
@@ -762,9 +762,9 @@ async def create_match(
                                 md_id, t_alias, s_alias, r_alias, md_alias
                             )
                         else:
-                            print(f"Warning: Matchday {md_alias} not found or has no ID")
+                            logger.warning(f"Matchday {md_alias} not found or has no ID")
                     else:
-                        print(f"Warning: Round {r_alias} not found or has no ID")
+                        logger.warning(f"Round {r_alias} not found or has no ID")
 
         stats_service = StatsService(mongodb)
         await stats_service.calculate_roster_stats(result.inserted_id, "home")
@@ -839,7 +839,7 @@ async def update_match(
     new_finish_type = getattr(match.finishType, "key", current_finish_type)
 
     if DEBUG_LEVEL > 10:
-        print("passed match: ", match)
+        logger.debug(f"passed match: {match}")
     # Check if this is a stats-affecting change - only check fields that were explicitly provided
     match_data_provided = match.model_dump(exclude_unset=True)
     stats_affecting_fields = ["matchStatus", "finishType", "home.stats", "away.stats"]
@@ -853,7 +853,7 @@ async def update_match(
         for field in stats_affecting_fields
     )
     if DEBUG_LEVEL > 10:
-        print("stats_change_detected: ", stats_change_detected)
+        logger.debug(f"stats_change_detected: {stats_change_detected}")
 
     # Only calculate match stats if stats-affecting fields changed
     if stats_change_detected and new_finish_type and t_alias:
@@ -956,7 +956,7 @@ async def update_match(
     match_to_update: dict[str, Any] = {}
     check_nested_fields(match_data, existing_match)
     if DEBUG_LEVEL > 10:
-        print("match_to_update: ", match_to_update)
+        logger.debug(f"match_to_update: {match_to_update}")
 
     if not match_to_update:
         logger.info("No changes to update for match", extra={"match_id": match_id})
@@ -1018,9 +1018,9 @@ async def update_match(
                                 md_id, t_alias, s_alias, r_alias, md_alias
                             )
                         else:
-                            print(f"WARNING: Matchday {md_alias} not found or has no ID")
+                            logger.warning(f"Matchday {md_alias} not found or has no ID")
                     else:
-                        print(f"WARNING: Round {r_alias} not found or has no ID")
+                        logger.warning(f"Round {r_alias} not found or has no ID")
 
         # Only recalculate roster stats if scores or penalties changed (not for roster-only changes)
         stats_recalc_fields = ["home.scores", "away.scores", "home.penalties", "away.penalties"]
@@ -1059,7 +1059,7 @@ async def update_match(
         ]
         player_ids = home_players + away_players
         if player_ids and DEBUG_LEVEL > 0:
-            print(
+            logger.debug(
                 f"Stats change detected on finished match - calculating player card stats for {len(player_ids)} players..."
             )
         if player_ids:
@@ -1075,7 +1075,7 @@ async def update_match(
             if (stats_change_detected and "FINISHED" in {new_match_status, current_match_status})
             else ""
         )
-        print(
+        logger.debug(
             f"Match updated - {change_type} change detected for match {match_id}{player_calc_note}"
         )
 
@@ -1128,8 +1128,8 @@ async def delete_match(
             player["player"]["playerId"] for player in match.get("away", {}).get("roster") or []
         ]
         if DEBUG_LEVEL > 0:
-            print("### home_players: ", home_players)
-            print("### away_players: ", away_players)
+            logger.debug(f"### home_players: {home_players}")
+            logger.debug(f"### away_players: {away_players}")
 
         player_ids = home_players + away_players
 
@@ -1160,10 +1160,10 @@ async def delete_match(
         if player_ids and t_alias and s_alias and r_alias:
             for player_id in player_ids:
                 if DEBUG_LEVEL > 10:
-                    print("player_id: ", player_id)
+                    logger.debug(f"player_id: {player_id}")
                 player = await mongodb["players"].find({"_id": player_id}).to_list(length=1)
                 if DEBUG_LEVEL > 10:
-                    print("player: ", player)
+                    logger.debug(f"player: {player}")
                 updated_stats = [
                     entry
                     for entry in player[0]["stats"]
@@ -1172,7 +1172,7 @@ async def delete_match(
                     and entry["round"].get("alias") != r_alias
                 ]
                 if DEBUG_LEVEL > 10:
-                    print("### DEL / updated_stats: ", updated_stats)
+                    logger.debug(f"### DEL / updated_stats: {updated_stats}")
                 await mongodb["players"].update_one(
                     {"_id": player_id}, {"$set": {"stats": updated_stats}}
                 )
