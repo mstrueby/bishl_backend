@@ -1,0 +1,37 @@
+Based on your refactored import system, you can now import the schedule using the unified CLI. Here's how:
+
+Basic Usage
+# Import schedule to development database
+python scripts/import_cli.py schedule
+# Import all matches (not just the first one)
+python scripts/import_cli.py schedule --import-all
+# Import to production database
+python scripts/import_cli.py schedule --prod --import-all
+# Test what would be imported without making changes
+python scripts/import_cli.py schedule --dry-run
+With Custom File
+# Use a different CSV file
+python scripts/import_cli.py schedule --file data/schedule_2026.csv --import-all
+Common Options
+--import-all: Import all matches (without this, it stops after the first match)
+--prod: Use production database (requires confirmation)
+--dry-run: Preview what would happen without making changes
+--file PATH: Specify a custom CSV file path
+Example Workflow
+Test first with dry-run:
+
+python scripts/import_cli.py schedule --dry-run
+Import to development:
+
+python scripts/import_cli.py schedule --import-all
+Import to production (after testing):
+
+python scripts/import_cli.py schedule --prod --import-all
+The new system provides:
+
+✅ Automatic authentication
+✅ Progress tracking
+✅ Error handling with rollback
+✅ Environment safety (confirms production changes)
+✅ Detailed logging
+The old import_schedule.py script is now deprecated - use the new CLI instead!
