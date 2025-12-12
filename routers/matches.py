@@ -715,7 +715,7 @@ async def create_match(
                     field="startDate", message=str(e), details={"value": start_date_str}
                 ) from e
 
-        if DEBUG_LEVEL > 0:
+        if DEBUG_LEVEL > 10:
             logger.debug(f"match_data: {match_data}")
 
         # add match to collection matches
