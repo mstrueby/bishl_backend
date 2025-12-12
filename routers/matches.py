@@ -912,7 +912,7 @@ async def update_match(
         else:
             raise ValueError("Calculating match statistics returned None")
 
-    match_data = match.model_dump(exclude_unset=True)
+    match_data = match.model_dump(exclude_unset=True, mode='json')
     match_data.pop("id", None)
 
     # Only update referee points if match status changed to FINISHED/FORFEITED
