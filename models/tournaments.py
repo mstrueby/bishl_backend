@@ -264,6 +264,19 @@ class SeasonUpdate(MongoBaseModel):
 # --------
 
 
+class AssignmentTimeWindow(BaseModel):
+    """Time window configuration for player assignment changes"""
+    enabled: bool = Field(default=True)
+    startMonth: int = Field(default=1, ge=1, le=12, description="Start month (1-12)")
+    startDay: int = Field(default=1, ge=1, le=31, description="Start day (1-31)")
+    endMonth: int = Field(default=3, ge=1, le=12, description="End month (1-12)")
+    endDay: int = Field(default=1, ge=1, le=31, description="End day (1-31)")
+    description: str | None = Field(
+        default="Assignment changes allowed from January 1 to March 1",
+        description="Human-readable description of the time window"
+    )
+
+
 class TournamentBase(MongoBaseModel):
     name: str = Field(...)
     alias: str = Field(...)
@@ -273,6 +286,10 @@ class TournamentBase(MongoBaseModel):
     active: bool = False
     external: bool = False
     website: HttpUrl | None = None
+    assignmentTimeWindow: AssignmentTimeWindow | None = Field(
+        default_factory=lambda: AssignmentTimeWindow(),
+        description="Time window when player assignments can be modified"
+    )
     seasons: list[SeasonBase] | None = Field(default_factory=list)
     legacyId: int | None = None
 
@@ -305,6 +322,7 @@ class TournamentUpdate(MongoBaseModel):
     active: bool | None = False
     external: bool | None = False
     website: HttpUrl | None = None
+    assignmentTimeWindow: AssignmentTimeWindow | None = None
     seasons: list[SeasonBase] | None = Field(default_factory=list)
 
     @field_validator("website", mode="before")
