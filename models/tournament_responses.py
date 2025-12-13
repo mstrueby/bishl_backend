@@ -7,7 +7,7 @@ They exclude nested arrays to avoid confusion with HATEOAS links.
 
 from pydantic import BaseModel, HttpUrl
 
-from models.tournaments import MongoBaseModel
+from models.tournaments import MongoBaseModel, AssignmentTimeWindow
 
 
 class TournamentLinks(BaseModel):
@@ -26,6 +26,7 @@ class TournamentResponse(MongoBaseModel):
     active: bool = False
     external: bool = False
     website: HttpUrl | None = None
+    assignmentTimeWindow: AssignmentTimeWindow = AssignmentTimeWindow()
     legacyId: int | None = None
     links: TournamentLinks | None = None
 
