@@ -286,8 +286,8 @@ class TournamentBase(MongoBaseModel):
     active: bool = False
     external: bool = False
     website: HttpUrl | None = None
-    assignmentTimeWindow: AssignmentTimeWindow | None = Field(
-        default_factory=lambda: AssignmentTimeWindow(),
+    assignmentTimeWindow: AssignmentTimeWindow = Field(
+        default=AssignmentTimeWindow(),
         description="Time window when player assignments can be modified"
     )
     seasons: list[SeasonBase] | None = Field(default_factory=list)
@@ -322,7 +322,7 @@ class TournamentUpdate(MongoBaseModel):
     active: bool | None = False
     external: bool | None = False
     website: HttpUrl | None = None
-    assignmentTimeWindow: AssignmentTimeWindow | None = None
+    assignmentTimeWindow: AssignmentTimeWindow | None = Field(default=None)
     seasons: list[SeasonBase] | None = Field(default_factory=list)
 
     @field_validator("website", mode="before")
