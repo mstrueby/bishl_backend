@@ -8,6 +8,20 @@ from pydantic_core import core_schema
 from models.matches import MatchMatchday, MatchRound, MatchSeason, MatchTournament
 
 
+class PlayUpOccurrence(BaseModel):
+    matchId: str = Field(..., description="ID of the match where play-up occurred")
+    matchStartDate: datetime = Field(..., description="Start date of the match")
+    counted: bool = Field(default=True, description="Whether this occurrence counts towards play-up limits")
+
+
+class PlayUpTracking(BaseModel):
+    tournamentAlias: str = Field(..., description="Tournament where play-up occurred")
+    seasonAlias: str = Field(..., description="Season where play-up occurred")
+    fromTeamId: str = Field(..., description="ID of the player's regular team")
+    toTeamId: str = Field(..., description="ID of the team player played up to")
+    occurrences: list[PlayUpOccurrence] = Field(default_factory=list, description="List of play-up occurrences")
+
+
 class PyObjectId(ObjectId):
 
     @classmethod
@@ -125,6 +139,7 @@ class PlayerBase(MongoBaseModel):
     source: SourceEnum = Field(default=SourceEnum.BISHL)
     sex: SexEnum = Field(default=SexEnum.MALE)
     assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
+    playUpTrackings: list[PlayUpTracking] | None = Field(default_factory=list, description="Track play-up occurrences separately from licenses")
     stats: list[PlayerStats] | None = Field(default_factory=list)
     imageUrl: HttpUrl | None = None
     imageVisible: bool = False
@@ -235,6 +250,7 @@ class PlayerUpdate(MongoBaseModel):
     source: SourceEnum | None = None
     sex: SexEnum | None = None
     assignedTeams: list[AssignedClubs] | None = None
+    playUpTrackings: list[PlayUpTracking] | None = None
     stats: list[PlayerStats] | None = None
     imageUrl: HttpUrl | None = None
     imageVisible: bool | None = None
