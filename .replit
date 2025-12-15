@@ -13,10 +13,6 @@ modules = ["python-3.11", "python-3.12"]
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 8080
-externalPort = 80
-
 # Specifies which nix channel to use when building the environment.
 [nix]
 channel = "stable-22_11"
@@ -112,7 +108,7 @@ run = ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 8080"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "Run"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Server"
@@ -127,21 +123,17 @@ waitForPort = 5000
 outputType = "webview"
 
 [[workflows.workflow]]
-name = "Build & Quality Check"
-author = 19449957
+name = "Server"
+author = "agent"
 mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "ruff check --fix routers/ models/ services/ exceptions/ *.py"
+args = "uvicorn main:app --host 0.0.0.0 --port 5000 --reload"
+waitForPort = 5000
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "black routers/ models/ services/ exceptions/ *.py"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "mypy routers/ models/ services/ exceptions/ *.py"
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [[workflows.workflow]]
 name = "Full Build"
@@ -163,6 +155,15 @@ args = "black ."
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "mypy ."
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Server"
 
 [agent]
 expertMode = true
