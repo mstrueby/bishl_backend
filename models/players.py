@@ -70,6 +70,25 @@ class SexEnum(str, Enum):
     FEMALE = "weiblich"
 
 
+class SuspensionStatusEnum(str, Enum):
+    ELIGIBLE = "ELIGIBLE"
+    SUSPENDED = "SUSPENDED"
+
+
+class Suspension(BaseModel):
+    startDate: datetime = Field(...)
+    endDate: datetime = Field(...)
+    reason: str = Field(...)
+    teamIds: list[str] | None = Field(default_factory=list)
+
+
+class LicenseTypeEnum(str, Enum):
+    PRIMARY = "PRIMARY"      # Stammverein/-team
+    SECONDARY = "SECONDARY"  # A-Pass, Zweitspielrecht im Sinne WKO
+    LOAN = "LOAN"            # Leihgabe
+    DEVELOPMENT = "DEVELOPMENT"  # Förderlizenz etc.
+
+
 class AssignedTeams(BaseModel):
     teamId: str = Field(...)
     teamName: str = Field(...)
@@ -78,6 +97,7 @@ class AssignedTeams(BaseModel):
     teamIshdId: str | None = None
     passNo: str = Field(...)
     source: SourceEnum = Field(default=SourceEnum.BISHL)
+    licenseType: LicenseTypeEnum = Field(default=LicenseTypeEnum.PRIMARY)
     modifyDate: datetime | None = None
     active: bool = False
     jerseyNo: int | None = None
@@ -140,6 +160,7 @@ class PlayerBase(MongoBaseModel):
     sex: SexEnum = Field(default=SexEnum.MALE)
     assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
     playUpTrackings: list[PlayUpTracking] | None = Field(default_factory=list, description="Track play-up occurrences separately from licenses")
+    suspensions: list[Suspension] | None = Field(default_factory=list)
     stats: list[PlayerStats] | None = Field(default_factory=list)
     imageUrl: HttpUrl | None = None
     imageVisible: bool = False
