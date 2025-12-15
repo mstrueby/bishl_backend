@@ -10,6 +10,10 @@ hidden = ["venv", ".config", "**/__pycache__", "**/.mypy_cache", "**/*.pyc"]
 modules = ["python-3.11", "python-3.12"]
 
 [[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
 localPort = 8080
 externalPort = 80
 
@@ -176,14 +180,6 @@ args = "black ."
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "mypy ."
-
-[[ports]]
-localPort = 8080
-externalPort = 80
-
-[[ports]]
-localPort = 5000
-externalPort = 80
 
 [agent]
 expertMode = true

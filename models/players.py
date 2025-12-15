@@ -180,8 +180,6 @@ class PlayerBase(MongoBaseModel):
 class PlayerDB(PlayerBase):
     """Player model for database operations"""
 
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, by_alias=True)
-
     @property
     def ageGroup(self) -> str:
         """Determine age group dynamically based on birth year"""
