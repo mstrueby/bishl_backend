@@ -225,6 +225,16 @@ files = [
 ]
 
 [[package]]
+name = "argon2"
+version = "0.1.10"
+description = "Bindings for the argon2 password hasher"
+optional = false
+python-versions = "*"
+files = [
+    {file = "argon2-0.1.10.tar.gz", hash = "sha256:523a3d3b88f3a46244b4976a6ca81994705848538bbe9e41426ea54ccb75eb90"},
+]
+
+[[package]]
 name = "argon2-cffi"
 version = "25.1.0"
 description = "Argon2 for Python"
@@ -1226,9 +1236,6 @@ files = [
     {file = "html5lib-1.0b8.tar.gz", hash = "sha256:18f4d63fa56836e3d62e96a44d06fcfe01a9be397a222368ee21403b64c176d2"},
 ]
 
-[package.dependencies]
-six = "*"
-
 [[package]]
 name = "html5lib-truncation"
 version = "0.1.0"
@@ -2183,13 +2190,13 @@ typing-extensions = ">=4.14.1"
 
 [[package]]
 name = "pydantic-settings"
-version = "2.11.0"
+version = "2.12.0"
 description = "Settings management using Pydantic"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 files = [
-    {file = "pydantic_settings-2.11.0-py3-none-any.whl", hash = "sha256:fe2cea3413b9530d10f3a5875adffb17ada5c1e1bab0b2885546d7310415207c"},
-    {file = "pydantic_settings-2.11.0.tar.gz", hash = "sha256:d0e87a1c7d33593beb7194adb8470fc426e95ba02af83a0f23474a04c9a08180"},
+    {file = "pydantic_settings-2.12.0-py3-none-any.whl", hash = "sha256:fddb9fd99a5b18da837b29710391e945b1e30c135477f484084ee513adb93809"},
+    {file = "pydantic_settings-2.12.0.tar.gz", hash = "sha256:005538ef951e3c2a68e1c08b292b5f2e71490def8589d4221b95dab00dafcfd0"},
 ]
 
 [package.dependencies]
@@ -3148,4 +3155,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "e817b46548a9e46079b124829474b8b44af18c73f1356c679950851b74dd86f0"
+content-hash = "87c4a9ade446860ba5b3e36a5dd636d70a2b585765d9526779f3b18336d73384"
