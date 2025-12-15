@@ -200,6 +200,11 @@ class Staff(BaseModel):
     role: str | None = None
 
 
+class RosterStatus(BaseModel):
+    key: str = Field(...)
+    value: str = Field(...)
+
+
 class MatchTeam(BaseModel):
     clubId: str | None = None
     clubName: str | None = None
@@ -218,6 +223,9 @@ class MatchTeam(BaseModel):
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = Field(default_factory=MatchStats)
+    rosterStatus: RosterStatus = Field(
+        default_factory=lambda: RosterStatus(key="DRAFT", value="Entwurf")
+    )
 
     @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
@@ -243,6 +251,7 @@ class MatchTeamUpdate(BaseModel):
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = None
+    rosterStatus: RosterStatus | None = None
 
     @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
@@ -350,6 +359,9 @@ class MatchListTeam(BaseModel):
     logo: HttpUrl | None = None
     rosterPublished: bool | None = False
     stats: MatchStats | None = Field(default_factory=MatchStats)
+    rosterStatus: RosterStatus = Field(
+        default_factory=lambda: RosterStatus(key="VALID", value="Gültig")
+    )
 
     @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
