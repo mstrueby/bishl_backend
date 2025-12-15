@@ -252,6 +252,7 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                         "jerseyNo": team_to_assign.jerseyNo,
                         "active": team_to_assign.active,
                         "source": team_to_assign.source,
+                        "licenseType": team_to_assign.licenseType if hasattr(team_to_assign, 'licenseType') else "PRIMARY",
                         "modifyDate": team_to_assign.modifyDate,
                     }
                 )
@@ -1387,6 +1388,8 @@ async def create_player(
     nationality: str = Form(None),
     position: PositionEnum = Form(default=PositionEnum.SKATER),
     assignedTeams: str = Form(None),  # JSON string
+    suspensions: str = Form(None),  # JSON string
+    playUpTrackings: str = Form(None),  # JSON string
     fullFaceReq: bool = Form(False),
     managedByISHD: bool = Form(False),
     source: SourceEnum = Form(default=SourceEnum.BISHL),
@@ -1422,6 +1425,30 @@ async def create_player(
     else:
         assigned_teams_dict = []
 
+    # Parse suspensions if provided
+    suspensions_list = []
+    if suspensions:
+        try:
+            suspensions_list = json.loads(suspensions)
+        except json.JSONDecodeError as e:
+            raise ValidationException(
+                field="suspensions",
+                message="Invalid JSON format for suspensions",
+                details={"error": str(e)},
+            ) from e
+
+    # Parse playUpTrackings if provided
+    play_up_trackings_list = []
+    if playUpTrackings:
+        try:
+            play_up_trackings_list = json.loads(playUpTrackings)
+        except json.JSONDecodeError as e:
+            raise ValidationException(
+                field="playUpTrackings",
+                message="Invalid JSON format for playUpTrackings",
+                details={"error": str(e)},
+            ) from e
+
     # Generate a new ID for the player
     player_id = str(ObjectId())
 
@@ -1434,6 +1461,8 @@ async def create_player(
         nationality=nationality,
         position=position,
         assignedTeams=assigned_teams_dict,
+        suspensions=suspensions_list,
+        playUpTrackings=play_up_trackings_list,
         fullFaceReq=fullFaceReq,
         managedByISHD=managedByISHD,
         source=SourceEnum[source],
@@ -1495,6 +1524,8 @@ async def update_player(
     nationality: str | None = Form(None),
     position: PositionEnum | None = Form(None),
     assignedTeams: str | None = Form(None),
+    suspensions: str | None = Form(None),
+    playUpTrackings: str | None = Form(None),
     stats: str | None = Form(None),
     fullFaceReq: bool | None = Form(None),
     managedByISHD: bool | None = Form(None),
@@ -1553,6 +1584,31 @@ async def update_player(
         assigned_teams_dict = await build_assigned_teams_dict(assignedTeams, source, request)
     else:
         assigned_teams_dict = None
+    
+    # Parse suspensions if provided
+    suspensions_list = None
+    if suspensions:
+        try:
+            suspensions_list = json.loads(suspensions)
+        except json.JSONDecodeError as e:
+            raise ValidationException(
+                field="suspensions",
+                message="Invalid JSON format for suspensions",
+                details={"error": str(e)},
+            ) from e
+
+    # Parse playUpTrackings if provided
+    play_up_trackings_list = None
+    if playUpTrackings:
+        try:
+            play_up_trackings_list = json.loads(playUpTrackings)
+        except json.JSONDecodeError as e:
+            raise ValidationException(
+                field="playUpTrackings",
+                message="Invalid JSON format for playUpTrackings",
+                details={"error": str(e)},
+            ) from e
+
     player_data = PlayerUpdate(
         firstName=firstName,
         lastName=lastName,
@@ -1562,6 +1618,8 @@ async def update_player(
         nationality=nationality,
         position=position,
         assignedTeams=assigned_teams_dict,
+        suspensions=suspensions_list,
+        playUpTrackings=play_up_trackings_list,
         stats=json.loads(stats) if stats else None,
         fullFaceReq=fullFaceReq,
         managedByISHD=managedByISHD,
