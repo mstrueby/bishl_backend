@@ -3,7 +3,7 @@ import json
 import os
 import urllib.parse
 from datetime import datetime
-from typing import Any
+from typing import Any, List
 
 import aiohttp
 import cloudinary
@@ -43,12 +43,24 @@ from models.players import (
 from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.performance_monitor import monitor_query
+from services.stats_service import StatsService
+from services.license_validation_service import LicenseValidationService, LicenseValidationReport
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
 
+# Helper function to get current user with roles, assumes AuthHandler is set up
+async def get_current_user_with_roles(required_roles: List[str]):
+    async def role_checker(token_payload: TokenPayload = Depends(auth.auth_wrapper)):
+        if not any(role in token_payload.roles for role in required_roles):
+            raise AuthorizationException(
+                message=f"Required role(s) not met. Need one of: {', '.join(required_roles)}",
+                details={"user_roles": token_payload.roles},
+            )
+        return token_payload.user_id # Or return the full payload if needed
+    return role_checker
 
 # upload file
 async def handle_image_upload(image: UploadFile, playerId) -> str:
@@ -1178,6 +1190,57 @@ async def verify_ishd_data(
     )
 
 
+# Add POST endpoint for license validation
+@router.post("/{id}/validate-licenses", response_model=LicenseValidationReport)
+async def validate_player_licenses(
+    id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user_with_roles(["ADMIN"]))
+) -> LicenseValidationReport:
+    """
+    Validate all licenses for a player according to WKO/BISHL rules.
+    Only accessible by admins.
+
+    This endpoint:
+    - Checks PRIMARY consistency (only one PRIMARY allowed)
+    - Checks LOAN consistency (max one LOAN)
+    - Validates age group compliance
+    - Validates OVERAGE rules
+    - Validates WKO participation limits
+    - Checks club consistency for SECONDARY/OVERAGE
+    - Handles ISHD vs BISHL import conflicts
+
+    Returns a report with validation results and persists changes.
+    """
+    mongodb = request.app.state.mongodb
+
+    # Get player
+    player_data = await mongodb["players"].find_one({"_id": id})
+    if not player_data:
+        raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+
+    player = PlayerDB(**player_data)
+
+    # Run validation
+    license_service = LicenseValidationService(mongodb)
+    report = await license_service.revalidate_player_licenses(player)
+
+    return report
+
+
+@router.get("/{id}/stats", response_model=List[PlayerStats])
+async def get_player_stats(id: str, request: Request) -> List[PlayerStats]:
+    mongodb = request.app.state.mongodb
+    player = await mongodb["players"].find_one({"_id": id})
+    if not player:
+        raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+
+    player_obj = PlayerDB(**player)
+    stats_service = StatsService(mongodb)
+    player_stats = await stats_service.get_player_stats(player_obj)
+    return player_stats
+
+
 # GET ALL PLAYERS FOR ONE CLUB
 # --------
 @router.get(
@@ -1584,7 +1647,7 @@ async def update_player(
         assigned_teams_dict = await build_assigned_teams_dict(assignedTeams, source, request)
     else:
         assigned_teams_dict = None
-    
+
     # Parse suspensions if provided
     suspensions_list = None
     if suspensions:
