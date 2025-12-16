@@ -35,6 +35,7 @@ from models.players import (
     IshdLogTeam,
     PlayerBase,
     PlayerDB,
+    PlayerStats,
     PlayerUpdate,
     PositionEnum,
     SexEnum,
@@ -52,7 +53,7 @@ auth = AuthHandler()
 configure_cloudinary()
 
 # Helper function to get current user with roles, assumes AuthHandler is set up
-async def get_current_user_with_roles(required_roles: List[str]):
+def get_current_user_with_roles(required_roles: List[str]):
     async def role_checker(token_payload: TokenPayload = Depends(auth.auth_wrapper)):
         if not any(role in token_payload.roles for role in required_roles):
             raise AuthorizationException(
