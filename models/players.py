@@ -8,20 +8,6 @@ from pydantic_core import core_schema
 from models.matches import MatchMatchday, MatchRound, MatchSeason, MatchTournament
 
 
-class PlayUpOccurrence(BaseModel):
-    matchId: str = Field(..., description="ID of the match where play-up occurred")
-    matchStartDate: datetime = Field(..., description="Start date of the match")
-    counted: bool = Field(default=True, description="Whether this occurrence counts towards play-up limits")
-
-
-class PlayUpTracking(BaseModel):
-    tournamentAlias: str = Field(..., description="Tournament where play-up occurred")
-    seasonAlias: str = Field(..., description="Season where play-up occurred")
-    fromTeamId: str = Field(..., description="ID of the player's regular team")
-    toTeamId: str = Field(..., description="ID of the team player played up to")
-    occurrences: list[PlayUpOccurrence] = Field(default_factory=list, description="List of play-up occurrences")
-
-
 class PyObjectId(ObjectId):
 
     @classmethod
@@ -37,8 +23,7 @@ class PyObjectId(ObjectId):
         return core_schema.with_info_plain_validator_function(
             validate_object_id,
             serialization=core_schema.plain_serializer_function_ser_schema(
-                lambda x: str(x), return_schema=core_schema.str_schema()
-            ),
+                lambda x: str(x), return_schema=core_schema.str_schema()),
         )
 
     @classmethod
@@ -47,9 +32,9 @@ class PyObjectId(ObjectId):
 
 
 class MongoBaseModel(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
-    )
+    model_config = ConfigDict(populate_by_name=True,
+                              arbitrary_types_allowed=True,
+                              json_encoders={ObjectId: str})
 
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
@@ -70,11 +55,6 @@ class SexEnum(str, Enum):
     FEMALE = "weiblich"
 
 
-class SuspensionStatusEnum(str, Enum):
-    ELIGIBLE = "ELIGIBLE"
-    SUSPENDED = "SUSPENDED"
-
-
 class Suspension(BaseModel):
     startDate: datetime = Field(...)
     endDate: datetime = Field(...)
@@ -83,10 +63,48 @@ class Suspension(BaseModel):
 
 
 class LicenseTypeEnum(str, Enum):
-    PRIMARY = "PRIMARY"      # Stammverein/-team
+    PRIMARY = "PRIMARY"  # Stammverein/-team
     SECONDARY = "SECONDARY"  # A-Pass, Zweitspielrecht im Sinne WKO
-    LOAN = "LOAN"            # Leihgabe
+    OVERAGE = "OVERAGE"  # Kann noch eine AK tiefer spielen
+    LOAN = "LOAN"  # Leihgabe
     DEVELOPMENT = "DEVELOPMENT"  # Förderlizenz etc.
+    SPECIAL = "SPECIAL"  # Sondergenehmigung etc.
+
+
+class LicenseStatusEnum(str, Enum):
+    VALID = "VALID"
+    INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
+
+
+class LicenseInvalidReasonCode(str, Enum):
+    MULTIPLE_PRIMARY = "MULTIPLE_PRIMARY"
+    TOO_MANY_LOAN = "TOO_MANY_LOAN"
+    AGE_GROUP_VIOLATION = "AGE_GROUP_VIOLATION"
+    OVERAGE_NOT_ALLOWED = "OVERAGE_NOT_ALLOWED"
+    EXCEEDS_WKO_LIMIT = "EXCEEDS_WKO_LIMIT"
+    CONFLICTING_CLUB = "CONFLICTING_CLUB"
+    IMPORT_CONFLICT = "IMPORT_CONFLICT"
+
+
+class PlayUpOccurrence(BaseModel):
+    matchId: str = Field(...,
+                         description="ID of the match where play-up occurred")
+    matchStartDate: datetime = Field(...,
+                                     description="Start date of the match")
+    counted: bool = Field(
+        default=True,
+        description="Whether this occurrence counts towards play-up limits")
+
+
+class PlayUpTracking(BaseModel):
+    tournamentAlias: str = Field(
+        ..., description="Tournament where play-up occurred")
+    seasonAlias: str = Field(..., description="Season where play-up occurred")
+    fromTeamId: str = Field(..., description="ID of the player's regular team")
+    toTeamId: str = Field(...,
+                          description="ID of the team player played up to")
+    occurrences: list[PlayUpOccurrence] = Field(
+        default_factory=list, description="List of play-up occurrences")
 
 
 class AssignedTeams(BaseModel):
@@ -95,9 +113,14 @@ class AssignedTeams(BaseModel):
     teamAlias: str = Field(...)
     teamAgeGroup: str = Field(...)
     teamIshdId: str | None = None
-    passNo: str = Field(...)
-    source: SourceEnum = Field(default=SourceEnum.BISHL)
+    passNo: str | None = Field(default=None)
     licenseType: LicenseTypeEnum = Field(default=LicenseTypeEnum.PRIMARY)
+    validFrom: datetime | None = None
+    validTo: datetime | None = None
+    status: LicenseStatusEnum = Field(default=LicenseStatusEnum.VALID)
+    invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(
+        default_factory=list)
+    source: SourceEnum = Field(default=SourceEnum.BISHL)
     modifyDate: datetime | None = None
     active: bool = False
     jerseyNo: int | None = None
@@ -159,7 +182,9 @@ class PlayerBase(MongoBaseModel):
     source: SourceEnum = Field(default=SourceEnum.BISHL)
     sex: SexEnum = Field(default=SexEnum.MALE)
     assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
-    playUpTrackings: list[PlayUpTracking] | None = Field(default_factory=list, description="Track play-up occurrences separately from licenses")
+    playUpTrackings: list[PlayUpTracking] | None = Field(
+        default_factory=list,
+        description="Track play-up occurrences separately from licenses")
     suspensions: list[Suspension] | None = Field(default_factory=list)
     stats: list[PlayerStats] | None = Field(default_factory=list)
     imageUrl: HttpUrl | None = None
@@ -214,11 +239,9 @@ class PlayerDB(PlayerBase):
         if self.ageGroup == "U13":
             if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 10:
                 return True
-            elif (
-                self.sex == SexEnum.MALE
-                and self.birthdate > datetime(current_year - 10, 8, 31)
-                and self.birthdate < datetime(current_year - 9, 1, 1)
-            ):
+            elif (self.sex == SexEnum.MALE
+                  and self.birthdate > datetime(current_year - 10, 8, 31)
+                  and self.birthdate < datetime(current_year - 9, 1, 1)):
                 return True
             else:
                 return False
@@ -245,7 +268,14 @@ class PlayerDB(PlayerBase):
         arbitrary_types_allowed=True,
         json_encoders={ObjectId: str},
         json_schema_extra={
-            "properties": {"ageGroup": {"type": "string"}, "overAge": {"type": "boolean"}}
+            "properties": {
+                "ageGroup": {
+                    "type": "string"
+                },
+                "overAge": {
+                    "type": "boolean"
+                }
+            }
         },
     )
 
