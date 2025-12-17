@@ -88,6 +88,14 @@ async def delete_from_cloudinary(image_url: str):
             result = cloudinary.uploader.destroy(f"players/{public_id}")
             logger.info(f"Document deleted from Cloudinary: players/{public_id}")
             logger.debug(f"Cloudinary deletion result: {result}")
+            return result
+        except Exception as e:
+            raise ExternalServiceException(
+                service_name="Cloudinary",
+                message="Failed to delete image",
+                details={"public_id": f"players/{public_id}", "error": str(e)},
+            ) from e
+
 
 # RECLASSIFY ALL PLAYER LICENSES (one-time migration)
 # ----------------------
@@ -130,16 +138,6 @@ async def reclassify_all_player_licenses(
             "stats": stats,
         },
     )
-
-
-
-            return result
-        except Exception as e:
-            raise ExternalServiceException(
-                service_name="Cloudinary",
-                message="Failed to delete image",
-                details={"public_id": f"players/{public_id}", "error": str(e)},
-            ) from e
 
 
 # Helper function to search players
