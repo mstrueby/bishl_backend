@@ -97,34 +97,41 @@ async def delete_from_cloudinary(image_url: str):
             ) from e
 
 
-# RECLASSIFY ALL PLAYER LICENSES (one-time migration)
+# BOOTSTRAP PLAYER ASSIGNMENT (heuristic classification)
 # ----------------------
 @router.post(
-    "/reclassify_licenses",
-    response_description="Reclassify all player licenses based on passNo heuristics",
+    "/bootstrap_assignment",
+    response_description="Bootstrap player license assignment based on passNo heuristics",
     include_in_schema=False,
 )
-async def reclassify_all_player_licenses(
+async def bootstrap_assignment(
     request: Request,
+    reset: bool = Query(False, description="Reset licenseType/status before classification"),
     batch_size: int = Query(1000, description="Batch size for processing"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
     """
-    One-time migration endpoint to classify all existing player licenses
-    based on passNo suffix heuristics and PRIMARY detection.
+    Bootstrap license type classification for all players.
     
-    This should be run once after deploying the license classification system.
+    - Classifies licenseType based on passNo suffixes (F=DEVELOPMENT, A=SECONDARY, L=LOAN)
+    - Applies "single license" heuristic for PRIMARY
+    - Sets initial status=VALID for classified licenses
+    
+    Args:
+        reset: If True, reset licenseType/status/invalidReasonCodes before classification
+        batch_size: Number of players to process in each batch
+    
     Only accessible by admins.
     """
     mongodb = request.app.state.mongodb
     if "ADMIN" not in token_payload.roles:
         raise AuthorizationException(
-            message="Admin role required for license reclassification",
+            message="Admin role required for license assignment bootstrap",
             details={"user_roles": token_payload.roles},
         )
     
     assignment_service = PlayerAssignmentService(mongodb)
-    modified_ids = await assignment_service.bootstrap_all_players(batch_size=batch_size)
+    modified_ids = await assignment_service.bootstrap_all_players(reset=reset, batch_size=batch_size)
     
     # Get classification statistics
     stats = await assignment_service.get_classification_stats()
@@ -132,9 +139,131 @@ async def reclassify_all_player_licenses(
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
-            "message": "License reclassification complete",
+            "message": "License assignment bootstrap complete",
+            "reset": reset,
             "modifiedPlayers": len(modified_ids),
             "modifiedPlayerIds": modified_ids[:100],  # Only return first 100 IDs
+            "stats": stats,
+        },
+    )
+
+
+# BOOTSTRAP PLAYER VALIDATION (WKO/BISHL rules)
+# ----------------------
+@router.post(
+    "/bootstrap_validation",
+    response_description="Bootstrap player license validation based on WKO/BISHL rules",
+    include_in_schema=False,
+)
+async def bootstrap_validation(
+    request: Request,
+    reset: bool = Query(False, description="Reset status/invalidReasonCodes before validation"),
+    batch_size: int = Query(1000, description="Batch size for processing"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+):
+    """
+    Bootstrap license validation for all players according to WKO/BISHL rules.
+    
+    - Validates PRIMARY consistency
+    - Validates LOAN consistency
+    - Validates age group compliance
+    - Validates OVERAGE rules
+    - Validates WKO participation limits
+    - Ensures no license has status=UNKNOWN after validation
+    
+    Args:
+        reset: If True, reset status/invalidReasonCodes before validation
+        batch_size: Number of players to process in each batch
+    
+    Only accessible by admins.
+    """
+    mongodb = request.app.state.mongodb
+    if "ADMIN" not in token_payload.roles:
+        raise AuthorizationException(
+            message="Admin role required for license validation bootstrap",
+            details={"user_roles": token_payload.roles},
+        )
+    
+    validation_service = LicenseValidationService(mongodb)
+    modified_ids = await validation_service.bootstrap_all_players(reset=reset, batch_size=batch_size)
+    
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": "License validation bootstrap complete",
+            "reset": reset,
+            "modifiedPlayers": len(modified_ids),
+            "modifiedPlayerIds": modified_ids[:100],  # Only return first 100 IDs
+        },
+    )
+
+
+# BOOTSTRAP ALL (orchestrator for both services)
+# ----------------------
+@router.post(
+    "/bootstrap_all",
+    response_description="Bootstrap both assignment and validation for all players",
+    include_in_schema=False,
+)
+async def bootstrap_all(
+    request: Request,
+    reset_assignment: bool = Query(False, description="Reset licenseType/status before assignment"),
+    reset_validation: bool = Query(False, description="Reset status/invalidReasonCodes before validation"),
+    batch_size: int = Query(1000, description="Batch size for processing"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+):
+    """
+    Orchestrator endpoint to run both assignment and validation bootstrap in sequence.
+    
+    First runs PlayerAssignmentService.bootstrap_all_players,
+    then runs LicenseValidationService.bootstrap_all_players.
+    
+    After completion, guarantees:
+    - Every license has status=VALID or INVALID (never UNKNOWN)
+    - Invalid licenses have at least one invalidReasonCode
+    
+    Args:
+        reset_assignment: Reset licenseType/status before assignment classification
+        reset_validation: Reset status/invalidReasonCodes before validation
+        batch_size: Number of players to process in each batch
+    
+    Only accessible by admins.
+    """
+    mongodb = request.app.state.mongodb
+    if "ADMIN" not in token_payload.roles:
+        raise AuthorizationException(
+            message="Admin role required for full license bootstrap",
+            details={"user_roles": token_payload.roles},
+        )
+    
+    assignment_service = PlayerAssignmentService(mongodb)
+    validation_service = LicenseValidationService(mongodb)
+    
+    # Step 1: Assignment (heuristic classification)
+    assignment_modified = await assignment_service.bootstrap_all_players(
+        reset=reset_assignment, 
+        batch_size=batch_size
+    )
+    
+    # Step 2: Validation (WKO/BISHL rules)
+    validation_modified = await validation_service.bootstrap_all_players(
+        reset=reset_validation, 
+        batch_size=batch_size
+    )
+    
+    # Get final statistics
+    stats = await assignment_service.get_classification_stats()
+    
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": "Full license bootstrap complete",
+            "assignmentModifiedPlayers": len(assignment_modified),
+            "validationModifiedPlayers": len(validation_modified),
+            "resetFlags": {
+                "assignment": reset_assignment,
+                "validation": reset_validation,
+            },
             "stats": stats,
         },
     )
@@ -1280,9 +1409,9 @@ async def validate_player_licenses(
 
     player = PlayerDB(**player_data)
 
-    # Run validation
+    # Run validation (enforce_no_unknown=False for single player validation to preserve existing behavior)
     license_service = LicenseValidationService(mongodb)
-    report = await license_service.revalidate_player_licenses(player)
+    report = await license_service.revalidate_player_licenses(player, enforce_no_unknown=False)
 
     return report
 

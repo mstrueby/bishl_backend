@@ -117,8 +117,105 @@ class LicenseValidationService:
         self.db = db
         self._age_group_map = {rule.key: rule for rule in self.AGE_GROUP_CONFIG}
 
+    async def bootstrap_all_players(self, reset: bool = False, batch_size: int = 1000) -> list[str]:
+        """
+        WKO-based validation bootstrap for ALL players.
+
+        Behavior:
+        - If reset=True: reset status and invalidReasonCodes to UNKNOWN/[] before validation
+        - For each player, call revalidate_player_licenses(player)
+        - Ensure at the end that every license has status=VALID or INVALID, not UNKNOWN
+        - INVALID licenses must have at least one invalidReasonCode
+
+        Args:
+            reset: If True, reset status and invalidReasonCodes before validation
+            batch_size: Number of players to process in each batch
+
+        Returns:
+            List of player IDs that were modified
+        """
+        modified_ids = []
+        total_processed = 0
+        total_modified = 0
+
+        logger.info(
+            f"Starting bootstrap validation of all player licenses (reset={reset})..."
+        )
+
+        # Process in batches to avoid memory issues
+        cursor = self.db["players"].find({})
+        batch = []
+
+        async for player_data in cursor:
+            batch.append(player_data)
+
+            if len(batch) >= batch_size:
+                # Process batch
+                for p_data in batch:
+                    total_processed += 1
+                    
+                    # Optionally reset status/invalidReasonCodes
+                    if reset:
+                        await self._reset_validation_fields(p_data["_id"])
+                        # Reload player after reset
+                        p_data = await self.db["players"].find_one({"_id": p_data["_id"]})
+                    
+                    # Run validation
+                    player = PlayerDB(**p_data)
+                    report = await self.revalidate_player_licenses(player, enforce_no_unknown=True)
+                    
+                    if report.changedLicenses > 0:
+                        modified_ids.append(str(player.id))
+                        total_modified += 1
+
+                logger.info(
+                    f"Processed {total_processed} players, modified {total_modified} so far..."
+                )
+                batch = []
+
+        # Process remaining players in final batch
+        for p_data in batch:
+            total_processed += 1
+            
+            if reset:
+                await self._reset_validation_fields(p_data["_id"])
+                p_data = await self.db["players"].find_one({"_id": p_data["_id"]})
+            
+            player = PlayerDB(**p_data)
+            report = await self.revalidate_player_licenses(player, enforce_no_unknown=True)
+            
+            if report.changedLicenses > 0:
+                modified_ids.append(str(player.id))
+                total_modified += 1
+
+        logger.info(
+            f"Bootstrap validation complete: processed {total_processed} players, "
+            f"modified {total_modified} players"
+        )
+
+        return modified_ids
+
+    async def _reset_validation_fields(self, player_id: str) -> None:
+        """
+        Reset status and invalidReasonCodes for all licenses of a player.
+        Does NOT reset licenseType (that's PlayerAssignmentService's domain).
+        """
+        player = await self.db["players"].find_one({"_id": player_id})
+        if not player or not player.get("assignedTeams"):
+            return
+
+        for club in player["assignedTeams"]:
+            for team in club.get("teams", []):
+                team["status"] = LicenseStatusEnum.UNKNOWN
+                team["invalidReasonCodes"] = []
+
+        await self.db["players"].update_one(
+            {"_id": player_id},
+            {"$set": {"assignedTeams": player["assignedTeams"]}}
+        )
+
     async def revalidate_player_licenses(
-        self, player: PlayerDB
+        self, player: PlayerDB, enforce_no_unknown: bool = False
     ) -> LicenseValidationReport:
         """
         Recomputes status and invalidReasonCodes for all AssignedTeams of the player
@@ -164,6 +261,10 @@ class LicenseValidationService:
 
         # Step 9: Validate date sanity
         self._validate_date_sanity(player)
+
+        # Step 10: Enforce no UNKNOWN status if requested (for bootstrap)
+        if enforce_no_unknown:
+            self._enforce_no_unknown_status(player)
 
         # Count changes and persist
         changed_count = self._count_changes(original_state, player)
@@ -406,6 +507,31 @@ class LicenseValidationService:
                         team.status = LicenseStatusEnum.INVALID
                         if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
+
+    def _enforce_no_unknown_status(self, player: PlayerDB) -> None:
+        """
+        Ensure no license has status=UNKNOWN after validation.
+        
+        For any license still UNKNOWN:
+        - If licenseType is UNKNOWN: mark as INVALID with IMPORT_CONFLICT
+        - Otherwise: mark as VALID (nothing spoke against it structurally)
+        
+        This guarantees: status is always VALID or INVALID, never UNKNOWN.
+        """
+        if not player.assignedTeams:
+            return
+
+        for club in player.assignedTeams:
+            for team in club.teams:
+                if team.status == LicenseStatusEnum.UNKNOWN:
+                    if team.licenseType == LicenseTypeEnum.UNKNOWN:
+                        # Cannot classify license type, mark as invalid
+                        team.status = LicenseStatusEnum.INVALID
+                        if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.invalidReasonCodes:
+                            team.invalidReasonCodes.append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
+                    else:
+                        # License type is known and no structural issues found
+                        team.status = LicenseStatusEnum.VALID
 
     def _capture_license_state(self, player: PlayerDB) -> dict:
         """Capture current state of all licenses for comparison"""

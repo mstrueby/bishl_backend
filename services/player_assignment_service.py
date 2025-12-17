@@ -2,8 +2,13 @@
 """
 Player Assignment Service - Initial license type classification
 
-Classifies player licenses based on passNo suffixes and simple heuristics.
-This runs BEFORE LicenseValidationService and sets initial licenseType and status.
+Responsibilities:
+- Classify licenseType based on passNo suffixes (F=DEVELOPMENT, A=SECONDARY, L=LOAN)
+- Apply "single license" heuristic: if exactly one license and UNKNOWN -> PRIMARY
+- Set initial status=VALID for classified licenses (licenseType != UNKNOWN)
+- Does NOT apply WKO/BISHL structural rules (that's LicenseValidationService)
+
+This runs BEFORE LicenseValidationService.
 """
 
 from datetime import datetime
@@ -20,18 +25,19 @@ from models.players import (
 
 
 class PlayerAssignmentService:
-    """Service for initial classification of player license types"""
+    """Service for initial classification of player license types based on heuristics"""
 
     def __init__(self, db):
         self.db = db
 
-    async def classify_player_licenses(self, player: dict) -> dict:
+    async def classify_player_licenses(self, player: dict, reset: bool = False) -> dict:
         """
         Apply passNo suffix heuristics and PRIMARY heuristic to set licenseType
         and initial status on all AssignedTeams.
 
         Args:
             player: Raw player dict from MongoDB (including assignedTeams)
+            reset: If True, reset licenseType/status/invalidReasonCodes before classification
 
         Returns:
             Modified player dict (does NOT persist to database)
@@ -44,6 +50,13 @@ class PlayerAssignmentService:
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
                 all_licenses.append((club, team))
+
+        # Step 0: Reset if requested
+        if reset:
+            for club, team in all_licenses:
+                team["licenseType"] = LicenseTypeEnum.UNKNOWN
+                team["status"] = LicenseStatusEnum.UNKNOWN
+                team["invalidReasonCodes"] = []
 
         # Step 1: Apply suffix-based classification
         for club, team in all_licenses:
@@ -111,12 +124,13 @@ class PlayerAssignmentService:
             # PRIMARY heuristic will handle single-license case
             return LicenseTypeEnum.UNKNOWN
 
-    async def update_player_licenses_in_db(self, player_id: str) -> bool:
+    async def _update_player_licenses_in_db(self, player_id: str, reset: bool = False) -> bool:
         """
         Load a player by _id, run classification, and update in MongoDB.
 
         Args:
             player_id: The player's _id
+            reset: If True, reset license fields before classification
 
         Returns:
             True if player was modified, False otherwise
@@ -130,7 +144,7 @@ class PlayerAssignmentService:
         original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
 
         # Apply classification
-        player = await self.classify_player_licenses(player)
+        player = await self.classify_player_licenses(player, reset=reset)
 
         # Check if anything changed
         new_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
@@ -149,11 +163,18 @@ class PlayerAssignmentService:
         )
         return True
 
-    async def bootstrap_all_players(self, batch_size: int = 1000) -> list[str]:
+    async def bootstrap_all_players(self, reset: bool = False, batch_size: int = 1000) -> list[str]:
         """
-        One-time migration: iterate over all players and apply classification.
+        Heuristic bootstrap for ALL players.
+
+        Behavior:
+        - If reset=True: reset licenseType/status/invalidReasonCodes to UNKNOWN for all licenses
+        - Then run passNo-based heuristics and PRIMARY-heuristic
+        - Set initial status=VALID for licenses with known licenseType, UNKNOWN for UNKNOWN types
+        - Persist changes per player
 
         Args:
+            reset: If True, reset all license fields before classification
             batch_size: Number of players to process in each batch
 
         Returns:
@@ -163,7 +184,9 @@ class PlayerAssignmentService:
         total_processed = 0
         total_modified = 0
 
-        logger.info("Starting bootstrap classification of all player licenses...")
+        logger.info(
+            f"Starting bootstrap classification of all player licenses (reset={reset})..."
+        )
 
         # Process in batches to avoid memory issues
         cursor = self.db["players"].find({})
@@ -176,9 +199,9 @@ class PlayerAssignmentService:
                 # Process batch
                 for p in batch:
                     total_processed += 1
-                    was_modified = await self.update_player_licenses_in_db(p["_id"])
+                    was_modified = await self._update_player_licenses_in_db(p["_id"], reset=reset)
                     if was_modified:
-                        modified_ids.append(p["_id"])
+                        modified_ids.append(str(p["_id"]))
                         total_modified += 1
 
                 logger.info(
@@ -189,9 +212,9 @@ class PlayerAssignmentService:
         # Process remaining players in final batch
         for p in batch:
             total_processed += 1
-            was_modified = await self.update_player_licenses_in_db(p["_id"])
+            was_modified = await self._update_player_licenses_in_db(p["_id"], reset=reset)
             if was_modified:
-                modified_ids.append(p["_id"])
+                modified_ids.append(str(p["_id"]))
                 total_modified += 1
 
         logger.info(
