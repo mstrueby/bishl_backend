@@ -61,7 +61,7 @@ def get_current_user_with_roles(required_roles: List[str]):
                 message=f"Required role(s) not met. Need one of: {', '.join(required_roles)}",
                 details={"user_roles": token_payload.roles},
             )
-        return token_payload.user_id # Or return the full payload if needed
+        return token_payload.sub  # Return the user subject/id
     return role_checker
 
 # upload file
