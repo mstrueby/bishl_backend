@@ -63,6 +63,7 @@ class Suspension(BaseModel):
 
 
 class LicenseTypeEnum(str, Enum):
+    UNKNOWN = "UNKNOWN"
     PRIMARY = "PRIMARY"  # Stammverein/-team
     SECONDARY = "SECONDARY"  # A-Pass, Zweitspielrecht im Sinne WKO
     OVERAGE = "OVERAGE"  # Kann noch eine AK tiefer spielen
@@ -72,6 +73,7 @@ class LicenseTypeEnum(str, Enum):
 
 
 class LicenseStatusEnum(str, Enum):
+    UNKNOWN = "UNKNOWN"
     VALID = "VALID"
     INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
 
@@ -114,12 +116,12 @@ class AssignedTeams(BaseModel):
     teamAgeGroup: str = Field(...)
     teamIshdId: str | None = None
     passNo: str | None = Field(default=None)
-    licenseType: LicenseTypeEnum = Field(default=LicenseTypeEnum.PRIMARY)
-    validFrom: datetime | None = None
-    validTo: datetime | None = None
-    status: LicenseStatusEnum = Field(default=LicenseStatusEnum.VALID)
+    licenseType: LicenseTypeEnum = Field(default=LicenseTypeEnum.UNKNOWN)
+    status: LicenseStatusEnum = Field(default=LicenseStatusEnum.UNKNOWN)
     invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(
         default_factory=list)
+    validFrom: datetime | None = None
+    validTo: datetime | None = None
     source: SourceEnum = Field(default=SourceEnum.BISHL)
     modifyDate: datetime | None = None
     active: bool = False

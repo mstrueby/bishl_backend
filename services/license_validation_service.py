@@ -6,7 +6,6 @@ Validates player licenses according to WKO/BISHL rules and updates status and in
 """
 
 from datetime import datetime
-from typing import Dict, List, Set
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -30,8 +29,8 @@ class AgeGroupRule(BaseModel):
     value: str
     sortOrder: int
     altKey: str
-    canAlsoPlayIn: List[str] = Field(default_factory=list)
-    canPlayOverAgeIn: List[str] = Field(default_factory=list)
+    canAlsoPlayIn: list[str] = Field(default_factory=list)
+    canPlayOverAgeIn: list[str] = Field(default_factory=list)
     maxOverAgePlayers: int | None = None
     requiresOverAge: bool = False
 
@@ -40,7 +39,7 @@ class LicenseValidationReport(BaseModel):
     """Report of license validation results"""
     playerId: str
     changedLicenses: int
-    errors: List[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
     validLicenses: int = 0
     invalidLicenses: int = 0
 
@@ -49,7 +48,7 @@ class LicenseValidationService:
     """Service for validating player licenses according to WKO/BISHL rules"""
 
     # WKO Age Group Configuration
-    AGE_GROUP_CONFIG: List[AgeGroupRule] = [
+    AGE_GROUP_CONFIG: list[AgeGroupRule] = [
         AgeGroupRule(
             key="HERREN",
             value="Herren",
@@ -137,7 +136,7 @@ class LicenseValidationService:
             )
 
         original_state = self._capture_license_state(player)
-        
+
         # Step 1: Reset all license states
         self._reset_license_states(player)
 
@@ -168,7 +167,7 @@ class LicenseValidationService:
 
         # Count changes and persist
         changed_count = self._count_changes(original_state, player)
-        
+
         if changed_count > 0:
             await self._persist_changes(player)
 
@@ -236,8 +235,8 @@ class LicenseValidationService:
             return
 
         # Collect BISHL licenses by type
-        bishl_licenses: Dict[LicenseTypeEnum, Set[str]] = {}
-        
+        bishl_licenses: dict[LicenseTypeEnum, set[str]] = {}
+
         for club in player.assignedTeams:
             for team in club.teams:
                 if team.source == SourceEnum.BISHL and team.status == LicenseStatusEnum.VALID:
@@ -304,7 +303,7 @@ class LicenseValidationService:
                         team.status = LicenseStatusEnum.INVALID
                         if LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED)
-                
+
                 # Handle SECONDARY licenses - check if allowed to play in this age group
                 elif team.licenseType == LicenseTypeEnum.SECONDARY:
                     if not self._is_secondary_allowed(player_age_group, team_age_group):
@@ -328,7 +327,7 @@ class LicenseValidationService:
             return False
 
         player_rule = self._age_group_map[player_age_group]
-        
+
         # Check if the team age group is in the allowed overage list
         return team_age_group in player_rule.canPlayOverAgeIn
 
@@ -338,11 +337,11 @@ class LicenseValidationService:
             return False
 
         player_rule = self._age_group_map[player_age_group]
-        
+
         # SECONDARY can be in same age group or allowed play-up groups
         if team_age_group == player_age_group:
             return True
-        
+
         return team_age_group in player_rule.canAlsoPlayIn
 
     def _is_age_group_compatible(self, player_age_group: str, team_age_group: str) -> bool:
@@ -370,8 +369,8 @@ class LicenseValidationService:
             return
 
         # Count valid participations by age group (PRIMARY, SECONDARY, OVERAGE)
-        participations: List[tuple] = []
-        
+        participations: list[tuple] = []
+
         for club in player.assignedTeams:
             for team in club.teams:
                 if (team.status == LicenseStatusEnum.VALID 
@@ -408,7 +407,7 @@ class LicenseValidationService:
                         if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
-    def _capture_license_state(self, player: PlayerDB) -> Dict:
+    def _capture_license_state(self, player: PlayerDB) -> dict:
         """Capture current state of all licenses for comparison"""
         state = {}
         if not player.assignedTeams:
@@ -421,10 +420,10 @@ class LicenseValidationService:
                     "status": team.status,
                     "invalidReasonCodes": team.invalidReasonCodes.copy() if team.invalidReasonCodes else []
                 }
-        
+
         return state
 
-    def _count_changes(self, original_state: Dict, player: PlayerDB) -> int:
+    def _count_changes(self, original_state: dict, player: PlayerDB) -> int:
         """Count how many licenses changed"""
         changed = 0
         if not player.assignedTeams:
