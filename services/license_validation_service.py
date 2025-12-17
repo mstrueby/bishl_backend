@@ -237,32 +237,35 @@ class LicenseValidationService:
         # Step 1: Reset all license states
         self._reset_license_states(player)
 
-        # Step 2: Validate PRIMARY consistency
+        # Step 2: Validate UNKNOWN license types
+        self._validate_unknown_license_types(player)
+
+        # Step 3: Validate PRIMARY consistency
         self._validate_primary_consistency(player)
 
-        # Step 3: Validate LOAN consistency
+        # Step 4: Validate LOAN consistency
         self._validate_loan_consistency(player)
 
-        # Step 4: Validate ISHD vs BISHL conflicts
+        # Step 5: Validate ISHD vs BISHL conflicts
         self._validate_import_conflicts(player)
 
-        # Step 5: Determine primary club
+        # Step 6: Determine primary club
         primary_club_id = self._get_primary_club_id(player)
 
-        # Step 6: Validate club consistency for SECONDARY/OVERAGE
+        # Step 7: Validate club consistency for SECONDARY/OVERAGE
         if primary_club_id:
             self._validate_club_consistency(player, primary_club_id)
 
-        # Step 7: Validate age group violations and OVERAGE rules
+        # Step 8: Validate age group violations and OVERAGE rules
         self._validate_age_group_compliance(player)
 
-        # Step 8: Validate WKO limits (max participations)
+        # Step 9: Validate WKO limits (max participations)
         self._validate_wko_limits(player)
 
-        # Step 9: Validate date sanity
+        # Step 10: Validate date sanity
         self._validate_date_sanity(player)
 
-        # Step 10: Enforce no UNKNOWN status if requested (for bootstrap)
+        # Step 11: Enforce no UNKNOWN status if requested (for bootstrap)
         if enforce_no_unknown:
             self._enforce_no_unknown_status(player)
 
@@ -293,6 +296,18 @@ class LicenseValidationService:
             for team in club.teams:
                 team.status = LicenseStatusEnum.VALID
                 team.invalidReasonCodes = []
+
+    def _validate_unknown_license_types(self, player: PlayerDB) -> None:
+        """Mark licenses with UNKNOWN license type as INVALID"""
+        if not player.assignedTeams:
+            return
+
+        for club in player.assignedTeams:
+            for team in club.teams:
+                if team.licenseType == LicenseTypeEnum.UNKNOWN:
+                    team.status = LicenseStatusEnum.INVALID
+                    if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.invalidReasonCodes:
+                        team.invalidReasonCodes.append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
     def _validate_primary_consistency(self, player: PlayerDB) -> None:
         """Validate that player has at most one PRIMARY license"""
