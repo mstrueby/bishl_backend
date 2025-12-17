@@ -1378,6 +1378,65 @@ async def verify_ishd_data(
     )
 
 
+# Add POST endpoint for license assignment classification
+@router.post("/{id}/classify-licenses", response_model=StandardResponse[PlayerDB])
+async def classify_player_licenses(
+    id: str,
+    request: Request,
+    reset: bool = Query(False, description="Reset licenseType/status before classification"),
+    current_user: dict = Depends(get_current_user_with_roles(["ADMIN"]))
+) -> JSONResponse:
+    """
+    Classify license types for a single player based on passNo heuristics.
+    Only accessible by admins.
+
+    This endpoint:
+    - Classifies licenseType based on passNo suffixes (F=DEVELOPMENT, A=SECONDARY, L=LOAN)
+    - Applies "single license" heuristic for PRIMARY
+    - Sets initial status=VALID for classified licenses
+    
+    Args:
+        reset: If True, reset licenseType/status/invalidReasonCodes before classification
+    
+    Returns the updated player with classification applied.
+    """
+    mongodb = request.app.state.mongodb
+
+    # Get player
+    player_data = await mongodb["players"].find_one({"_id": id})
+    if not player_data:
+        raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+
+    # Run classification
+    assignment_service = PlayerAssignmentService(mongodb)
+    was_modified = await assignment_service._update_player_licenses_in_db(id, reset=reset)
+
+    # Get updated player
+    updated_player_data = await mongodb["players"].find_one({"_id": id})
+    updated_player = PlayerDB(**updated_player_data)
+
+    message = "Player license classification complete"
+    if was_modified:
+        message += " (changes applied)"
+    else:
+        message += " (no changes needed)"
+
+    logger.info(
+        f"License classification for player {id}: {updated_player.firstName} {updated_player.lastName} - modified: {was_modified}"
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(
+            StandardResponse(
+                success=True,
+                data=updated_player.model_dump(by_alias=True),
+                message=message,
+            )
+        ),
+    )
+
+
 # Add POST endpoint for license validation
 @router.post("/{id}/validate-licenses", response_model=LicenseValidationReport)
 async def validate_player_licenses(
