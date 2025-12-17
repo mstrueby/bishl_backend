@@ -46,6 +46,7 @@ from services.pagination import PaginationHelper
 from services.performance_monitor import monitor_query
 from services.stats_service import StatsService
 from services.license_validation_service import LicenseValidationService, LicenseValidationReport
+from services.player_assignment_service import PlayerAssignmentService
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 
 router = APIRouter()
@@ -87,6 +88,51 @@ async def delete_from_cloudinary(image_url: str):
             result = cloudinary.uploader.destroy(f"players/{public_id}")
             logger.info(f"Document deleted from Cloudinary: players/{public_id}")
             logger.debug(f"Cloudinary deletion result: {result}")
+
+# RECLASSIFY ALL PLAYER LICENSES (one-time migration)
+# ----------------------
+@router.post(
+    "/reclassify_licenses",
+    response_description="Reclassify all player licenses based on passNo heuristics",
+    include_in_schema=False,
+)
+async def reclassify_all_player_licenses(
+    request: Request,
+    batch_size: int = Query(1000, description="Batch size for processing"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+):
+    """
+    One-time migration endpoint to classify all existing player licenses
+    based on passNo suffix heuristics and PRIMARY detection.
+    
+    This should be run once after deploying the license classification system.
+    Only accessible by admins.
+    """
+    mongodb = request.app.state.mongodb
+    if "ADMIN" not in token_payload.roles:
+        raise AuthorizationException(
+            message="Admin role required for license reclassification",
+            details={"user_roles": token_payload.roles},
+        )
+    
+    assignment_service = PlayerAssignmentService(mongodb)
+    modified_ids = await assignment_service.bootstrap_all_players(batch_size=batch_size)
+    
+    # Get classification statistics
+    stats = await assignment_service.get_classification_stats()
+    
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": "License reclassification complete",
+            "modifiedPlayers": len(modified_ids),
+            "modifiedPlayerIds": modified_ids[:100],  # Only return first 100 IDs
+            "stats": stats,
+        },
+    )
+
+
+
             return result
         except Exception as e:
             raise ExternalServiceException(
@@ -629,6 +675,11 @@ async def process_ishd_data(
                                         ]
                                         if mode == "test":
                                             print("add team / existing_player", existing_player)
+                                        
+                                        # Apply license classification heuristics
+                                        assignment_service = PlayerAssignmentService(mongodb)
+                                        existing_player = await assignment_service.apply_heuristics_for_imported_player(existing_player)
+                                        
                                         # update player in database
                                         result = await mongodb["players"].update_one(
                                             {"_id": existing_player["_id"]},
@@ -665,6 +716,11 @@ async def process_ishd_data(
                                 )
                                 if mode == "test":
                                     print("add club / existing_player: ", existing_player)
+                                
+                                # Apply license classification heuristics
+                                assignment_service = PlayerAssignmentService(mongodb)
+                                existing_player = await assignment_service.apply_heuristics_for_imported_player(existing_player)
+                                
                                 # update player with new club assignment
                                 result = await mongodb["players"].update_one(
                                     {"_id": existing_player["_id"]},
@@ -716,6 +772,10 @@ async def process_ishd_data(
                                 player["date_of_birth"], "%Y-%m-%d"
                             )
                             new_player_dict["createDate"] = create_date
+
+                            # Apply license classification heuristics
+                            assignment_service = PlayerAssignmentService(mongodb)
+                            new_player_dict = await assignment_service.apply_heuristics_for_imported_player(new_player_dict)
 
                             # add player to exisiting players array
                             existing_players.append(new_player_dict)
