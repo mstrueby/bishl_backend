@@ -164,7 +164,7 @@ class PlayerAssignmentService:
                             f"for player {player.get('firstName')} {player.get('lastName')}"
                         )
 
-        # Step 4: Convert UNKNOWN to SECONDARY in clubs with PRIMARY license
+        # Step 4: Set ISHD UNKNOWN licenses to PRIMARY in clubs without PRIMARY
         # First, identify clubs with PRIMARY licenses
         clubs_with_primary = set()
         for club in player.get("assignedTeams", []):
@@ -173,6 +173,28 @@ class PlayerAssignmentService:
                     clubs_with_primary.add(club.get("clubId"))
                     break
 
+        # For each club without PRIMARY, set first ISHD UNKNOWN license to PRIMARY
+        for club in player.get("assignedTeams", []):
+            club_id = club.get("clubId")
+            if club_id not in clubs_with_primary:
+                # Find ISHD UNKNOWN licenses in this club
+                ishd_unknown_licenses = [
+                    team for team in club.get("teams", [])
+                    if team.get("licenseType") == LicenseTypeEnum.UNKNOWN
+                    and team.get("source") == SourceEnum.ISHD
+                ]
+                
+                # Set first ISHD UNKNOWN to PRIMARY
+                if ishd_unknown_licenses:
+                    ishd_unknown_licenses[0]["licenseType"] = LicenseTypeEnum.PRIMARY
+                    clubs_with_primary.add(club_id)
+                    if settings.DEBUG_LEVEL > 0:
+                        logger.debug(
+                            f"Set ISHD UNKNOWN license to PRIMARY in club without PRIMARY for player "
+                            f"{player.get('firstName')} {player.get('lastName')}"
+                        )
+
+        # Step 5: Convert UNKNOWN to SECONDARY in clubs with PRIMARY license
         # Then, convert UNKNOWN licenses in those clubs to SECONDARY
         for club in player.get("assignedTeams", []):
             if club.get("clubId") in clubs_with_primary:
@@ -185,7 +207,7 @@ class PlayerAssignmentService:
                                 f"{player.get('firstName')} {player.get('lastName')}"
                             )
 
-        # Step 5: Apply PRIMARY heuristic for remaining UNKNOWN licenses
+        # Step 6: Apply PRIMARY heuristic for remaining UNKNOWN licenses
         unknown_licenses = [
             (club, team) for club, team in all_licenses
             if team.get("licenseType") == LicenseTypeEnum.UNKNOWN
