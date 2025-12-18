@@ -45,7 +45,6 @@ from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.performance_monitor import monitor_query
 from services.stats_service import StatsService
-from services.license_validation_service import LicenseValidationService, LicenseValidationReport
 from services.player_assignment_service import PlayerAssignmentService
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 
@@ -97,14 +96,14 @@ async def delete_from_cloudinary(image_url: str):
             ) from e
 
 
-# BOOTSTRAP PLAYER ASSIGNMENT (heuristic classification)
+# BOOTSTRAP PLAYER LICENCE CLASSIFICATION (heuristic classification)
 # ----------------------
 @router.post(
-    "/bootstrap_assignment",
+    "/bootstrap_classification",
     response_description="Bootstrap player license assignment based on passNo heuristics",
     include_in_schema=False,
 )
-async def bootstrap_assignment(
+async def bootstrap_classification(
     request: Request,
     reset: bool = Query(False, description="Reset licenseType/status before classification"),
     batch_size: int = Query(1000, description="Batch size for processing"),
@@ -131,7 +130,9 @@ async def bootstrap_assignment(
         )
     
     assignment_service = PlayerAssignmentService(mongodb)
-    modified_ids = await assignment_service.bootstrap_all_players(reset=reset, batch_size=batch_size)
+    modified_ids = await assignment_service.bootstrap_classification_for_all_players(
+        reset=reset, batch_size=batch_size
+    )
     
     # Get classification statistics
     stats = await assignment_service.get_classification_stats()
@@ -139,7 +140,7 @@ async def bootstrap_assignment(
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
-            "message": "License assignment bootstrap complete",
+            "message": "License classification bootstrap complete",
             "reset": reset,
             "modifiedPlayers": len(modified_ids),
             "modifiedPlayerIds": modified_ids[:100],  # Only return first 100 IDs
@@ -184,8 +185,10 @@ async def bootstrap_validation(
             details={"user_roles": token_payload.roles},
         )
     
-    validation_service = LicenseValidationService(mongodb)
-    modified_ids = await validation_service.bootstrap_all_players(reset=reset, batch_size=batch_size)
+    assignment_service = PlayerAssignmentService(mongodb)
+    modified_ids = await assignment_service.bootstrap_validation_for_all_players(
+        reset=reset, batch_size=batch_size
+    )
     
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -237,34 +240,25 @@ async def bootstrap_all(
         )
     
     assignment_service = PlayerAssignmentService(mongodb)
-    validation_service = LicenseValidationService(mongodb)
     
-    # Step 1: Assignment (heuristic classification)
-    assignment_modified = await assignment_service.bootstrap_all_players(
-        reset=reset_assignment, 
+    # Run full orchestration (classification + validation)
+    result = await assignment_service.bootstrap_all_players(
+        reset_classification=reset_assignment,
+        reset_validation=reset_validation,
         batch_size=batch_size
     )
-    
-    # Step 2: Validation (WKO/BISHL rules)
-    validation_modified = await validation_service.bootstrap_all_players(
-        reset=reset_validation, 
-        batch_size=batch_size
-    )
-    
-    # Get final statistics
-    stats = await assignment_service.get_classification_stats()
     
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
             "message": "Full license bootstrap complete",
-            "assignmentModifiedPlayers": len(assignment_modified),
-            "validationModifiedPlayers": len(validation_modified),
+            "assignmentModifiedPlayers": result["classification_modified_count"],
+            "validationModifiedPlayers": result["validation_modified_count"],
             "resetFlags": {
                 "assignment": reset_assignment,
                 "validation": reset_validation,
             },
-            "stats": stats,
+            "stats": result["stats"],
         },
     )
 
@@ -1409,7 +1403,7 @@ async def classify_player_licenses(
 
     # Run classification
     assignment_service = PlayerAssignmentService(mongodb)
-    was_modified = await assignment_service._update_player_licenses_in_db(id, reset=reset)
+    was_modified = await assignment_service._update_player_classification_in_db(id, reset=reset)
 
     # Get updated player
     updated_player_data = await mongodb["players"].find_one({"_id": id})
@@ -1438,12 +1432,13 @@ async def classify_player_licenses(
 
 
 # Add POST endpoint for license validation
-@router.post("/{id}/validate-licenses", response_model=LicenseValidationReport)
+@router.post("/{id}/validate-licenses", response_model=StandardResponse[PlayerDB])
 async def validate_player_licenses(
     id: str,
     request: Request,
+    reset: bool = Query(False, description="Reset status/invalidReasonCodes before validation"),
     current_user: dict = Depends(get_current_user_with_roles(["ADMIN"]))
-) -> LicenseValidationReport:
+) -> JSONResponse:
     """
     Validate all licenses for a player according to WKO/BISHL rules.
     Only accessible by admins.
@@ -1457,7 +1452,10 @@ async def validate_player_licenses(
     - Checks club consistency for SECONDARY/OVERAGE
     - Handles ISHD vs BISHL import conflicts
 
-    Returns a report with validation results and persists changes.
+    Args:
+        reset: If True, reset status/invalidReasonCodes before validation
+
+    Returns the updated player with validation applied.
     """
     mongodb = request.app.state.mongodb
 
@@ -1466,13 +1464,34 @@ async def validate_player_licenses(
     if not player_data:
         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
 
-    player = PlayerDB(**player_data)
+    # Run validation
+    assignment_service = PlayerAssignmentService(mongodb)
+    was_modified = await assignment_service._update_player_validation_in_db(id, reset=reset)
 
-    # Run validation (enforce_no_unknown=False for single player validation to preserve existing behavior)
-    license_service = LicenseValidationService(mongodb)
-    report = await license_service.revalidate_player_licenses(player, enforce_no_unknown=False)
+    # Get updated player
+    updated_player_data = await mongodb["players"].find_one({"_id": id})
+    updated_player = PlayerDB(**updated_player_data)
 
-    return report
+    message = "Player license validation complete"
+    if was_modified:
+        message += " (changes applied)"
+    else:
+        message += " (no changes needed)"
+
+    logger.info(
+        f"License validation for player {id}: {updated_player.firstName} {updated_player.lastName} - modified: {was_modified}"
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(
+            StandardResponse(
+                success=True,
+                data=updated_player.model_dump(by_alias=True),
+                message=message,
+            )
+        ),
+    )
 
 
 @router.get("/{id}/stats", response_model=List[PlayerStats])

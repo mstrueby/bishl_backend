@@ -86,6 +86,7 @@ class LicenseInvalidReasonCode(str, Enum):
     EXCEEDS_WKO_LIMIT = "EXCEEDS_WKO_LIMIT"
     CONFLICTING_CLUB = "CONFLICTING_CLUB"
     IMPORT_CONFLICT = "IMPORT_CONFLICT"
+    UNKNOWN_LICENCE_TYPE = "UNKNOWN_LICENCE_TYPE"
 
 
 class PlayUpOccurrence(BaseModel):
