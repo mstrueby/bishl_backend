@@ -174,6 +174,28 @@ class PlayerAssignmentService:
                     f"Set single UNKNOWN license to PRIMARY for player {player.get('firstName')} {player.get('lastName')}"
                 )
         """
+
+        # Step 5: Convert UNKNOWN to SECONDARY in clubs with PRIMARY license
+        # First, identify clubs with PRIMARY licenses
+        clubs_with_primary = set()
+        for club in player.get("assignedTeams", []):
+            for team in club.get("teams", []):
+                if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
+                    clubs_with_primary.add(club.get("clubId"))
+                    break
+
+        # Then, convert UNKNOWN licenses in those clubs to SECONDARY
+        for club in player.get("assignedTeams", []):
+            if club.get("clubId") in clubs_with_primary:
+                for team in club.get("teams", []):
+                    if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
+                        team["licenseType"] = LicenseTypeEnum.SECONDARY
+                        if settings.DEBUG_LEVEL > 0:
+                            logger.debug(
+                                f"Set UNKNOWN license to SECONDARY in club with PRIMARY for player "
+                                f"{player.get('firstName')} {player.get('lastName')}"
+                            )
+
         return player
 
     def _classify_by_pass_suffix(self, pass_no: str) -> str:
