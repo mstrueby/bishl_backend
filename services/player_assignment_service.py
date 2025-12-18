@@ -565,12 +565,8 @@ class PlayerAssignmentService:
 
         player_age_group = player_obj.ageGroup
         player_is_overage = player_obj.overAge
-        
-        # Get primary club ID for SECONDARY validation
-        primary_club_id = self._get_primary_club_id(player)
 
         for club in player["assignedTeams"]:
-            club_id = club.get("clubId")
             for team in club.get("teams", []):
                 if team.get("status") != LicenseStatusEnum.VALID:
                     continue
@@ -592,7 +588,7 @@ class PlayerAssignmentService:
                 # Handle SECONDARY licenses
                 elif license_type == LicenseTypeEnum.SECONDARY:
                     if not self._is_secondary_allowed(player_age_group,
-                                                      team_age_group, club_id, primary_club_id):
+                                                      team_age_group):
                         team["status"] = LicenseStatusEnum.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
                                 "invalidReasonCodes", []):
@@ -622,12 +618,8 @@ class PlayerAssignmentService:
         return team_age_group in player_rule.get("canPlayOverAgeIn", [])
 
     def _is_secondary_allowed(self, player_age_group: str,
-                              team_age_group: str, club_id: str, primary_club_id: str | None) -> bool:
+                              team_age_group: str) -> bool:
         """Check if SECONDARY license in this age group is allowed"""
-        # SECONDARY must be in the same club as PRIMARY
-        if primary_club_id and club_id != primary_club_id:
-            return False
-        
         if player_age_group not in self._age_group_map:
             return False
 
