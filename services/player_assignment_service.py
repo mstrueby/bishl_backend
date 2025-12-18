@@ -1,4 +1,3 @@
-
 """
 Player Assignment Service - Unified license classification and validation
 
@@ -96,7 +95,10 @@ class PlayerAssignmentService:
 
     def __init__(self, db):
         self.db = db
-        self._age_group_map = {rule["key"]: rule for rule in self.AGE_GROUP_CONFIG}
+        self._age_group_map = {
+            rule["key"]: rule
+            for rule in self.AGE_GROUP_CONFIG
+        }
 
     # ========================================================================
     # CLASSIFICATION METHODS (only touch licenseType)
@@ -138,8 +140,11 @@ class PlayerAssignmentService:
         # Step 2: Apply suffix-based classification
         for club, team in all_licenses:
             # Only classify if licenseType is UNKNOWN or not set
-            if team.get("licenseType") == LicenseTypeEnum.UNKNOWN or not team.get("licenseType"):
-                license_type = self._classify_by_pass_suffix(team.get("passNo", ""))
+            if team.get(
+                    "licenseType"
+            ) == LicenseTypeEnum.UNKNOWN or not team.get("licenseType"):
+                license_type = self._classify_by_pass_suffix(
+                    team.get("passNo", ""))
                 team["licenseType"] = license_type
 
         # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
@@ -159,23 +164,7 @@ class PlayerAssignmentService:
                             f"for player {player.get('firstName')} {player.get('lastName')}"
                         )
 
-        # Step 4: Apply PRIMARY heuristic for remaining UNKNOWN licenses
-        unknown_licenses = [
-            (club, team) for club, team in all_licenses
-            if team.get("licenseType") == LicenseTypeEnum.UNKNOWN
-        ]
-        """
-        # If exactly one UNKNOWN license remains, make it PRIMARY
-        if len(unknown_licenses) == 1:
-            club, team = unknown_licenses[0]
-            team["licenseType"] = LicenseTypeEnum.PRIMARY
-            if settings.DEBUG_LEVEL > 0:
-                logger.debug(
-                    f"Set single UNKNOWN license to PRIMARY for player {player.get('firstName')} {player.get('lastName')}"
-                )
-        """
-
-        # Step 5: Convert UNKNOWN to SECONDARY in clubs with PRIMARY license
+        # Step 4: Convert UNKNOWN to SECONDARY in clubs with PRIMARY license
         # First, identify clubs with PRIMARY licenses
         clubs_with_primary = set()
         for club in player.get("assignedTeams", []):
@@ -195,6 +184,22 @@ class PlayerAssignmentService:
                                 f"Set UNKNOWN license to SECONDARY in club with PRIMARY for player "
                                 f"{player.get('firstName')} {player.get('lastName')}"
                             )
+
+        # Step 5: Apply PRIMARY heuristic for remaining UNKNOWN licenses
+        unknown_licenses = [
+            (club, team) for club, team in all_licenses
+            if team.get("licenseType") == LicenseTypeEnum.UNKNOWN
+        ]
+        
+        # If exactly one UNKNOWN license remains, make it PRIMARY
+        if len(unknown_licenses) == 1:
+            club, team = unknown_licenses[0]
+            team["licenseType"] = LicenseTypeEnum.PRIMARY
+            if settings.DEBUG_LEVEL > 0:
+                logger.debug(
+                    f"Set single UNKNOWN license to PRIMARY for player {player.get('firstName')} {player.get('lastName')}"
+                )
+        
 
         return player
 
@@ -232,9 +237,10 @@ class PlayerAssignmentService:
             # PRIMARY heuristic will handle single-license case
             return LicenseTypeEnum.UNKNOWN
 
-    async def bootstrap_classification_for_all_players(
-        self, reset: bool = False, batch_size: int = 1000
-    ) -> list[str]:
+    async def bootstrap_classification_for_all_players(self,
+                                                       reset: bool = False,
+                                                       batch_size: int = 1000
+                                                       ) -> list[str]:
         """
         Runs the classification step for all players.
 
@@ -264,7 +270,8 @@ class PlayerAssignmentService:
                 # Process batch
                 for p in batch:
                     total_processed += 1
-                    was_modified = await self._update_player_classification_in_db(p["_id"], reset=reset)
+                    was_modified = await self._update_player_classification_in_db(
+                        p["_id"], reset=reset)
                     if was_modified:
                         modified_ids.append(str(p["_id"]))
                         total_modified += 1
@@ -277,19 +284,21 @@ class PlayerAssignmentService:
         # Process remaining players in final batch
         for p in batch:
             total_processed += 1
-            was_modified = await self._update_player_classification_in_db(p["_id"], reset=reset)
+            was_modified = await self._update_player_classification_in_db(
+                p["_id"], reset=reset)
             if was_modified:
                 modified_ids.append(str(p["_id"]))
                 total_modified += 1
 
         logger.info(
             f"Classification bootstrap complete: processed {total_processed} players, "
-            f"modified {total_modified} players"
-        )
+            f"modified {total_modified} players")
 
         return modified_ids
 
-    async def _update_player_classification_in_db(self, player_id: str, reset: bool = False) -> bool:
+    async def _update_player_classification_in_db(self,
+                                                  player_id: str,
+                                                  reset: bool = False) -> bool:
         """
         Load a player by _id, run classification, and update in MongoDB.
 
@@ -306,7 +315,8 @@ class PlayerAssignmentService:
             return False
 
         # Capture original state
-        original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
+        original_assigned_teams = jsonable_encoder(
+            player.get("assignedTeams", []))
 
         # Reset if requested
         if reset:
@@ -327,13 +337,12 @@ class PlayerAssignmentService:
         # Persist changes
         await self.db["players"].update_one(
             {"_id": player_id},
-            {"$set": {"assignedTeams": new_assigned_teams}}
-        )
+            {"$set": {
+                "assignedTeams": new_assigned_teams
+            }})
 
-        logger.info(
-            f"Updated license classifications for player {player_id}: "
-            f"{player.get('firstName')} {player.get('lastName')}"
-        )
+        logger.info(f"Updated license classifications for player {player_id}: "
+                    f"{player.get('firstName')} {player.get('lastName')}")
         return True
 
     # ========================================================================
@@ -414,8 +423,10 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
                     team["status"] = LicenseStatusEnum.INVALID
-                    if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get("invalidReasonCodes", []):
-                        team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE)
+                    if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get(
+                            "invalidReasonCodes", []):
+                        team.setdefault("invalidReasonCodes", []).append(
+                            LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE)
 
     def _validate_primary_consistency(self, player: dict) -> None:
         """Validate that player has at most one PRIMARY license"""
@@ -432,8 +443,10 @@ class PlayerAssignmentService:
             # Mark all PRIMARY licenses as invalid
             for club, team in primary_licenses:
                 team["status"] = LicenseStatusEnum.INVALID
-                if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.get("invalidReasonCodes", []):
-                    team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
+                if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.get(
+                        "invalidReasonCodes", []):
+                    team.setdefault("invalidReasonCodes", []).append(
+                        LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
 
     def _validate_loan_consistency(self, player: dict) -> None:
         """Validate that player has at most one LOAN license"""
@@ -443,16 +456,18 @@ class PlayerAssignmentService:
         loan_licenses = []
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if (team.get("licenseType") == LicenseTypeEnum.LOAN 
-                    and team.get("status") == LicenseStatusEnum.VALID):
+                if (team.get("licenseType") == LicenseTypeEnum.LOAN
+                        and team.get("status") == LicenseStatusEnum.VALID):
                     loan_licenses.append((club, team))
 
         if len(loan_licenses) > 1:
             # Mark all LOAN licenses as invalid
             for club, team in loan_licenses:
                 team["status"] = LicenseStatusEnum.INVALID
-                if LicenseInvalidReasonCode.TOO_MANY_LOAN not in team.get("invalidReasonCodes", []):
-                    team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.TOO_MANY_LOAN)
+                if LicenseInvalidReasonCode.TOO_MANY_LOAN not in team.get(
+                        "invalidReasonCodes", []):
+                    team.setdefault("invalidReasonCodes", []).append(
+                        LicenseInvalidReasonCode.TOO_MANY_LOAN)
 
     def _validate_import_conflicts(self, player: dict) -> None:
         """Validate ISHD vs BISHL conflicts - ISHD never overrides BISHL"""
@@ -464,7 +479,8 @@ class PlayerAssignmentService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if team.get("source") == SourceEnum.BISHL and team.get("status") == LicenseStatusEnum.VALID:
+                if team.get("source") == SourceEnum.BISHL and team.get(
+                        "status") == LicenseStatusEnum.VALID:
                     license_type = team.get("licenseType")
                     if license_type not in bishl_licenses:
                         bishl_licenses[license_type] = set()
@@ -473,15 +489,20 @@ class PlayerAssignmentService:
         # Check ISHD licenses for conflicts
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if team.get("source") == SourceEnum.ISHD and team.get("status") == LicenseStatusEnum.VALID:
+                if team.get("source") == SourceEnum.ISHD and team.get(
+                        "status") == LicenseStatusEnum.VALID:
                     # If there's a BISHL license of the same type, mark ISHD as conflict
                     license_type = team.get("licenseType")
                     if license_type in bishl_licenses:
                         # For PRIMARY, any BISHL PRIMARY conflicts
                         if license_type == LicenseTypeEnum.PRIMARY:
                             team["status"] = LicenseStatusEnum.INVALID
-                            if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get("invalidReasonCodes", []):
-                                team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
+                            if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
+                                    "invalidReasonCodes", []):
+                                team.setdefault("invalidReasonCodes",
+                                                []).append(
+                                                    LicenseInvalidReasonCode.
+                                                    IMPORT_CONFLICT)
 
     def _get_primary_club_id(self, player: dict) -> str | None:
         """Get the club ID of the valid PRIMARY license"""
@@ -490,26 +511,32 @@ class PlayerAssignmentService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if (team.get("licenseType") == LicenseTypeEnum.PRIMARY 
-                    and team.get("status") == LicenseStatusEnum.VALID):
+                if (team.get("licenseType") == LicenseTypeEnum.PRIMARY
+                        and team.get("status") == LicenseStatusEnum.VALID):
                     return club.get("clubId")
 
         return None
 
-    def _validate_club_consistency(self, player: dict, primary_club_id: str) -> None:
+    def _validate_club_consistency(self, player: dict,
+                                   primary_club_id: str) -> None:
         """Validate that SECONDARY and OVERAGE licenses belong to the primary club"""
         if not player.get("assignedTeams"):
             return
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if team.get("licenseType") in [LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE]:
+                if team.get("licenseType") in [
+                        LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE
+                ]:
                     if club.get("clubId") != primary_club_id:
                         team["status"] = LicenseStatusEnum.INVALID
-                        if LicenseInvalidReasonCode.CONFLICTING_CLUB not in team.get("invalidReasonCodes", []):
-                            team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.CONFLICTING_CLUB)
+                        if LicenseInvalidReasonCode.CONFLICTING_CLUB not in team.get(
+                                "invalidReasonCodes", []):
+                            team.setdefault("invalidReasonCodes", []).append(
+                                LicenseInvalidReasonCode.CONFLICTING_CLUB)
 
-    def _validate_age_group_compliance(self, player: dict, player_obj: PlayerDB) -> None:
+    def _validate_age_group_compliance(self, player: dict,
+                                       player_obj: PlayerDB) -> None:
         """Validate age group compliance and OVERAGE rules"""
         if not player.get("assignedTeams"):
             return
@@ -527,26 +554,37 @@ class PlayerAssignmentService:
 
                 # Handle OVERAGE licenses
                 if license_type == LicenseTypeEnum.OVERAGE:
-                    if not self._is_overage_allowed(player_age_group, team_age_group, player_is_overage):
+                    if not self._is_overage_allowed(player_age_group,
+                                                    team_age_group,
+                                                    player_is_overage):
                         team["status"] = LicenseStatusEnum.INVALID
-                        if LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED not in team.get("invalidReasonCodes", []):
-                            team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED)
+                        if LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED not in team.get(
+                                "invalidReasonCodes", []):
+                            team.setdefault("invalidReasonCodes", []).append(
+                                LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED)
 
                 # Handle SECONDARY licenses
                 elif license_type == LicenseTypeEnum.SECONDARY:
-                    if not self._is_secondary_allowed(player_age_group, team_age_group):
+                    if not self._is_secondary_allowed(player_age_group,
+                                                      team_age_group):
                         team["status"] = LicenseStatusEnum.INVALID
-                        if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get("invalidReasonCodes", []):
-                            team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
+                        if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
+                                "invalidReasonCodes", []):
+                            team.setdefault("invalidReasonCodes", []).append(
+                                LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
                 # Handle PRIMARY licenses
                 elif license_type == LicenseTypeEnum.PRIMARY:
-                    if not self._is_age_group_compatible(player_age_group, team_age_group):
+                    if not self._is_age_group_compatible(
+                            player_age_group, team_age_group):
                         team["status"] = LicenseStatusEnum.INVALID
-                        if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get("invalidReasonCodes", []):
-                            team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
+                        if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
+                                "invalidReasonCodes", []):
+                            team.setdefault("invalidReasonCodes", []).append(
+                                LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
-    def _is_overage_allowed(self, player_age_group: str, team_age_group: str, player_is_overage: bool) -> bool:
+    def _is_overage_allowed(self, player_age_group: str, team_age_group: str,
+                            player_is_overage: bool) -> bool:
         """Check if OVERAGE license is allowed based on WKO rules"""
         if not player_is_overage:
             return False
@@ -557,7 +595,8 @@ class PlayerAssignmentService:
         player_rule = self._age_group_map[player_age_group]
         return team_age_group in player_rule.get("canPlayOverAgeIn", [])
 
-    def _is_secondary_allowed(self, player_age_group: str, team_age_group: str) -> bool:
+    def _is_secondary_allowed(self, player_age_group: str,
+                              team_age_group: str) -> bool:
         """Check if SECONDARY license in this age group is allowed"""
         if player_age_group not in self._age_group_map:
             return False
@@ -570,7 +609,8 @@ class PlayerAssignmentService:
 
         return team_age_group in player_rule.get("canAlsoPlayIn", [])
 
-    def _is_age_group_compatible(self, player_age_group: str, team_age_group: str) -> bool:
+    def _is_age_group_compatible(self, player_age_group: str,
+                                 team_age_group: str) -> bool:
         """Check if player can play in the team's age group"""
         if player_age_group not in self._age_group_map or team_age_group not in self._age_group_map:
             return True  # Unknown age groups - allow for now
@@ -599,26 +639,35 @@ class PlayerAssignmentService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if (team.get("status") == LicenseStatusEnum.VALID 
-                    and team.get("licenseType") in [LicenseTypeEnum.PRIMARY, LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE]):
-                    participations.append((club, team, team.get("teamAgeGroup")))
+                if (team.get("status") == LicenseStatusEnum.VALID
+                        and team.get("licenseType") in [
+                            LicenseTypeEnum.PRIMARY, LicenseTypeEnum.SECONDARY,
+                            LicenseTypeEnum.OVERAGE
+                        ]):
+                    participations.append(
+                        (club, team, team.get("teamAgeGroup")))
 
         # If exceeds WKO limit, mark excess as invalid
         if len(participations) > self.MAX_AGE_CLASS_PARTICIPATIONS:
             # Keep PRIMARY first, then sort by age group order
             def sort_key(item):
                 club, team, age_group = item
-                priority = 0 if team.get("licenseType") == LicenseTypeEnum.PRIMARY else 1
-                age_order = self._age_group_map.get(age_group, {"sortOrder": 999})["sortOrder"]
+                priority = 0 if team.get(
+                    "licenseType") == LicenseTypeEnum.PRIMARY else 1
+                age_order = self._age_group_map.get(
+                    age_group, {"sortOrder": 999})["sortOrder"]
                 return (priority, age_order)
 
             participations.sort(key=sort_key)
 
             # Mark excess as invalid
-            for club, team, _ in participations[self.MAX_AGE_CLASS_PARTICIPATIONS:]:
+            for club, team, _ in participations[self.
+                                                MAX_AGE_CLASS_PARTICIPATIONS:]:
                 team["status"] = LicenseStatusEnum.INVALID
-                if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get("invalidReasonCodes", []):
-                    team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
+                if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get(
+                        "invalidReasonCodes", []):
+                    team.setdefault("invalidReasonCodes", []).append(
+                        LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
 
     def _validate_date_sanity(self, player: dict) -> None:
         """Validate date sanity (validFrom <= validTo)"""
@@ -632,8 +681,10 @@ class PlayerAssignmentService:
                 if valid_from and valid_to:
                     if valid_from > valid_to:
                         team["status"] = LicenseStatusEnum.INVALID
-                        if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get("invalidReasonCodes", []):
-                            team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
+                        if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
+                                "invalidReasonCodes", []):
+                            team.setdefault("invalidReasonCodes", []).append(
+                                LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
     def _enforce_no_unknown_status(self, player: dict) -> None:
         """
@@ -652,15 +703,18 @@ class PlayerAssignmentService:
                     if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
                         # Cannot classify license type, mark as invalid
                         team["status"] = LicenseStatusEnum.INVALID
-                        if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get("invalidReasonCodes", []):
-                            team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE)
+                        if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get(
+                                "invalidReasonCodes", []):
+                            team.setdefault("invalidReasonCodes", []).append(
+                                LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE)
                     else:
                         # License type is known and no structural issues found
                         team["status"] = LicenseStatusEnum.VALID
 
-    async def bootstrap_validation_for_all_players(
-        self, reset: bool = False, batch_size: int = 1000
-    ) -> list[str]:
+    async def bootstrap_validation_for_all_players(self,
+                                                   reset: bool = False,
+                                                   batch_size: int = 1000
+                                                   ) -> list[str]:
         """
         Runs the validation step for all players.
 
@@ -690,7 +744,8 @@ class PlayerAssignmentService:
                 # Process batch
                 for p in batch:
                     total_processed += 1
-                    was_modified = await self._update_player_validation_in_db(p["_id"], reset=reset)
+                    was_modified = await self._update_player_validation_in_db(
+                        p["_id"], reset=reset)
                     if was_modified:
                         modified_ids.append(str(p["_id"]))
                         total_modified += 1
@@ -703,19 +758,21 @@ class PlayerAssignmentService:
         # Process remaining players in final batch
         for p in batch:
             total_processed += 1
-            was_modified = await self._update_player_validation_in_db(p["_id"], reset=reset)
+            was_modified = await self._update_player_validation_in_db(
+                p["_id"], reset=reset)
             if was_modified:
                 modified_ids.append(str(p["_id"]))
                 total_modified += 1
 
         logger.info(
             f"Validation bootstrap complete: processed {total_processed} players, "
-            f"modified {total_modified} players"
-        )
+            f"modified {total_modified} players")
 
         return modified_ids
 
-    async def _update_player_validation_in_db(self, player_id: str, reset: bool = False) -> bool:
+    async def _update_player_validation_in_db(self,
+                                              player_id: str,
+                                              reset: bool = False) -> bool:
         """
         Load a player by _id, run validation, and update in MongoDB.
 
@@ -732,7 +789,8 @@ class PlayerAssignmentService:
             return False
 
         # Capture original state
-        original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
+        original_assigned_teams = jsonable_encoder(
+            player.get("assignedTeams", []))
 
         # Reset if requested
         if reset:
@@ -752,25 +810,22 @@ class PlayerAssignmentService:
         # Persist changes
         await self.db["players"].update_one(
             {"_id": player_id},
-            {"$set": {"assignedTeams": new_assigned_teams}}
-        )
+            {"$set": {
+                "assignedTeams": new_assigned_teams
+            }})
 
-        logger.info(
-            f"Updated license validations for player {player_id}: "
-            f"{player.get('firstName')} {player.get('lastName')}"
-        )
+        logger.info(f"Updated license validations for player {player_id}: "
+                    f"{player.get('firstName')} {player.get('lastName')}")
         return True
 
     # ========================================================================
     # ORCHESTRATION METHODS
     # ========================================================================
 
-    async def bootstrap_all_players(
-        self, 
-        reset_classification: bool = False, 
-        reset_validation: bool = False,
-        batch_size: int = 1000
-    ) -> dict:
+    async def bootstrap_all_players(self,
+                                    reset_classification: bool = False,
+                                    reset_validation: bool = False,
+                                    batch_size: int = 1000) -> dict:
         """
         Convenience orchestration: runs both classification and validation for all players.
 
@@ -786,15 +841,11 @@ class PlayerAssignmentService:
 
         # Step 1: Classification
         classification_modified = await self.bootstrap_classification_for_all_players(
-            reset=reset_classification,
-            batch_size=batch_size
-        )
+            reset=reset_classification, batch_size=batch_size)
 
         # Step 2: Validation
         validation_modified = await self.bootstrap_validation_for_all_players(
-            reset=reset_validation,
-            batch_size=batch_size
-        )
+            reset=reset_validation, batch_size=batch_size)
 
         # Get statistics
         stats = await self.get_classification_stats()
@@ -803,9 +854,11 @@ class PlayerAssignmentService:
 
         return {
             "classification_modified_count": len(classification_modified),
-            "classification_modified_ids": classification_modified[:100],  # First 100 IDs
+            "classification_modified_ids":
+            classification_modified[:100],  # First 100 IDs
             "validation_modified_count": len(validation_modified),
-            "validation_modified_ids": validation_modified[:100],  # First 100 IDs
+            "validation_modified_ids":
+            validation_modified[:100],  # First 100 IDs
             "stats": stats,
         }
 
@@ -813,7 +866,8 @@ class PlayerAssignmentService:
     # HELPER METHODS
     # ========================================================================
 
-    async def apply_heuristics_for_imported_player(self, player_doc: dict) -> dict:
+    async def apply_heuristics_for_imported_player(self,
+                                                   player_doc: dict) -> dict:
         """
         Hook for process_ishd_data: apply classification to a player doc
         right after ISHD import, before persisting to MongoDB.
@@ -856,10 +910,13 @@ class PlayerAssignmentService:
                 for team in club.get("teams", []):
                     stats["total_licenses"] += 1
 
-                    license_type = team.get("licenseType", LicenseTypeEnum.UNKNOWN)
-                    stats["by_type"][license_type] = stats["by_type"].get(license_type, 0) + 1
+                    license_type = team.get("licenseType",
+                                            LicenseTypeEnum.UNKNOWN)
+                    stats["by_type"][license_type] = stats["by_type"].get(
+                        license_type, 0) + 1
 
                     status = team.get("status", LicenseStatusEnum.UNKNOWN)
-                    stats["by_status"][status] = stats["by_status"].get(status, 0) + 1
+                    stats["by_status"][status] = stats["by_status"].get(
+                        status, 0) + 1
 
         return stats
