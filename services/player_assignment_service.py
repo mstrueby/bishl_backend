@@ -111,10 +111,10 @@ class PlayerAssignmentService:
 
         Does NOT set status or invalidReasonCodes.
         Returns the modified player dict; does not persist to database.
-        
+
         Args:
             player: Raw player dict from MongoDB (including assignedTeams)
-            
+
         Returns:
             Modified player dict
         """
@@ -379,10 +379,10 @@ class PlayerAssignmentService:
 
         Does NOT change licenseType.
         Returns the modified player dict; does not persist to database.
-        
+
         Args:
             player: Raw player dict from MongoDB (including assignedTeams)
-            
+
         Returns:
             Modified player dict
         """
@@ -479,17 +479,27 @@ class PlayerAssignmentService:
         loan_licenses = []
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if (team.get("licenseType") == LicenseTypeEnum.LOAN):
+                if team.get("licenseType") == LicenseTypeEnum.LOAN:
                     loan_licenses.append((club, team))
 
         if len(loan_licenses) > 1:
             # Mark all LOAN licenses as invalid
+            if settings.DEBUG_LEVEL > 0:
+                logger.debug(
+                    f"Found {len(loan_licenses)} LOAN licenses for player "
+                    f"{player.get('firstName')} {player.get('lastName')} - marking all as INVALID"
+                )
             for club, team in loan_licenses:
                 team["status"] = LicenseStatusEnum.INVALID
                 if LicenseInvalidReasonCode.TOO_MANY_LOAN not in team.get(
                         "invalidReasonCodes", []):
                     team.setdefault("invalidReasonCodes", []).append(
                         LicenseInvalidReasonCode.TOO_MANY_LOAN)
+                    if settings.DEBUG_LEVEL > 0:
+                        logger.debug(
+                            f"Marked LOAN license as INVALID (TOO_MANY_LOAN) - "
+                            f"club: {club.get('clubName')}, team: {team.get('teamName')}"
+                        )
 
     def _validate_import_conflicts(self, player: dict) -> None:
         """Validate ISHD vs BISHL conflicts - ISHD never overrides BISHL"""
@@ -711,7 +721,7 @@ class PlayerAssignmentService:
     def _enforce_no_unknown_status(self, player: dict) -> None:
         """
         Ensure no license has status=UNKNOWN after validation.
-        
+
         For any license still UNKNOWN:
         - If licenseType is UNKNOWN: mark as INVALID with UNKNOWN_LICENCE_TYPE
         - Otherwise: mark as VALID (nothing spoke against it structurally)
