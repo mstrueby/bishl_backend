@@ -142,13 +142,30 @@ class PlayerAssignmentService:
                 license_type = self._classify_by_pass_suffix(team.get("passNo", ""))
                 team["licenseType"] = license_type
 
-        # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses
+        # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
+        # We need to determine player's age group first
+        player_obj = PlayerDB(**player)
+        player_age_group = player_obj.ageGroup
+
+        for club, team in all_licenses:
+            if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
+                team_age_group = team.get("teamAgeGroup")
+                # If team age group matches player age group, set as PRIMARY
+                if team_age_group and team_age_group == player_age_group:
+                    team["licenseType"] = LicenseTypeEnum.PRIMARY
+                    if settings.DEBUG_LEVEL > 0:
+                        logger.debug(
+                            f"Set license to PRIMARY based on age group match ({player_age_group}) "
+                            f"for player {player.get('firstName')} {player.get('lastName')}"
+                        )
+
+        # Step 4: Apply PRIMARY heuristic for remaining UNKNOWN licenses
         unknown_licenses = [
             (club, team) for club, team in all_licenses
             if team.get("licenseType") == LicenseTypeEnum.UNKNOWN
         ]
 
-        # If exactly one UNKNOWN license, make it PRIMARY
+        # If exactly one UNKNOWN license remains, make it PRIMARY
         if len(unknown_licenses) == 1:
             club, team = unknown_licenses[0]
             team["licenseType"] = LicenseTypeEnum.PRIMARY
