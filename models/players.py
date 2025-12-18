@@ -68,6 +68,7 @@ class LicenseTypeEnum(str, Enum):
     SECONDARY = "SECONDARY"  # A-Pass, Zweitspielrecht im Sinne WKO
     OVERAGE = "OVERAGE"  # Kann noch eine AK tiefer spielen
     LOAN = "LOAN"  # Leihgabe
+    HOBBY = "HOBBY" # Hobby-Pass, darf keinen anderen haben
     DEVELOPMENT = "DEVELOPMENT"  # Förderlizenz etc.
     SPECIAL = "SPECIAL"  # Sondergenehmigung etc.
 
