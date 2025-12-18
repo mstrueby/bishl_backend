@@ -164,7 +164,7 @@ class PlayerAssignmentService:
             (club, team) for club, team in all_licenses
             if team.get("licenseType") == LicenseTypeEnum.UNKNOWN
         ]
-
+        """
         # If exactly one UNKNOWN license remains, make it PRIMARY
         if len(unknown_licenses) == 1:
             club, team = unknown_licenses[0]
@@ -173,7 +173,7 @@ class PlayerAssignmentService:
                 logger.debug(
                     f"Set single UNKNOWN license to PRIMARY for player {player.get('firstName')} {player.get('lastName')}"
                 )
-
+        """
         return player
 
     def _classify_by_pass_suffix(self, pass_no: str) -> str:
@@ -199,7 +199,7 @@ class PlayerAssignmentService:
             return LicenseTypeEnum.DEVELOPMENT
         elif pass_no_normalized.endswith("A"):
             if settings.DEBUG_LEVEL > 0:
-                logger.debug(f"Classified license {pass_no} as SPECIAL")
+                logger.debug(f"Classified license {pass_no} as SECONDARY")
             return LicenseTypeEnum.SECONDARY
         elif pass_no_normalized.endswith("L"):
             if settings.DEBUG_LEVEL > 0:
