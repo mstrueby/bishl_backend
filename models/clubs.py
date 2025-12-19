@@ -1,4 +1,5 @@
 from bson import ObjectId
+from enum import Enum
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
 
@@ -47,6 +48,10 @@ class TeamPartnerships(BaseModel):
     teamAlias: str = Field(...)
     teamName: str = Field(...)
 
+class TeamTypeEnum(str, Enum):
+    COMPETITIVE = "COMPETITIVE"  # normaler ISHD/BISHL-Spielbetrieb
+    HOBBY = "HOBBY"
+
 
 # sub documents
 class TeamBase(MongoBaseModel):
@@ -55,6 +60,7 @@ class TeamBase(MongoBaseModel):
     fullName: str = Field(...)
     shortName: str = Field(...)
     tinyName: str = Field(...)
+    teamType: TeamTypeEnum = Field(default=TeamTypeEnum.COMPETITIVE)
     ageGroup: str = Field(...)
     teamNumber: int = Field(...)
     teamPartnership: list[TeamPartnerships] = Field(default_factory=list)
@@ -102,6 +108,7 @@ class TeamUpdate(MongoBaseModel):
     fullName: str | None = None
     shortName: str | None = None
     tinyName: str | None = None
+    teamType: TeamTypeEnum | None = None
     ageGroup: str | None = None
     teamNumber: int | None = None
     teamPartnership: list[TeamPartnerships] | None = None
