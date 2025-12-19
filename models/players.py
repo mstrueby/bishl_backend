@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from pydantic_core import core_schema
 
 from models.matches import MatchMatchday, MatchRound, MatchSeason, MatchTournament
+from models.clubs import TeamTypeEnum
 
 
 class PyObjectId(ObjectId):
@@ -115,6 +116,7 @@ class AssignedTeams(BaseModel):
     teamId: str = Field(...)
     teamName: str = Field(...)
     teamAlias: str = Field(...)
+    teamType: TeamTypeEnum = Field(default=TeamTypeEnum.COMPETITIVE)
     teamAgeGroup: str = Field(...)
     teamIshdId: str | None = None
     passNo: str | None = Field(default=None)
