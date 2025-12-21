@@ -1,7 +1,8 @@
 from bson import ObjectId
 from datetime import datetime
-from pydantic import Field, BaseModel, HttpUrl, validator, field_validator
-from typing import Optional, List, Dict
+from pydantic import Field, BaseModel, HttpUrl, ConfigDict, field_validator
+from pydantic_core import core_schema
+from typing import Optional, List, Dict, Any
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 from models.assignments import Referee
 #from models.clubs import TeamBase
@@ -10,25 +11,31 @@ from models.assignments import Referee
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_validators__(cls):
-    yield cls.validate
+  def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any) -> core_schema.CoreSchema:
+    return core_schema.no_info_plain_validator_function(
+      cls.validate,
+      serialization=core_schema.plain_serializer_function_ser_schema(
+        lambda x: str(x), return_schema=core_schema.str_schema()
+      ),
+    )
 
   @classmethod
-  def validate(cls, v, handler=None):
+  def validate(cls, v: Any) -> ObjectId:
+    if isinstance(v, ObjectId):
+      return v
     if not ObjectId.is_valid(v):
-      raise ValueError("Invalid objectid")
+      raise ValueError("Invalid ObjectId")
     return ObjectId(v)
 
   @classmethod
-  def __get_pydantic_json_schema__(cls, core_schema, handler):
-    return {"type": "string"}
+  def __get_pydantic_json_schema__(cls, schema: Any, handler: Any) -> dict:
+    return {"type": "string", "format": "objectid"}
 
 
 class MongoBaseModel(BaseModel):
+  model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
+  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-
-  class Config:
-    json_encoders = {ObjectId: str}
 
 
 # --- sub documents without _id

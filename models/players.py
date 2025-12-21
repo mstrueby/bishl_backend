@@ -1,6 +1,7 @@
 from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl
-from typing import Optional, List
+from pydantic import Field, BaseModel, HttpUrl, ConfigDict
+from pydantic_core import core_schema
+from typing import Optional, List, Any
 from datetime import datetime
 from enum import Enum
 from models.matches import MatchTournament, MatchSeason, MatchRound, MatchMatchday
@@ -9,28 +10,31 @@ from models.matches import MatchTournament, MatchSeason, MatchRound, MatchMatchd
 class PyObjectId(ObjectId):
 
   @classmethod
-  def __get_validators__(cls):
-    yield cls.validate
+  def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any) -> core_schema.CoreSchema:
+    return core_schema.no_info_plain_validator_function(
+      cls.validate,
+      serialization=core_schema.plain_serializer_function_ser_schema(
+        lambda x: str(x), return_schema=core_schema.str_schema()
+      ),
+    )
 
   @classmethod
-  def validate(cls, v, handler=None):
+  def validate(cls, v: Any) -> ObjectId:
+    if isinstance(v, ObjectId):
+      return v
     if not ObjectId.is_valid(v):
-      raise ValueError("Invalid objectid")
+      raise ValueError("Invalid ObjectId")
     return ObjectId(v)
 
   @classmethod
-  def __get_pydantic_json_schema__(cls, core_schema, handler):
-    return {"type": "string"}
+  def __get_pydantic_json_schema__(cls, schema: Any, handler: Any) -> dict:
+    return {"type": "string", "format": "objectid"}
 
 
 class MongoBaseModel(BaseModel):
+  model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
+  
   id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-
-  class Config:
-    json_encoders = {ObjectId: str}
-    
-    def dict(self, *args, **kwargs):
-      return super().dict(*args, **kwargs)
 
 
 class PositionEnum(str, Enum):
@@ -130,7 +134,20 @@ class PlayerBase(MongoBaseModel):
     return empty_str_to_none(v, field.name)
 """
 
+def _player_db_schema_extra(schema: dict, model: Any) -> None:
+    """Enhance schema documentation by adding computed properties"""
+    props = schema.setdefault("properties", {})
+    props["ageGroup"] = {"type": "string"}
+    props["overAge"] = {"type": "boolean"}
+
+
 class PlayerDB(PlayerBase):
+  model_config = ConfigDict(
+    populate_by_name=True, 
+    arbitrary_types_allowed=True,
+    json_schema_extra=_player_db_schema_extra
+  )
+  
   createDate: Optional[datetime] = None
 
   @property
@@ -188,14 +205,6 @@ class PlayerDB(PlayerBase):
         return False
     else:
       return False
-  
-  class Config(MongoBaseModel.Config):
-      @staticmethod
-      def json_schema_extra(schema, model):
-          """Enhance schema documentation by adding properties"""
-          props = schema.setdefault("properties", {})
-          props["ageGroup"] = {"type": "string"}
-          props["overAge"] = {"type": "boolean"}
 
   def model_dump(self, **kwargs):
       """Override model_dump for Pydantic v2 to include computed properties"""
