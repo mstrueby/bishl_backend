@@ -191,18 +191,18 @@ class PlayerDB(PlayerBase):
   
   class Config(MongoBaseModel.Config):
       @staticmethod
-      def schema_extra(schema, model):
+      def json_schema_extra(schema, model):
           """Enhance schema documentation by adding properties"""
           props = schema.setdefault("properties", {})
           props["ageGroup"] = {"type": "string"}
           props["overAge"] = {"type": "boolean"}
 
-  def dict(self, *args, **kwargs):
-      """Incorporate properties when converting to dictionary"""
-      result = super().dict(*args, **kwargs)
-      result["ageGroup"] = self.ageGroup
-      result["overAge"] = self.overAge
-      return result
+  def model_dump(self, **kwargs):
+      """Override model_dump for Pydantic v2 to include computed properties"""
+      data = super().model_dump(**kwargs)
+      data["ageGroup"] = self.ageGroup
+      data["overAge"] = self.overAge
+      return data
 
 
 class PlayerUpdate(MongoBaseModel):
