@@ -713,49 +713,41 @@ class PlayerAssignmentService:
 
     def _validate_hobby_exclusivity(self, player: dict) -> None:
         """
-        Validate that if a HOBBY license exists, no other competitive licenses can exist.
+        Validate that if a HOBBY team exists, no COMPETITIVE teams can exist.
         
-        HOBBY licenses are mutually exclusive with PRIMARY, SECONDARY, OVERAGE, and LOAN licenses.
-        Only DEVELOPMENT and SPECIAL licenses are allowed alongside HOBBY.
+        HOBBY teams are mutually exclusive with COMPETITIVE teams.
         """
         if not player.get("assignedTeams"):
             return
 
-        # First, check if player has any HOBBY licenses
+        # First, check if player has any HOBBY teams
         has_hobby = False
-        hobby_licenses = []
+        hobby_teams = []
         
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if team.get("licenseType") == LicenseTypeEnum.HOBBY:
+                if team.get("teamType") == "HOBBY":
                     has_hobby = True
-                    hobby_licenses.append((club, team))
+                    hobby_teams.append((club, team))
 
         if not has_hobby:
             return
 
-        # If HOBBY exists, check for conflicting competitive licenses
-        competitive_license_types = [
-            LicenseTypeEnum.PRIMARY,
-            LicenseTypeEnum.SECONDARY,
-            LicenseTypeEnum.OVERAGE,
-            LicenseTypeEnum.LOAN
-        ]
-
+        # If HOBBY exists, check for conflicting COMPETITIVE teams
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                license_type = team.get("licenseType")
+                team_type = team.get("teamType")
                 
-                # If this is a competitive license, mark both HOBBY and competitive as invalid
-                if license_type in competitive_license_types:
+                # If this is a COMPETITIVE team, mark both HOBBY and COMPETITIVE as invalid
+                if team_type == "COMPETITIVE":
                     team["status"] = LicenseStatusEnum.INVALID
                     if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
                             "invalidReasonCodes", []):
                         team.setdefault("invalidReasonCodes", []).append(
                             LicenseInvalidReasonCode.IMPORT_CONFLICT)
                     
-                    # Also mark all HOBBY licenses as invalid
-                    for hobby_club, hobby_team in hobby_licenses:
+                    # Also mark all HOBBY teams as invalid
+                    for hobby_club, hobby_team in hobby_teams:
                         hobby_team["status"] = LicenseStatusEnum.INVALID
                         if LicenseInvalidReasonCode.IMPORT_CONFLICT not in hobby_team.get(
                                 "invalidReasonCodes", []):
