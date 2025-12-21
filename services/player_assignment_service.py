@@ -741,18 +741,18 @@ class PlayerAssignmentService:
                 # If this is a COMPETITIVE team, mark both HOBBY and COMPETITIVE as invalid
                 if team_type == "COMPETITIVE":
                     team["status"] = LicenseStatusEnum.INVALID
-                    if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
+                    if LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT not in team.get(
                             "invalidReasonCodes", []):
                         team.setdefault("invalidReasonCodes", []).append(
-                            LicenseInvalidReasonCode.IMPORT_CONFLICT)
+                            LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT)
                     
                     # Also mark all HOBBY teams as invalid
                     for hobby_club, hobby_team in hobby_teams:
                         hobby_team["status"] = LicenseStatusEnum.INVALID
-                        if LicenseInvalidReasonCode.IMPORT_CONFLICT not in hobby_team.get(
+                        if LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT not in hobby_team.get(
                                 "invalidReasonCodes", []):
                             hobby_team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.IMPORT_CONFLICT)
+                                LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT)
 
     def _enforce_no_unknown_status(self, player: dict) -> None:
         """
