@@ -422,7 +422,10 @@ class PlayerAssignmentService:
         # Step 10: Validate date sanity
         self._validate_date_sanity(player)
 
-        # Step 11: Ensure no UNKNOWN status remains
+        # Step 11: Validate HOBBY exclusivity
+        self._validate_hobby_exclusivity(player)
+
+        # Step 12: Ensure no UNKNOWN status remains
         self._enforce_no_unknown_status(player)
 
         return player
@@ -706,6 +709,57 @@ class PlayerAssignmentService:
                         if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
                                 "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
+                                LicenseInvalidReasonCode.IMPORT_CONFLICT)
+
+    def _validate_hobby_exclusivity(self, player: dict) -> None:
+        """
+        Validate that if a HOBBY license exists, no other competitive licenses can exist.
+        
+        HOBBY licenses are mutually exclusive with PRIMARY, SECONDARY, OVERAGE, and LOAN licenses.
+        Only DEVELOPMENT and SPECIAL licenses are allowed alongside HOBBY.
+        """
+        if not player.get("assignedTeams"):
+            return
+
+        # First, check if player has any HOBBY licenses
+        has_hobby = False
+        hobby_licenses = []
+        
+        for club in player["assignedTeams"]:
+            for team in club.get("teams", []):
+                if team.get("licenseType") == LicenseTypeEnum.HOBBY:
+                    has_hobby = True
+                    hobby_licenses.append((club, team))
+
+        if not has_hobby:
+            return
+
+        # If HOBBY exists, check for conflicting competitive licenses
+        competitive_license_types = [
+            LicenseTypeEnum.PRIMARY,
+            LicenseTypeEnum.SECONDARY,
+            LicenseTypeEnum.OVERAGE,
+            LicenseTypeEnum.LOAN
+        ]
+
+        for club in player["assignedTeams"]:
+            for team in club.get("teams", []):
+                license_type = team.get("licenseType")
+                
+                # If this is a competitive license, mark both HOBBY and competitive as invalid
+                if license_type in competitive_license_types:
+                    team["status"] = LicenseStatusEnum.INVALID
+                    if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
+                            "invalidReasonCodes", []):
+                        team.setdefault("invalidReasonCodes", []).append(
+                            LicenseInvalidReasonCode.IMPORT_CONFLICT)
+                    
+                    # Also mark all HOBBY licenses as invalid
+                    for hobby_club, hobby_team in hobby_licenses:
+                        hobby_team["status"] = LicenseStatusEnum.INVALID
+                        if LicenseInvalidReasonCode.IMPORT_CONFLICT not in hobby_team.get(
+                                "invalidReasonCodes", []):
+                            hobby_team.setdefault("invalidReasonCodes", []).append(
                                 LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
     def _enforce_no_unknown_status(self, player: dict) -> None:
