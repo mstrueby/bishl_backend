@@ -164,7 +164,36 @@ class PlayerAssignmentService:
                             f"for player {player.get('firstName')} {player.get('lastName')}"
                         )
 
-        # Step 4: Set ISHD UNKNOWN licenses to PRIMARY in clubs without PRIMARY
+        # Step 4: Detect and set OVERAGE licenses
+        # OVERAGE licenses are when a license is exactly one age group below the player's age group
+        if player_age_group in self._age_group_map:
+            player_rule = self._age_group_map[player_age_group]
+            player_sort_order = player_rule["sortOrder"]
+
+            for club, team in all_licenses:
+                # Only check UNKNOWN licenses
+                if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
+                    team_age_group = team.get("teamAgeGroup")
+                    if not team_age_group or team_age_group not in self._age_group_map:
+                        continue
+
+                    team_rule = self._age_group_map[team_age_group]
+                    team_sort_order = team_rule["sortOrder"]
+
+                    # OVERAGE: team is exactly one age group below player
+                    # (higher sortOrder means younger age group)
+                    if team_sort_order == player_sort_order + 1:
+                        # Check if player qualifies for overage in this age group
+                        if team_age_group in player_rule.get("canPlayOverAgeIn", []) and player_obj.overAge:
+                            team["licenseType"] = LicenseTypeEnum.OVERAGE
+                            if settings.DEBUG_LEVEL > 0:
+                                logger.debug(
+                                    f"Set license to OVERAGE for team {team.get('teamName')} "
+                                    f"(player age group: {player_age_group}, team age group: {team_age_group}) "
+                                    f"for player {player.get('firstName')} {player.get('lastName')}"
+                                )
+
+        # Step 5: Set ISHD UNKNOWN licenses to PRIMARY in clubs without PRIMARY
         # First, identify clubs with PRIMARY licenses
         clubs_with_primary = set()
         for club in player.get("assignedTeams", []):
@@ -173,7 +202,7 @@ class PlayerAssignmentService:
                     clubs_with_primary.add(club.get("clubId"))
                     break
 
-        # Step 5:
+        # Step 6:
         # For each club without PRIMARY, set first ISHD UNKNOWN license to PRIMARY
         for club in player.get("assignedTeams", []):
             club_id = club.get("clubId")
@@ -196,7 +225,7 @@ class PlayerAssignmentService:
                             f"{player.get('firstName')} {player.get('lastName')}"
                         )
 
-        # Step 6: Convert UNKNOWN to SECONDARY in clubs with PRIMARY license
+        # Step 7: Convert UNKNOWN to SECONDARY in clubs with PRIMARY license
         # Then, convert UNKNOWN licenses in those clubs to SECONDARY
         for club in player.get("assignedTeams", []):
             if club.get("clubId") in clubs_with_primary:
@@ -209,7 +238,7 @@ class PlayerAssignmentService:
                                 f"{player.get('firstName')} {player.get('lastName')}"
                             )
 
-        # Step 6: Apply PRIMARY heuristic for remaining UNKNOWN licenses
+        # Step 8: Apply PRIMARY heuristic for remaining UNKNOWN licenses
         unknown_licenses = [
             (club, team) for club, team in all_licenses
             if team.get("licenseType") == LicenseTypeEnum.UNKNOWN
