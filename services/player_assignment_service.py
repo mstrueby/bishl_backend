@@ -183,15 +183,13 @@ class PlayerAssignmentService:
                     # OVERAGE: team is exactly one age group below player
                     # (higher sortOrder means younger age group)
                     if team_sort_order == player_sort_order + 1:
-                        # Check if player qualifies for overage in this age group
-                        if team_age_group in player_rule.get("canPlayOverAgeIn", []) and player_obj.overAge:
-                            team["licenseType"] = LicenseTypeEnum.OVERAGE
-                            if settings.DEBUG_LEVEL > 0:
-                                logger.debug(
-                                    f"Set license to OVERAGE for team {team.get('teamName')} "
-                                    f"(player age group: {player_age_group}, team age group: {team_age_group}) "
-                                    f"for player {player.get('firstName')} {player.get('lastName')}"
-                                )
+                        team["licenseType"] = LicenseTypeEnum.OVERAGE
+                        if settings.DEBUG_LEVEL > 0:
+                            logger.debug(
+                                f"Set license to OVERAGE for team {team.get('teamName')} "
+                                f"(player age group: {player_age_group}, team age group: {team_age_group}) "
+                                f"for player {player.get('firstName')} {player.get('lastName')}"
+                            )
 
         # Step 5: Set ISHD UNKNOWN licenses to PRIMARY in clubs without PRIMARY
         # First, identify clubs with PRIMARY licenses
@@ -419,7 +417,7 @@ class PlayerAssignmentService:
             return player
 
         # Step 1: Reset all license states to VALID with empty codes
-        # self._reset_license_validation_states(player)
+        self._reset_license_validation_states(player)
 
         # Step 2: Validate UNKNOWN license types
         self._validate_unknown_license_types(player)
@@ -752,7 +750,7 @@ class PlayerAssignmentService:
         # First, check if player has any HOBBY teams
         has_hobby = False
         hobby_teams = []
-        
+
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
                 if team.get("teamType") == "HOBBY":
@@ -766,7 +764,7 @@ class PlayerAssignmentService:
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
                 team_type = team.get("teamType")
-                
+
                 # If this is a COMPETITIVE team, mark both HOBBY and COMPETITIVE as invalid
                 if team_type == "COMPETITIVE":
                     team["status"] = LicenseStatusEnum.INVALID
@@ -774,14 +772,16 @@ class PlayerAssignmentService:
                             "invalidReasonCodes", []):
                         team.setdefault("invalidReasonCodes", []).append(
                             LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT)
-                    
+
                     # Also mark all HOBBY teams as invalid
                     for hobby_club, hobby_team in hobby_teams:
                         hobby_team["status"] = LicenseStatusEnum.INVALID
                         if LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT not in hobby_team.get(
                                 "invalidReasonCodes", []):
-                            hobby_team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT)
+                            hobby_team.setdefault("invalidReasonCodes",
+                                                  []).append(
+                                                      LicenseInvalidReasonCode.
+                                                      HOBBY_PLAYER_CONFLICT)
 
     def _enforce_no_unknown_status(self, player: dict) -> None:
         """
