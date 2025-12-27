@@ -1039,3 +1039,41 @@ class PlayerAssignmentService:
           stats["by_status"][status] = stats["by_status"].get(status, 0) + 1
 
     return stats
+
+  async def get_validation_stats(self) -> dict:
+    """
+    Get statistics about license validation across all players.
+
+    Returns:
+      Dictionary with validation statistics including counts by status
+      and by invalid reason codes
+    """
+    stats = {
+        "total_licenses": 0,
+        "by_status": {
+            LicenseStatusEnum.VALID: 0,
+            LicenseStatusEnum.INVALID: 0,
+        },
+        "by_invalidReasonCodes": {},
+    }
+
+    async for player in self.db["players"].find({}):
+      for club in player.get("assignedTeams", []):
+        for team in club.get("teams", []):
+          stats["total_licenses"] += 1
+
+          # Count by status
+          status = team.get("status", LicenseStatusEnum.VALID)
+          if status in stats["by_status"]:
+            stats["by_status"][status] += 1
+          else:
+            stats["by_status"][status] = 1
+
+          # Count by invalid reason codes
+          if status == LicenseStatusEnum.INVALID:
+            reason_codes = team.get("invalidReasonCodes", [])
+            for code in reason_codes:
+              stats["by_invalidReasonCodes"][code] = (
+                  stats["by_invalidReasonCodes"].get(code, 0) + 1)
+
+    return stats
