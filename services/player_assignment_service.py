@@ -525,16 +525,19 @@ class PlayerAssignmentService:
     player_obj = PlayerDB(**player)
     self._validate_age_group_compliance(player, player_obj)
 
-    # Step 9: Validate WKO limits (max participations)
+    # Step 9: Validate WKO license quotas (maxLicenses per target age group)
+    self._validate_wko_license_quota(player, player_obj)
+
+    # Step 10: Validate WKO limits (max participations)
     self._validate_wko_limits(player)
 
-    # Step 10: Validate date sanity
+    # Step 11: Validate date sanity
     self._validate_date_sanity(player)
 
-    # Step 11: Validate HOBBY exclusivity
+    # Step 12: Validate HOBBY exclusivity
     self._validate_hobby_exclusivity(player)
 
-    # Step 12: Ensure no UNKNOWN status remains
+    # Step 13: Ensure no UNKNOWN status remains
     self._enforce_no_unknown_status(player)
 
     return player
@@ -762,6 +765,107 @@ class PlayerAssignmentService:
 
     # Playing down (older player in younger team) - not allowed without OVERAGE
     return False
+
+  def _count_licenses_by_target(self, player: dict,
+                                license_type: LicenseTypeEnum) -> dict[str, list[dict]]:
+    """
+    Count valid licenses by target age group for a specific license type.
+    
+    Args:
+      player: Player dict with assignedTeams
+      license_type: The license type to count (SECONDARY or OVERAGE)
+      
+    Returns:
+      Dict mapping teamAgeGroup -> list of (club, team) tuples with that license
+    """
+    result: dict[str, list[dict]] = {}
+    
+    if not player.get("assignedTeams"):
+      return result
+    
+    for club in player["assignedTeams"]:
+      for team in club.get("teams", []):
+        if (team.get("licenseType") == license_type
+            and team.get("status") == LicenseStatusEnum.VALID):
+          target_age_group = team.get("teamAgeGroup")
+          if target_age_group not in result:
+            result[target_age_group] = []
+          result[target_age_group].append({"club": club, "team": team})
+    
+    return result
+
+  def _validate_wko_license_quota(self, player: dict, player_obj: PlayerDB) -> None:
+    """
+    Validate that player doesn't exceed maxLicenses for secondaryRules and overAgeRules.
+    
+    For each target age group, the player can have at most maxLicenses of that type.
+    This runs after age group compliance to ensure only structurally valid licenses
+    are subject to quota checks.
+    """
+    if not player.get("assignedTeams"):
+      return
+
+    player_age_group = player_obj.ageGroup
+    player_sex = player_obj.sex
+
+    if player_age_group not in self._wko_rules:
+      return
+
+    player_rule = self._wko_rules[player_age_group]
+
+    # Check SECONDARY license quota
+    secondary_by_target = self._count_licenses_by_target(player, LicenseTypeEnum.SECONDARY)
+    
+    for target_age_group, licenses in secondary_by_target.items():
+      # Find the applicable secondary rule
+      applicable_rule = None
+      for sec_rule in player_rule.secondaryRules:
+        if sec_rule.targetAgeGroup == target_age_group:
+          # Check sex filter
+          if player_sex in sec_rule.sex or not sec_rule.sex:
+            applicable_rule = sec_rule
+            break
+      
+      if applicable_rule and applicable_rule.maxLicenses is not None:
+        if len(licenses) > applicable_rule.maxLicenses:
+          # Mark excess licenses as invalid (keep first maxLicenses)
+          for entry in licenses[applicable_rule.maxLicenses:]:
+            team = entry["team"]
+            team["status"] = LicenseStatusEnum.INVALID
+            if LicenseInvalidReasonCode.EXCEEDS_SECONDARY_QUOTA not in team.get(
+                "invalidReasonCodes", []):
+              team.setdefault("invalidReasonCodes", []).append(
+                  LicenseInvalidReasonCode.EXCEEDS_SECONDARY_QUOTA)
+            logger.debug(f"Player {player_obj.firstName} {player_obj.lastName}: "
+                         f"SECONDARY to {target_age_group} exceeds quota "
+                         f"({len(licenses)} > {applicable_rule.maxLicenses})")
+
+    # Check OVERAGE license quota
+    overage_by_target = self._count_licenses_by_target(player, LicenseTypeEnum.OVERAGE)
+    
+    for target_age_group, licenses in overage_by_target.items():
+      # Find the applicable overage rule
+      applicable_rule = None
+      for ovr_rule in player_rule.overAgeRules:
+        if ovr_rule.targetAgeGroup == target_age_group:
+          # Check sex filter
+          if player_sex in ovr_rule.sex or not ovr_rule.sex:
+            applicable_rule = ovr_rule
+            break
+      
+      if applicable_rule and applicable_rule.maxLicenses is not None:
+        if len(licenses) > applicable_rule.maxLicenses:
+          # Mark excess licenses as invalid (keep first maxLicenses)
+          for entry in licenses[applicable_rule.maxLicenses:]:
+            team = entry["team"]
+            team["status"] = LicenseStatusEnum.INVALID
+            if LicenseInvalidReasonCode.EXCEEDS_OVERAGE_QUOTA not in team.get(
+                "invalidReasonCodes", []):
+              team.setdefault("invalidReasonCodes", []).append(
+                  LicenseInvalidReasonCode.EXCEEDS_OVERAGE_QUOTA)
+            logger.debug(f"Player {player_obj.firstName} {player_obj.lastName}: "
+                         f"OVERAGE to {target_age_group} exceeds quota "
+                         f"({len(licenses)} > {applicable_rule.maxLicenses})")
 
   def _validate_wko_limits(self, player: dict) -> None:
     """Validate WKO limits on number of age class participations"""
