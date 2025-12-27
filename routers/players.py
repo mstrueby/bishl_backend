@@ -190,6 +190,9 @@ async def bootstrap_validation(
         reset=reset, batch_size=batch_size
     )
     
+    # Get validation statistics
+    stats = await assignment_service.get_validation_stats()
+    
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -197,6 +200,7 @@ async def bootstrap_validation(
             "reset": reset,
             "modifiedPlayers": len(modified_ids),
             "modifiedPlayerIds": modified_ids[:100],  # Only return first 100 IDs
+            "stats": stats,
         },
     )
 
