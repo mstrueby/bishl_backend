@@ -141,8 +141,8 @@ class PlayerAssignmentService:
 
   def __init__(self, db):
     self.db = db
-    # Build age group map from WKO_RULES, converting WkoRule instances to dicts
-    self._age_group_map = {rule.ageGroup: rule.model_dump() for rule in self.WKO_RULES}
+    # Build age group map from WKO_RULES, keeping as Pydantic model objects
+    self._wko_rules = {rule.ageGroup: rule for rule in self.WKO_RULES}
 
   # ========================================================================
   # CLASSIFICATION METHODS (only touch licenseType)
@@ -208,19 +208,19 @@ class PlayerAssignmentService:
 
     # Step 4: Detect and set OVERAGE licenses
     # OVERAGE licenses are when a license is exactly one age group below the player's age group
-    if player_age_group in self._age_group_map:
-      player_rule = self._age_group_map[player_age_group]
-      player_sort_order = player_rule["sortOrder"]
+    if player_age_group in self._wko_rules:
+      player_rule = self._wko_rules[player_age_group]
+      player_sort_order = player_rule.sortOrder
 
       for club, team in all_licenses:
         # Only check UNKNOWN licenses
         if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
           team_age_group = team.get("teamAgeGroup")
-          if not team_age_group or team_age_group not in self._age_group_map:
+          if not team_age_group or team_age_group not in self._wko_rules:
             continue
 
-          team_rule = self._age_group_map[team_age_group]
-          team_sort_order = team_rule["sortOrder"]
+          team_rule = self._wko_rules[team_age_group]
+          team_sort_order = team_rule.sortOrder
 
           # OVERAGE: team is exactly one age group below player
           # (higher sortOrder means younger age group)
@@ -672,42 +672,43 @@ class PlayerAssignmentService:
     if not player_is_overage:
       return False
 
-    if player_age_group not in self._age_group_map:
+    if player_age_group not in self._wko_rules:
       return False
 
-    player_rule = self._age_group_map[player_age_group]
-    return team_age_group in player_rule.get("canPlayOverAgeIn", [])
+    player_rule = self._wko_rules[player_age_group]
+    return any(over_age_rule.targetAgeGroup == team_age_group for over_age_rule in player_rule.overAgeRules)
 
   def _is_secondary_allowed(self, player_age_group: str,
                             team_age_group: str) -> bool:
     """Check if SECONDARY license in this age group is allowed"""
-    if player_age_group not in self._age_group_map:
+    if player_age_group not in self._wko_rules:
       return False
 
-    player_rule = self._age_group_map[player_age_group]
+    player_rule = self._wko_rules[player_age_group]
 
     # SECONDARY can be in same age group or allowed play-up groups
     if team_age_group == player_age_group:
       return True
 
-    return team_age_group in player_rule.get("canAlsoPlayIn", [])
+    return any(secondary_rule.targetAgeGroup == team_age_group for secondary_rule in player_rule.secondaryRules)
 
   def _is_age_group_compatible(self, player_age_group: str,
                                team_age_group: str) -> bool:
     """Check if player can play in the team's age group"""
-    if player_age_group not in self._age_group_map or team_age_group not in self._age_group_map:
+    if player_age_group not in self._wko_rules or team_age_group not in self._wko_rules:
       return True  # Unknown age groups - allow for now
 
-    player_rule = self._age_group_map[player_age_group]
-    team_rule = self._age_group_map[team_age_group]
+    player_rule = self._wko_rules[player_age_group]
+    team_rule = self._wko_rules[team_age_group]
 
     # Same age group is always OK
     if player_age_group == team_age_group:
       return True
 
     # Playing up (younger player in older group) is OK if in canAlsoPlayIn
-    if team_rule["sortOrder"] < player_rule["sortOrder"]:
-      return team_age_group in player_rule.get("canAlsoPlayIn", [])
+    if team_rule.sortOrder < player_rule.sortOrder:
+      # return team_age_group in player_rule.get("canAlsoPlayIn", [])
+      return any(secondary_rule.targetAgeGroup == player_age_group for secondary_rule in team_rule.secondaryRules)
 
     # Playing down (older player in younger group) is not allowed without OVERAGE
     return False
@@ -736,8 +737,7 @@ class PlayerAssignmentService:
         club, team, age_group = item
         priority = 0 if team.get(
             "licenseType") == LicenseTypeEnum.PRIMARY else 1
-        age_order = self._age_group_map.get(age_group,
-                                            {"sortOrder": 999})["sortOrder"]
+        age_order = self._wko_rules[age_group].sortOrder if age_group in self._wko_rules else 999
         return (priority, age_order)
 
       participations.sort(key=sort_key)
