@@ -370,11 +370,14 @@ class SecondaryRule(BaseModel):
         description=
         "Max number of licenses in this target group for one player",
     )
+    requiresAdmin: bool = Field(
+        default=False, description="Whether this rule requires admin approval")
 
 
 class OverAgeRule(BaseModel):
     targetAgeGroup: str = Field(..., description="e.g. U16, U13")
-    sex: list[SexEnum] = Field(default_factory=list, description="Allowed sexes")
+    sex: list[SexEnum] = Field(default_factory=list,
+                               description="Allowed sexes")
     maxLicenses: int | None = Field(
         default=None,
         description=
@@ -398,3 +401,7 @@ class WkoRule(BaseModel):
 
     secondaryRules: list[SecondaryRule] = Field(default_factory=list)
     overAgeRules: list[OverAgeRule] = Field(default_factory=list)
+    maxTotalAgeClasses: dict[SexEnum, int | None] = Field(
+        default_factory=lambda: {SexEnum.MALE: 2, SexEnum.FEMALE: 2},
+        description="Max number of age classes player can participate in"
+    )

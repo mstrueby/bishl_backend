@@ -31,25 +31,32 @@ class PlayerAssignmentService:
           sortOrder=1,
           altKey="Herren",
           sex=[SexEnum.MALE, SexEnum.FEMALE],
+          maxTotalAgeClasses={
+              SexEnum.MALE: 2,
+              SexEnum.FEMALE: 2
+          },
       ),
-      WkoRule(
-          ageGroup="DAMEN",
-          label="Damen",
-          sortOrder=2,
-          altKey="Damen",
-          sex=[SexEnum.FEMALE],
-          secondaryRules=[
-              SecondaryRule(targetAgeGroup="HERREN",
-                            sex=[SexEnum.FEMALE],
-                            maxLicenses=1)
-          ],
-          overAgeRules=[
-              OverAgeRule(targetAgeGroup="U19",
-                          sex=[SexEnum.FEMALE],
-                          maxLicenses=1,
-                          maxOverAgePlayersPerTeam=3)
-          ],
-      ),
+      WkoRule(ageGroup="DAMEN",
+              label="Damen",
+              sortOrder=2,
+              altKey="Damen",
+              sex=[SexEnum.FEMALE],
+              secondaryRules=[
+                  SecondaryRule(targetAgeGroup="HERREN",
+                                sex=[SexEnum.FEMALE],
+                                maxLicenses=1,
+                                requiresAdmin=False)
+              ],
+              overAgeRules=[
+                  OverAgeRule(targetAgeGroup="U19",
+                              sex=[SexEnum.FEMALE],
+                              maxLicenses=1,
+                              maxOverAgePlayersPerTeam=3)
+              ],
+              maxTotalAgeClasses={
+                  SexEnum.MALE: 2,
+                  SexEnum.FEMALE: 2
+              }),
       WkoRule(ageGroup="U19",
               label="U19",
               sortOrder=3,
@@ -57,18 +64,24 @@ class PlayerAssignmentService:
               sex=[SexEnum.MALE, SexEnum.FEMALE],
               secondaryRules=[
                   SecondaryRule(targetAgeGroup="HERREN",
-                                sex=[SexEnum.MALE, SexEnum.FEMALE],
-                                maxLicenses=1),
+                                sex=[SexEnum.MALE],
+                                maxLicenses=1,
+                                requiresAdmin=False),
                   SecondaryRule(targetAgeGroup="DAMEN",
                                 sex=[SexEnum.FEMALE],
-                                maxLicenses=1)
+                                maxLicenses=1,
+                                requiresAdmin=False)
               ],
               overAgeRules=[
-                  OverAgeRule(targetAgeGroup="U17",
+                  OverAgeRule(targetAgeGroup="U16",
                               sex=[SexEnum.MALE, SexEnum.FEMALE],
                               maxLicenses=1,
                               maxOverAgePlayersPerTeam=3)
-              ]),
+              ],
+              maxTotalAgeClasses={
+                  SexEnum.MALE: 2,
+                  SexEnum.FEMALE: 3
+              }),
       WkoRule(ageGroup="U16",
               label="U16",
               sortOrder=4,
@@ -77,20 +90,27 @@ class PlayerAssignmentService:
               secondaryRules=[
                   SecondaryRule(targetAgeGroup="U19",
                                 sex=[SexEnum.MALE, SexEnum.FEMALE],
-                                maxLicenses=1),
+                                maxLicenses=1,
+                                requiresAdmin=False),
                   SecondaryRule(targetAgeGroup="HERREN",
                                 sex=[SexEnum.MALE],
-                                maxLicenses=1),
+                                maxLicenses=1,
+                                requiresAdmin=False),
                   SecondaryRule(targetAgeGroup="DAMEN",
                                 sex=[SexEnum.FEMALE],
-                                maxLicenses=1),
+                                maxLicenses=1,
+                                requiresAdmin=True),
               ],
               overAgeRules=[
                   OverAgeRule(targetAgeGroup="U13",
                               sex=[SexEnum.MALE, SexEnum.FEMALE],
                               maxLicenses=1,
                               maxOverAgePlayersPerTeam=3)
-              ]),
+              ],
+              maxTotalAgeClasses={
+                  SexEnum.MALE: 2,
+                  SexEnum.FEMALE: 3
+              }),
       WkoRule(ageGroup="U13",
               label="U13",
               sortOrder=5,
@@ -99,14 +119,23 @@ class PlayerAssignmentService:
               secondaryRules=[
                   SecondaryRule(targetAgeGroup="U16",
                                 sex=[SexEnum.MALE, SexEnum.FEMALE],
-                                maxLicenses=1)
+                                maxLicenses=1,
+                                requiresAdmin=False),
+                  SecondaryRule(targetAgeGroup="DAMEN",
+                                sex=[SexEnum.FEMALE],
+                                maxLicenses=1,
+                                requiresAdmin=True)
               ],
               overAgeRules=[
                   OverAgeRule(targetAgeGroup="U10",
                               sex=[SexEnum.MALE, SexEnum.FEMALE],
                               maxLicenses=1,
                               maxOverAgePlayersPerTeam=3)
-              ]),
+              ],
+              maxTotalAgeClasses={
+                  SexEnum.MALE: 2,
+                  SexEnum.FEMALE: 3
+              }),
       WkoRule(ageGroup="U10",
               label="U10",
               sortOrder=6,
@@ -115,14 +144,23 @@ class PlayerAssignmentService:
               secondaryRules=[
                   SecondaryRule(targetAgeGroup="U13",
                                 sex=[SexEnum.MALE, SexEnum.FEMALE],
-                                maxLicenses=1)
+                                maxLicenses=1,
+                                requiresAdmin=False),
+                  SecondaryRule(targetAgeGroup="DAMEN",
+                                sex=[SexEnum.FEMALE],
+                                maxLicenses=1,
+                                requiresAdmin=True)
               ],
               overAgeRules=[
                   OverAgeRule(targetAgeGroup="U8",
                               sex=[SexEnum.MALE, SexEnum.FEMALE],
                               maxLicenses=1,
-                              maxOverAgePlayersPerTeam=2)
-              ]),
+                              maxOverAgePlayersPerTeam=2),
+              ],
+              maxTotalAgeClasses={
+                  SexEnum.MALE: 2,
+                  SexEnum.FEMALE: 3
+              }),
       WkoRule(ageGroup="U8",
               label="U8",
               sortOrder=7,
@@ -131,8 +169,17 @@ class PlayerAssignmentService:
               secondaryRules=[
                   SecondaryRule(targetAgeGroup="U10",
                                 sex=[SexEnum.MALE, SexEnum.FEMALE],
-                                maxLicenses=1)
-              ])
+                                maxLicenses=1,
+                                requiresAdmin=False),
+                  SecondaryRule(targetAgeGroup="DAMEN",
+                                sex=[SexEnum.FEMALE],
+                                maxLicenses=1,
+                                requiresAdmin=True)
+              ],
+              maxTotalAgeClasses={
+                  SexEnum.MALE: 2,
+                  SexEnum.FEMALE: 3
+              })
   ]
 
   # Maximum number of active age class participations allowed by WKO
@@ -676,7 +723,8 @@ class PlayerAssignmentService:
       return False
 
     player_rule = self._wko_rules[player_age_group]
-    return any(over_age_rule.targetAgeGroup == team_age_group for over_age_rule in player_rule.overAgeRules)
+    return any(over_age_rule.targetAgeGroup == team_age_group
+               for over_age_rule in player_rule.overAgeRules)
 
   def _is_secondary_allowed(self, player_age_group: str,
                             team_age_group: str) -> bool:
@@ -690,7 +738,8 @@ class PlayerAssignmentService:
     if team_age_group == player_age_group:
       return True
 
-    return any(secondary_rule.targetAgeGroup == team_age_group for secondary_rule in player_rule.secondaryRules)
+    return any(secondary_rule.targetAgeGroup == team_age_group
+               for secondary_rule in player_rule.secondaryRules)
 
   def _is_age_group_compatible(self, player_age_group: str,
                                team_age_group: str) -> bool:
@@ -708,7 +757,8 @@ class PlayerAssignmentService:
     # Playing up (younger player in older group) is OK if in canAlsoPlayIn
     if team_rule.sortOrder < player_rule.sortOrder:
       # return team_age_group in player_rule.get("canAlsoPlayIn", [])
-      return any(secondary_rule.targetAgeGroup == player_age_group for secondary_rule in team_rule.secondaryRules)
+      return any(secondary_rule.targetAgeGroup == player_age_group
+                 for secondary_rule in team_rule.secondaryRules)
 
     # Playing down (older player in younger group) is not allowed without OVERAGE
     return False
@@ -716,6 +766,15 @@ class PlayerAssignmentService:
   def _validate_wko_limits(self, player: dict) -> None:
     """Validate WKO limits on number of age class participations"""
     if not player.get("assignedTeams"):
+      return
+
+    # Get player details
+    player_obj = PlayerDB(**player)
+    player_age_group = player_obj.ageGroup
+    player_sex = player_obj.sex
+
+    # Check if player's age group is known
+    if player_age_group not in self._wko_rules:
       return
 
     # Count valid participations by age group
@@ -731,19 +790,33 @@ class PlayerAssignmentService:
           participations.append((club, team, team.get("teamAgeGroup")))
 
     # If exceeds WKO limit, mark excess as invalid
-    if len(participations) > self.MAX_AGE_CLASS_PARTICIPATIONS:
+    # Check if player's sex has maxTotalAgeClasses defined
+    player_rule = self._wko_rules[player_age_group]
+    max_participations_dict = player_rule.maxTotalAgeClasses or {}
+    
+    if player_sex not in max_participations_dict:
+      # No limit defined for this sex, use default
+      max_participations = self.MAX_AGE_CLASS_PARTICIPATIONS
+    else:
+      max_participations = max_participations_dict[player_sex]
+      if max_participations is None:
+        # None value means no limit
+        return
+
+    if len(participations) > max_participations:
       # Keep PRIMARY first, then sort by age group order
       def sort_key(item):
         club, team, age_group = item
         priority = 0 if team.get(
             "licenseType") == LicenseTypeEnum.PRIMARY else 1
-        age_order = self._wko_rules[age_group].sortOrder if age_group in self._wko_rules else 999
+        age_order = self._wko_rules[
+            age_group].sortOrder if age_group in self._wko_rules else 999
         return (priority, age_order)
 
       participations.sort(key=sort_key)
 
       # Mark excess as invalid
-      for club, team, _ in participations[self.MAX_AGE_CLASS_PARTICIPATIONS:]:
+      for club, team, _ in participations[max_participations:]:
         team["status"] = LicenseStatusEnum.INVALID
         if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get(
             "invalidReasonCodes", []):
