@@ -745,7 +745,6 @@ class PlayerAssignmentService:
                                team_age_group: str) -> bool:
     """Check if player can play in the team's age group"""
     if player_age_group not in self._wko_rules or team_age_group not in self._wko_rules:
-      logger.debug("Unknown age group")
       return True  # Unknown age groups - allow for now
 
     player_rule = self._wko_rules[player_age_group]
@@ -757,14 +756,9 @@ class PlayerAssignmentService:
 
     # Playing up (younger player in older team) - check if team allows this age group
     if team_rule.sortOrder < player_rule.sortOrder:
-      logger.debug(f"Player {player_age_group} playing up in team {team_age_group}")
-      logger.debug(f"Team's secondary rules: {team_rule.secondaryRules}")
-      for secondary_rule in team_rule.secondaryRules:
-          if secondary_rule.targetAgeGroup == player_age_group:
-              logger.debug(f"Team allows {player_age_group} to play up")
-              return True
-      logger.debug(f"Team does not allow {player_age_group} to play up")
-      return False
+      allowed = any(secondary_rule.targetAgeGroup == team_age_group for secondary_rule in player_rule.secondaryRules)
+      logger.debug(f"{player_age_group} is {'allowed' if allowed else 'NOT allowed'} to play up in {team_age_group}")
+      return allowed
 
     # Playing down (older player in younger team) - not allowed without OVERAGE
     return False
