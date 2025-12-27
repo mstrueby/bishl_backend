@@ -69,7 +69,7 @@ class LicenseTypeEnum(str, Enum):
     SECONDARY = "SECONDARY"  # A-Pass, Zweitspielrecht im Sinne WKO
     OVERAGE = "OVERAGE"  # Kann noch eine AK tiefer spielen
     LOAN = "LOAN"  # Leihgabe
-    HOBBY = "HOBBY" # Hobby-Pass, darf keinen anderen haben
+    HOBBY = "HOBBY"  # Hobby-Pass, darf keinen anderen haben
     DEVELOPMENT = "DEVELOPMENT"  # Förderlizenz etc.
     SPECIAL = "SPECIAL"  # Sondergenehmigung etc.
 
@@ -355,3 +355,46 @@ class IshdLogClub(BaseModel):
 class IshdLogBase(MongoBaseModel):
     processDate: datetime = Field(...)
     clubs: list[IshdLogClub] = Field(default_factory=list)
+
+
+# WKO Rules Model
+# ----------------
+
+
+class SecondaryRule(BaseModel):
+    targetAgeGroup: str = Field(..., description="e.g. HERREN, U19")
+    sex: list[SexEnum] = Field(default_factory=list,
+                               description="Allowed sexes")
+    maxLicenses: int | None = Field(
+        default=None,
+        description=
+        "Max number of licenses in this target group for one player",
+    )
+
+
+class OverAgeRule(BaseModel):
+    targetAgeGroup: str = Field(..., description="e.g. U16, U13")
+    sex: list[SexEnum] = Field(default_factory=list, description="Allowed sexes")
+    maxLicenses: int | None = Field(
+        default=None,
+        description=
+        "Max number of licenses in this target group for one player",
+    )
+    maxOverAgePlayersPerTeam: int | None = Field(
+        default=None,
+        description="Max over-age players per team in this target group",
+    )
+
+
+class WkoRule(BaseModel):
+    ageGroup: str = Field(..., description="Base age group, e.g. U16, HERREN")
+    label: str = Field(..., description="Display name")
+    sortOrder: int = Field(...)
+
+    altKey: str | None = Field(default=None,
+                               description="Alternative name from WKO")
+    sex: list[SexEnum] = Field(default_factory=list,
+                               description="Allowed sexes")
+
+    secondaryRules: list[SecondaryRule] = Field(default_factory=list)
+    overAgeRules: list[OverAgeRule] = Field(default_factory=list)

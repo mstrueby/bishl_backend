@@ -1,0 +1,123 @@
+      {
+          "ageGroup": "HERREN",
+          "label": "Herren",
+          "sortOrder": 1,
+          "altKey": "Herren",
+          "sex": ["MALE", "FEMALE"],
+          "canAlsoPlayIn": [],
+          "canPlayOverAgeIn": [],
+      },
+      {
+          "ageGroup":
+          "DAMEN",
+          "label":
+          "Damen",
+          "sortOrder":
+          2,
+          "altKey":
+          "Damen",
+          "sex": ["FEMALE"],
+          "canAlsoPlayIn": [{
+              "targetAgeGroup": "HERREN",
+              "sex": ["FEMALE"],
+              "maxLicenses": 1,
+          }],
+          "canPlayOverAgeIn": [{
+              "targetAgeGroup": "U19",
+              "maxLicenses": 1,
+              "maxOverAgePlayersPerTeam": 3,
+          }],
+      },
+      {
+          "ageGroup":
+          "U19",
+          "label":
+          "U19",
+          "sortOrder":
+          3,
+          "altKey":
+          "Junioren",
+          "sex": ["MALE", "FEMALE"],
+          "canAlsoPlayIn": [{
+              "targetAgeGroup": "HERREN",
+              "maxLicenses": 1,
+          }],
+          "canPlayOverAgeIn": [{
+              "targetAgeGroup": "U16",
+              "maxOverAgePlayersPerTeam": 3,
+          }],
+      },
+      {
+          "ageGroup":
+          "U16",
+          "label":
+          "U16",
+          "sortOrder":
+          4,
+          "altKey":
+          "Jugend",
+          "sex": ["MALE", "FEMALE"],
+          "canAlsoPlayIn": [
+              {
+                  "targetAgeGroup": "U19",
+                  "maxLicenses": 1,
+              },
+              {
+                  "targetAgeGroup": "DAMEN",
+                  "maxLicenses":
+                  1,  # gilt faktisch nur für FEMALE, kannst du ggf. mit sex-Filter prüfen
+              },
+          ],
+          "canPlayOverAgeIn": [{
+              "targetAgeGroup": "U13",
+              "maxOverAgePlayersPerTeam": 3,
+          }],
+      },
+      {
+          "ageGroup":
+          "U13",
+          "label":
+          "U13",
+          "sortOrder":
+          5,
+          "altKey":
+          "Schüler",
+          "sex": ["MALE", "FEMALE"],
+          "canAlsoPlayIn": [{
+              "targetAgeGroup": "U16",
+              "maxLicenses": 1,
+          }],
+          "canPlayOverAgeIn": [{
+              "targetAgeGroup": "U10",
+              "maxOverAgePlayersPerTeam": 3,
+          }],
+      },
+      {
+          "ageGroup": "U10",
+          "label": "U10",
+          "sortOrder": 6,
+          "altKey": "Bambini",
+          "sex": ["MALE", "FEMALE"],
+          "requiresOverAge": True,  # hier wird OverAge oft streng geregelt
+          "canAlsoPlayIn": [{
+              "targetAgeGroup": "U13",
+              "maxLicenses": 1,
+          }],
+          "canPlayOverAgeIn":
+          [],  # OverAge aus U10 nach unten gibt es praktisch nicht
+          "maxOverAgePlayersPerTeam": 2,
+      },
+      {
+          "ageGroup": "U8",
+          "label": "U8",
+          "sortOrder": 7,
+          "altKey": "Mini",
+          "sex": ["MALE", "FEMALE"],
+          "canAlsoPlayIn": [{
+              "targetAgeGroup": "U10",
+              "maxLicenses": 1,
+          }],
+          "canPlayOverAgeIn": [],
+          "maxOverAgePlayersPerTeam": 2,
+      },
+  ]
