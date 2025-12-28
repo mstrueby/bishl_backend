@@ -672,13 +672,41 @@ class PlayerAssignmentService:
 
   def _validate_age_group_compliance(self, player: dict,
                                      player_obj: PlayerDB) -> None:
-    """Validate age group compliance and OVERAGE rules"""
+    """
+    Validate age group compliance and OVERAGE rules.
+    
+    Uses two-pass approach:
+    1. First pass: Validate PRIMARY licenses only
+    2. Second pass: Validate SECONDARY, OVERAGE, and LOAN licenses
+    
+    This ensures PRIMARY is validated first and other license types are
+    invalidated before the PRIMARY when there are conflicts.
+    """
     if not player.get("assignedTeams"):
       return
 
     player_age_group = player_obj.ageGroup
     player_is_overage = player_obj.overAge
 
+    # PASS 1: Validate PRIMARY licenses first
+    for club in player["assignedTeams"]:
+      for team in club.get("teams", []):
+        if team.get("status") != LicenseStatusEnum.VALID:
+          continue
+
+        license_type = team.get("licenseType")
+        if license_type != LicenseTypeEnum.PRIMARY:
+          continue
+
+        team_age_group = team.get("teamAgeGroup")
+        if not self._is_age_group_compatible(player_age_group, team_age_group):
+          team["status"] = LicenseStatusEnum.INVALID
+          if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
+              "invalidReasonCodes", []):
+            team.setdefault("invalidReasonCodes", []).append(
+                LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
+
+    # PASS 2: Validate SECONDARY, OVERAGE, and LOAN licenses
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
         if team.get("status") != LicenseStatusEnum.VALID:
@@ -706,10 +734,9 @@ class PlayerAssignmentService:
               team.setdefault("invalidReasonCodes", []).append(
                   LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
-        # Handle PRIMARY licenses
-        elif license_type == LicenseTypeEnum.PRIMARY:
-          if not self._is_age_group_compatible(player_age_group,
-                                               team_age_group):
+        # Handle LOAN licenses (similar to SECONDARY rules)
+        elif license_type == LicenseTypeEnum.LOAN:
+          if not self._is_secondary_allowed(player_age_group, team_age_group):
             team["status"] = LicenseStatusEnum.INVALID
             if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
                 "invalidReasonCodes", []):
