@@ -817,12 +817,21 @@ class PlayerAssignmentService:
     
     This ensures PRIMARY is validated first and other license types are
     invalidated before the PRIMARY when there are conflicts.
+    
+    Special handling for anchor-only scenarios:
+    - When player has only one license (no PRIMARY), the single OVERAGE/SECONDARY
+      license acts as anchor and doesn't require the overAge flag.
     """
     if not player.get("assignedTeams"):
       return
 
     player_age_group = player_obj.ageGroup
     player_is_overage = player_obj.overAge
+    
+    # Detect anchor-only scenario (single license acting as anchor)
+    anchor_club, anchor_team = self._get_anchor_license(player)
+    is_anchor_only = (anchor_team is not None and 
+                      anchor_team.get("licenseType") != LicenseTypeEnum.PRIMARY)
 
     # PASS 1: Validate PRIMARY licenses first
     for club in player["assignedTeams"]:
@@ -850,11 +859,15 @@ class PlayerAssignmentService:
 
         team_age_group = team.get("teamAgeGroup")
         license_type = team.get("licenseType")
+        
+        # Check if this team is the anchor license
+        is_this_anchor = (is_anchor_only and team is anchor_team)
 
         # Handle OVERAGE licenses
         if license_type == LicenseTypeEnum.OVERAGE:
           if not self._is_overage_allowed(player_age_group, team_age_group,
-                                          player_is_overage):
+                                          player_is_overage,
+                                          is_anchor_license=is_this_anchor):
             team["status"] = LicenseStatusEnum.INVALID
             if LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED not in team.get(
                 "invalidReasonCodes", []):
@@ -880,9 +893,21 @@ class PlayerAssignmentService:
                   LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
   def _is_overage_allowed(self, player_age_group: str, team_age_group: str,
-                          player_is_overage: bool) -> bool:
-    """Check if OVERAGE license is allowed based on WKO rules"""
-    if not player_is_overage:
+                          player_is_overage: bool,
+                          is_anchor_license: bool = False) -> bool:
+    """
+    Check if OVERAGE license is allowed based on WKO rules.
+    
+    Args:
+      player_age_group: The player's age group
+      team_age_group: The team's age group (target)
+      player_is_overage: Whether player has overAge flag
+      is_anchor_license: If True, this is a single-license anchor scenario
+                         where overAge flag is not required
+    """
+    # For anchor scenarios (single license), we don't require the overAge flag
+    # The player may be in a club without a team in their main age group
+    if not is_anchor_license and not player_is_overage:
       return False
 
     if player_age_group not in self._wko_rules:
