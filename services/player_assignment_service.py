@@ -746,17 +746,46 @@ class PlayerAssignmentService:
                 team.setdefault("invalidReasonCodes", []).append(
                     LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
-  def _get_primary_club_id(self, player: dict) -> str | None:
-    """Get the club ID of the valid PRIMARY license"""
+  def _get_anchor_license(self, player: dict) -> tuple[dict | None, dict | None]:
+    """
+    Get the anchor license for a player.
+    
+    The anchor license is the primary reference point for club consistency checks.
+    Priority order:
+    1. Valid PRIMARY license (traditional anchor)
+    2. If no PRIMARY: the single VALID license if player has exactly one (OVERAGE/SECONDARY acting as anchor)
+    
+    Returns:
+      Tuple of (club_dict, team_dict) for the anchor license, or (None, None) if not found
+    """
     if not player.get("assignedTeams"):
-      return None
+      return None, None
 
+    # First, look for a valid PRIMARY license
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
         if (team.get("licenseType") == LicenseTypeEnum.PRIMARY
             and team.get("status") == LicenseStatusEnum.VALID):
-          return club.get("clubId")
+          return club, team
 
+    # No PRIMARY found - check if there's exactly one valid license
+    valid_licenses = []
+    for club in player["assignedTeams"]:
+      for team in club.get("teams", []):
+        if team.get("status") == LicenseStatusEnum.VALID:
+          valid_licenses.append((club, team))
+
+    # If exactly one valid license, it becomes the anchor
+    if len(valid_licenses) == 1:
+      return valid_licenses[0]
+
+    return None, None
+
+  def _get_primary_club_id(self, player: dict) -> str | None:
+    """Get the club ID of the anchor license (PRIMARY or single valid license)"""
+    anchor_club, anchor_team = self._get_anchor_license(player)
+    if anchor_club:
+      return anchor_club.get("clubId")
     return None
 
   def _validate_club_consistency(self, player: dict,
