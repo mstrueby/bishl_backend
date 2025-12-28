@@ -587,24 +587,70 @@ class PlayerAssignmentService:
                           []).append(LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
 
   def _validate_loan_consistency(self, player: dict) -> None:
-    """Validate that player has at most one LOAN license"""
+    """
+    Validate LOAN license consistency:
+    1. Player has at most one LOAN license
+    2. LOAN must be the only license within its club
+    3. No other license in same age group as LOAN in other clubs
+    """
     if not player.get("assignedTeams"):
       return
 
     loan_licenses = []
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
-        if (team.get("licenseType") == LicenseTypeEnum.LOAN):
-          loan_licenses.append((club, team))
+        if team.get("licenseType") == LicenseTypeEnum.LOAN:
+          loan_licenses.append({
+              "club": club,
+              "team": team,
+              "clubId": club.get("clubId"),
+              "ageGroup": team.get("teamAgeGroup")
+          })
 
+    if not loan_licenses:
+      return
+
+    # Rule 1: At most one LOAN license
     if len(loan_licenses) > 1:
-      # Mark all LOAN licenses as invalid
-      for club, team in loan_licenses:
+      for loan_info in loan_licenses:
+        team = loan_info["team"]
         team["status"] = LicenseStatusEnum.INVALID
         if LicenseInvalidReasonCode.TOO_MANY_LOAN not in team.get(
             "invalidReasonCodes", []):
           team.setdefault("invalidReasonCodes",
                           []).append(LicenseInvalidReasonCode.TOO_MANY_LOAN)
+      return
+
+    # We have exactly one LOAN license
+    loan_info = loan_licenses[0]
+    loan_club_id = loan_info["clubId"]
+    loan_age_group = loan_info["ageGroup"]
+
+    # Rule 2: LOAN must be the only license within its club
+    for club in player["assignedTeams"]:
+      if club.get("clubId") != loan_club_id:
+        continue
+      for team in club.get("teams", []):
+        if team.get("licenseType") == LicenseTypeEnum.LOAN:
+          continue
+        # Any other license in the same club as LOAN is invalid
+        team["status"] = LicenseStatusEnum.INVALID
+        if LicenseInvalidReasonCode.LOAN_CLUB_CONFLICT not in team.get(
+            "invalidReasonCodes", []):
+          team.setdefault("invalidReasonCodes",
+                          []).append(LicenseInvalidReasonCode.LOAN_CLUB_CONFLICT)
+
+    # Rule 3: No other license in same age group as LOAN in other clubs
+    for club in player["assignedTeams"]:
+      if club.get("clubId") == loan_club_id:
+        continue
+      for team in club.get("teams", []):
+        if team.get("teamAgeGroup") == loan_age_group:
+          team["status"] = LicenseStatusEnum.INVALID
+          if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
+              "invalidReasonCodes", []):
+            team.setdefault("invalidReasonCodes", []).append(
+                LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
   def _validate_import_conflicts(self, player: dict) -> None:
     """Validate ISHD vs BISHL conflicts - ISHD never overrides BISHL"""
