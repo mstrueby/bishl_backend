@@ -219,12 +219,26 @@ class PlayerAssignmentService:
         all_licenses.append((club, team))
 
     # Step 1: Handle single license case
+    # Classify based on age group comparison rather than defaulting to PRIMARY
     if len(all_licenses) == 1:
       club, team = all_licenses[0]
-      team["licenseType"] = LicenseTypeEnum.PRIMARY
+      team_age_group = team.get("teamAgeGroup")
+      
+      # Get player's age group for comparison
+      player_obj = PlayerDB(**player)
+      player_age_group = player_obj.ageGroup
+      
+      # Determine license type based on age group relationship
+      license_type = self._classify_single_license_by_age_group(
+          player_age_group, team_age_group, player_obj.overAge
+      )
+      team["licenseType"] = license_type
+      
       if settings.DEBUG_LEVEL > 0:
         logger.debug(
-            f"Set single license to PRIMARY for player {player.get('firstName')} {player.get('lastName')}"
+            f"Set single license to {license_type.value} for player "
+            f"{player.get('firstName')} {player.get('lastName')} "
+            f"(player age: {player_age_group}, team age: {team_age_group})"
         )
       return player
 
@@ -336,6 +350,53 @@ class PlayerAssignmentService:
         )
 
     return player
+
+  def _classify_single_license_by_age_group(
+      self, player_age_group: str, team_age_group: str, player_is_overage: bool
+  ) -> LicenseTypeEnum:
+    """
+    Classify a single license based on age group comparison.
+    
+    For players with only one license:
+    - If team matches player age group -> PRIMARY
+    - If team is younger (allowed by overAgeRules) -> OVERAGE
+    - If team is older (allowed by secondaryRules) -> SECONDARY
+    - Otherwise -> PRIMARY (fallback, will be validated later)
+    
+    Args:
+      player_age_group: Player's age group (e.g., "U16")
+      team_age_group: Team's age group (e.g., "U14", "U19")
+      player_is_overage: Whether player has overAge flag
+      
+    Returns:
+      LicenseTypeEnum (PRIMARY, OVERAGE, or SECONDARY)
+    """
+    if not player_age_group or not team_age_group:
+      return LicenseTypeEnum.PRIMARY
+    
+    # Same age group -> PRIMARY
+    if player_age_group == team_age_group:
+      return LicenseTypeEnum.PRIMARY
+    
+    # Check WKO rules for age group relationship
+    if player_age_group not in self._wko_rules:
+      return LicenseTypeEnum.PRIMARY
+    
+    player_rule = self._wko_rules[player_age_group]
+    
+    # Check if this is an OVERAGE scenario (playing in younger age group)
+    for overage_rule in player_rule.overAgeRules:
+      if overage_rule.targetAgeGroup == team_age_group:
+        return LicenseTypeEnum.OVERAGE
+    
+    # Check if this is a SECONDARY scenario (playing in older age group)
+    for secondary_rule in player_rule.secondaryRules:
+      if secondary_rule.targetAgeGroup == team_age_group:
+        return LicenseTypeEnum.SECONDARY
+    
+    # Fallback to PRIMARY if no rule matches
+    # Validation step will catch any age group violations
+    return LicenseTypeEnum.PRIMARY
 
   def _classify_by_pass_suffix(self, pass_no: str) -> str:
     """
