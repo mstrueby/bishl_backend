@@ -65,11 +65,11 @@ class PlayerAssignmentService:
               secondaryRules=[
                   SecondaryRule(targetAgeGroup="HERREN",
                                 sex=[SexEnum.MALE],
-                                maxLicenses=1,
+                                maxLicenses=99,
                                 requiresAdmin=False),
                   SecondaryRule(targetAgeGroup="DAMEN",
                                 sex=[SexEnum.FEMALE],
-                                maxLicenses=1,
+                                maxLicenses=99,
                                 requiresAdmin=False)
               ],
               overAgeRules=[
@@ -182,8 +182,7 @@ class PlayerAssignmentService:
               })
   ]
 
-  # Maximum number of active age class participations allowed by WKO
-  # TODO: maybe add to WKO_RULES
+  # DEFAULT Maximum number of active age class participations allowed by WKO
   MAX_AGE_CLASS_PARTICIPATIONS = 2
 
   def __init__(self, db):
@@ -548,6 +547,7 @@ class PlayerAssignmentService:
     based on WKO/BISHL rules and existing licenseType values.
 
     Does NOT change licenseType.
+    Licenses with adminOverride=True are skipped entirely (not modified).
     Returns the modified player dict; does not persist to database.
     
     Args:
@@ -560,6 +560,7 @@ class PlayerAssignmentService:
       return player
 
     # Step 1: Reset all license states to VALID with empty codes
+    # (except those with adminOverride=True)
     self._reset_license_validation_states(player)
 
     # Step 2: Validate UNKNOWN license types
@@ -604,22 +605,27 @@ class PlayerAssignmentService:
     return player
 
   def _reset_license_validation_states(self, player: dict) -> None:
-    """Reset all licenses to VALID with empty invalidReasonCodes"""
+    """Reset all licenses to VALID with empty invalidReasonCodes (skip adminOverride=True)"""
     if not player.get("assignedTeams"):
       return
 
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        # Skip licenses with adminOverride=True
+        if team.get("adminOverride"):
+          continue
         team["status"] = LicenseStatusEnum.VALID
         team["invalidReasonCodes"] = []
 
   def _validate_unknown_license_types(self, player: dict) -> None:
-    """Mark licenses with UNKNOWN license type as INVALID"""
+    """Mark licenses with UNKNOWN license type as INVALID (skip adminOverride=True)"""
     if not player.get("assignedTeams"):
       return
 
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        if team.get("adminOverride"):
+          continue
         if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
           team["status"] = LicenseStatusEnum.INVALID
           if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get(
@@ -628,13 +634,16 @@ class PlayerAssignmentService:
                 LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE)
 
   def _validate_primary_consistency(self, player: dict) -> None:
-    """Validate that player has at most one PRIMARY license"""
+    """Validate that player has at most one PRIMARY license (skip adminOverride=True)"""
     if not player.get("assignedTeams"):
       return
 
     primary_licenses = []
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        # Skip licenses with adminOverride=True
+        if team.get("adminOverride"):
+          continue
         if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
           primary_licenses.append((club, team))
 
@@ -649,7 +658,7 @@ class PlayerAssignmentService:
 
   def _validate_loan_consistency(self, player: dict) -> None:
     """
-    Validate LOAN license consistency:
+    Validate LOAN license consistency (skip adminOverride=True):
     1. Player has at most one LOAN license
     2. LOAN must be the only license within its club
     3. No other license in same age group as LOAN in other clubs
@@ -660,6 +669,8 @@ class PlayerAssignmentService:
     loan_licenses = []
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        if team.get("adminOverride"):
+          continue
         if team.get("licenseType") == LicenseTypeEnum.LOAN:
           loan_licenses.append({
               "club": club,
@@ -714,7 +725,7 @@ class PlayerAssignmentService:
                 LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
   def _validate_import_conflicts(self, player: dict) -> None:
-    """Validate ISHD vs BISHL conflicts - ISHD never overrides BISHL"""
+    """Validate ISHD vs BISHL conflicts - ISHD never overrides BISHL (skip adminOverride=True)"""
     if not player.get("assignedTeams"):
       return
 
@@ -723,6 +734,8 @@ class PlayerAssignmentService:
 
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        if team.get("adminOverride"):
+          continue
         if team.get("source") == SourceEnum.BISHL and team.get(
             "status") == LicenseStatusEnum.VALID:
           license_type = team.get("licenseType")
@@ -790,12 +803,14 @@ class PlayerAssignmentService:
 
   def _validate_club_consistency(self, player: dict,
                                  primary_club_id: str) -> None:
-    """Validate that SECONDARY and OVERAGE licenses belong to the primary club"""
+    """Validate that SECONDARY and OVERAGE licenses belong to the primary club (skip adminOverride=True)"""
     if not player.get("assignedTeams"):
       return
 
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        if team.get("adminOverride"):
+          continue
         if team.get("licenseType") in [
             LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE
         ]:
@@ -836,6 +851,8 @@ class PlayerAssignmentService:
     # PASS 1: Validate PRIMARY licenses first
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        if team.get("adminOverride"):
+          continue
         if team.get("status") != LicenseStatusEnum.VALID:
           continue
 
@@ -854,6 +871,8 @@ class PlayerAssignmentService:
     # PASS 2: Validate SECONDARY, OVERAGE, and LOAN licenses
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        if team.get("adminOverride"):
+          continue
         if team.get("status") != LicenseStatusEnum.VALID:
           continue
 
@@ -1022,7 +1041,7 @@ class PlayerAssignmentService:
 
   def _validate_wko_license_quota(self, player: dict, player_obj: PlayerDB) -> None:
     """
-    Validate that player doesn't exceed maxLicenses for each target age group.
+    Validate that player doesn't exceed maxLicenses for each target age group (skip adminOverride=True).
     
     maxLicenses from secondaryRules/overAgeRules defines the total number of
     licenses (of any type) allowed in that target age group. For example, if
@@ -1096,7 +1115,7 @@ class PlayerAssignmentService:
     # Check if player's sex has maxTotalAgeClasses defined
     player_rule = self._wko_rules[player_age_group]
     max_participations_dict = player_rule.maxTotalAgeClasses or {}
-    
+
     if player_sex not in max_participations_dict:
       # No limit defined for this sex, use default
       max_participations = self.MAX_AGE_CLASS_PARTICIPATIONS

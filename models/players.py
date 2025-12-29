@@ -126,6 +126,9 @@ class AssignedTeams(BaseModel):
     status: LicenseStatusEnum = Field(default=LicenseStatusEnum.UNKNOWN)
     invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(
         default_factory=list)
+    adminOverride: bool = Field(default=False, description="Admin has confirmed VALID")
+    overrideReason: str | None = None
+    overrideDate: datetime | None = None
     validFrom: datetime | None = None
     validTo: datetime | None = None
     source: SourceEnum = Field(default=SourceEnum.BISHL)
