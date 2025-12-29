@@ -571,8 +571,11 @@ class PlayerAssignmentService:
     # Step 2: Validate UNKNOWN license types
     self._validate_unknown_license_types(player)
 
-    # Step 3: Validate PRIMARY consistency
+    # Step 3: Validate PRIMARY consistency (cross-club)
     self._validate_primary_consistency(player)
+
+    # Step 3.5: Validate PRIMARY/DEVELOPMENT within-club conflicts
+    self._validate_primary_within_club(player)
 
     # Step 4: Validate LOAN consistency
     self._validate_loan_consistency(player)
@@ -660,6 +663,41 @@ class PlayerAssignmentService:
             "invalidReasonCodes", []):
           team.setdefault("invalidReasonCodes",
                           []).append(LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
+
+  def _validate_primary_within_club(self, player: dict) -> None:
+    """
+    Validate that player does not have both DEVELOPMENT and PRIMARY licenses
+    in the same club (skip adminOverride=True).
+    
+    DEVELOPMENT and PRIMARY in the same club are treated as MULTIPLE_PRIMARY
+    conflict because there are essentially two primary-like licenses.
+    """
+    if not player.get("assignedTeams"):
+      return
+
+    for club in player["assignedTeams"]:
+      club_id = club.get("clubId")
+      primary_licenses = []
+      development_licenses = []
+      
+      for team in club.get("teams", []):
+        # Skip licenses with adminOverride=True
+        if team.get("adminOverride"):
+          continue
+        
+        if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
+          primary_licenses.append(team)
+        elif team.get("licenseType") == LicenseTypeEnum.DEVELOPMENT:
+          development_licenses.append(team)
+      
+      # If both PRIMARY and DEVELOPMENT exist in same club, mark them as MULTIPLE_PRIMARY
+      if primary_licenses and development_licenses:
+        for team in primary_licenses + development_licenses:
+          team["status"] = LicenseStatusEnum.INVALID
+          if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.get(
+              "invalidReasonCodes", []):
+            team.setdefault("invalidReasonCodes",
+                            []).append(LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
 
   def _validate_loan_consistency(self, player: dict) -> None:
     """
