@@ -185,6 +185,11 @@ class PlayerAssignmentService:
   # DEFAULT Maximum number of active age class participations allowed by WKO
   MAX_AGE_CLASS_PARTICIPATIONS = 2
 
+  # License types that count as "primary-like" for WKO participation limits
+  # DEVELOPMENT licenses are Förderlizenz for BISHL Unitas.Team origin clubs
+  # They behave like PRIMARY for age class counting but don't conflict with PRIMARY
+  PRIMARY_LIKE_TYPES = {LicenseTypeEnum.PRIMARY, LicenseTypeEnum.DEVELOPMENT}
+
   def __init__(self, db):
     self.db = db
     # Build age group map from WKO_RULES, keeping as Pydantic model objects
@@ -1086,7 +1091,12 @@ class PlayerAssignmentService:
                        f"({len(licenses)} > {max_licenses})")
 
   def _validate_wko_limits(self, player: dict) -> None:
-    """Validate WKO limits on number of age class participations"""
+    """
+    Validate WKO limits on number of age class participations.
+    
+    DEVELOPMENT licenses (Förderlizenz for BISHL Unitas.Team) count toward
+    the participation limit just like PRIMARY licenses.
+    """
     if not player.get("assignedTeams"):
       return
 
@@ -1100,15 +1110,15 @@ class PlayerAssignmentService:
       return
 
     # Count valid participations by age group
+    # Include PRIMARY, DEVELOPMENT (Förderlizenz), SECONDARY, and OVERAGE
     participations = []
 
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
+        license_type = team.get("licenseType")
         if (team.get("status") == LicenseStatusEnum.VALID
-            and team.get("licenseType") in [
-                LicenseTypeEnum.PRIMARY, LicenseTypeEnum.SECONDARY,
-                LicenseTypeEnum.OVERAGE
-            ]):
+            and (license_type in self.PRIMARY_LIKE_TYPES
+                 or license_type in [LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE])):
           participations.append((club, team, team.get("teamAgeGroup")))
 
     # If exceeds WKO limit, mark excess as invalid
@@ -1126,11 +1136,11 @@ class PlayerAssignmentService:
         return
 
     if len(participations) > max_participations:
-      # Keep PRIMARY first, then sort by age group order
+      # Keep PRIMARY-like licenses (PRIMARY, DEVELOPMENT) first, then sort by age group order
       def sort_key(item):
         club, team, age_group = item
-        priority = 0 if team.get(
-            "licenseType") == LicenseTypeEnum.PRIMARY else 1
+        # PRIMARY and DEVELOPMENT get priority 0, others get priority 1
+        priority = 0 if team.get("licenseType") in self.PRIMARY_LIKE_TYPES else 1
         age_order = self._wko_rules[
             age_group].sortOrder if age_group in self._wko_rules else 999
         return (priority, age_order)
