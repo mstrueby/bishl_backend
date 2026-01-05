@@ -185,15 +185,18 @@ class PlayerAssignmentService:
   # DEFAULT Maximum number of active age class participations allowed by WKO
   MAX_AGE_CLASS_PARTICIPATIONS = 2
 
-  # License types that count as "primary-like" for WKO participation limits
-  # DEVELOPMENT licenses are Förderlizenz for BISHL Unitas.Team origin clubs
-  # They behave like PRIMARY for age class counting but don't conflict with PRIMARY
-  PRIMARY_LIKE_TYPES = {LicenseTypeEnum.PRIMARY, LicenseTypeEnum.DEVELOPMENT}
+  def _is_primary_like(self, license_type: LicenseTypeEnum) -> bool:
+    """DEVELOPMENT acts as PRIMARY-like for anchor/quotas/consistency."""
+    return license_type in [LicenseTypeEnum.PRIMARY, LicenseTypeEnum.DEVELOPMENT]
 
   def __init__(self, db):
     self.db = db
     # Build age group map from WKO_RULES, keeping as Pydantic model objects
     self._wko_rules = {rule.ageGroup: rule for rule in self.WKO_RULES}
+    # License types that count as "primary-like" for WKO participation limits
+    # DEVELOPMENT licenses are Förderlizenz for BISHL Unitas.Team origin clubs
+    # They behave like PRIMARY for age class counting but don't conflict with PRIMARY
+    self.PRIMARY_LIKE_TYPES = {LicenseTypeEnum.PRIMARY, LicenseTypeEnum.DEVELOPMENT}
 
   # ========================================================================
   # CLASSIFICATION METHODS (only touch licenseType)
@@ -571,11 +574,11 @@ class PlayerAssignmentService:
     # Step 2: Validate UNKNOWN license types
     self._validate_unknown_license_types(player)
 
-    # Step 3: Validate PRIMARY consistency (cross-club)
-    self._validate_primary_consistency(player)
+    # Step 3: Validate PRIMARY-like consistency
+    self._validate_primary_like_consistency(player)
 
-    # Step 3.5: Validate PRIMARY/DEVELOPMENT within-club conflicts
-    self._validate_primary_within_club(player)
+    # Step 3.5: Validate DEVELOPMENT uniqueness and redundancy
+    self._validate_development_uniqueness_redundancy(player)
 
     # Step 4: Validate LOAN consistency
     self._validate_loan_consistency(player)
@@ -663,41 +666,6 @@ class PlayerAssignmentService:
             "invalidReasonCodes", []):
           team.setdefault("invalidReasonCodes",
                           []).append(LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
-
-  def _validate_primary_within_club(self, player: dict) -> None:
-    """
-    Validate that player does not have both DEVELOPMENT and PRIMARY licenses
-    in the same club (skip adminOverride=True).
-    
-    DEVELOPMENT and PRIMARY in the same club are treated as MULTIPLE_PRIMARY
-    conflict because there are essentially two primary-like licenses.
-    """
-    if not player.get("assignedTeams"):
-      return
-
-    for club in player["assignedTeams"]:
-      club_id = club.get("clubId")
-      primary_licenses = []
-      development_licenses = []
-      
-      for team in club.get("teams", []):
-        # Skip licenses with adminOverride=True
-        if team.get("adminOverride"):
-          continue
-        
-        if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
-          primary_licenses.append(team)
-        elif team.get("licenseType") == LicenseTypeEnum.DEVELOPMENT:
-          development_licenses.append(team)
-      
-      # If both PRIMARY and DEVELOPMENT exist in same club, mark them as MULTIPLE_PRIMARY
-      if primary_licenses and development_licenses:
-        for team in primary_licenses + development_licenses:
-          team["status"] = LicenseStatusEnum.INVALID
-          if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.get(
-              "invalidReasonCodes", []):
-            team.setdefault("invalidReasonCodes",
-                            []).append(LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
 
   def _validate_loan_consistency(self, player: dict) -> None:
     """
@@ -804,38 +772,105 @@ class PlayerAssignmentService:
 
   def _get_anchor_license(self, player: dict) -> tuple[dict | None, dict | None]:
     """
-    Get the anchor license for a player.
-    
-    The anchor license is the primary reference point for club consistency checks.
-    Priority order:
-    1. Valid PRIMARY license (traditional anchor)
-    2. If no PRIMARY: the single VALID license if player has exactly one (OVERAGE/SECONDARY acting as anchor)
-    
-    Returns:
-      Tuple of (club_dict, team_dict) for the anchor license, or (None, None) if not found
+    Determine the anchor license (PRIMARY or fallback) for a player.
+    Priority 1: Valid PRIMARY.
+    Priority 2a: Valid DEVELOPMENT (treat as fallback PRIMARY).
+    Priority 2b: Single valid license (existing).
     """
     if not player.get("assignedTeams"):
       return None, None
 
-    # First, look for a valid PRIMARY license
+    # Priority 1: Valid PRIMARY
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
-        if (team.get("licenseType") == LicenseTypeEnum.PRIMARY
-            and team.get("status") == LicenseStatusEnum.VALID):
+        if (team.get("status") == LicenseStatusEnum.VALID
+            and team.get("licenseType") == LicenseTypeEnum.PRIMARY):
           return club, team
 
-    # No PRIMARY found - check if there's exactly one valid license
+    # Priority 2a: Valid DEVELOPMENT
+    for club in player["assignedTeams"]:
+      for team in club.get("teams", []):
+        if (team.get("status") == LicenseStatusEnum.VALID
+            and team.get("licenseType") == LicenseTypeEnum.DEVELOPMENT):
+          return club, team
+
+    # Priority 2b: Single valid license
     valid_licenses = []
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
         if team.get("status") == LicenseStatusEnum.VALID:
           valid_licenses.append((club, team))
 
-    # If exactly one valid license, it becomes the anchor
     if len(valid_licenses) == 1:
       return valid_licenses[0]
 
     return None, None
+
+  def _validate_primary_like_consistency(self, player: dict) -> None:
+    """Validate that player has at most one PRIMARY-like license (skip adminOverride=True)"""
+    if not player.get("assignedTeams"):
+      return
+
+    primary_like_licenses = []
+    for club in player["assignedTeams"]:
+      for team in club.get("teams", []):
+        # Skip licenses with adminOverride=True
+        if team.get("adminOverride"):
+          continue
+        if self._is_primary_like(team.get("licenseType")):
+          primary_like_licenses.append((club, team))
+
+    if len(primary_like_licenses) > 1:
+      # Mark all PRIMARY-like licenses as invalid
+      for club, team in primary_like_licenses:
+        team["status"] = LicenseStatusEnum.INVALID
+        if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.get(
+            "invalidReasonCodes", []):
+          team.setdefault("invalidReasonCodes",
+                          []).append(LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
+
+  def _validate_development_uniqueness_redundancy(self, player: dict) -> None:
+    """
+    Validate DEVELOPMENT license uniqueness and redundancy within club/age group.
+    - If PRIMARY exists in same club/age group -> DEVELOPMENT is REDUNDANT_DEVELOPMENT
+    - If multiple DEVELOPMENT in same club/age group -> Keep first, others are MULTIPLE_DEVELOPMENT
+    """
+    if not player.get("assignedTeams"):
+      return
+
+    for club in player["assignedTeams"]:
+      club_id = club.get("clubId")
+      # Group by teamAgeGroup
+      groups = {}
+      for team in club.get("teams", []):
+        if team.get("adminOverride"):
+          continue
+        age_group = team.get("teamAgeGroup")
+        if age_group not in groups:
+          groups[age_group] = {"primary": [], "development": []}
+        
+        if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
+          groups[age_group]["primary"].append(team)
+        elif team.get("licenseType") == LicenseTypeEnum.DEVELOPMENT:
+          groups[age_group]["development"].append(team)
+
+      for age_group, group in groups.items():
+        # Case 1: PRIMARY exists -> all DEVELOPMENT are redundant
+        if group["primary"] and group["development"]:
+          for dev_team in group["development"]:
+            dev_team["status"] = LicenseStatusEnum.INVALID
+            if LicenseInvalidReasonCode.REDUNDANT_DEVELOPMENT not in dev_team.get("invalidReasonCodes", []):
+              dev_team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.REDUNDANT_DEVELOPMENT)
+            logger.debug(f"Invalidated DEVELOPMENT due to redundant PRIMARY in club {club_id} age {age_group}")
+
+        # Case 2: No PRIMARY but multiple DEVELOPMENT
+        elif len(group["development"]) > 1:
+          # Keep the first one, invalidate others
+          for dev_team in group["development"][1:]:
+            dev_team["status"] = LicenseStatusEnum.INVALID
+            if LicenseInvalidReasonCode.MULTIPLE_DEVELOPMENT not in dev_team.get("invalidReasonCodes", []):
+              dev_team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.MULTIPLE_DEVELOPMENT)
+            logger.debug(f"Invalidated DEVELOPMENT due to multiple DEVELOPMENT in club {club_id} age {age_group}")
 
   def _get_primary_club_id(self, player: dict) -> str | None:
     """Get the club ID of the anchor license (PRIMARY or single valid license)"""
@@ -1129,12 +1164,7 @@ class PlayerAssignmentService:
                        f"({len(licenses)} > {max_licenses})")
 
   def _validate_wko_limits(self, player: dict) -> None:
-    """
-    Validate WKO limits on number of age class participations.
-    
-    DEVELOPMENT licenses (Förderlizenz for BISHL Unitas.Team) count toward
-    the participation limit just like PRIMARY licenses.
-    """
+    """Validate WKO limits on number of age class participations"""
     if not player.get("assignedTeams"):
       return
 
@@ -1148,15 +1178,15 @@ class PlayerAssignmentService:
       return
 
     # Count valid participations by age group
-    # Include PRIMARY, DEVELOPMENT (Förderlizenz), SECONDARY, and OVERAGE
     participations = []
 
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
-        license_type = team.get("licenseType")
         if (team.get("status") == LicenseStatusEnum.VALID
-            and (license_type in self.PRIMARY_LIKE_TYPES
-                 or license_type in [LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE])):
+            and team.get("licenseType") in [
+                LicenseTypeEnum.PRIMARY, LicenseTypeEnum.SECONDARY,
+                LicenseTypeEnum.OVERAGE
+            ]):
           participations.append((club, team, team.get("teamAgeGroup")))
 
     # If exceeds WKO limit, mark excess as invalid
@@ -1174,11 +1204,11 @@ class PlayerAssignmentService:
         return
 
     if len(participations) > max_participations:
-      # Keep PRIMARY-like licenses (PRIMARY, DEVELOPMENT) first, then sort by age group order
+      # Keep PRIMARY first, then sort by age group order
       def sort_key(item):
         club, team, age_group = item
-        # PRIMARY and DEVELOPMENT get priority 0, others get priority 1
-        priority = 0 if team.get("licenseType") in self.PRIMARY_LIKE_TYPES else 1
+        priority = 0 if team.get(
+            "licenseType") == LicenseTypeEnum.PRIMARY else 1
         age_order = self._wko_rules[
             age_group].sortOrder if age_group in self._wko_rules else 999
         return (priority, age_order)
