@@ -79,14 +79,6 @@ def remove_bishl_assignments():
     else:
         print(f"Successfully modified {modified_count} out of {len(players_list)} players")
     print(f"{'='*60}")
-    
-    print(f"\n{'='*60}")
-    if args.dry_run:
-        print(f"DRY RUN: Would modify {len(players_list)} players")
-    else:
-        print(f"Successfully modified {modified_count} out of {len(players_list)} players")
-    print(f"{'='*60}")
-
 
 if __name__ == "__main__":
     if args.dry_run:
