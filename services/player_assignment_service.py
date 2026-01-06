@@ -1738,9 +1738,11 @@ class PlayerAssignmentService:
         )
 
         # Process each team in the club
+        processed_team_ids = set()
         for team in club.teams:
-          if not team["ishdId"]:
+          if not team["ishdId"] or team["ishdId"] in processed_team_ids:
             continue
+          processed_team_ids.add(team["ishdId"])
 
           club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
           team_id_str = urllib.parse.quote(str(team["ishdId"]))
@@ -1900,10 +1902,11 @@ class PlayerAssignmentService:
                             if not team_assignment_exists:
                                 # Add team assignment to existing club
                                 club_assignment.get("teams").append(jsonable_encoder(assigned_team))
-                                existing_player["assignedTeams"] = [club_assignment] + [
-                                    a for a in existing_player["assignedTeams"] if a != club_assignment
-                                ]
-
+                                # Fix: Update the list in place if needed, or ensure it's correctly referenced
+                                # The current logic below [club_assignment] + ... might be creating duplicates if not careful
+                                # but the primary issue is the loop over assignedTeams might be hitting the same club multiple times
+                                # if the player data has duplicates or if the logic is called in a way that repeats.
+                                
                                 # Apply license classification and validation
                                 existing_player = await self.classify_license_types_for_player(existing_player)
                                 existing_player = await self.validate_licenses_for_player(existing_player)
