@@ -316,6 +316,7 @@ class PlayerUpdate(MongoBaseModel):
     sex: SexEnum | None = None
     assignedTeams: list[AssignedClubs] | None = None
     playUpTrackings: list[PlayUpTracking] | None = None
+    suspensions: list[Suspension] | None = None
     stats: list[PlayerStats] | None = None
     imageUrl: HttpUrl | None = None
     imageVisible: bool | None = None

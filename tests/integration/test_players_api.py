@@ -309,35 +309,6 @@ class TestPlayersAPI:
         assert len(updated["suspensions"]) == 1
         assert updated["suspensions"][0]["reason"] == "Game misconduct"
 
-        # Setup player
-        player = create_test_player("player-1")
-        player["assignedTeams"] = [{
-            "clubId": "club-1",
-            "clubName": "Test Club",
-            "clubAlias": "test-club",
-            "teams": [{
-                "teamId": "team-1",
-                "teamName": "Team A",
-                "teamAlias": "team-a",
-                "teamAgeGroup": "U15",
-                "passNo": "12345",
-                "active": True
-            }]
-        }]
-        await mongodb["players"].insert_one(player)
-        
-        # Execute
-        response = await client.get(
-            "/players/clubs/test-club/teams/team-a",
-            headers={"Authorization": f"Bearer {admin_token}"}
-        )
-        
-        # Assert
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["pagination"]["total_items"] >= 1
-
     async def test_search_players(self, client: AsyncClient, mongodb, admin_token):
         """Test searching players by name"""
         from tests.fixtures.data_fixtures import create_test_player
