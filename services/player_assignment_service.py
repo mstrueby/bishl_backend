@@ -222,6 +222,18 @@ class PlayerAssignmentService:
     # License types that count as "primary-like" for WKO participation limits
     self.PRIMARY_LIKE_TYPES = {LicenseTypeEnum.PRIMARY}
 
+  def _prepare_player_for_validation(self, player: dict) -> dict:
+    """
+    Prepare a player dict for Pydantic validation by ensuring required fields
+    have fallback values. This handles legacy data that may be missing fields.
+    """
+    player_copy = player.copy()
+    if "displayFirstName" not in player_copy:
+      player_copy["displayFirstName"] = player_copy.get("firstName", "")
+    if "displayLastName" not in player_copy:
+      player_copy["displayLastName"] = player_copy.get("lastName", "")
+    return player_copy
+
   # ========================================================================
   # CLASSIFICATION METHODS (only touch licenseType)
   # ========================================================================
@@ -256,7 +268,7 @@ class PlayerAssignmentService:
       team_age_group = team.get("teamAgeGroup")
       
       # Get player's age group for comparison
-      player_obj = PlayerDB(**player)
+      player_obj = PlayerDB(**self._prepare_player_for_validation(player))
       player_age_group = player_obj.ageGroup
       
       # Determine license type based on age group relationship
@@ -288,7 +300,7 @@ class PlayerAssignmentService:
 
     # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
     # We need to determine player's age group first
-    player_obj = PlayerDB(**player)
+    player_obj = PlayerDB(**self._prepare_player_for_validation(player))
     player_age_group = player_obj.ageGroup
 
     for club in player.get("assignedTeams", []):
@@ -630,7 +642,7 @@ class PlayerAssignmentService:
 
     # Step 8: Validate age group violations and OVERAGE rules
     # We need to create a PlayerDB instance for age group properties
-    player_obj = PlayerDB(**player)
+    player_obj = PlayerDB(**self._prepare_player_for_validation(player))
     self._validate_age_group_compliance(player, player_obj)
 
     # Step 9: Validate WKO license quotas (maxLicenses per target age group)
@@ -1206,7 +1218,7 @@ class PlayerAssignmentService:
       return
 
     # 1. Get player details
-    player_obj = PlayerDB(**player)
+    player_obj = PlayerDB(**self._prepare_player_for_validation(player))
     player_age_group = player_obj.ageGroup
     player_sex = player_obj.sex
 
