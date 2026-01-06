@@ -720,6 +720,12 @@ class PlayerAssignmentService:
           team = item["team"]
           source_pref = 0 if team.get("source") == SourceEnum.BISHL else 1
           modify_date = team.get("modifyDate") or datetime.max
+          # Handle case where modifyDate might be a string (from jsonable_encoder)
+          if isinstance(modify_date, str):
+            try:
+              modify_date = datetime.fromisoformat(modify_date.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+              modify_date = datetime.max
           return (source_pref, modify_date, team.get("teamAlias", ""))
 
         licenses.sort(key=sort_key)
@@ -1859,7 +1865,7 @@ class PlayerAssignmentService:
                   existing_player = existing_player_loop
                   break
 
-                if player_exists and existing_player is not None:
+              if player_exists and existing_player is not None:
                     # EXISTING PLAYER - update team assignments
                     club_assignment_exists = False
 
