@@ -4,20 +4,46 @@ Player Assignment Service - Unified license classification and validation
 Responsibilities:
 1. Classification: Set licenseType based on passNo suffixes and heuristics
 2. Validation: Set status and invalidReasonCodes based on WKO/BISHL rules
+3. ISHD Sync: Fetch and synchronize player data from ISHD API
 
 This service is the single entry point for all license-related operations.
 """
 
+import aiohttp
+import base64
+import json
+import os
+import ssl
+import urllib.parse
 from datetime import datetime
+from typing import Any, Dict, List
 
 from fastapi.encoders import jsonable_encoder
 
 from config import settings
+from exceptions import DatabaseOperationException, ExternalServiceException
 from logging_config import logger
-from models.players import (LicenseStatusEnum, LicenseTypeEnum,
-                            LicenseInvalidReasonCode, OverAgeRule,
-                            SecondaryRule, SourceEnum, PlayerDB, WkoRule,
-                            SexEnum, ClubTypeEnum)
+from models.clubs import TeamTypeEnum
+from models.players import (
+    AssignedClubs,
+    AssignedTeams,
+    IshdActionEnum,
+    IshdLogBase,
+    IshdLogClub,
+    IshdLogPlayer,
+    IshdLogTeam,
+    LicenseInvalidReasonCode,
+    LicenseStatusEnum,
+    LicenseTypeEnum,
+    OverAgeRule,
+    PlayerBase,
+    PlayerDB,
+    SecondaryRule,
+    SexEnum,
+    SourceEnum,
+    WkoRule,
+    ClubTypeEnum,
+)
 
 
 class PlayerAssignmentService:
@@ -845,59 +871,6 @@ class PlayerAssignmentService:
 
     return None, None
 
-  def _validate_primary_consistency(self, player: dict) -> None:
-    """
-    Validate PRIMARY licenses: at most one per clubType (MAIN/DEVELOPMENT).
-    
-    Sorting rule for deterministic tie-breaking:
-    1. BISHL source over ISHD
-    2. Earliest modifyDate
-    3. Alphabetical teamAlias (fallback)
-    """
-    if not player.get("assignedTeams"):
-      return
-
-    # Group PRIMARY licenses by clubType
-    primary_by_type: dict[str, list[dict]] = {
-        ClubTypeEnum.MAIN: [],
-        ClubTypeEnum.DEVELOPMENT: []
-    }
-
-    for club in player["assignedTeams"]:
-      club_type = club.get("clubType", ClubTypeEnum.MAIN)
-      # Handle missing/invalid clubType
-      if club_type not in [ClubTypeEnum.MAIN, ClubTypeEnum.DEVELOPMENT]:
-        club_type = ClubTypeEnum.MAIN
-        
-      for team in club.get("teams", []):
-        if team.get("adminOverride"):
-          continue
-        if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
-          # Keep track of parent club for validation
-          primary_by_type[club_type].append({"club": club, "team": team})
-
-    for club_type, licenses in primary_by_type.items():
-      if len(licenses) > 1:
-        # Sort licenses to pick the "best" one to keep valid
-        def sort_key(item):
-          team = item["team"]
-          source_pref = 0 if team.get("source") == SourceEnum.BISHL else 1
-          modify_date = team.get("modifyDate") or datetime.max
-          return (source_pref, modify_date, team.get("teamAlias", ""))
-
-        licenses.sort(key=sort_key)
-
-        # Mark all but the first one as INVALID
-        for item in licenses[1:]:
-          team = item["team"]
-          team["status"] = LicenseStatusEnum.INVALID
-          if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.get(
-              "invalidReasonCodes", []):
-            team.setdefault("invalidReasonCodes", []).append(
-                LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
-          logger.debug(f"Invalidated excess PRIMARY in {club_type} club: "
-                       f"{item['club'].get('clubName')} / {team.get('teamName')}")
-
   def _get_primary_club_ids(self, player: dict) -> list[str]:
     """
     Returns a list of clubIds with any PRIMARY licenses (regardless of status).
@@ -1627,3 +1600,626 @@ class PlayerAssignmentService:
                   stats["by_invalidReasonCodes"].get(code, 0) + 1)
 
     return stats
+
+  # ========================================================================
+  # ISHD SYNC METHODS
+  # ========================================================================
+
+  async def process_ishd_sync(self, mode: str = "live", run: int = 1) -> Dict[str, Any]:
+    """
+    Process ISHD player data synchronization.
+    
+    Migrated from routers/players.py process_ishd_data endpoint.
+    Fetches player data from ISHD API and synchronizes with local database.
+    
+    Args:
+      mode: Sync mode - "live" (full sync), "test" (use JSON files), "dry" (simulate only)
+      run: Run number for test mode (determines which JSON files to use)
+    
+    Returns:
+      Dict containing logs, stats, and ishdLog data
+    """
+    log_lines: List[str] = []
+    stats = {
+        "added_players": 0,
+        "updated_teams": 0,
+        "deleted": 0,
+        "invalid_new": 0,
+    }
+
+    # If mode is 'test' and first run, delete all documents in 'players'
+    if mode == "test" and run == 1:
+      await self.db["players"].delete_many({})
+      log_line = "Deleted all documents in players."
+      logger.warning(log_line)
+      log_lines.append(log_line)
+
+    # Get ISHD API credentials from environment
+    ISHD_API_URL = os.environ.get("ISHD_API_URL")
+    ISHD_API_USER = os.environ.get("ISHD_API_USER")
+    ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
+
+    # Helper class to store club/team info for processing
+    class IshdTeams:
+      def __init__(self, club_id, club_ishd_id, club_name, club_alias, teams):
+        self.club_id = club_id
+        self.club_ishd_id = club_ishd_id
+        self.club_name = club_name
+        self.club_alias = club_alias
+        self.teams = teams
+
+    ishd_teams = []
+    create_date = datetime.now().replace(microsecond=0)
+
+    # Get all active clubs with teams from database
+    async for club in self.db["clubs"].aggregate([
+        {
+            "$match": {
+                "active": True,
+                "teams": {"$ne": []},
+            }
+        },
+        {"$project": {"ishdId": 1, "_id": 1, "name": 1, "alias": 1, "teams": 1}},
+        {"$sort": {"ishdId": 1}},
+    ]):
+      ishd_teams.append(
+          IshdTeams(club["_id"], club["ishdId"], club["name"], club["alias"], club["teams"])
+      )
+
+    # Get existing players from database for comparison
+    existing_players = []
+    async for player in self.db["players"].find(
+        {},
+        {
+            "firstName": 1,
+            "lastName": 1,
+            "birthdate": 1,
+            "assignedTeams": 1,
+            "managedByISHD": 1,
+        },
+    ):
+      existing_players.append(player)
+
+    # Setup HTTP headers for ISHD API
+    base_url_str = str(ISHD_API_URL)
+    headers = {
+        "Authorization": f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode()).decode('utf-8')}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+    ishd_data = []
+    timeout = aiohttp.ClientTimeout(total=60)
+
+    # Create SSL context with certificate verification
+    ssl_context = ssl.create_default_context()
+    connector = aiohttp.TCPConnector(ssl=ssl_context, limit=10, limit_per_host=5)
+
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+      # Initialize ISHD log structure
+      ishd_log_base = IshdLogBase(
+          processDate=datetime.now().replace(microsecond=0),
+          clubs=[],
+      )
+
+      # Process each club
+      for club in ishd_teams:
+        # Skip clubs without ISHD ID
+        if club.club_ishd_id is None:
+          log_line = f"Skipping club {club.club_name} (no ISHD ID)"
+          print(log_line)
+          log_lines.append(log_line)
+          continue
+
+        log_line = f"Processing club {club.club_name} (IshdId: {club.club_ishd_id})"
+        print(log_line)
+        log_lines.append(log_line)
+
+        ishd_log_club = IshdLogClub(
+            clubName=club.club_name,
+            ishdId=club.club_ishd_id,
+            teams=[],
+        )
+
+        # Process each team in the club
+        for team in club.teams:
+          if not team["ishdId"]:
+            continue
+
+          club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
+          team_id_str = urllib.parse.quote(str(team["ishdId"]))
+          api_url = f"{base_url_str}/clubs/{club_ishd_id_str}/teams/{team_id_str}.json"
+
+          ishd_log_team = IshdLogTeam(
+              teamIshdId=team["ishdId"],
+              url=api_url,
+              players=[],
+          )
+
+          # Fetch team data from ISHD API or test file
+          data = {}
+          if mode == "test":
+            test_file = f"ishd_test{run}_{club_ishd_id_str}_{team['alias']}.json"
+            if os.path.exists(test_file):
+              log_line = f"Processing team {club.club_name} / {team['ishdId']} / {test_file}"
+              log_lines.append(log_line)
+              with open(test_file) as file:
+                data = json.load(file)
+                print("data", data)
+            else:
+              log_line = f"File {test_file} does not exist. Skipping..."
+              log_lines.append(log_line)
+          elif mode != "dry":
+            # Live mode - fetch from API
+            log_line = f"Processing team (URL): {club.club_name} / {team['ishdId']} / {api_url}"
+            print(log_line)
+            log_lines.append(log_line)
+
+            async with session.get(api_url, headers=headers) as response:
+              if response.status == 200:
+                data = await response.json()
+              elif response.status == 404:
+                log_line = f"API URL {api_url} returned a 404 status code."
+                print(log_line)
+                log_lines.append(log_line)
+              else:
+                try:
+                  error_detail = await response.json()
+                except json.JSONDecodeError:
+                  try:
+                    error_detail = await response.text()
+                  except Exception:
+                    error_detail = "Unable to parse error response"
+
+                if response.status in [525, 526, 530]:
+                  error_detail = f"SSL/TLS error - Status {response.status}. The server may have SSL certificate issues."
+
+                raise ExternalServiceException(
+                    service_name="ISHD_API",
+                    message=f"Failed to fetch team data (status {response.status})",
+                    details={
+                        "url": api_url,
+                        "status_code": response.status,
+                        "error_detail": error_detail,
+                    },
+                )
+
+          if data:
+            # Process each player in the team data
+            for player in data["players"]:
+              # Validate player birthdate
+              try:
+                birthdate = datetime.strptime(player["date_of_birth"], "%Y-%m-%d")
+              except ValueError:
+                log_line = (
+                    f"ERROR: Invalid date format for player "
+                    f"{player['first_name']} {player['last_name']} "
+                    f"from club {club.club_name} and team {team['name']}"
+                )
+                print(log_line)
+                log_lines.append(log_line)
+                continue
+
+              # Check if player exists and has managedByISHD=false (skip if so)
+              existing_player_check = None
+              for existing_player in existing_players:
+                if (
+                    existing_player["firstName"] == player["first_name"]
+                    and existing_player["lastName"] == player["last_name"]
+                    and datetime.strftime(existing_player["birthdate"], "%Y-%m-%d")
+                    == player["date_of_birth"]
+                ):
+                  existing_player_check = existing_player
+                  break
+
+              if (
+                  existing_player_check
+                  and existing_player_check.get("managedByISHD", True) is False
+              ):
+                log_line = f"Skipping player (managedByISHD=false): {player['first_name']} {player['last_name']} {player['date_of_birth']}"
+                print(log_line)
+                log_lines.append(log_line)
+                continue
+
+              ishd_log_player = IshdLogPlayer(
+                  firstName=player["first_name"],
+                  lastName=player["last_name"],
+                  birthdate=datetime.strptime(player["date_of_birth"], "%Y-%m-%d"),
+              )
+
+              # NEW: Get teamType from database team document
+              team_doc = await self.db["teams"].find_one({"_id": team["_id"]})
+              team_type = team_doc.get("teamType", TeamTypeEnum.COMPETITIVE) if team_doc else TeamTypeEnum.COMPETITIVE
+
+              # Build assigned team object with source=ISHD
+              assigned_team = AssignedTeams(
+                  teamId=team["_id"],
+                  teamName=team["name"],
+                  teamAlias=team["alias"],
+                  teamType=team_type,
+                  teamAgeGroup=team["ageGroup"],
+                  teamIshdId=team["ishdId"],
+                  passNo=player["license_number"],
+                  source=SourceEnum.ISHD,
+                  modifyDate=datetime.strptime(
+                      player["last_modification"], "%Y-%m-%d %H:%M:%S"
+                  ),
+              )
+              assigned_club = AssignedClubs(
+                  clubId=club.club_id,
+                  clubName=club.club_name,
+                  clubAlias=club.club_alias,
+                  clubIshdId=club.club_ishd_id,
+                  teams=[assigned_team],
+              )
+
+              # Check if player already exists in existing_players array
+              player_exists = False
+              existing_player = None
+              for existing_player_loop in existing_players:
+                if (
+                    existing_player_loop["firstName"] == player["first_name"]
+                    and existing_player_loop["lastName"] == player["last_name"]
+                    and datetime.strftime(existing_player_loop["birthdate"], "%Y-%m-%d")
+                    == player["date_of_birth"]
+                ):
+                  player_exists = True
+                  existing_player = existing_player_loop
+                  break
+
+              if player_exists and existing_player is not None:
+                # EXISTING PLAYER - update team assignments
+                club_assignment_exists = False
+                if mode == "test":
+                  print("player exists / existing_players", existing_players)
+
+                for club_assignment in existing_player.get("assignedTeams", []):
+                  if mode == "test":
+                    print("club_assignment", club_assignment)
+                  if club_assignment["clubName"] == club.club_name:
+                    if mode == "test":
+                      print("club_assignment exists: club_name", club_assignment["clubName"])
+                    club_assignment_exists = True
+
+                    # Check if team assignment exists
+                    team_assignment_exists = False
+                    for team_assignment in club_assignment.get("teams", []):
+                      if team_assignment["teamId"] == team["_id"]:
+                        team_assignment_exists = True
+                        break
+
+                    if not team_assignment_exists:
+                      # Add team assignment to existing club
+                      club_assignment.get("teams").append(jsonable_encoder(assigned_team))
+                      existing_player["assignedTeams"] = [club_assignment] + [
+                          a for a in existing_player["assignedTeams"] if a != club_assignment
+                      ]
+                      if mode == "test":
+                        print("add team / existing_player", existing_player)
+
+                      # Apply license classification and validation
+                      existing_player = await self.classify_license_types_for_player(existing_player)
+                      existing_player = await self.validate_licenses_for_player(existing_player)
+
+                      # Persist to database (skip in dry mode)
+                      if mode != "dry":
+                        result = await self.db["players"].update_one(
+                            {"_id": existing_player["_id"]},
+                            {"$set": {"assignedTeams": jsonable_encoder(existing_player["assignedTeams"])}},
+                        )
+                        if result.modified_count:
+                          birthdate_val = existing_player.get('birthdate')
+                          birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
+                          log_line = f"Updated team assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']}"
+                          print(log_line)
+                          log_lines.append(log_line)
+                          ishd_log_player.action = IshdActionEnum.ADD_TEAM
+                          stats["updated_teams"] += 1
+                        else:
+                          raise DatabaseOperationException(
+                              operation="update_one",
+                              collection="players",
+                              details={
+                                  "player_id": existing_player["_id"],
+                                  "reason": "Failed to update team assignment",
+                              },
+                          )
+                    break
+
+                if not club_assignment_exists:
+                  # Club assignment does not exist - add new club with team
+                  if mode == "test":
+                    print("club assignment does not exist / existing_players")
+                  existing_player["assignedTeams"].append(jsonable_encoder(assigned_club))
+                  if mode == "test":
+                    print("add club / existing_player: ", existing_player)
+
+                  # Apply license classification and validation
+                  existing_player = await self.classify_license_types_for_player(existing_player)
+                  existing_player = await self.validate_licenses_for_player(existing_player)
+
+                  # Persist to database (skip in dry mode)
+                  if mode != "dry":
+                    result = await self.db["players"].update_one(
+                        {"_id": existing_player["_id"]},
+                        {
+                            "$set": {
+                                "source": SourceEnum.ISHD,
+                                "assignedTeams": jsonable_encoder(existing_player["assignedTeams"]),
+                            }
+                        },
+                    )
+                    if result.modified_count:
+                      birthdate_val = existing_player.get('birthdate')
+                      birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
+                      log_line = f"New club assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
+                      print(log_line)
+                      log_lines.append(log_line)
+                      ishd_log_player.action = IshdActionEnum.ADD_CLUB
+                      stats["updated_teams"] += 1
+                    else:
+                      raise DatabaseOperationException(
+                          operation="update_one",
+                          collection="players",
+                          details={
+                              "player_id": existing_player["_id"],
+                              "reason": "Failed to add club assignment",
+                          },
+                      )
+
+              else:
+                # NEW PLAYER - create and insert
+                new_player = PlayerBase(
+                    firstName=player["first_name"],
+                    lastName=player["last_name"],
+                    birthdate=datetime.strptime(player["date_of_birth"], "%Y-%m-%d"),
+                    displayFirstName=player["first_name"],
+                    displayLastName=player["last_name"],
+                    nationality=player["nationality"] if "nationality" in player else None,
+                    assignedTeams=[assigned_club],
+                    fullFaceReq=True if player.get("full_face_req") == "true" else False,
+                    source=SourceEnum.ISHD,
+                )
+                new_player_dict = jsonable_encoder(new_player)
+                new_player_dict["birthdate"] = datetime.strptime(player["date_of_birth"], "%Y-%m-%d")
+                new_player_dict["createDate"] = create_date
+
+                # Apply license classification and validation
+                new_player_dict = await self.classify_license_types_for_player(new_player_dict)
+                new_player_dict = await self.validate_licenses_for_player(new_player_dict)
+
+                # Check if any license is INVALID (for stats)
+                for club_assign in new_player_dict.get("assignedTeams", []):
+                  for team_assign in club_assign.get("teams", []):
+                    if team_assign.get("status") == LicenseStatusEnum.INVALID:
+                      stats["invalid_new"] += 1
+
+                # Add to existing players array
+                existing_players.append(new_player_dict)
+
+                # Persist to database (skip in dry mode)
+                if mode != "dry":
+                  result = await self.db["players"].insert_one(new_player_dict)
+                  if result.inserted_id:
+                    birthdate = new_player_dict.get("birthdate")
+                    birthdate_str = (
+                        birthdate.strftime("%Y-%m-%d")
+                        if isinstance(birthdate, datetime)
+                        else "Unknown"
+                    )
+                    log_line = f"Inserted player: {new_player_dict.get('firstName')} {new_player_dict.get('lastName')} {birthdate_str} -> {assigned_club.clubName} / {assigned_team.teamName}"
+                    print(log_line)
+                    log_lines.append(log_line)
+                    ishd_log_player.action = IshdActionEnum.ADD_PLAYER
+                    stats["added_players"] += 1
+                  else:
+                    raise DatabaseOperationException(
+                        operation="insert_one",
+                        collection="players",
+                        details={
+                            "player_name": f"{new_player_dict.get('firstName')} {new_player_dict.get('lastName')}",
+                            "reason": "Insert operation did not return inserted_id",
+                        },
+                    )
+
+              if ishd_log_player.action is not None:
+                ishd_log_team.players.append(ishd_log_player)
+
+            ishd_data.append(data)
+
+            # Handle DEL: Remove players from team if missing in ISHD data
+            query = {
+                "assignedTeams": {
+                    "$elemMatch": {
+                        "clubAlias": club.club_alias,
+                        "teams.teamAlias": team["alias"],
+                    }
+                }
+            }
+            players = await self.db["players"].find(query).to_list(length=None)
+            if mode == "test":
+              print("removing / players:", players)
+
+            if players:
+              for player_to_check in players:
+                ishd_log_player_remove = IshdLogPlayer(
+                    firstName=player_to_check["firstName"],
+                    lastName=player_to_check["lastName"],
+                    birthdate=player_to_check["birthdate"],
+                )
+                if mode == "test":
+                  print("remove player ?", player_to_check)
+
+                # Only remove player from team if source is ISHD
+                team_source_is_ishd = False
+                for club_assignment in player_to_check.get("assignedTeams", []):
+                  if club_assignment.get("clubAlias") == club.club_alias:
+                    for team_assignment in club_assignment.get("teams", []):
+                      if (
+                          team_assignment.get("teamAlias") == team["alias"]
+                          and team_assignment.get("source") == "ISHD"
+                      ):
+                        team_source_is_ishd = True
+                        break
+
+                # Skip players with managedByISHD=false
+                if player_to_check.get("managedByISHD", True) is False:
+                  birthdate_val = player_to_check.get('birthdate')
+                  birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
+                  log_line = f"Skipping player (managedByISHD=false): {player_to_check.get('firstName')} {player_to_check.get('lastName')} {birthdate_str}"
+                  print(log_line)
+                  log_lines.append(log_line)
+                  continue
+
+                # Check if player exists in ISHD data by comparing name and birthdate
+                player_birthdate = player_to_check.get("birthdate")
+                player_birthdate_str = player_birthdate.strftime("%Y-%m-%d") if player_birthdate else ""
+
+                if team_source_is_ishd and not any(
+                    p["first_name"] == player_to_check["firstName"]
+                    and p["last_name"] == player_to_check["lastName"]
+                    and p["date_of_birth"] == player_birthdate_str
+                    for p in data["players"]
+                ):
+                  # Player missing in ISHD - remove from team (skip in dry mode)
+                  if mode != "dry":
+                    query_update = {
+                        "$and": [
+                            {"_id": player_to_check["_id"]},
+                            {
+                                "assignedTeams": {
+                                    "$elemMatch": {
+                                        "clubAlias": club.club_alias,
+                                        "teams": {"$elemMatch": {"teamAlias": team["alias"]}},
+                                    }
+                                }
+                            },
+                        ]
+                    }
+                    result = await self.db["players"].update_one(
+                        query_update,
+                        {"$pull": {"assignedTeams.$.teams": {"teamAlias": team["alias"]}}},
+                    )
+                    if result.modified_count:
+                      # Update existing_players array
+                      for existing_player in existing_players:
+                        if existing_player["_id"] == player_to_check["_id"]:
+                          for club_assignment in existing_player.get("assignedTeams", []):
+                            if club_assignment["clubAlias"] == club.club_alias:
+                              club_assignment["teams"] = [
+                                  t for t in club_assignment["teams"]
+                                  if t["teamAlias"] != team["alias"]
+                              ]
+                              break
+
+                      del_birthdate = player_to_check.get('birthdate')
+                      del_birthdate_str = del_birthdate.strftime('%Y-%m-%d') if del_birthdate else 'Unknown'
+                      log_line = f"Removed player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {del_birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
+                      print(log_line)
+                      log_lines.append(log_line)
+                      ishd_log_player_remove.action = IshdActionEnum.DEL_TEAM
+                      stats["deleted"] += 1
+
+                      # Remove club assignment if teams array is empty
+                      result = await self.db["players"].update_one(
+                          {
+                              "_id": player_to_check["_id"],
+                              "assignedTeams.clubIshdId": club.club_ishd_id,
+                          },
+                          {"$pull": {"assignedTeams": {"teams": {"$size": 0}}}},
+                      )
+                      if result.modified_count:
+                        for existing_player in existing_players:
+                          if existing_player["_id"] == player_to_check["_id"]:
+                            existing_player["assignedTeams"] = [
+                                a for a in existing_player.get("assignedTeams", [])
+                                if a["clubIshdId"] != club.club_ishd_id
+                            ]
+                            break
+
+                        birthdate_val = player_to_check.get('birthdate')
+                        birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
+                        log_line = f"Removed club assignment for player: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {birthdate_str} -> {club.club_name}"
+                        print(log_line)
+                        log_lines.append(log_line)
+                        ishd_log_player_remove.action = IshdActionEnum.DEL_CLUB
+                      else:
+                        print("--- No club assignment removed")
+                    else:
+                      raise DatabaseOperationException(
+                          operation="update_one",
+                          collection="players",
+                          details={
+                              "player_id": player_to_check["_id"],
+                              "reason": "Failed to remove player from team",
+                          },
+                      )
+                  else:
+                    # Dry mode - just log
+                    log_line = f"[DRY] Would remove player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} -> {club.club_name} / {team.get('ishdId')}"
+                    print(log_line)
+                    log_lines.append(log_line)
+                else:
+                  if mode == "test":
+                    print("player exists in team - do not remove")
+
+                if ishd_log_player_remove.action is not None:
+                  ishd_log_team.players.append(ishd_log_player_remove)
+
+          if ishd_log_team:
+            ishd_log_club.teams.append(ishd_log_team)
+
+        if ishd_log_club:
+          ishd_log_base.clubs.append(ishd_log_club)
+
+    # Persist ISHD log to database (skip in dry mode)
+    ishd_log_base_enc = jsonable_encoder(ishd_log_base)
+    if mode != "dry":
+      result = await self.db["ishdLogs"].insert_one(ishd_log_base_enc)
+      if result.inserted_id:
+        log_line = "Inserted ISHD log into ishdLogs collection."
+        print(log_line)
+        log_lines.append(log_line)
+      else:
+        raise DatabaseOperationException(
+            operation="insert_one",
+            collection="ishdLogs",
+            details={"reason": "Insert operation did not return inserted_id"},
+        )
+
+    return {
+        "logs": log_lines,
+        "stats": stats,
+        "ishdLog": ishd_log_base_enc,
+    }
+
+  async def bootstrap_ishd_sync(self, mode: str = "live", reset: bool = False) -> Dict[str, Any]:
+    """
+    Orchestrate ISHD synchronization for all managedByISHD=True players.
+    
+    Args:
+      mode: Sync mode - "live", "test", or "dry"
+      reset: If True and mode is "test", delete all players before sync
+    
+    Returns:
+      Dict containing sync results
+    """
+    log_lines: List[str] = []
+
+    # If reset is True and mode is test, delete all managed players first
+    if reset and mode == "test":
+      result = await self.db["players"].delete_many({"managedByISHD": {"$ne": False}})
+      log_line = f"Reset: Deleted {result.deleted_count} players with managedByISHD=True"
+      logger.warning(log_line)
+      log_lines.append(log_line)
+
+    # Run the ISHD sync
+    result = await self.process_ishd_sync(mode=mode, run=1)
+    result["logs"] = log_lines + result.get("logs", [])
+
+    return result
