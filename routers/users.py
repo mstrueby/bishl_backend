@@ -3,6 +3,7 @@ import json
 import os
 from datetime import date
 
+from bson import ObjectId
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -176,7 +177,7 @@ async def me(
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     user_id = token_payload.sub
-    user = await mongodb["users"].find_one({"_id": user_id})
+    user = await mongodb["users"].find_one({"_id": ObjectId(user_id)})
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

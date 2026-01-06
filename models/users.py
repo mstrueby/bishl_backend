@@ -90,7 +90,7 @@ class UserBase(MongoBaseModel):
     @classmethod
     def email_is_valid(cls, v):
         try:
-            validate_email(v)
+            validate_email(v, check_deliverability=False)
         except EmailNotValidError as e:
             raise ValueError(e) from e
         return v
