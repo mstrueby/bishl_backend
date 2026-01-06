@@ -31,8 +31,9 @@ from models.players import (
     IshdActionEnum,
     IshdLogBase,
     IshdLogClub,
-    IshdLogPlayer,
+    ISHdLogPlayer,
     IshdLogTeam,
+    LicenseInvalidReasonCode,
     PlayerBase,
     PlayerDB,
     PlayerStats,
@@ -41,7 +42,7 @@ from models.players import (
     SexEnum,
     SourceEnum,
 )
-from models.responses import PaginatedResponse, StandardResponse
+from models.responses import LicenceStats, PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.performance_monitor import monitor_query
 from services.stats_service import StatsService
@@ -450,6 +451,149 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
             }
         )get 
     return assigned_teams_dict
+
+
+# PLAYER LICENCE ENDPOINTS
+# ----------------------
+@router.get(
+    "/licences/stats",
+    response_model=StandardResponse[LicenceStats],
+    response_description="Get license statistics overview",
+)
+async def get_licence_stats(request: Request):
+    """
+    Get license statistics including valid/invalid counts and reason breakdown.
+    """
+    mongodb = request.app.state.mongodb
+
+    # Aggregate counts of valid and invalid player licenses
+    # Note: A player is "invalid" if they have at least one team assignment with status=INVALID
+    pipeline = [
+        {
+            "$project": {
+                "assignedTeams": 1
+            }
+        },
+        {
+            "$unwind": "$assignedTeams"
+        },
+        {
+            "$unwind": "$assignedTeams.teams"
+        },
+        {
+            "$facet": {
+                "player_counts": [
+                    {
+                        "$group": {
+                            "_id": "$_id",
+                            "is_invalid": {
+                                "$max": {
+                                    "$eq": ["$assignedTeams.teams.status", "INVALID"]
+                                }
+                            },
+                            "is_valid": {
+                                "$max": {
+                                    "$eq": ["$assignedTeams.teams.status", "VALID"]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": None,
+                            "invalid_players": {"$sum": {"$cond": ["$is_invalid", 1, 0]}},
+                            "valid_players": {"$sum": {"$cond": ["$is_valid", 1, 0]}}
+                        }
+                    }
+                ],
+                "reason_breakdown": [
+                    {
+                        "$match": {
+                            "assignedTeams.teams.status": "INVALID"
+                        }
+                    },
+                    {
+                        "$unwind": "$assignedTeams.teams.invalidReasonCodes"
+                    },
+                    {
+                        "$group": {
+                            "_id": "$assignedTeams.teams.invalidReasonCodes",
+                            "count": {"$sum": 1}
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+
+    cursor = mongodb["players"].aggregate(pipeline)
+    result_list = await cursor.to_list(length=1)
+    
+    if not result_list:
+        return StandardResponse(
+            data=LicenceStats(valid_players=0, invalid_players=0, invalid_reason_breakdown={}),
+            message="No player data available"
+        )
+    
+    result = result_list[0]
+    counts = result["player_counts"][0] if result["player_counts"] else {"valid_players": 0, "invalid_players": 0}
+    reasons = {item["_id"]: item["count"] for item in result["reason_breakdown"]}
+
+    stats = LicenceStats(
+        valid_players=counts.get("valid_players", 0),
+        invalid_players=counts.get("invalid_players", 0),
+        invalid_reason_breakdown=reasons
+    )
+
+    return StandardResponse(data=stats, message="Licence statistics retrieved successfully")
+
+
+@router.get(
+    "/licences/invalid/{reason_code}",
+    response_model=PaginatedResponse[PlayerDB],
+    response_description="Get players with invalid licenses for a specific reason",
+)
+async def get_players_with_invalid_licences(
+    reason_code: LicenseInvalidReasonCode,
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(settings.RESULTS_PER_PAGE, ge=1, le=100),
+):
+    """
+    Get a paginated list of players who have an invalid license with the specified reason code.
+    """
+    mongodb = request.app.state.mongodb
+    
+    # Query for players having at least one team assignment with the specified invalid reason code
+    query = {
+        "assignedTeams.teams": {
+            "$elemMatch": {
+                "status": "INVALID",
+                "invalidReasonCodes": reason_code
+            }
+        }
+    }
+
+    items, total_count = await PaginationHelper.paginate_query(
+        collection=mongodb["players"],
+        query=query,
+        page=page,
+        page_size=page_size,
+        sort=[("lastName", 1), ("firstName", 1)]
+    )
+
+    # Convert to PlayerDB models
+    players = [PlayerDB(**item) for item in items]
+
+    response_dict = PaginationHelper.create_response(
+        items=players,
+        page=page,
+        page_size=page_size,
+        total_count=total_count,
+        message=f"Players with invalid license reason '{reason_code}' retrieved successfully"
+    )
+
+    return PaginatedResponse(**response_dict)
 
 
 # PROCESS ISHD DATA

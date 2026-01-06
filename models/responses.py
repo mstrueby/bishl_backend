@@ -117,3 +117,27 @@ class BulkOperationResponse(BaseModel):
             }
         }
     )
+
+
+class LicenceStats(BaseModel):
+    """Licence statistics overview"""
+
+    valid_players: int = Field(description="Total count of players with valid licences")
+    invalid_players: int = Field(description="Total count of players with invalid licences")
+    invalid_reason_breakdown: dict[str, int] = Field(
+        description="Count of licences grouped by invalid reason code"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "valid_players": 1200,
+                "invalid_players": 45,
+                "invalid_reason_breakdown": {
+                    "MULTIPLE_PRIMARY": 10,
+                    "AGE_GROUP_VIOLATION": 5,
+                    "LOAN_CLUB_CONFLICT": 30,
+                },
+            }
+        }
+    )
