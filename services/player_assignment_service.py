@@ -1663,7 +1663,7 @@ class PlayerAssignmentService:
         {"$sort": {"ishdId": 1}},
     ]):
       ishd_teams.append(
-          IshdTeams(club["_id"], club["ishdId"], club["name"], club["alias"], club["teams"])
+          IshdTeams(club["_id"], club.get("ishdId"), club["name"], club["alias"], club["teams"])
       )
 
     # Get existing players from database for comparison
