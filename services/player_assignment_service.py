@@ -256,7 +256,8 @@ class PlayerAssignmentService:
         team["licenseType"] = license_type
         
         # New rule: if "F" suffix was used, it returned PRIMARY, but mark club as DEVELOPMENT
-        if team.get("passNo", "").strip().upper().endswith("F"):
+        pass_no = team.get("passNo") or ""
+        if pass_no.strip().upper().endswith("F"):
            club["clubType"] = ClubTypeEnum.DEVELOPMENT
 
     # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
