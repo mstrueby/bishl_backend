@@ -17,19 +17,33 @@ def generate_test_id() -> str:
 def create_test_user(test_id: str = None, **overrides) -> Dict[str, Any]:
     """Create a test user document"""
     test_id = test_id or generate_test_id()
+    
+    # Ensure password is hashed if provided as plain text
+    password = overrides.get("password", "SecurePass123!")
+    if not password.startswith("$argon2id$"):
+        from authentication import AuthHandler
+        auth = AuthHandler()
+        password = auth.get_password_hash(password)
+        # Update overrides so it doesn't overwrite the hashed password back to plain text
+        overrides["password"] = password
+
     user = {
         "test_id": test_id,
-        "_id": overrides.get("_id", f"user_{test_id}"),
-        "email": f"{test_id}@example.com",
+        "_id": overrides.get("_id", str(ObjectId())),
+        "email": f"{test_id}@bishl.de",
         "firstName": "Test",
         "lastName": "User",
-        "password": "$argon2id$v=19$m=65536,t=3,p=4$...",  # hashed password
+        "password": password,
         "roles": ["USER"],
         "isActive": True,
         "emailVerified": False,
         "createdAt": datetime.utcnow(),
         "updatedAt": datetime.utcnow(),
     }
+    # Ensure email is correct if provided in overrides
+    if "email" in overrides:
+        user["email"] = overrides["email"]
+        
     user.update(overrides)
     return user
 
