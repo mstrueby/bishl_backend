@@ -1740,33 +1740,28 @@ class PlayerAssignmentService:
               url=api_url,
               players=[],
           )
+          print("ishd_log_team", ishd_log_team)
 
           # Fetch team data from ISHD API or test file
           data = {}
           if mode == "test":
             test_file = f"ishd_test{run}_{club_ishd_id_str}_{team['alias']}.json"
             if os.path.exists(test_file):
-              log_line = f"Processing team {club.club_name} / {team['ishdId']} / {test_file}"
-              log_lines.append(log_line)
+              logger.debug(f"Processing team {club.club_name} / {team['ishdId']} / {test_file}")
               with open(test_file) as file:
                 data = json.load(file)
-                print("data", data)
             else:
-              log_line = f"File {test_file} does not exist. Skipping..."
-              log_lines.append(log_line)
-          elif mode != "dry":
-            # Live mode - fetch from API
-            log_line = f"Processing team (URL): {club.club_name} / {team['ishdId']} / {api_url}"
-            print(log_line)
-            log_lines.append(log_line)
+              logger.warning(f"File {test_file} does not exist. Skipping...")
+          else:
+            # Live or Dry mode - fetch from API
+            logger.info(f"Fetching team data: {club.club_name} / {team['ishdId']} (URL: {api_url})")
 
             async with session.get(api_url, headers=headers) as response:
               if response.status == 200:
                 data = await response.json()
+                logger.debug(f"Successfully fetched {len(data.get('players', []))} players from {api_url}")
               elif response.status == 404:
-                log_line = f"API URL {api_url} returned a 404 status code."
-                print(log_line)
-                log_lines.append(log_line)
+                logger.error(f"API URL {api_url} returned a 404 status code.")
               else:
                 try:
                   error_detail = await response.json()
@@ -1872,105 +1867,111 @@ class PlayerAssignmentService:
                   existing_player = existing_player_loop
                   break
 
-              if player_exists and existing_player is not None:
-                # EXISTING PLAYER - update team assignments
-                club_assignment_exists = False
-                if mode == "test":
-                  print("player exists / existing_players", existing_players)
+                if player_exists and existing_player is not None:
+                    # EXISTING PLAYER - update team assignments
+                    club_assignment_exists = False
 
-                for club_assignment in existing_player.get("assignedTeams", []):
-                  if mode == "test":
-                    print("club_assignment", club_assignment)
-                  if club_assignment["clubName"] == club.club_name:
-                    if mode == "test":
-                      print("club_assignment exists: club_name", club_assignment["clubName"])
-                    club_assignment_exists = True
+                    # Correctly identify existing_player as a dict
+                    assigned_teams_list = existing_player.get("assignedTeams", [])
+                    for club_assignment in assigned_teams_list:
+                        if club_assignment["clubName"] == club.club_name:
+                            club_assignment_exists = True
 
-                    # Check if team assignment exists
-                    team_assignment_exists = False
-                    for team_assignment in club_assignment.get("teams", []):
-                      if team_assignment["teamId"] == team["_id"]:
-                        team_assignment_exists = True
-                        break
+                            # Check if team assignment exists
+                            team_assignment_exists = False
+                            for team_assignment in club_assignment.get("teams", []):
+                                if team_assignment["teamId"] == team["_id"]:
+                                    team_assignment_exists = True
+                                    break
 
-                    if not team_assignment_exists:
-                      # Add team assignment to existing club
-                      club_assignment.get("teams").append(jsonable_encoder(assigned_team))
-                      existing_player["assignedTeams"] = [club_assignment] + [
-                          a for a in existing_player["assignedTeams"] if a != club_assignment
-                      ]
-                      if mode == "test":
-                        print("add team / existing_player", existing_player)
+                            if not team_assignment_exists:
+                                # Add team assignment to existing club
+                                club_assignment.get("teams").append(jsonable_encoder(assigned_team))
+                                existing_player["assignedTeams"] = [club_assignment] + [
+                                    a for a in existing_player["assignedTeams"] if a != club_assignment
+                                ]
 
-                      # Apply license classification and validation
-                      existing_player = await self.classify_license_types_for_player(existing_player)
-                      existing_player = await self.validate_licenses_for_player(existing_player)
+                                # Apply license classification and validation
+                                existing_player = await self.classify_license_types_for_player(existing_player)
+                                existing_player = await self.validate_licenses_for_player(existing_player)
 
-                      # Persist to database (skip in dry mode)
-                      if mode != "dry":
-                        result = await self.db["players"].update_one(
-                            {"_id": existing_player["_id"]},
-                            {"$set": {"assignedTeams": jsonable_encoder(existing_player["assignedTeams"])}},
-                        )
-                        if result.modified_count:
-                          birthdate_val = existing_player.get('birthdate')
-                          birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
-                          log_line = f"Updated team assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']}"
-                          print(log_line)
-                          log_lines.append(log_line)
-                          ishd_log_player.action = IshdActionEnum.ADD_TEAM
-                          stats["updated_teams"] += 1
+                                # Persist to database (skip in dry mode)
+                                if mode == "dry":
+                                    birthdate_val = existing_player.get('birthdate')
+                                    birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
+                                    log_line = f"[DRY] Would update team assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']}"
+                                    logger.info(log_line)
+                                    log_lines.append(log_line)
+                                    ishd_log_player.action = IshdActionEnum.ADD_TEAM
+                                    stats["updated_teams"] += 1
+                                else:
+                                    result = await self.db["players"].update_one(
+                                        {"_id": existing_player["_id"]},
+                                        {"$set": {"assignedTeams": jsonable_encoder(existing_player["assignedTeams"])}},
+                                    )
+                                    if result.modified_count:
+                                        birthdate_val = existing_player.get('birthdate')
+                                        birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
+                                        log_line = f"Updated team assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']}"
+                                        logger.info(log_line)
+                                        log_lines.append(log_line)
+                                        ishd_log_player.action = IshdActionEnum.ADD_TEAM
+                                        stats["updated_teams"] += 1
+                                    else:
+                                        raise DatabaseOperationException(
+                                            operation="update_one",
+                                            collection="players",
+                                            details={
+                                                "player_id": existing_player["_id"],
+                                                "reason": "Failed to update team assignment",
+                                            },
+                                        )
+                            break
+
+                    if not club_assignment_exists:
+                        # Club assignment does not exist - add new club with team
+                        existing_player["assignedTeams"].append(jsonable_encoder(assigned_club))
+
+                        # Apply license classification and validation
+                        existing_player = await self.classify_license_types_for_player(existing_player)
+                        existing_player = await self.validate_licenses_for_player(existing_player)
+
+                        # Persist to database (skip in dry mode)
+                        if mode == "dry":
+                            birthdate_val = existing_player.get('birthdate')
+                            birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
+                            log_line = f"[DRY] Would add club assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
+                            logger.info(log_line)
+                            log_lines.append(log_line)
+                            ishd_log_player.action = IshdActionEnum.ADD_CLUB
+                            stats["updated_teams"] += 1
                         else:
-                          raise DatabaseOperationException(
-                              operation="update_one",
-                              collection="players",
-                              details={
-                                  "player_id": existing_player["_id"],
-                                  "reason": "Failed to update team assignment",
-                              },
-                          )
-                    break
-
-                if not club_assignment_exists:
-                  # Club assignment does not exist - add new club with team
-                  if mode == "test":
-                    print("club assignment does not exist / existing_players")
-                  existing_player["assignedTeams"].append(jsonable_encoder(assigned_club))
-                  if mode == "test":
-                    print("add club / existing_player: ", existing_player)
-
-                  # Apply license classification and validation
-                  existing_player = await self.classify_license_types_for_player(existing_player)
-                  existing_player = await self.validate_licenses_for_player(existing_player)
-
-                  # Persist to database (skip in dry mode)
-                  if mode != "dry":
-                    result = await self.db["players"].update_one(
-                        {"_id": existing_player["_id"]},
-                        {
-                            "$set": {
-                                "source": SourceEnum.ISHD,
-                                "assignedTeams": jsonable_encoder(existing_player["assignedTeams"]),
-                            }
-                        },
-                    )
-                    if result.modified_count:
-                      birthdate_val = existing_player.get('birthdate')
-                      birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
-                      log_line = f"New club assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
-                      print(log_line)
-                      log_lines.append(log_line)
-                      ishd_log_player.action = IshdActionEnum.ADD_CLUB
-                      stats["updated_teams"] += 1
-                    else:
-                      raise DatabaseOperationException(
-                          operation="update_one",
-                          collection="players",
-                          details={
-                              "player_id": existing_player["_id"],
-                              "reason": "Failed to add club assignment",
-                          },
-                      )
+                            result = await self.db["players"].update_one(
+                                {"_id": existing_player["_id"]},
+                                {
+                                    "$set": {
+                                        "source": SourceEnum.ISHD,
+                                        "assignedTeams": jsonable_encoder(existing_player["assignedTeams"]),
+                                    }
+                                },
+                            )
+                            if result.modified_count:
+                                birthdate_val = existing_player.get('birthdate')
+                                birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
+                                log_line = f"New club assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
+                                logger.info(log_line)
+                                log_lines.append(log_line)
+                                ishd_log_player.action = IshdActionEnum.ADD_CLUB
+                                stats["updated_teams"] += 1
+                            else:
+                                raise DatabaseOperationException(
+                                    operation="update_one",
+                                    collection="players",
+                                    details={
+                                        "player_id": existing_player["_id"],
+                                        "reason": "Failed to add club assignment",
+                                    },
+                                )
 
               else:
                 # NEW PLAYER - create and insert
@@ -2003,7 +2004,19 @@ class PlayerAssignmentService:
                 existing_players.append(new_player_dict)
 
                 # Persist to database (skip in dry mode)
-                if mode != "dry":
+                if mode == "dry":
+                  birthdate = new_player_dict.get("birthdate")
+                  birthdate_str = (
+                      birthdate.strftime("%Y-%m-%d")
+                      if isinstance(birthdate, datetime)
+                      else "Unknown"
+                  )
+                  log_line = f"[DRY] Would insert player: {new_player_dict.get('firstName')} {new_player_dict.get('lastName')} {birthdate_str} -> {assigned_club.clubName} / {assigned_team.teamName}"
+                  logger.info(log_line)
+                  log_lines.append(log_line)
+                  ishd_log_player.action = IshdActionEnum.ADD_PLAYER
+                  stats["added_players"] += 1
+                else:
                   result = await self.db["players"].insert_one(new_player_dict)
                   if result.inserted_id:
                     birthdate = new_player_dict.get("birthdate")
@@ -2013,7 +2026,7 @@ class PlayerAssignmentService:
                         else "Unknown"
                     )
                     log_line = f"Inserted player: {new_player_dict.get('firstName')} {new_player_dict.get('lastName')} {birthdate_str} -> {assigned_club.clubName} / {assigned_team.teamName}"
-                    print(log_line)
+                    logger.info(log_line)
                     log_lines.append(log_line)
                     ishd_log_player.action = IshdActionEnum.ADD_PLAYER
                     stats["added_players"] += 1
@@ -2087,7 +2100,15 @@ class PlayerAssignmentService:
                     for p in data["players"]
                 ):
                   # Player missing in ISHD - remove from team (skip in dry mode)
-                  if mode != "dry":
+                  if mode == "dry":
+                    del_birthdate = player_to_check.get('birthdate')
+                    del_birthdate_str = del_birthdate.strftime('%Y-%m-%d') if del_birthdate else 'Unknown'
+                    log_line = f"[DRY] Would remove player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {del_birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
+                    logger.info(log_line)
+                    log_lines.append(log_line)
+                    ishd_log_player_remove.action = IshdActionEnum.DEL_TEAM
+                    stats["deleted"] += 1
+                  else:
                     query_update = {
                         "$and": [
                             {"_id": player_to_check["_id"]},
@@ -2120,7 +2141,7 @@ class PlayerAssignmentService:
                       del_birthdate = player_to_check.get('birthdate')
                       del_birthdate_str = del_birthdate.strftime('%Y-%m-%d') if del_birthdate else 'Unknown'
                       log_line = f"Removed player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {del_birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
-                      print(log_line)
+                      logger.info(log_line)
                       log_lines.append(log_line)
                       ishd_log_player_remove.action = IshdActionEnum.DEL_TEAM
                       stats["deleted"] += 1
@@ -2145,11 +2166,11 @@ class PlayerAssignmentService:
                         birthdate_val = player_to_check.get('birthdate')
                         birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
                         log_line = f"Removed club assignment for player: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {birthdate_str} -> {club.club_name}"
-                        print(log_line)
+                        logger.info(log_line)
                         log_lines.append(log_line)
                         ishd_log_player_remove.action = IshdActionEnum.DEL_CLUB
                       else:
-                        print("--- No club assignment removed")
+                        logger.debug(f"--- No club assignment removed for {player_to_check.get('firstName')} {player_to_check.get('lastName')}")
                     else:
                       raise DatabaseOperationException(
                           operation="update_one",
@@ -2159,11 +2180,6 @@ class PlayerAssignmentService:
                               "reason": "Failed to remove player from team",
                           },
                       )
-                  else:
-                    # Dry mode - just log
-                    log_line = f"[DRY] Would remove player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} -> {club.club_name} / {team.get('ishdId')}"
-                    print(log_line)
-                    log_lines.append(log_line)
                 else:
                   if mode == "test":
                     print("player exists in team - do not remove")
