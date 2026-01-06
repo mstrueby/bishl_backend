@@ -135,7 +135,7 @@ class TestUsersAPI:
         # Execute
         response = await client.patch(
             f"/users/{user_id}",
-            data={"firstName": "UpdatedName"},
+            json={"firstName": "UpdatedName"},
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 

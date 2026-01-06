@@ -90,7 +90,11 @@ async def register(
             detail=f"Email {newUser.email} is already registered",
         )
     # Insert the new user into the database
-    newUser_data = jsonable_encoder(newUser)
+    newUser_data = newUser.model_dump(by_alias=True)
+    if "id" in newUser_data:
+        newUser_data.pop("id")
+    if "_id" in newUser_data:
+        newUser_data.pop("_id")
     result = await mongodb["users"].insert_one(newUser_data)
     created_user = await request.app.state.mongodb["users"].find_one({"_id": result.inserted_id})
 
@@ -229,8 +233,9 @@ async def update_user(
         update_data.password = auth.get_password_hash(update_data.password)
 
     # Prepare update document
-    update_dict = update_data.model_dump(exclude_none=True)
+    update_dict = update_data.model_dump(exclude_unset=True)
     update_dict.pop("id", None)
+    update_dict.pop("_id", None)
 
     if not update_dict:
         response = StandardResponse(
