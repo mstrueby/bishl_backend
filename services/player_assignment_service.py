@@ -584,16 +584,18 @@ class PlayerAssignmentService:
     # Step 2: Validate UNKNOWN license types
     self._validate_unknown_license_types(player)
 
-    # Step 3: Validate PRIMARY-like consistency
-    self._validate_primary_consistency(player)
-
-    # Step 4: Validate LOAN consistency
-    self._validate_loan_consistency(player)
-
-    # Step 5: Validate ISHD vs BISHL conflicts
+    # Step 3: Validate ISHD vs BISHL conflicts (Fix 3: Order change)
+    # This may invalidate ISHD licenses before primary consistency check
     self._validate_import_conflicts(player)
 
+    # Step 4: Validate PRIMARY-like consistency
+    self._validate_primary_consistency(player)
+
+    # Step 5: Validate LOAN consistency
+    self._validate_loan_consistency(player)
+
     # Step 6: Determine primary clubs (MAIN and DEVELOPMENT)
+    # Fix 2 & 3: ensure we get all primary club IDs regardless of status
     primary_club_ids = self._get_primary_club_ids(player)
 
     # Step 7: Validate club consistency for SECONDARY/OVERAGE
@@ -789,6 +791,11 @@ class PlayerAssignmentService:
           continue
         if team.get("source") == SourceEnum.BISHL and team.get(
             "status") == LicenseStatusEnum.VALID:
+          # Fix 1: Exclude DEVELOPMENT (F-suffix) from causing conflicts for MAIN ISHD licenses
+          pass_no = team.get("passNo") or ""
+          if pass_no.strip().upper().endswith("F"):
+            continue
+
           license_type = team.get("licenseType")
           if license_type not in bishl_licenses:
             bishl_licenses[license_type] = set()
@@ -893,23 +900,24 @@ class PlayerAssignmentService:
 
   def _get_primary_club_ids(self, player: dict) -> list[str]:
     """
-    Returns a list of clubIds with valid PRIMARY licenses.
+    Returns a list of clubIds with any PRIMARY licenses (regardless of status).
     If no PRIMARY exists, returns a list with the 'anchor' clubId if applicable.
     """
-    primary_club_ids = []
+    primary_club_ids = set()
     
-    # Pass 1: Collect valid PRIMARY clubs
+    # Pass 1: Collect clubs with ANY PRIMARY (regardless of status)
     for club in player.get("assignedTeams", []):
       for team in club.get("teams", []):
-        if (team.get("licenseType") == LicenseTypeEnum.PRIMARY 
-            and team.get("status") == LicenseStatusEnum.VALID):
+        if team.get("adminOverride"):
+          continue
+        if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
           club_id = club.get("clubId")
-          if club_id and club_id not in primary_club_ids:
-            primary_club_ids.append(club_id)
+          if club_id:
+            primary_club_ids.add(club_id)
           break
           
     if primary_club_ids:
-      return primary_club_ids
+      return sorted(list(primary_club_ids))
       
     # Pass 2: Anchor logic if no PRIMARY exists
     anchor_club, anchor_team = self._get_anchor_license(player)
