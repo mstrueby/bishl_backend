@@ -48,7 +48,7 @@ class AuthHandler:
         payload = {
             "exp": datetime.now() + timedelta(minutes=30),
             "iat": datetime.now(),
-            "sub": str(user["_id"]),
+            "sub": user["_id"],
             "roles": user["roles"],
             "firstName": user["firstName"],
             "lastName": user["lastName"],
@@ -63,7 +63,7 @@ class AuthHandler:
         payload = {
             "exp": datetime.now() + timedelta(days=7),  # Long-lived refresh token
             "iat": datetime.now(),
-            "sub": str(user["_id"]),
+            "sub": user["_id"],
             "roles": user["roles"],
             "firstName": user["firstName"],
             "lastName": user["lastName"],
@@ -116,7 +116,7 @@ class AuthHandler:
         payload = {
             "exp": datetime.now() + timedelta(hours=1),  # Token expires in 1 hour
             "iat": datetime.now(),
-            "sub": str(user["_id"]),
+            "sub": user["_id"],
             "type": "reset",
         }
         return jwt.encode(payload, self.secret, algorithm="HS256")

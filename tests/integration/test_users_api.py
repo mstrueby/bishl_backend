@@ -135,7 +135,7 @@ class TestUsersAPI:
         # Execute
         response = await client.patch(
             f"/users/{user_id}",
-            json={"firstName": "UpdatedName"},
+            data={"firstName": "UpdatedName"},
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -147,18 +147,19 @@ class TestUsersAPI:
     async def test_update_other_user_as_admin(self, client: AsyncClient, admin_token, create_test_user):
         """Test admin updating another user"""
         # Setup - Create another user directly in DB
-        other_user_id = await create_test_user(
+        other_user = await create_test_user(
             email="otheruser@test.com",
             password="SecurePass123!",
             firstName="Other",
             lastName="User",
             roles=["REFEREE"]
         )
+        other_user_id = other_user["_id"]
 
         # Execute
         response = await client.patch(
             f"/users/{other_user_id}",
-            json={"firstName": "Modified"},
+            data={"firstName": "Modified"},
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -220,7 +221,7 @@ class TestUsersAPI:
 
         # Assert
         assert response.status_code == 200
-        assert "Password reset instructions sent to your email" in response.json()["message"]
+        assert "If email exists, reset link has been sent" in response.json()["message"]
 
     async def test_unauthorized_register(self, client: AsyncClient):
         """Test registering without admin token fails"""

@@ -3,7 +3,6 @@ import json
 import os
 from datetime import date
 
-from bson import ObjectId
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -91,11 +90,7 @@ async def register(
             detail=f"Email {newUser.email} is already registered",
         )
     # Insert the new user into the database
-    newUser_data = newUser.model_dump(by_alias=True)
-    if "id" in newUser_data:
-        newUser_data.pop("id")
-    if "_id" in newUser_data:
-        newUser_data.pop("_id")
+    newUser_data = jsonable_encoder(newUser)
     result = await mongodb["users"].insert_one(newUser_data)
     created_user = await request.app.state.mongodb["users"].find_one({"_id": result.inserted_id})
 
@@ -177,7 +172,7 @@ async def me(
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
     user_id = token_payload.sub
-    user = await mongodb["users"].find_one({"_id": ObjectId(user_id)})
+    user = await mongodb["users"].find_one({"_id": user_id})
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -205,7 +200,13 @@ async def me(
 async def update_user(
     request: Request,
     user_id: str,
-    update_data: UserUpdate = Body(...),
+    email: str | None = Form(default=None),
+    password: str | None = Form(default=None),
+    firstName: str | None = Form(default=None),
+    lastName: str | None = Form(default=None),
+    club: str | None = Form(default=None),
+    roles: list[str] | None = Form(default=None),
+    referee: str | None = Form(default=None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -220,42 +221,66 @@ async def update_user(
         )
 
     existing_user_data = await mongodb["users"].find_one({"_id": user_id})
-    if not existing_user_data:
-        raise ResourceNotFoundException(resource_type="User", resource_id=user_id)
+    existing_user_obj = CurrentUser(**existing_user_data) if existing_user_data else None
+    existing_user = jsonable_encoder(existing_user_obj) if existing_user_obj else None
+    if not existing_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Only allow role updates for admin users
-    if update_data.roles and not is_admin:
+    if roles and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can update roles"
         )
 
-    # Hash the password if it's being updated
-    if update_data.password:
-        update_data.password = auth.get_password_hash(update_data.password)
-
-    # Prepare update document
-    update_dict = update_data.model_dump(exclude_unset=True)
-    update_dict.pop("id", None)
-    update_dict.pop("_id", None)
-
-    if not update_dict:
-        response = StandardResponse(
-            success=True, data=CurrentUser(**existing_user_data), message="No changes detected"
-        )
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
+    logger.debug(f"existing_user: {existing_user}")
 
     try:
+        user_data = UserUpdate(
+            email=email,
+            password=auth.get_password_hash(password) if password else None,
+            firstName=firstName,
+            lastName=lastName,
+            club=Club(**json.loads(club)) if club else None,
+            roles=[Role(role) for role in roles] if roles else None,
+            referee=json.loads(referee) if referee else None,
+        ).model_dump(
+            exclude_none=True,
+        )
+        # user_data = UserUpdate(**user_update_fields).model_dump(exclude_none=True)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Failed to parse input data: {e}",
+        ) from e
+    user_data.pop("id", None)
+    logger.debug(f"user_data: {user_data}")
+
+    user_to_update = {k: v for k, v in user_data.items() if v != existing_user.get(k, None)}
+    if not user_to_update:
+        logger.debug("No fields to update")
+        response = StandardResponse(
+            success=True, data=CurrentUser(**existing_user), message="No changes detected"
+        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
+    try:
+        logger.debug(f"update user: {user_to_update}")
         update_result = await mongodb["users"].update_one(
-            {"_id": user_id}, {"$set": update_dict}
+            {"_id": user_id}, {"$set": user_to_update}
         )
 
-        updated_user = await mongodb["users"].find_one({"_id": user_id})
+        if update_result.modified_count == 1:
+            updated_user = await mongodb["users"].find_one({"_id": user_id})
+            response = StandardResponse(
+                success=True, data=CurrentUser(**updated_user), message="User updated successfully"
+            )
+            return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
+
+        # If not modified but no error, return current user
         response = StandardResponse(
-            success=True, data=CurrentUser(**updated_user), message="User updated successfully"
+            success=True, data=CurrentUser(**existing_user), message="No changes applied"
         )
         return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(response))
     except Exception as e:
-        logger.error(f"Error updating user: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
