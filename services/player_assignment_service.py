@@ -1627,13 +1627,6 @@ class PlayerAssignmentService:
         "invalid_new": 0,
     }
 
-    # If mode is 'test' and first run, delete all documents in 'players'
-    if mode == "test" and run == 1:
-      await self.db["players"].delete_many({})
-      log_line = "Deleted all documents in players."
-      logger.warning(log_line)
-      log_lines.append(log_line)
-
     # Get ISHD API credentials from environment
     ISHD_API_URL = os.environ.get("ISHD_API_URL")
     ISHD_API_USER = os.environ.get("ISHD_API_USER")
@@ -1712,12 +1705,12 @@ class PlayerAssignmentService:
         # Skip clubs without ISHD ID
         if club.club_ishd_id is None:
           log_line = f"Skipping club {club.club_name} (no ISHD ID)"
-          print(log_line)
+          logger.info(log_line)
           log_lines.append(log_line)
           continue
 
         log_line = f"Processing club {club.club_name} (IshdId: {club.club_ishd_id})"
-        print(log_line)
+        logger.info(log_line)
         log_lines.append(log_line)
 
         ishd_log_club = IshdLogClub(
@@ -1740,7 +1733,6 @@ class PlayerAssignmentService:
               url=api_url,
               players=[],
           )
-          print("ishd_log_team", ishd_log_team)
 
           # Fetch team data from ISHD API or test file
           data = {}
@@ -1796,7 +1788,7 @@ class PlayerAssignmentService:
                     f"{player['first_name']} {player['last_name']} "
                     f"from club {club.club_name} and team {team['name']}"
                 )
-                print(log_line)
+                logger.info(log_line)
                 log_lines.append(log_line)
                 continue
 
@@ -1817,7 +1809,7 @@ class PlayerAssignmentService:
                   and existing_player_check.get("managedByISHD", True) is False
               ):
                 log_line = f"Skipping player (managedByISHD=false): {player['first_name']} {player['last_name']} {player['date_of_birth']}"
-                print(log_line)
+                logger.info(log_line)
                 log_lines.append(log_line)
                 continue
 
@@ -1873,6 +1865,9 @@ class PlayerAssignmentService:
 
                     # Correctly identify existing_player as a dict
                     assigned_teams_list = existing_player.get("assignedTeams", [])
+                    if not isinstance(assigned_teams_list, list):
+                        assigned_teams_list = []
+                    
                     for club_assignment in assigned_teams_list:
                         if club_assignment["clubName"] == club.club_name:
                             club_assignment_exists = True
@@ -2085,7 +2080,7 @@ class PlayerAssignmentService:
                   birthdate_val = player_to_check.get('birthdate')
                   birthdate_str = birthdate_val.strftime('%Y-%m-%d') if birthdate_val else 'Unknown'
                   log_line = f"Skipping player (managedByISHD=false): {player_to_check.get('firstName')} {player_to_check.get('lastName')} {birthdate_str}"
-                  print(log_line)
+                  logger.info(log_line)
                   log_lines.append(log_line)
                   continue
 
@@ -2199,7 +2194,6 @@ class PlayerAssignmentService:
       result = await self.db["ishdLogs"].insert_one(ishd_log_base_enc)
       if result.inserted_id:
         log_line = "Inserted ISHD log into ishdLogs collection."
-        print(log_line)
         log_lines.append(log_line)
       else:
         raise DatabaseOperationException(
