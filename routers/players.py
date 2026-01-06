@@ -31,7 +31,7 @@ from models.players import (
     IshdActionEnum,
     IshdLogBase,
     IshdLogClub,
-    ISHdLogPlayer,
+    IshdLogPlayer,
     IshdLogTeam,
     LicenseInvalidReasonCode,
     PlayerBase,
@@ -449,7 +449,7 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                 "clubIshdId": club_exists["ishdId"],
                 "teams": teams,
             }
-        )get 
+        )
     return assigned_teams_dict
 
 
