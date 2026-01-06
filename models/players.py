@@ -63,6 +63,11 @@ class Suspension(BaseModel):
     teamIds: list[str] | None = Field(default_factory=list)
 
 
+class ClubTypeEnum(str, Enum):
+    MAIN = "MAIN"
+    DEVELOPMENT = "DEVELOPMENT"
+
+
 class LicenseTypeEnum(str, Enum):
     UNKNOWN = "UNKNOWN"
     PRIMARY = "PRIMARY"  # Stammverein/-team
@@ -70,7 +75,6 @@ class LicenseTypeEnum(str, Enum):
     OVERAGE = "OVERAGE"  # Kann noch eine AK tiefer spielen
     LOAN = "LOAN"  # Leihgabe
     HOBBY = "HOBBY"  # Hobby-Pass, darf keinen anderen haben
-    DEVELOPMENT = "DEVELOPMENT"  # Förderlizenz etc.
     SPECIAL = "SPECIAL"  # Sondergenehmigung etc.
 
 
@@ -91,8 +95,6 @@ class LicenseInvalidReasonCode(str, Enum):
     IMPORT_CONFLICT = "IMPORT_CONFLICT"
     UNKNOWN_LICENCE_TYPE = "UNKNOWN_LICENCE_TYPE"
     HOBBY_PLAYER_CONFLICT = "HOBBY_PLAYER_CONFLICT"
-    REDUNDANT_DEVELOPMENT = "REDUNDANT_DEVELOPMENT"
-    MULTIPLE_DEVELOPMENT = "MULTIPLE_DEVELOPMENT"
 
 
 class PlayUpOccurrence(BaseModel):
@@ -144,6 +146,7 @@ class AssignedClubs(BaseModel):
     clubName: str = Field(...)
     clubAlias: str = Field(...)
     clubIshdId: int | None = None
+    clubType: ClubTypeEnum = Field(default=ClubTypeEnum.MAIN)
     teams: list[AssignedTeams] = Field(...)
 
 
