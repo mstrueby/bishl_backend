@@ -1217,155 +1217,84 @@ class PlayerAssignmentService:
                        f"({len(licenses)} > {max_licenses})")
 
   def _validate_wko_limits(self, player: dict) -> None:
-    """Validate WKO limits on number of age class participations"""
-    if not player.get("assignedTeams"):
-      return
-
-    # Get player details
-    player_obj = PlayerDB(**player)
-    player_age_group = player_obj.ageGroup
-    player_sex = player_obj.sex
-
-    # Check if player's age group is known
-    if player_age_group not in self._wko_rules:
-      return
-
-    # Count valid participations by age group
-    participations = []
-
-    for club in player["assignedTeams"]:
-      for team in club.get("teams", []):
-        if (team.get("status") == LicenseStatusEnum.VALID
-            and team.get("licenseType") in [
-                LicenseTypeEnum.PRIMARY, LicenseTypeEnum.SECONDARY,
-                LicenseTypeEnum.OVERAGE
-            ]):
-          participations.append((club, team, team.get("teamAgeGroup")))
-
-    # If exceeds WKO limit, mark excess as invalid
-    # Check if player's sex has maxTotalAgeClasses defined
-    player_rule = self._wko_rules[player_age_group]
-    max_participations_dict = player_rule.maxTotalAgeClasses or {}
-
-    if player_sex not in max_participations_dict:
-      # No limit defined for this sex, use default
-      max_participations = self.MAX_AGE_CLASS_PARTICIPATIONS
-    else:
-      max_participations = max_participations_dict[player_sex]
-      if max_participations is None:
-        # None value means no limit
-        return
-
-    if len(participations) > max_participations:
-      # Keep PRIMARY first, then sort by age group order
-      def sort_key(item):
-        club, team, age_group = item
-        priority = 0 if team.get(
-            "licenseType") == LicenseTypeEnum.PRIMARY else 1
-        age_order = self._wko_rules[
-            age_group].sortOrder if age_group in self._wko_rules else 999
-        return (priority, age_order)
-
-      participations.sort(key=sort_key)
-
-      # Mark excess as invalid
-      for club, team, _ in participations[max_participations:]:
-        team["status"] = LicenseStatusEnum.INVALID
-        if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get(
-            "invalidReasonCodes", []):
-          team.setdefault("invalidReasonCodes", []).append(
-              LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
-
-  def _validate_distinct_age_groups(self, player: dict) -> None:
     """
-    Validate that a player does not participate in more distinct age groups
-    than allowed by their maxTotalAgeClasses.
+    Validate WKO limits on unique age group participations (maxTotalAgeClasses).
     
-    Rule: Even if total licenses are within limit, excess licenses in the 
-    SAME age group are disallowed (keep highest priority, invalidate others).
-    Distinct age groups themselves are also limited.
+    This validation ensures a player does not participate in more unique age 
+    classes than allowed by WKO rules (e.g., max 2 unique age groups).
     """
     if not player.get("assignedTeams"):
       return
 
-    # Get player details
+    # 1. Get player details
     player_obj = PlayerDB(**player)
     player_age_group = player_obj.ageGroup
     player_sex = player_obj.sex
 
-    # Check if player's age group is known
     if player_age_group not in self._wko_rules:
       return
 
-    # Get the maximum allowed distinct age groups
+    # 2. Get max unique age groups (maxTotalAgeClasses)
     player_rule = self._wko_rules[player_age_group]
+    max_groups = 2  # Default
     max_participations_dict = player_rule.maxTotalAgeClasses or {}
     
-    if player_sex not in max_participations_dict:
-      max_groups = self.MAX_AGE_CLASS_PARTICIPATIONS
-    else:
+    if player_sex in max_participations_dict:
       max_groups = max_participations_dict[player_sex]
       if max_groups is None:
-        return
+        return # No limit
 
-    # Collect all valid participations that count toward WKO limits
-    all_valid = []
+    # 3. Collect all licenses that count towards age class limit
+    # We count licenses that are VALID OR those that are INVALID only because of MULTIPLE_PRIMARY
+    # (Fix: Don't let MULTIPLE_PRIMARY status mask the fact that an age group is being used)
+    licenses_by_group: dict[str, list[dict]] = {}
+    
     for club in player["assignedTeams"]:
       for team in club.get("teams", []):
         if team.get("adminOverride"):
           continue
-        if (team.get("status") == LicenseStatusEnum.VALID
-            and team.get("licenseType") in [
-                LicenseTypeEnum.PRIMARY, LicenseTypeEnum.SECONDARY,
-                LicenseTypeEnum.OVERAGE, LicenseTypeEnum.LOAN
-            ]):
-          all_valid.append({
-              "club": club,
-              "team": team,
-              "ageGroup": team.get("teamAgeGroup") or "UNKNOWN"
-          })
+        
+        reason_codes = team.get("invalidReasonCodes", [])
+        is_structurally_valid = (
+            team.get("status") == LicenseStatusEnum.VALID or 
+            (team.get("status") == LicenseStatusEnum.INVALID and 
+             LicenseInvalidReasonCode.MULTIPLE_PRIMARY in reason_codes and
+             len(reason_codes) == 1)
+        )
+        
+        if is_structurally_valid:
+          age_group = team.get("teamAgeGroup")
+          if age_group:
+            if age_group not in licenses_by_group:
+              licenses_by_group[age_group] = []
+            licenses_by_group[age_group].append(team)
 
-    if not all_valid:
-      return
+    # 4. Check unique age groups limit
+    unique_age_groups = list(licenses_by_group.keys())
+    if len(unique_age_groups) > max_groups:
+      # Sort groups to prioritize: PRIMARY-first, then wko sortOrder (older first)
+      def group_priority(group_name):
+        teams = licenses_by_group[group_name]
+        has_primary = any(t.get("licenseType") == LicenseTypeEnum.PRIMARY for t in teams)
+        # Use simple fallback if rule missing
+        sort_order = self._wko_rules[group_name].sortOrder if group_name in self._wko_rules else 99
+        return (0 if has_primary else 1, sort_order)
 
-    # Sort all_valid by priority: PRIMARY first, then sortOrder ascending (older groups first)
-    def sort_key(item):
-      team = item["team"]
-      age_group = item["ageGroup"]
-      # Priority 0 for PRIMARY, 1 for others
-      type_priority = 0 if team.get("licenseType") == LicenseTypeEnum.PRIMARY else 1
-      # sortOrder from WKO rules (lower number = older age group)
-      age_order = self._wko_rules[age_group].sortOrder if age_group in self._wko_rules else 999
-      return (type_priority, age_order)
+      unique_age_groups.sort(key=group_priority)
+      
+      # Invalidate excess age groups
+      excess_groups = unique_age_groups[max_groups:]
+      for group_name in excess_groups:
+        for team in licenses_by_group[group_name]:
+          # Don't overwrite existing MULTIPLE_PRIMARY if it's already there
+          if team.get("status") == LicenseStatusEnum.VALID:
+            team["status"] = LicenseStatusEnum.INVALID
+            if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get("invalidReasonCodes", []):
+              team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
 
-    all_valid.sort(key=sort_key)
-
-    # Pass 1: Keep only the first license per age group
-    # (If same group appears multiple times, invalidate excess immediately)
-    seen_groups = set()
-    accepted_licenses = []
-    
-    for item in all_valid:
-      age_group = item["ageGroup"]
-      if age_group not in seen_groups:
-        seen_groups.add(age_group)
-        accepted_licenses.append(item)
-      else:
-        # Excess license in a group we've already seen
-        team = item["team"]
-        team["status"] = LicenseStatusEnum.INVALID
-        if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get("invalidReasonCodes", []):
-          team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
-        logger.debug(f"Invalidated excess license in same age group: {age_group}")
-
-    # Pass 2: Limit number of distinct age groups to max_groups
-    if len(accepted_licenses) > max_groups:
-      for item in accepted_licenses[max_groups:]:
-        team = item["team"]
-        team["status"] = LicenseStatusEnum.INVALID
-        if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get("invalidReasonCodes", []):
-          team.setdefault("invalidReasonCodes", []).append(LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
-        logger.debug(f"Invalidated license due to exceeding distinct age group limit ({len(seen_groups)} > {max_groups})")
+  def _validate_distinct_age_groups(self, player: dict) -> None:
+    """Legacy method - functionality merged into _validate_wko_limits"""
+    pass
 
   def _validate_date_sanity(self, player: dict) -> None:
     """Validate date sanity (validFrom <= validTo)"""
