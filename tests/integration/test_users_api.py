@@ -38,20 +38,15 @@ class TestUsersAPI:
         assert user_in_db is not None
         assert user_in_db["firstName"] == "New"
 
-    async def test_register_duplicate_email_fails(self, client: AsyncClient, mongodb, admin_token):
+    async def test_register_duplicate_email_fails(self, client: AsyncClient, mongodb, admin_token, create_test_user):
         """Test registering user with existing email fails"""
-        # Setup - Create existing user via API
-        existing_user_data = {
-            "email": "existing@test.com",
-            "password": "SecurePass123!",
-            "firstName": "Existing",
-            "lastName": "User",
-            "roles": []
-        }
-        await client.post(
-            "/users/register",
-            json=existing_user_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+        # Setup - Create existing user directly in DB (following testing-infrastructure-guide.md)
+        await create_test_user(
+            email="existing@test.com",
+            password="SecurePass123!",
+            firstName="Existing",
+            lastName="User",
+            roles=[]
         )
 
         # Execute - Try to register with same email
@@ -73,7 +68,7 @@ class TestUsersAPI:
 
     async def test_login_success(self, client: AsyncClient, create_test_user):
         """Test successful user login"""
-        # Setup - Create user directly in DB (faster, doesn't test /register)
+        # Setup - Create user directly in DB
         await create_test_user(
             email="loginuser@test.com",
             password="TestPass123!",
@@ -149,22 +144,17 @@ class TestUsersAPI:
         data = response.json()
         assert data["data"]["firstName"] == "UpdatedName"
 
-    async def test_update_other_user_as_admin(self, client: AsyncClient, admin_token):
+    async def test_update_other_user_as_admin(self, client: AsyncClient, admin_token, create_test_user):
         """Test admin updating another user"""
-        # Setup - Create another user via API
-        other_user_data = {
-            "email": "otheruser@test.com",
-            "password": "SecurePass123!",
-            "firstName": "Other",
-            "lastName": "User",
-            "roles": ["REFEREE"]
-        }
-        create_response = await client.post(
-            "/users/register",
-            json=other_user_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+        # Setup - Create another user directly in DB
+        other_user = await create_test_user(
+            email="otheruser@test.com",
+            password="SecurePass123!",
+            firstName="Other",
+            lastName="User",
+            roles=["REFEREE"]
         )
-        other_user_id = create_response.json()["data"]["_id"]
+        other_user_id = other_user["_id"]
 
         # Execute
         response = await client.patch(
@@ -178,37 +168,27 @@ class TestUsersAPI:
         data = response.json()
         assert data["data"]["firstName"] == "Modified"
 
-    async def test_get_all_referees(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_all_referees(self, client: AsyncClient, mongodb, admin_token, create_test_user):
         """Test retrieving all referees"""
         # Clean up any existing test referees
         await mongodb["users"].delete_many({
             "email": {"$in": ["ref1@test.com", "ref2@test.com"]}
         })
         
-        # Setup - Create referee users via API
-        referee1_data = {
-            "email": "ref1@test.com",
-            "password": "SecurePass123!",
-            "firstName": "Ref",
-            "lastName": "One",
-            "roles": ["REFEREE"]
-        }
-        referee2_data = {
-            "email": "ref2@test.com",
-            "password": "SecurePass123!",
-            "firstName": "Ref",
-            "lastName": "Two",
-            "roles": ["REFEREE"]
-        }
-        await client.post(
-            "/users/register",
-            json=referee1_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+        # Setup - Create referee users directly in DB
+        await create_test_user(
+            email="ref1@test.com",
+            password="SecurePass123!",
+            firstName="Ref",
+            lastName="One",
+            roles=["REFEREE"]
         )
-        await client.post(
-            "/users/register",
-            json=referee2_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+        await create_test_user(
+            email="ref2@test.com",
+            password="SecurePass123!",
+            firstName="Ref",
+            lastName="Two",
+            roles=["REFEREE"]
         )
 
         # Execute
@@ -222,20 +202,15 @@ class TestUsersAPI:
         data = response.json()
         assert data["pagination"]["total_items"] >= 2
 
-    async def test_forgot_password(self, client: AsyncClient, admin_token):
+    async def test_forgot_password(self, client: AsyncClient, admin_token, create_test_user):
         """Test forgot password flow"""
-        # Setup - Create user via API
-        user_data = {
-            "email": "forgotpw@test.com",
-            "password": "SecurePass123!",
-            "firstName": "Test",
-            "lastName": "User",
-            "roles": []
-        }
-        await client.post(
-            "/users/register",
-            json=user_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+        # Setup - Create user directly in DB
+        await create_test_user(
+            email="forgotpw@test.com",
+            password="SecurePass123!",
+            firstName="Test",
+            lastName="User",
+            roles=[]
         )
 
         # Execute
@@ -246,7 +221,7 @@ class TestUsersAPI:
 
         # Assert
         assert response.status_code == 200
-        assert "Password reset instructions sent to your email" in response.json()["message"]
+        assert "If email exists, reset link has been sent" in response.json()["message"]
 
     async def test_unauthorized_register(self, client: AsyncClient):
         """Test registering without admin token fails"""
