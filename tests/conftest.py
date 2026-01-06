@@ -112,12 +112,9 @@ async def mongodb():
 
     yield db
 
-    # Clean after test
-    for collection_name in collections_to_clean:
-        try:
-            await db[collection_name].delete_many({})
-        except Exception as e:
-            print(f"Warning: Could not cleanup {collection_name}: {e}")
+    # NOTE: We intentionally do NOT clean after test execution
+    # This allows debugging by inspecting the database after a test run
+    # Data isolation is ensured by cleaning BEFORE each test instead
 
     # Close client to prevent event loop issues
     client.close()
