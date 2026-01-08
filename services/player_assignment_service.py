@@ -1714,6 +1714,80 @@ class PlayerAssignmentService:
 
         return stats
 
+    async def get_possible_teams_for_player(
+        self, player_id: str, club_id: str = None
+    ) -> list[dict]:
+        """
+        Get a list of teams that a player could potentially join,
+        with recommendations and WKO compliance status.
+        """
+        # 1. Fetch player
+        player = await self.db["players"].find_one({"_id": player_id})
+        if not player:
+            return []
+
+        # 2. Prepare player object for age group and sex properties
+        player_obj = PlayerDB(**self._prepare_player_for_validation(player))
+        player_age = player_obj.ageGroup
+        player_sex = player_obj.sex
+
+        # 3. Get target club teams
+        # If club_id is provided, only look at that club. Otherwise all clubs.
+        club_query = {"_id": club_id} if club_id else {}
+        clubs_cursor = self.db["clubs"].find(club_query)
+        clubs = await clubs_cursor.to_list(length=None)
+
+        # 4. Exclude already assigned teams
+        assigned_team_ids = set()
+        for club_assignment in player.get("assignedTeams", []):
+            for team_assignment in club_assignment.get("teams", []):
+                assigned_team_ids.add(team_assignment["teamId"])
+
+        results = []
+        for club in clubs:
+            for team in club.get("teams", []):
+                if team["_id"] in assigned_team_ids:
+                    continue
+
+                # 5. Classify and validate
+                team_age_group = team.get("ageGroup")
+
+                # Recommendation logic
+                rec_type = self._classify_single_license_by_age_group(
+                    player_age, team_age_group, player_obj.overAge
+                )
+
+                # WKO compliance check
+                is_allowed, max_lic, requires_admin = self._is_team_allowed(
+                    player_age, team_age_group, player_sex
+                )
+
+                # Special case: PRIMARY (player's own age group) is always allowed
+                if team_age_group == player_age:
+                    is_allowed = True
+
+                status = "VALID" if is_allowed else "INVALID"
+                reason_detail = "allowed" if is_allowed else "not allowed"
+
+                # 6. Build result
+                results.append(
+                    {
+                        "teamId": team["_id"],
+                        "teamAlias": team.get("alias"),
+                        "teamName": team.get("name"),
+                        "teamAgeGroup": team_age_group,
+                        "recommendedType": rec_type.value,
+                        "status": status,
+                        "reason": f"{rec_type.value} ({reason_detail})",
+                        "maxLicenses": max_lic,
+                        "requiresAdmin": requires_admin,
+                        "clubId": club["_id"],
+                        "clubName": club["name"],
+                    }
+                )
+
+        return results
+
     # ========================================================================
     # ISHD SYNC METHODS
     # ========================================================================
