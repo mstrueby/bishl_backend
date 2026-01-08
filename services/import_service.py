@@ -226,14 +226,16 @@ class ImportService:
                         progress.add_error(f"Round does not exist: {t_alias}/{s_alias}/{r_alias}")
                         continue
 
-                    round_db = RoundDB(**round_response.json().get('data', {}))
+                    round_db = RoundDB(**round_response.json().get("data", {}))
 
                     # Check if matchday exists, create if needed
                     matchday_url = f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
                     matchday_response = requests.get(matchday_url, headers=self.headers)
                     if matchday_response.status_code != 200:
                         new_matchday_data = row.get("newMatchday")
-                        logger.info(f"Creating new matchday: {t_alias}/{s_alias}/{r_alias}/{md_alias}")
+                        logger.info(
+                            f"Creating new matchday: {t_alias}/{s_alias}/{r_alias}/{md_alias}"
+                        )
                         if isinstance(new_matchday_data, str):
                             new_matchday_data = json.loads(new_matchday_data)
 

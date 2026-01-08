@@ -1,12 +1,13 @@
 """Unit tests for TournamentService"""
-from loguru import logger
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime
-from bson import ObjectId
 
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from loguru import logger
+
+from exceptions import ResourceNotFoundException
 from services.tournament_service import TournamentService
-from exceptions import ResourceNotFoundException, DatabaseOperationException
 
 
 @pytest.fixture
@@ -30,10 +31,12 @@ def mock_db():
     db._matches_collection = mock_matches_collection
     db._matches_find = mock_matches_find
 
-    db.__getitem__ = MagicMock(side_effect=lambda name: {
-        'tournaments': mock_tournaments_collection,
-        'matches': mock_matches_collection
-    }.get(name))
+    db.__getitem__ = MagicMock(
+        side_effect=lambda name: {
+            "tournaments": mock_tournaments_collection,
+            "matches": mock_matches_collection,
+        }.get(name)
+    )
 
     return db
 
@@ -52,14 +55,16 @@ class TestGetStandingsSettings:
         """Test successful retrieval of standings settings"""
         test_tournament = {
             "alias": "test-tournament",
-            "seasons": [{
-                "alias": "test-season",
-                "standingsSettings": {
-                    "pointsWinReg": 3,
-                    "pointsLossReg": 0,
-                    "pointsDrawReg": 1
+            "seasons": [
+                {
+                    "alias": "test-season",
+                    "standingsSettings": {
+                        "pointsWinReg": 3,
+                        "pointsLossReg": 0,
+                        "pointsDrawReg": 1,
+                    },
                 }
-            }]
+            ],
         }
 
         mock_db._tournaments_collection.find_one = AsyncMock(return_value=test_tournament)
@@ -86,10 +91,7 @@ class TestGetStandingsSettings:
         """Test error when season not found"""
         test_tournament = {
             "alias": "test-tournament",
-            "seasons": [{
-                "alias": "other-season",
-                "standingsSettings": {}
-            }]
+            "seasons": [{"alias": "other-season", "standingsSettings": {}}],
         }
 
         mock_db._tournaments_collection.find_one = AsyncMock(return_value=test_tournament)
@@ -107,10 +109,12 @@ class TestGetStandingsSettings:
         """Test error when standings settings missing"""
         test_tournament = {
             "alias": "test-tournament",
-            "seasons": [{
-                "alias": "test-season"
-                # No standingsSettings
-            }]
+            "seasons": [
+                {
+                    "alias": "test-season"
+                    # No standingsSettings
+                }
+            ],
         }
 
         mock_db._tournaments_collection.find_one = AsyncMock(return_value=test_tournament)
@@ -129,16 +133,14 @@ class TestGetMatchdayInfo:
         """Test successful matchday retrieval"""
         test_tournament = {
             "alias": "test-t",
-            "seasons": [{
-                "alias": "test-s",
-                "rounds": [{
-                    "alias": "test-r",
-                    "matchdays": [{
-                        "alias": "test-md",
-                        "refPoints": 50
-                    }]
-                }]
-            }]
+            "seasons": [
+                {
+                    "alias": "test-s",
+                    "rounds": [
+                        {"alias": "test-r", "matchdays": [{"alias": "test-md", "refPoints": 50}]}
+                    ],
+                }
+            ],
         }
 
         mock_db._tournaments_collection.find_one = AsyncMock(return_value=test_tournament)
@@ -153,13 +155,7 @@ class TestGetMatchdayInfo:
         """Test error when matchday not found"""
         test_tournament = {
             "alias": "test-t",
-            "seasons": [{
-                "alias": "test-s",
-                "rounds": [{
-                    "alias": "test-r",
-                    "matchdays": []
-                }]
-            }]
+            "seasons": [{"alias": "test-s", "rounds": [{"alias": "test-r", "matchdays": []}]}],
         }
 
         mock_db._tournaments_collection.find_one = AsyncMock(return_value=test_tournament)
@@ -178,13 +174,7 @@ class TestGetRoundInfo:
         """Test successful round retrieval"""
         test_tournament = {
             "alias": "test-t",
-            "seasons": [{
-                "alias": "test-s",
-                "rounds": [{
-                    "alias": "test-r",
-                    "name": "Test Round"
-                }]
-            }]
+            "seasons": [{"alias": "test-s", "rounds": [{"alias": "test-r", "name": "Test Round"}]}],
         }
 
         mock_db._tournaments_collection.find_one = AsyncMock(return_value=test_tournament)
@@ -204,7 +194,7 @@ class TestUpdateRoundDates:
         test_matches = [
             {"startDate": datetime(2024, 1, 1, 10, 0)},
             {"startDate": datetime(2024, 1, 15, 10, 0)},
-            {"startDate": datetime(2024, 1, 30, 10, 0)}
+            {"startDate": datetime(2024, 1, 30, 10, 0)},
         ]
 
         mock_db._matches_find.to_list = AsyncMock(return_value=test_matches)
@@ -216,8 +206,12 @@ class TestUpdateRoundDates:
         assert update_call is not None
 
         update_doc = update_call[0][1]
-        assert update_doc["$set"]["seasons.$[season].rounds.$[round].startDate"] == datetime(2024, 1, 1, 10, 0)
-        assert update_doc["$set"]["seasons.$[season].rounds.$[round].endDate"] == datetime(2024, 1, 30, 10, 0)
+        assert update_doc["$set"]["seasons.$[season].rounds.$[round].startDate"] == datetime(
+            2024, 1, 1, 10, 0
+        )
+        assert update_doc["$set"]["seasons.$[season].rounds.$[round].endDate"] == datetime(
+            2024, 1, 30, 10, 0
+        )
 
     @pytest.mark.asyncio
     async def test_update_round_dates_no_matches(self, tournament_service, mock_db):
@@ -239,17 +233,23 @@ class TestUpdateMatchdayDates:
         """Test successful matchday date update"""
         test_matches = [
             {"startDate": datetime(2024, 1, 5, 18, 0)},
-            {"startDate": datetime(2024, 1, 5, 20, 0)}
+            {"startDate": datetime(2024, 1, 5, 20, 0)},
         ]
 
         mock_db._matches_find.to_list = AsyncMock(return_value=test_matches)
 
-        await tournament_service.update_matchday_dates("md-id", "test-t", "test-s", "test-r", "test-md")
+        await tournament_service.update_matchday_dates(
+            "md-id", "test-t", "test-s", "test-r", "test-md"
+        )
 
         # Verify update was called
         update_call = mock_db._tournaments_collection.update_one.call_args
         assert update_call is not None
 
         update_doc = update_call[0][1]
-        assert update_doc["$set"]["seasons.$[season].rounds.$[round].matchdays.$[matchday].startDate"] == datetime(2024, 1, 5, 18, 0)
-        assert update_doc["$set"]["seasons.$[season].rounds.$[round].matchdays.$[matchday].endDate"] == datetime(2024, 1, 5, 20, 0)
+        assert update_doc["$set"][
+            "seasons.$[season].rounds.$[round].matchdays.$[matchday].startDate"
+        ] == datetime(2024, 1, 5, 18, 0)
+        assert update_doc["$set"][
+            "seasons.$[season].rounds.$[round].matchdays.$[matchday].endDate"
+        ] == datetime(2024, 1, 5, 20, 0)

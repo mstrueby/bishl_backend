@@ -1,4 +1,3 @@
-
 """
 Season API Response Models
 These models define the structure returned by season API endpoints.
@@ -12,6 +11,7 @@ from models.tournaments import MongoBaseModel, StandingsSettings
 
 class SeasonLinks(BaseModel):
     """HATEOAS links for season navigation"""
+
     self: str
     rounds: str
     tournament: str
@@ -19,6 +19,7 @@ class SeasonLinks(BaseModel):
 
 class SeasonResponse(MongoBaseModel):
     """Season response without nested rounds array"""
+
     name: str
     alias: str
     standingsSettings: StandingsSettings | None = None
@@ -32,14 +33,11 @@ class SeasonResponse(MongoBaseModel):
                 "name": "2024/25",
                 "alias": "2024-25",
                 "published": True,
-                "standingsSettings": {
-                    "pointsWinReg": 3,
-                    "pointsLossReg": 0
-                },
+                "standingsSettings": {"pointsWinReg": 3, "pointsLossReg": 0},
                 "links": {
                     "self": "/tournaments/bishl-2024/seasons/2024-25",
                     "rounds": "/tournaments/bishl-2024/seasons/2024-25/rounds",
-                    "tournament": "/tournaments/bishl-2024"
-                }
+                    "tournament": "/tournaments/bishl-2024",
+                },
             }
         }

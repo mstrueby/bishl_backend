@@ -1,7 +1,9 @@
 """Unit tests for StatsService"""
+
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
+
 from services.stats_service import StatsService
 
 
@@ -25,10 +27,12 @@ def mock_db():
     db._players_collection = mock_players_collection
 
     # Attach collections to db
-    db.__getitem__ = MagicMock(side_effect=lambda name: {
-        'matches': mock_matches_collection,
-        'players': mock_players_collection
-    }.get(name))
+    db.__getitem__ = MagicMock(
+        side_effect=lambda name: {
+            "matches": mock_matches_collection,
+            "players": mock_players_collection,
+        }.get(name)
+    )
 
     return db
 
@@ -44,23 +48,21 @@ class TestCalculateMatchStats:
 
     def test_regular_time_win(self, stats_service):
         """Test stats for regular time win"""
-        result = stats_service.calculate_match_stats(match_status="FINISHED",
-                                                     finish_type="REGULAR",
-                                                     standings_setting={
-                                                         "pointsWinReg": 3,
-                                                         "pointsLossReg": 0,
-                                                         "pointsDrawReg": 1,
-                                                         "pointsWinOvertime":
-                                                         2,
-                                                         "pointsLossOvertime":
-                                                         1,
-                                                         "pointsWinShootout":
-                                                         2,
-                                                         "pointsLossShootout":
-                                                         1
-                                                     },
-                                                     home_score=5,
-                                                     away_score=3)
+        result = stats_service.calculate_match_stats(
+            match_status="FINISHED",
+            finish_type="REGULAR",
+            standings_setting={
+                "pointsWinReg": 3,
+                "pointsLossReg": 0,
+                "pointsDrawReg": 1,
+                "pointsWinOvertime": 2,
+                "pointsLossOvertime": 1,
+                "pointsWinShootout": 2,
+                "pointsLossShootout": 1,
+            },
+            home_score=5,
+            away_score=3,
+        )
 
         assert result["home"]["points"] == 3
         assert result["home"]["win"] == 1
@@ -76,23 +78,21 @@ class TestCalculateMatchStats:
 
     def test_overtime_win(self, stats_service):
         """Test stats for overtime win"""
-        result = stats_service.calculate_match_stats(match_status="FINISHED",
-                                                     finish_type="OVERTIME",
-                                                     standings_setting={
-                                                         "pointsWinReg": 3,
-                                                         "pointsLossReg": 0,
-                                                         "pointsDrawReg": 1,
-                                                         "pointsWinOvertime":
-                                                         2,
-                                                         "pointsLossOvertime":
-                                                         1,
-                                                         "pointsWinShootout":
-                                                         2,
-                                                         "pointsLossShootout":
-                                                         1
-                                                     },
-                                                     home_score=4,
-                                                     away_score=3)
+        result = stats_service.calculate_match_stats(
+            match_status="FINISHED",
+            finish_type="OVERTIME",
+            standings_setting={
+                "pointsWinReg": 3,
+                "pointsLossReg": 0,
+                "pointsDrawReg": 1,
+                "pointsWinOvertime": 2,
+                "pointsLossOvertime": 1,
+                "pointsWinShootout": 2,
+                "pointsLossShootout": 1,
+            },
+            home_score=4,
+            away_score=3,
+        )
 
         assert result["home"]["points"] == 2
         assert result["home"]["otWin"] == 1
@@ -101,23 +101,21 @@ class TestCalculateMatchStats:
 
     def test_shootout_win(self, stats_service):
         """Test stats for shootout win"""
-        result = stats_service.calculate_match_stats(match_status="FINISHED",
-                                                     finish_type="SHOOTOUT",
-                                                     standings_setting={
-                                                         "pointsWinReg": 3,
-                                                         "pointsLossReg": 0,
-                                                         "pointsDrawReg": 1,
-                                                         "pointsWinOvertime":
-                                                         2,
-                                                         "pointsLossOvertime":
-                                                         1,
-                                                         "pointsWinShootout":
-                                                         2,
-                                                         "pointsLossShootout":
-                                                         1
-                                                     },
-                                                     home_score=3,
-                                                     away_score=2)
+        result = stats_service.calculate_match_stats(
+            match_status="FINISHED",
+            finish_type="SHOOTOUT",
+            standings_setting={
+                "pointsWinReg": 3,
+                "pointsLossReg": 0,
+                "pointsDrawReg": 1,
+                "pointsWinOvertime": 2,
+                "pointsLossOvertime": 1,
+                "pointsWinShootout": 2,
+                "pointsLossShootout": 1,
+            },
+            home_score=3,
+            away_score=2,
+        )
 
         assert result["home"]["points"] == 2
         assert result["home"]["soWin"] == 1
@@ -126,23 +124,21 @@ class TestCalculateMatchStats:
 
     def test_tie_game(self, stats_service):
         """Test stats for tie game"""
-        result = stats_service.calculate_match_stats(match_status="FINISHED",
-                                                     finish_type="REGULAR",
-                                                     standings_setting={
-                                                         "pointsWinReg": 3,
-                                                         "pointsLossReg": 0,
-                                                         "pointsDrawReg": 1,
-                                                         "pointsWinOvertime":
-                                                         2,
-                                                         "pointsLossOvertime":
-                                                         1,
-                                                         "pointsWinShootout":
-                                                         2,
-                                                         "pointsLossShootout":
-                                                         1
-                                                     },
-                                                     home_score=3,
-                                                     away_score=3)
+        result = stats_service.calculate_match_stats(
+            match_status="FINISHED",
+            finish_type="REGULAR",
+            standings_setting={
+                "pointsWinReg": 3,
+                "pointsLossReg": 0,
+                "pointsDrawReg": 1,
+                "pointsWinOvertime": 2,
+                "pointsLossOvertime": 1,
+                "pointsWinShootout": 2,
+                "pointsLossShootout": 1,
+            },
+            home_score=3,
+            away_score=3,
+        )
 
         assert result["home"]["points"] == 1
         assert result["home"]["draw"] == 1
@@ -151,49 +147,44 @@ class TestCalculateMatchStats:
 
     def test_incomplete_match_returns_zeros(self, stats_service):
         """Test that incomplete match returns zero stats"""
-        result = stats_service.calculate_match_stats(match_status="SCHEDULED",
-                                                     finish_type=None,
-                                                     standings_setting={
-                                                         "pointsWinReg": 3,
-                                                         "pointsLossReg": 0,
-                                                         "pointsDrawReg": 1,
-                                                         "pointsWinOvertime":
-                                                         2,
-                                                         "pointsLossOvertime":
-                                                         1,
-                                                         "pointsWinShootout":
-                                                         2,
-                                                         "pointsLossShootout":
-                                                         1
-                                                     },
-                                                     home_score=0,
-                                                     away_score=0)
+        result = stats_service.calculate_match_stats(
+            match_status="SCHEDULED",
+            finish_type=None,
+            standings_setting={
+                "pointsWinReg": 3,
+                "pointsLossReg": 0,
+                "pointsDrawReg": 1,
+                "pointsWinOvertime": 2,
+                "pointsLossOvertime": 1,
+                "pointsWinShootout": 2,
+                "pointsLossShootout": 1,
+            },
+            home_score=0,
+            away_score=0,
+        )
 
         assert result["home"]["points"] == 0
         assert result["home"]["draw"] == 0
         assert result["away"]["points"] == 0
         assert result["away"]["draw"] == 0
 
-
     def test_match_in_progress_returns_zeros(self, stats_service):
         """Test that match in progress returns zero stats"""
-        result = stats_service.calculate_match_stats(match_status="INPROGRESS",
-                                                     finish_type=None,
-                                                     standings_setting={
-                                                         "pointsWinReg": 3,
-                                                         "pointsLossReg": 0,
-                                                         "pointsDrawReg": 1,
-                                                         "pointsWinOvertime":
-                                                         2,
-                                                         "pointsLossOvertime":
-                                                         1,
-                                                         "pointsWinShootout":
-                                                         2,
-                                                         "pointsLossShootout":
-                                                         1
-                                                     },
-                                                     home_score=1,
-                                                     away_score=0)
+        result = stats_service.calculate_match_stats(
+            match_status="INPROGRESS",
+            finish_type=None,
+            standings_setting={
+                "pointsWinReg": 3,
+                "pointsLossReg": 0,
+                "pointsDrawReg": 1,
+                "pointsWinOvertime": 2,
+                "pointsLossOvertime": 1,
+                "pointsWinShootout": 2,
+                "pointsLossShootout": 1,
+            },
+            home_score=1,
+            away_score=0,
+        )
         assert result["home"]["points"] == 0
         assert result["home"]["win"] == 0
         assert result["away"]["points"] == 0
@@ -212,30 +203,33 @@ class TestCalculateRosterStats:
         test_match = {
             "_id": match_id,
             "home": {
-                "roster": [{
-                    "_id": "r1",
-                    "player": {"playerId": "player-1"},
-                    "goals": 0,
-                    "assists": 0,
-                    "points": 0,
-                    "penaltyMinutes": 0
-                }, {
-                    "_id": "r2",
-                    "player": {"playerId": "player-2"},
-                    "goals": 0,
-                    "assists": 0,
-                    "points": 0,
-                    "penaltyMinutes": 0
-                }],
-                "scores": [{
-                    "goalPlayer": {"playerId": "player-1"},
-                    "assistPlayer": {"playerId": "player-2"}
-                }, {
-                    "goalPlayer": {"playerId": "player-1"},
-                    "assistPlayer": None
-                }],
-                "penalties": []
-            }
+                "roster": [
+                    {
+                        "_id": "r1",
+                        "player": {"playerId": "player-1"},
+                        "goals": 0,
+                        "assists": 0,
+                        "points": 0,
+                        "penaltyMinutes": 0,
+                    },
+                    {
+                        "_id": "r2",
+                        "player": {"playerId": "player-2"},
+                        "goals": 0,
+                        "assists": 0,
+                        "points": 0,
+                        "penaltyMinutes": 0,
+                    },
+                ],
+                "scores": [
+                    {
+                        "goalPlayer": {"playerId": "player-1"},
+                        "assistPlayer": {"playerId": "player-2"},
+                    },
+                    {"goalPlayer": {"playerId": "player-1"}, "assistPlayer": None},
+                ],
+                "penalties": [],
+            },
         }
 
         # Mock the find_one to return test match
@@ -266,33 +260,31 @@ class TestCalculateRosterStats:
         test_match = {
             "_id": match_id,
             "home": {
-                "roster": [{
-                    "_id": "r1",
-                    "player": {"playerId": "player-1"},
-                    "goals": 0,
-                    "assists": 0,
-                    "points": 0,
-                    "penaltyMinutes": 0
-                }, {
-                    "_id": "r2",
-                    "player": {"playerId": "player-2"},
-                    "goals": 0,
-                    "assists": 0,
-                    "points": 0,
-                    "penaltyMinutes": 0
-                }],
+                "roster": [
+                    {
+                        "_id": "r1",
+                        "player": {"playerId": "player-1"},
+                        "goals": 0,
+                        "assists": 0,
+                        "points": 0,
+                        "penaltyMinutes": 0,
+                    },
+                    {
+                        "_id": "r2",
+                        "player": {"playerId": "player-2"},
+                        "goals": 0,
+                        "assists": 0,
+                        "points": 0,
+                        "penaltyMinutes": 0,
+                    },
+                ],
                 "scores": [],
-                "penalties": [{
-                    "penaltyPlayer": {"playerId": "player-1"},
-                    "penaltyMinutes": 2
-                }, {
-                    "penaltyPlayer": {"playerId": "player-1"},
-                    "penaltyMinutes": 2
-                }, {
-                    "penaltyPlayer": {"playerId": "player-2"},
-                    "penaltyMinutes": 5
-                }]
-            }
+                "penalties": [
+                    {"penaltyPlayer": {"playerId": "player-1"}, "penaltyMinutes": 2},
+                    {"penaltyPlayer": {"playerId": "player-1"}, "penaltyMinutes": 2},
+                    {"penaltyPlayer": {"playerId": "player-2"}, "penaltyMinutes": 5},
+                ],
+            },
         }
 
         # Mock the find_one to return test match
@@ -336,8 +328,8 @@ class TestCalculateStandings:
                         "otWin": 0,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
+                        "soLoss": 0,
+                    },
                 },
                 "away": {
                     "fullName": "Team B",
@@ -355,9 +347,9 @@ class TestCalculateStandings:
                         "otWin": 0,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
-                }
+                        "soLoss": 0,
+                    },
+                },
             }
         ]
 
@@ -377,7 +369,6 @@ class TestCalculateStandings:
         assert teams_list[1] == "Team B"
         assert standings["Team B"]["points"] == 0
         assert standings["Team B"]["losses"] == 1
-
 
     async def test_standings_tie_breaker_goal_diff(self, stats_service):
         """Test tie breaker by goal difference"""
@@ -400,8 +391,8 @@ class TestCalculateStandings:
                         "otWin": 0,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
+                        "soLoss": 0,
+                    },
                 },
                 "away": {
                     "fullName": "Team B",
@@ -419,9 +410,9 @@ class TestCalculateStandings:
                         "otWin": 0,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
-                }
+                        "soLoss": 0,
+                    },
+                },
             },
             {
                 "home": {
@@ -440,8 +431,8 @@ class TestCalculateStandings:
                         "otWin": 0,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
+                        "soLoss": 0,
+                    },
                 },
                 "away": {
                     "fullName": "Team A",
@@ -459,10 +450,10 @@ class TestCalculateStandings:
                         "otWin": 0,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
-                }
-            }
+                        "soLoss": 0,
+                    },
+                },
+            },
         ]
 
         # Call the private method directly for unit testing
@@ -491,7 +482,7 @@ class TestTeamStandingsHelpers:
             "fullName": "Test Team",
             "shortName": "TT",
             "tinyName": "T",
-            "logo": "http://example.com/logo.png"
+            "logo": "http://example.com/logo.png",
         }
 
         standings = stats_service._init_team_standings(team_data)
@@ -585,16 +576,8 @@ class TestRosterStatsHelpers:
     def test_initialize_roster_player_stats(self, stats_service):
         """Test initialization of player stats from roster"""
         roster = [
-            {
-                "player": {"playerId": "player-1"},
-                "goals": 0,
-                "assists": 0
-            },
-            {
-                "player": {"playerId": "player-2"},
-                "goals": 0,
-                "assists": 0
-            }
+            {"player": {"playerId": "player-1"}, "goals": 0, "assists": 0},
+            {"player": {"playerId": "player-2"}, "goals": 0, "assists": 0},
         ]
 
         player_stats = stats_service._initialize_roster_player_stats(roster)
@@ -605,7 +588,7 @@ class TestRosterStatsHelpers:
             "goals": 0,
             "assists": 0,
             "points": 0,
-            "penaltyMinutes": 0
+            "penaltyMinutes": 0,
         }
 
     def test_initialize_roster_player_stats_empty_roster(self, stats_service):
@@ -619,10 +602,7 @@ class TestRosterStatsHelpers:
     def test_calculate_scoring_stats_creates_missing_player(self, stats_service):
         """Test that scoring stats creates entry for player not in initial roster"""
         scoreboard = [
-            {
-                "goalPlayer": {"playerId": "player-3"},
-                "assistPlayer": {"playerId": "player-4"}
-            }
+            {"goalPlayer": {"playerId": "player-3"}, "assistPlayer": {"playerId": "player-4"}}
         ]
         player_stats = {}
 
@@ -635,12 +615,7 @@ class TestRosterStatsHelpers:
 
     def test_calculate_scoring_stats_no_assist(self, stats_service):
         """Test scoring stats when there's no assist player"""
-        scoreboard = [
-            {
-                "goalPlayer": {"playerId": "player-1"},
-                "assistPlayer": None
-            }
-        ]
+        scoreboard = [{"goalPlayer": {"playerId": "player-1"}, "assistPlayer": None}]
         player_stats = {}
 
         stats_service._calculate_scoring_stats(scoreboard, player_stats)
@@ -656,17 +631,10 @@ class TestRosterStatsHelpers:
                 "goals": 0,
                 "assists": 0,
                 "points": 0,
-                "penaltyMinutes": 0
+                "penaltyMinutes": 0,
             }
         ]
-        player_stats = {
-            "player-1": {
-                "goals": 2,
-                "assists": 1,
-                "points": 3,
-                "penaltyMinutes": 4
-            }
-        }
+        player_stats = {"player-1": {"goals": 2, "assists": 1, "points": 3, "penaltyMinutes": 4}}
 
         updated_roster = stats_service._apply_stats_to_roster(roster, player_stats)
 
@@ -691,10 +659,10 @@ class TestEdgeCases:
                 "pointsWinOvertime": 2,
                 "pointsLossOvertime": 1,
                 "pointsWinShootout": 2,
-                "pointsLossShootout": 1
+                "pointsLossShootout": 1,
             },
             home_score=3,
-            away_score=2
+            away_score=2,
         )
 
         # Should reset to zeros for unknown finish type
@@ -729,8 +697,8 @@ class TestEdgeCases:
                         "otWin": 0,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
+                        "soLoss": 0,
+                    },
                 },
                 "away": {
                     "fullName": "Team B",
@@ -748,9 +716,9 @@ class TestEdgeCases:
                         "otWin": 0,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
-                }
+                        "soLoss": 0,
+                    },
+                },
             },
             {
                 "home": {
@@ -769,8 +737,8 @@ class TestEdgeCases:
                         "otWin": 1,
                         "otLoss": 0,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
+                        "soLoss": 0,
+                    },
                 },
                 "away": {
                     "fullName": "Team D",
@@ -788,10 +756,10 @@ class TestEdgeCases:
                         "otWin": 0,
                         "otLoss": 1,
                         "soWin": 0,
-                        "soLoss": 0
-                    }
-                }
-            }
+                        "soLoss": 0,
+                    },
+                },
+            },
         ]
 
         standings = stats_service._calculate_standings(matches)

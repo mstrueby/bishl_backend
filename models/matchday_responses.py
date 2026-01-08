@@ -1,4 +1,3 @@
-
 """
 Matchday API Response Models
 These models define the structure returned by matchday API endpoints.
@@ -8,11 +7,12 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from models.tournaments import MongoBaseModel, MatchSettings, MatchdayOwner, Standings
+from models.tournaments import MatchdayOwner, MatchSettings, MongoBaseModel, Standings
 
 
 class MatchdayLinks(BaseModel):
     """HATEOAS links for matchday navigation"""
+
     self: str
     matches: str
     round: str
@@ -20,6 +20,7 @@ class MatchdayLinks(BaseModel):
 
 class MatchdayResponse(MongoBaseModel):
     """Matchday response with links to matches"""
+
     name: str
     alias: str
     type: dict[str, str]
@@ -46,7 +47,7 @@ class MatchdayResponse(MongoBaseModel):
                 "links": {
                     "self": "/tournaments/bishl-2024/seasons/2024-25/rounds/regular/matchdays/matchday-1",
                     "matches": "/matches?tournament=bishl-2024&season=2024-25&round=regular&matchday=matchday-1",
-                    "round": "/tournaments/bishl-2024/seasons/2024-25/rounds/regular"
-                }
+                    "round": "/tournaments/bishl-2024/seasons/2024-25/rounds/regular",
+                },
             }
         }

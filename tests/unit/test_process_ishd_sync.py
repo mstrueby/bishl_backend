@@ -12,63 +12,62 @@ Uses "test" mode which reads from JSON files instead of making API calls.
 
 import json
 import os
-import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from bson import ObjectId
 
+from models.clubs import TeamTypeEnum
 from models.players import (
-    AssignedClubs,
-    AssignedTeams,
-    IshdActionEnum,
     LicenseStatusEnum,
     LicenseTypeEnum,
     SourceEnum,
 )
-from models.clubs import TeamTypeEnum
 from services.player_assignment_service import PlayerAssignmentService
 
 
 class AsyncIteratorMock:
     """Mock async iterator for database cursors.
-    
+
     Supports both async iteration (async for) and to_list() method.
     """
-    
+
     def __init__(self, items, to_list_items=None):
         self.items = list(items)
         self.to_list_items = to_list_items if to_list_items is not None else []
         self.index = 0
-    
+
     def __aiter__(self):
         return self
-    
+
     async def __anext__(self):
         if self.index >= len(self.items):
             raise StopAsyncIteration
         item = self.items[self.index]
         self.index += 1
         return item
-    
+
     async def to_list(self, length=None):
         return self.to_list_items
 
 
 def create_players_find_mock(iter_items=None, to_list_items=None):
     """Create a mock for db['players'].find() that returns fresh iterators.
-    
+
     Args:
         iter_items: Items to return when used as async iterator
         to_list_items: Items to return when to_list() is called
-        
+
     Returns:
         A function that can be used as side_effect for MagicMock
     """
     iter_items = list(iter_items) if iter_items else []
     to_list_items = list(to_list_items) if to_list_items else []
-    
+
     def find_mock(*args, **kwargs):
         return AsyncIteratorMock(iter_items, to_list_items)
+
     return find_mock
 
 
@@ -243,7 +242,7 @@ class TestProcessIshdSync:
     async def test_add_new_player_with_club_assignment(self, assignment_service, mock_db):
         """
         Test: Adding new licenses with new club assignments (ADD_PLAYER scenario)
-        
+
         When ISHD returns a player that doesn't exist in database,
         a new player should be created with the club/team assignment.
         """
@@ -260,13 +259,19 @@ class TestProcessIshdSync:
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
         mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([], []))
-        mock_db["teams"].find_one = AsyncMock(return_value={
-            "_id": team_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
-        })
-        mock_db["players"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["teams"].find_one = AsyncMock(
+            return_value={
+                "_id": team_id,
+                "teamType": TeamTypeEnum.COMPETITIVE,
+            }
+        )
+        mock_db["players"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         ishd_player_data = self.create_ishd_player_data(
             first_name="Max",
@@ -276,13 +281,13 @@ class TestProcessIshdSync:
         )
 
         test_file = self.write_test_json_file(12345, "hawks-u16", [ishd_player_data])
-        
+
         try:
             result = await assignment_service.process_ishd_sync(mode="test", run=1)
 
             assert mock_db["players"].insert_one.called
             assert result["stats"]["added_players"] == 1
-            
+
             ishd_log = result["ishdLog"]
             assert len(ishd_log["clubs"]) == 1
             assert ishd_log["clubs"][0]["clubName"] == "Berlin Hawks"
@@ -293,7 +298,7 @@ class TestProcessIshdSync:
     async def test_add_club_assignment_to_existing_player(self, assignment_service, mock_db):
         """
         Test: Adding new club assignment to existing player (ADD_CLUB scenario)
-        
+
         When ISHD returns a player that exists but in a different club,
         a new club assignment should be added.
         """
@@ -302,7 +307,9 @@ class TestProcessIshdSync:
         existing_team_id = str(ObjectId())
         new_team_id = str(ObjectId())
 
-        new_team = self.create_team_document(team_id=new_team_id, ishd_id="T002", name="Lions U16", alias="lions-u16")
+        new_team = self.create_team_document(
+            team_id=new_team_id, ishd_id="T002", name="Lions U16", alias="lions-u16"
+        )
         new_club = self.create_club_document(
             club_id=new_club_id,
             ishd_id=54321,
@@ -334,13 +341,19 @@ class TestProcessIshdSync:
         )
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([new_club]))
-        mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([existing_player], []))
-        mock_db["teams"].find_one = AsyncMock(return_value={
-            "_id": new_team_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
-        })
+        mock_db["players"].find = MagicMock(
+            side_effect=create_players_find_mock([existing_player], [])
+        )
+        mock_db["teams"].find_one = AsyncMock(
+            return_value={
+                "_id": new_team_id,
+                "teamType": TeamTypeEnum.COMPETITIVE,
+            }
+        )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         ishd_player_data = self.create_ishd_player_data(
             first_name="Max",
@@ -350,7 +363,7 @@ class TestProcessIshdSync:
         )
 
         test_file = self.write_test_json_file(54321, "lions-u16", [ishd_player_data])
-        
+
         try:
             result = await assignment_service.process_ishd_sync(mode="test", run=1)
 
@@ -363,7 +376,7 @@ class TestProcessIshdSync:
     async def test_add_team_to_existing_club_assignment(self, assignment_service, mock_db):
         """
         Test: Adding licenses to existing club assignment (ADD_TEAM scenario)
-        
+
         When ISHD returns a player with a new team in an existing club,
         the team should be added to the existing club assignment.
         """
@@ -372,9 +385,9 @@ class TestProcessIshdSync:
         new_team_id = str(ObjectId())
 
         new_team = self.create_team_document(
-            team_id=new_team_id, 
-            ishd_id="T002", 
-            name="Hawks U19", 
+            team_id=new_team_id,
+            ishd_id="T002",
+            name="Hawks U19",
             alias="hawks-u19",
             age_group="U19",
         )
@@ -410,13 +423,19 @@ class TestProcessIshdSync:
         )
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
-        mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([existing_player], []))
-        mock_db["teams"].find_one = AsyncMock(return_value={
-            "_id": new_team_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
-        })
+        mock_db["players"].find = MagicMock(
+            side_effect=create_players_find_mock([existing_player], [])
+        )
+        mock_db["teams"].find_one = AsyncMock(
+            return_value={
+                "_id": new_team_id,
+                "teamType": TeamTypeEnum.COMPETITIVE,
+            }
+        )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         ishd_player_data = self.create_ishd_player_data(
             first_name="Max",
@@ -426,7 +445,7 @@ class TestProcessIshdSync:
         )
 
         test_file = self.write_test_json_file(12345, "hawks-u19", [ishd_player_data])
-        
+
         try:
             result = await assignment_service.process_ishd_sync(mode="test", run=1)
 
@@ -438,7 +457,7 @@ class TestProcessIshdSync:
     async def test_remove_license_from_team(self, assignment_service, mock_db):
         """
         Test: Removing licenses from team (DEL_TEAM scenario)
-        
+
         When ISHD no longer returns a player for a team they were previously assigned to,
         the team assignment should be removed.
         """
@@ -480,16 +499,22 @@ class TestProcessIshdSync:
         )
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
-        mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([], [existing_player]))
-        mock_db["teams"].find_one = AsyncMock(return_value={
-            "_id": team_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
-        })
+        mock_db["players"].find = MagicMock(
+            side_effect=create_players_find_mock([], [existing_player])
+        )
+        mock_db["teams"].find_one = AsyncMock(
+            return_value={
+                "_id": team_id,
+                "teamType": TeamTypeEnum.COMPETITIVE,
+            }
+        )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         test_file = self.write_test_json_file(12345, "hawks-u16", [])
-        
+
         try:
             result = await assignment_service.process_ishd_sync(mode="test", run=1)
 
@@ -503,7 +528,7 @@ class TestProcessIshdSync:
     async def test_remove_club_when_no_licenses_exist(self, assignment_service, mock_db):
         """
         Test: Removing club when no licenses exist (DEL_CLUB scenario)
-        
+
         When the last team assignment is removed from a club,
         the club assignment should also be removed.
         """
@@ -545,23 +570,30 @@ class TestProcessIshdSync:
         )
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
-        mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([], [existing_player]))
-        mock_db["teams"].find_one = AsyncMock(return_value={
-            "_id": team_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
-        })
+        mock_db["players"].find = MagicMock(
+            side_effect=create_players_find_mock([], [existing_player])
+        )
+        mock_db["teams"].find_one = AsyncMock(
+            return_value={
+                "_id": team_id,
+                "teamType": TeamTypeEnum.COMPETITIVE,
+            }
+        )
 
         update_call_count = 0
+
         async def mock_update_one(query, update):
             nonlocal update_call_count
             update_call_count += 1
             return MagicMock(modified_count=1)
 
         mock_db["players"].update_one = mock_update_one
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         test_file = self.write_test_json_file(12345, "hawks-u16", [])
-        
+
         try:
             result = await assignment_service.process_ishd_sync(mode="test", run=1)
 
@@ -574,7 +606,7 @@ class TestProcessIshdSync:
     async def test_skip_player_with_managed_by_ishd_false(self, assignment_service, mock_db):
         """
         Test: Players with managedByISHD=false should be skipped
-        
+
         ISHD sync should not modify players that are manually managed.
         """
         club_id = str(ObjectId())
@@ -598,14 +630,22 @@ class TestProcessIshdSync:
         )
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
-        mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([existing_player], []))
-        mock_db["teams"].find_one = AsyncMock(return_value={
-            "_id": team_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
-        })
-        mock_db["players"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["players"].find = MagicMock(
+            side_effect=create_players_find_mock([existing_player], [])
+        )
+        mock_db["teams"].find_one = AsyncMock(
+            return_value={
+                "_id": team_id,
+                "teamType": TeamTypeEnum.COMPETITIVE,
+            }
+        )
+        mock_db["players"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         ishd_player_data = self.create_ishd_player_data(
             first_name="Max",
@@ -615,7 +655,7 @@ class TestProcessIshdSync:
         )
 
         test_file = self.write_test_json_file(12345, "hawks-u16", [ishd_player_data])
-        
+
         try:
             result = await assignment_service.process_ishd_sync(mode="test", run=1)
 
@@ -629,7 +669,7 @@ class TestProcessIshdSync:
     async def test_dry_mode_does_not_persist(self, assignment_service, mock_db):
         """
         Test: Dry mode should not persist any changes
-        
+
         When mode="dry", changes should be logged but not saved to database.
         Note: Using a hybrid approach - dry mode still makes API calls but doesn't persist.
         """
@@ -646,11 +686,15 @@ class TestProcessIshdSync:
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
         mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([], []))
-        mock_db["teams"].find_one = AsyncMock(return_value={
-            "_id": team_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
-        })
-        mock_db["players"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["teams"].find_one = AsyncMock(
+            return_value={
+                "_id": team_id,
+                "teamType": TeamTypeEnum.COMPETITIVE,
+            }
+        )
+        mock_db["players"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
         ishd_player_data = self.create_ishd_player_data(
@@ -661,15 +705,22 @@ class TestProcessIshdSync:
         )
 
         test_file = self.write_test_json_file(12345, "hawks-u16", [ishd_player_data])
-        
+
         try:
-            with patch.object(assignment_service, 'process_ishd_sync') as mock_sync:
+            with patch.object(assignment_service, "process_ishd_sync") as mock_sync:
                 mock_sync.return_value = {
-                    "logs": ["[DRY] Would insert player: Max Mustermann 2010-05-15 -> Berlin Hawks / Hawks U16"],
-                    "stats": {"added_players": 1, "updated_teams": 0, "deleted": 0, "invalid_new": 0},
+                    "logs": [
+                        "[DRY] Would insert player: Max Mustermann 2010-05-15 -> Berlin Hawks / Hawks U16"
+                    ],
+                    "stats": {
+                        "added_players": 1,
+                        "updated_teams": 0,
+                        "deleted": 0,
+                        "invalid_new": 0,
+                    },
                     "ishdLog": {"processDate": datetime.now().isoformat(), "clubs": []},
                 }
-                
+
                 result = await mock_sync(mode="dry", run=1)
 
                 assert result["stats"]["added_players"] == 1
@@ -690,7 +741,9 @@ class TestProcessIshdSync:
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
         mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([], []))
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         result = await assignment_service.process_ishd_sync(mode="test", run=1)
 
@@ -714,7 +767,9 @@ class TestProcessIshdSync:
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
         mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([], []))
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         result = await assignment_service.process_ishd_sync(mode="test", run=1)
 
@@ -739,21 +794,42 @@ class TestProcessIshdSync:
 
         mock_db["clubs"].aggregate = MagicMock(return_value=AsyncIteratorMock([club]))
         mock_db["players"].find = MagicMock(side_effect=create_players_find_mock([], []))
-        mock_db["teams"].find_one = AsyncMock(return_value={
-            "_id": team_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
-        })
-        mock_db["players"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
-        mock_db["ishdLogs"].insert_one = AsyncMock(return_value=MagicMock(inserted_id=str(ObjectId())))
+        mock_db["teams"].find_one = AsyncMock(
+            return_value={
+                "_id": team_id,
+                "teamType": TeamTypeEnum.COMPETITIVE,
+            }
+        )
+        mock_db["players"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
+        mock_db["ishdLogs"].insert_one = AsyncMock(
+            return_value=MagicMock(inserted_id=str(ObjectId()))
+        )
 
         players = [
-            self.create_ishd_player_data(first_name="Max", last_name="Mustermann", date_of_birth="2010-05-15", license_number="BER001"),
-            self.create_ishd_player_data(first_name="Lisa", last_name="Schmidt", date_of_birth="2011-03-20", license_number="BER002"),
-            self.create_ishd_player_data(first_name="Tom", last_name="Weber", date_of_birth="2010-08-10", license_number="BER003"),
+            self.create_ishd_player_data(
+                first_name="Max",
+                last_name="Mustermann",
+                date_of_birth="2010-05-15",
+                license_number="BER001",
+            ),
+            self.create_ishd_player_data(
+                first_name="Lisa",
+                last_name="Schmidt",
+                date_of_birth="2011-03-20",
+                license_number="BER002",
+            ),
+            self.create_ishd_player_data(
+                first_name="Tom",
+                last_name="Weber",
+                date_of_birth="2010-08-10",
+                license_number="BER003",
+            ),
         ]
 
         test_file = self.write_test_json_file(12345, "hawks-u16", players)
-        
+
         try:
             result = await assignment_service.process_ishd_sync(mode="test", run=1)
 

@@ -1,10 +1,10 @@
-
 """Unit tests for Player Assignment Service"""
 
-import pytest
 from datetime import datetime
+from unittest.mock import MagicMock
+
+import pytest
 from bson import ObjectId
-from unittest.mock import AsyncMock, MagicMock
 
 from models.players import (
     AssignedClubs,
@@ -18,6 +18,7 @@ from models.players import (
     SourceEnum,
 )
 from services.player_assignment_service import PlayerAssignmentService
+
 
 class TestPlayerAssignmentServiceValidation:
     """Test suite for PlayerAssignmentService license validation logic"""
@@ -120,12 +121,16 @@ class TestPlayerAssignmentServiceValidation:
     async def test_multiple_primary_licenses(self, assignment_service, mock_db):
         """Test validation fails with multiple PRIMARY licenses"""
         club1 = AssignedClubs(
-            clubId="club1", clubName="Club 1", clubAlias="club1",
+            clubId="club1",
+            clubName="Club 1",
+            clubAlias="club1",
             teams=[self.create_assigned_team("team1", "Team 1", "U16", LicenseTypeEnum.PRIMARY)],
         )
 
         club2 = AssignedClubs(
-            clubId="club2", clubName="Club 2", clubAlias="club2",
+            clubId="club2",
+            clubName="Club 2",
+            clubAlias="club2",
             teams=[self.create_assigned_team("team2", "Team 2", "U16", LicenseTypeEnum.PRIMARY)],
         )
 
@@ -138,13 +143,15 @@ class TestPlayerAssignmentServiceValidation:
         # In multiple PRIMARY check, the first one found is often left VALID if it belongs to a MAIN club,
         # but the check is complex. The failure showed the first one was VALID.
         # We check that at least one is INVALID and has MULTIPLE_PRIMARY.
-        
+
         t1 = validated_player["assignedTeams"][0]["teams"][0]
         t2 = validated_player["assignedTeams"][1]["teams"][0]
-        
+
         # At least one must be invalid for MULTIPLE_PRIMARY
-        assert t1["status"] == LicenseStatusEnum.INVALID or t2["status"] == LicenseStatusEnum.INVALID
-        
+        assert (
+            t1["status"] == LicenseStatusEnum.INVALID or t2["status"] == LicenseStatusEnum.INVALID
+        )
+
         all_codes = t1["invalidReasonCodes"] + t2["invalidReasonCodes"]
         assert LicenseInvalidReasonCode.MULTIPLE_PRIMARY in all_codes
 
@@ -152,12 +159,16 @@ class TestPlayerAssignmentServiceValidation:
     async def test_conflicting_club_for_secondary(self, assignment_service, mock_db):
         """Test SECONDARY license in different club is invalid"""
         club1 = AssignedClubs(
-            clubId="club1", clubName="Club 1", clubAlias="club1",
+            clubId="club1",
+            clubName="Club 1",
+            clubAlias="club1",
             teams=[self.create_assigned_team("team1", "Team 1", "U16", LicenseTypeEnum.PRIMARY)],
         )
 
         club2 = AssignedClubs(
-            clubId="club2", clubName="Club 2", clubAlias="club2",
+            clubId="club2",
+            clubName="Club 2",
+            clubAlias="club2",
             teams=[self.create_assigned_team("team2", "Team 2", "U19", LicenseTypeEnum.SECONDARY)],
         )
 
@@ -167,17 +178,28 @@ class TestPlayerAssignmentServiceValidation:
 
         validated_player = await assignment_service.validate_licenses_for_player(player_dict)
 
-        assert validated_player["assignedTeams"][1]["teams"][0]["status"] == LicenseStatusEnum.INVALID
-        assert LicenseInvalidReasonCode.CONFLICTING_CLUB in validated_player["assignedTeams"][1]["teams"][0]["invalidReasonCodes"]
+        assert (
+            validated_player["assignedTeams"][1]["teams"][0]["status"] == LicenseStatusEnum.INVALID
+        )
+        assert (
+            LicenseInvalidReasonCode.CONFLICTING_CLUB
+            in validated_player["assignedTeams"][1]["teams"][0]["invalidReasonCodes"]
+        )
 
     @pytest.mark.asyncio
     async def test_ishd_vs_bishl_conflict(self, assignment_service, mock_db):
         """Test ISHD license conflicts with BISHL license"""
         club = AssignedClubs(
-            clubId="club1", clubName="Club 1", clubAlias="club1",
+            clubId="club1",
+            clubName="Club 1",
+            clubAlias="club1",
             teams=[
-                self.create_assigned_team("team1", "Team 1", "U16", LicenseTypeEnum.PRIMARY, SourceEnum.BISHL),
-                self.create_assigned_team("team2", "Team 2", "U16", LicenseTypeEnum.PRIMARY, SourceEnum.ISHD),
+                self.create_assigned_team(
+                    "team1", "Team 1", "U16", LicenseTypeEnum.PRIMARY, SourceEnum.BISHL
+                ),
+                self.create_assigned_team(
+                    "team2", "Team 2", "U16", LicenseTypeEnum.PRIMARY, SourceEnum.ISHD
+                ),
             ],
         )
 

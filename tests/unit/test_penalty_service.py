@@ -1,14 +1,17 @@
 """Unit tests for PenaltyService"""
-import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
-from services.penalty_service import PenaltyService
-from exceptions import (
-    ValidationException,
-    ResourceNotFoundException,
-    DatabaseOperationException,
-)
+
+import pytest
 from bson import ObjectId
-from models.matches import PenaltiesBase, PenaltiesUpdate, EventPlayer
+
+from exceptions import (
+    ResourceNotFoundException,
+    ValidationException,
+)
+from models.matches import EventPlayer, PenaltiesBase, PenaltiesUpdate
+from services.penalty_service import PenaltyService
+
 
 @pytest.fixture
 def mock_db():
@@ -21,9 +24,11 @@ def mock_db():
 
     db._matches_collection = mock_matches_collection
 
-    db.__getitem__ = MagicMock(side_effect=lambda name: {
-        'matches': mock_matches_collection,
-    }.get(name))
+    db.__getitem__ = MagicMock(
+        side_effect=lambda name: {
+            "matches": mock_matches_collection,
+        }.get(name)
+    )
 
     return db
 
@@ -51,16 +56,16 @@ class TestGetPenalties:
                         "matchSecondsEnd": 240,
                         "penaltyPlayer": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
                         "penaltyCode": {"key": "B", "value": "Unerlaubter Körperangriff"},
-                        "penaltyMinutes": 2
+                        "penaltyMinutes": 2,
                     }
                 ]
-            }
+            },
         }
         match_id = str(test_match["_id"])
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
 
-        with patch('services.penalty_service.populate_event_player_fields', new_callable=AsyncMock):
+        with patch("services.penalty_service.populate_event_player_fields", new_callable=AsyncMock):
             result = await penalty_service.get_penalties(match_id, "home")
 
         assert len(result) == 1
@@ -82,18 +87,9 @@ class TestValidatePenaltyPlayer:
     @pytest.mark.asyncio
     async def test_validate_player_in_roster(self, penalty_service):
         """Test validation passes when penalty player is in roster"""
-        match = {
-            "_id": str(ObjectId()),
-            "home": {
-                "roster": [
-                    {"player": {"playerId": "p1"}}
-                ]
-            }
-        }
+        match = {"_id": str(ObjectId()), "home": {"roster": [{"player": {"playerId": "p1"}}]}}
 
-        penalty_data = {
-            "penaltyPlayer": {"playerId": "p1"}
-        }
+        penalty_data = {"penaltyPlayer": {"playerId": "p1"}}
 
         # Should not raise exception
         await penalty_service._validate_player_in_roster(match, "home", penalty_data)
@@ -101,19 +97,10 @@ class TestValidatePenaltyPlayer:
     @pytest.mark.asyncio
     async def test_validate_player_not_in_roster(self, penalty_service):
         """Test validation fails when penalty player not in roster"""
-        
-        match = {
-            "_id": str(ObjectId()),
-            "home": {
-                "roster": [
-                    {"player": {"playerId": "p2"}}
-                ]
-            }
-        }
 
-        penalty_data = {
-            "penaltyPlayer": {"playerId": "p1"}
-        }
+        match = {"_id": str(ObjectId()), "home": {"roster": [{"player": {"playerId": "p2"}}]}}
+
+        penalty_data = {"penaltyPlayer": {"playerId": "p1"}}
 
         with pytest.raises(ValidationException) as exc_info:
             await penalty_service._validate_player_in_roster(match, "home", penalty_data)
@@ -131,27 +118,21 @@ class TestCreatePenalty:
         test_match = {
             "_id": str(ObjectId()),
             "matchStatus": {"key": "INPROGRESS"},
-            "home": {
-                "roster": [
-                    {"player": {"playerId": "p1"}}
-                ]
-            }
+            "home": {"roster": [{"player": {"playerId": "p1"}}]},
         }
         match_id = str(test_match["_id"])
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
-        mock_db._matches_collection.update_one = AsyncMock(
-            return_value=MagicMock(modified_count=1)
-        )
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
         penalty = PenaltiesBase(
             matchTimeStart="10:00",
             penaltyPlayer=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
             penaltyCode={"key": "2MIN", "value": "2 Minutes"},
-            penaltyMinutes=2
+            penaltyMinutes=2,
         )
 
-        with patch.object(penalty_service, 'get_penalty_by_id', new_callable=AsyncMock):
+        with patch.object(penalty_service, "get_penalty_by_id", new_callable=AsyncMock):
             await penalty_service.create_penalty(match_id, "home", penalty)
 
         # Verify update was called with incremental operations
@@ -166,10 +147,7 @@ class TestCreatePenalty:
     async def test_create_penalty_wrong_status(self, penalty_service, mock_db):
         """Test penalty creation fails when match not INPROGRESS"""
 
-        test_match = {
-            "_id": str(ObjectId()),
-            "matchStatus": {"key": "SCHEDULED"}
-        }
+        test_match = {"_id": str(ObjectId()), "matchStatus": {"key": "SCHEDULED"}}
         match_id = str(test_match["_id"])
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
@@ -178,7 +156,7 @@ class TestCreatePenalty:
             matchTimeStart="10:00",
             penaltyPlayer=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
             penaltyCode={"key": "2MIN", "value": "2 Minutes"},
-            penaltyMinutes=2
+            penaltyMinutes=2,
         )
 
         with pytest.raises(ValidationException):
@@ -191,29 +169,22 @@ class TestCreatePenalty:
         test_match = {
             "_id": str(ObjectId()),
             "matchStatus": {"key": "INPROGRESS"},
-            "home": {
-                "roster": [
-                    {"player": {"playerId": "p1"}}
-                ]
-            }
+            "home": {"roster": [{"player": {"playerId": "p1"}}]},
         }
         match_id = str(test_match["_id"])
 
-
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
-        mock_db._matches_collection.update_one = AsyncMock(
-            return_value=MagicMock(modified_count=1)
-        )
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
         penalty = PenaltiesBase(
             matchTimeStart="15:00",
             penaltyPlayer=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
             penaltyCode={"key": "GM", "value": "Game Misconduct"},
             penaltyMinutes=10,
-            isGM=True
+            isGM=True,
         )
 
-        with patch.object(penalty_service, 'get_penalty_by_id', new_callable=AsyncMock):
+        with patch.object(penalty_service, "get_penalty_by_id", new_callable=AsyncMock):
             await penalty_service.create_penalty(match_id, "home", penalty)
 
         # Verify 10 minutes were added
@@ -235,20 +206,14 @@ class TestDeletePenalty:
             "matchStatus": {"key": "INPROGRESS"},
             "home": {
                 "penalties": [
-                    {
-                        "_id": penalty_id,
-                        "penaltyPlayer": {"playerId": "p1"},
-                        "penaltyMinutes": 2
-                    }
+                    {"_id": penalty_id, "penaltyPlayer": {"playerId": "p1"}, "penaltyMinutes": 2}
                 ]
-            }
+            },
         }
         match_id = str(test_match["_id"])
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
-        mock_db._matches_collection.update_one = AsyncMock(
-            return_value=MagicMock(modified_count=1)
-        )
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
         await penalty_service.delete_penalty(match_id, "home", penalty_id)
 
@@ -266,9 +231,7 @@ class TestDeletePenalty:
         test_match = {
             "_id": "match-1",
             "matchStatus": {"key": "INPROGRESS"},
-            "home": {
-                "penalties": []
-            }
+            "home": {"penalties": []},
         }
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
@@ -287,22 +250,19 @@ class TestUpdatePenalty:
         test_match = {
             "_id": str(ObjectId()),
             "matchStatus": {"key": "INPROGRESS"},
-            "home": {
-                "roster": [{"player": {"playerId": "p1"}}]
-            }
+            "home": {"roster": [{"player": {"playerId": "p1"}}]},
         }
         match_id = str(test_match["_id"])
 
-
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
-        mock_db._matches_collection.update_one = AsyncMock(
-            return_value=MagicMock(modified_count=1)
-        )
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
         penalty_update = PenaltiesUpdate(matchTimeEnd="12:00")
 
-        with patch.object(penalty_service.stats_service, 'calculate_roster_stats', new_callable=AsyncMock) as mock_calculate_stats:
-            with patch.object(penalty_service, 'get_penalty_by_id', new_callable=AsyncMock):
+        with patch.object(
+            penalty_service.stats_service, "calculate_roster_stats", new_callable=AsyncMock
+        ) as mock_calculate_stats:
+            with patch.object(penalty_service, "get_penalty_by_id", new_callable=AsyncMock):
                 await penalty_service.update_penalty(match_id, "home", "penalty-1", penalty_update)
 
             # Verify recalculation was triggered
@@ -311,15 +271,14 @@ class TestUpdatePenalty:
     @pytest.mark.asyncio
     async def test_update_penalty_no_changes(self, penalty_service, mock_db):
         """Test update with no actual changes"""
-        from models.matches import PenaltiesUpdate
         from bson import ObjectId
+
+        from models.matches import PenaltiesUpdate
 
         test_match = {
             "_id": str(ObjectId()),
             "matchStatus": {"key": "INPROGRESS"},
-            "home": {
-                "roster": [{"player": {"playerId": "p1"}}]
-            }
+            "home": {"roster": [{"player": {"playerId": "p1"}}]},
         }
         match_id = str(test_match["_id"])
 
@@ -327,7 +286,7 @@ class TestUpdatePenalty:
 
         penalty_update = PenaltiesUpdate()
 
-        with patch.object(penalty_service, 'get_penalty_by_id', new_callable=AsyncMock) as mock_get:
+        with patch.object(penalty_service, "get_penalty_by_id", new_callable=AsyncMock) as mock_get:
             await penalty_service.update_penalty(match_id, "home", "penalty-1", penalty_update)
 
             # Should call get to return current penalty since no changes

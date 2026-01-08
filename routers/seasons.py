@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, Response
 from authentication import AuthHandler, TokenPayload
 from exceptions import ResourceNotFoundException
 from models.responses import StandardResponse
-from models.season_responses import SeasonResponse, SeasonLinks
+from models.season_responses import SeasonLinks, SeasonResponse
 from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
 
 router = APIRouter()
@@ -36,7 +36,7 @@ async def get_seasons_for_tournament(
         )
     ) is not None:
         seasons = []
-        for season in (tournament.get("seasons") or []):
+        for season in tournament.get("seasons") or []:
             season_response = SeasonResponse(
                 _id=season["_id"],
                 name=season["name"],
@@ -46,8 +46,8 @@ async def get_seasons_for_tournament(
                 links=SeasonLinks(
                     self=f"/tournaments/{tournament_alias}/seasons/{season['alias']}",
                     rounds=f"/tournaments/{tournament_alias}/seasons/{season['alias']}/rounds",
-                    tournament=f"/tournaments/{tournament_alias}"
-                )
+                    tournament=f"/tournaments/{tournament_alias}",
+                ),
             )
             seasons.append(season_response)
         return JSONResponse(
@@ -92,8 +92,8 @@ async def get_season(
                     links=SeasonLinks(
                         self=f"/tournaments/{tournament_alias}/seasons/{season_alias}",
                         rounds=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds",
-                        tournament=f"/tournaments/{tournament_alias}"
-                    )
+                        tournament=f"/tournaments/{tournament_alias}",
+                    ),
                 )
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,

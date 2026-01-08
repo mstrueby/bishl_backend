@@ -1,9 +1,11 @@
 """Integration tests for assignments API endpoints"""
+
 import pytest
-from httpx import AsyncClient
 from bson import ObjectId
-from tests.fixtures.data_fixtures import get_test_assignment_data, create_test_match
+from httpx import AsyncClient
+
 from authentication import AuthHandler
+from tests.fixtures.data_fixtures import create_test_match, get_test_assignment_data
 
 
 class TestAssignmentsAPI:
@@ -21,7 +23,7 @@ class TestAssignmentsAPI:
             "firstName": "John",
             "lastName": "Referee",
             "roles": ["REFEREE"],
-            "referee": {"level": "S2", "points": 0}
+            "referee": {"level": "S2", "points": 0},
         }
         await mongodb["users"].insert_one(referee)
 
@@ -32,16 +34,10 @@ class TestAssignmentsAPI:
         ref_token = auth.encode_token(referee)
 
         # Execute
-        assignment_data = {
-            "matchId": match["_id"],
-            "status": "REQUESTED",
-            "refAdmin": False
-        }
+        assignment_data = {"matchId": match["_id"], "status": "REQUESTED", "refAdmin": False}
 
         response = await client.post(
-            "/assignments",
-            json=assignment_data,
-            headers={"Authorization": f"Bearer {ref_token}"}
+            "/assignments", json=assignment_data, headers={"Authorization": f"Bearer {ref_token}"}
         )
 
         # Assert response
@@ -66,7 +62,7 @@ class TestAssignmentsAPI:
             "firstName": "John",
             "lastName": "Referee",
             "roles": ["REFEREE"],
-            "referee": {"level": "S2", "points": 0}
+            "referee": {"level": "S2", "points": 0},
         }
         await mongodb["users"].insert_one(referee)
 
@@ -79,13 +75,11 @@ class TestAssignmentsAPI:
             "userId": referee["_id"],
             "status": "ASSIGNED",
             "position": 1,
-            "refAdmin": True
+            "refAdmin": True,
         }
 
         response = await client.post(
-            "/assignments",
-            json=assignment_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            "/assignments", json=assignment_data, headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert response
@@ -111,14 +105,14 @@ class TestAssignmentsAPI:
             "firstName": "Ref",
             "lastName": "One",
             "roles": ["REFEREE"],
-            "referee": {"level": "S2"}
+            "referee": {"level": "S2"},
         }
         referee2 = {
             "_id": "ref-2",
             "firstName": "Ref",
             "lastName": "Two",
             "roles": ["REFEREE"],
-            "referee": {"level": "S1"}
+            "referee": {"level": "S1"},
         }
         await mongodb["users"].insert_many([referee1, referee2])
 
@@ -134,17 +128,17 @@ class TestAssignmentsAPI:
                 "clubName": None,
                 "logoUrl": None,
                 "points": 0,
-                "level": "S2"
+                "level": "S2",
             },
             "status": "REQUESTED",
-            "statusHistory": []
+            "statusHistory": [],
         }
         await mongodb["assignments"].insert_one(assignment)
 
         # Execute
         response = await client.get(
             f"/assignments/matches/{match['_id']}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -160,30 +154,34 @@ class TestAssignmentsAPI:
 
         # Create matching referee user
         referee_id = ObjectId(assignment_data["refereeId"])
-        await mongodb["users"].insert_one({
-            "_id": str(referee_id),
-            "email": "referee@test.com",
-            "firstName": "Test",
-            "lastName": "Referee",
-            "roles": ["REFEREE"]
-        })
+        await mongodb["users"].insert_one(
+            {
+                "_id": str(referee_id),
+                "email": "referee@test.com",
+                "firstName": "Test",
+                "lastName": "Referee",
+                "roles": ["REFEREE"],
+            }
+        )
 
         # Create matching match
         match_id = ObjectId(assignment_data["matchId"])
-        await mongodb["matches"].insert_one({
-            "_id": str(match_id),
-            "homeTeam": {"name": "Home Team"},
-            "awayTeam": {"name": "Away Team"},
-            "status": "scheduled",
-            "date": assignment_data["matchDate"]
-        })
+        await mongodb["matches"].insert_one(
+            {
+                "_id": str(match_id),
+                "homeTeam": {"name": "Home Team"},
+                "awayTeam": {"name": "Away Team"},
+                "status": "scheduled",
+                "date": assignment_data["matchDate"],
+            }
+        )
 
         await mongodb["assignments"].insert_one(assignment_data)
 
         # Get assignments for the referee
         response = await client.get(
             f"/assignments/users/{assignment_data['refereeId']}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
         # Assert
         assert response.status_code == 200
@@ -198,7 +196,7 @@ class TestAssignmentsAPI:
             "_id": "ref-user-1",
             "firstName": "John",
             "lastName": "Referee",
-            "roles": ["REFEREE"]
+            "roles": ["REFEREE"],
         }
         await mongodb["users"].insert_one(referee)
 
@@ -216,23 +214,19 @@ class TestAssignmentsAPI:
                 "clubName": None,
                 "logoUrl": None,
                 "points": 0,
-                "level": "S2"
+                "level": "S2",
             },
             "position": 1,
             "status": "REQUESTED",
-            "statusHistory": []
+            "statusHistory": [],
         }
         await mongodb["assignments"].insert_one(assignment)
 
         # Execute - Ref admin assigns referee
         response = await client.patch(
             f"/assignments/{assignment['_id']}",
-            json={
-                "status": "ASSIGNED",
-                "position": 1,
-                "refAdmin": True
-            },
-            headers={"Authorization": f"Bearer {admin_token}"}
+            json={"status": "ASSIGNED", "position": 1, "refAdmin": True},
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -252,7 +246,7 @@ class TestAssignmentsAPI:
             "password": auth.get_password_hash("password"),
             "firstName": "John",
             "lastName": "Referee",
-            "roles": ["REFEREE"]
+            "roles": ["REFEREE"],
         }
         await mongodb["users"].insert_one(referee)
 
@@ -270,11 +264,11 @@ class TestAssignmentsAPI:
                 "clubName": None,
                 "logoUrl": None,
                 "points": 0,
-                "level": "S2"
+                "level": "S2",
             },
             "status": "ASSIGNED",
             "position": 1,
-            "statusHistory": []
+            "statusHistory": [],
         }
         await mongodb["assignments"].insert_one(assignment)
 
@@ -284,7 +278,7 @@ class TestAssignmentsAPI:
         response = await client.patch(
             f"/assignments/{assignment['_id']}",
             json={"status": "ACCEPTED", "refAdmin": False},
-            headers={"Authorization": f"Bearer {ref_token}"}
+            headers={"Authorization": f"Bearer {ref_token}"},
         )
 
         # Assert
@@ -297,11 +291,7 @@ class TestAssignmentsAPI:
         """Test deleting an assignment"""
         # Setup
         match = create_test_match()
-        match["referee1"] = {
-            "userId": "ref-1",
-            "firstName": "John",
-            "lastName": "Referee"
-        }
+        match["referee1"] = {"userId": "ref-1", "firstName": "John", "lastName": "Referee"}
         await mongodb["matches"].insert_one(match)
 
         assignment = {
@@ -315,18 +305,17 @@ class TestAssignmentsAPI:
                 "clubName": None,
                 "logoUrl": None,
                 "points": 0,
-                "level": "S2"
+                "level": "S2",
             },
             "status": "ASSIGNED",
             "position": 1,
-            "statusHistory": []
+            "statusHistory": [],
         }
         await mongodb["assignments"].insert_one(assignment)
 
         # Execute
         response = await client.delete(
-            f"/assignments/{assignment['_id']}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            f"/assignments/{assignment['_id']}", headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert
@@ -346,10 +335,7 @@ class TestAssignmentsAPI:
         match = create_test_match()
         await mongodb["matches"].insert_one(match)
 
-        assignment_data = {
-            "matchId": match["_id"],
-            "status": "REQUESTED"
-        }
+        assignment_data = {"matchId": match["_id"], "status": "REQUESTED"}
 
         response = await client.post("/assignments", json=assignment_data)
 

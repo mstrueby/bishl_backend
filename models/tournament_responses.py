@@ -1,4 +1,3 @@
-
 """
 Tournament API Response Models
 These models define the structure returned by tournament API endpoints.
@@ -7,17 +6,19 @@ They exclude nested arrays to avoid confusion with HATEOAS links.
 
 from pydantic import BaseModel, HttpUrl
 
-from models.tournaments import MongoBaseModel, AssignmentTimeWindow
+from models.tournaments import AssignmentTimeWindow, MongoBaseModel
 
 
 class TournamentLinks(BaseModel):
     """HATEOAS links for tournament navigation"""
+
     self: str
     seasons: str
 
 
 class TournamentResponse(MongoBaseModel):
     """Tournament response without nested seasons array"""
+
     name: str
     alias: str
     tinyName: str
@@ -44,7 +45,7 @@ class TournamentResponse(MongoBaseModel):
                 "website": "https://bishl.de",
                 "links": {
                     "self": "/tournaments/bishl-2024",
-                    "seasons": "/tournaments/bishl-2024/seasons"
-                }
+                    "seasons": "/tournaments/bishl-2024/seasons",
+                },
             }
         }

@@ -1,7 +1,7 @@
 """Test configuration settings"""
-import os
+
 from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+
 from config import Settings
 
 

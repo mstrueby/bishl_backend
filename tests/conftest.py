@@ -1,28 +1,31 @@
-
 """
 Shared pytest fixtures for all tests.
 This file is automatically loaded by pytest.
 """
-import os
+
 import asyncio
+import os
+from contextlib import asynccontextmanager
+
 import pytest
 import pytest_asyncio
-from contextlib import asynccontextmanager
-from motor.motor_asyncio import AsyncIOMotorClient
 from httpx import AsyncClient
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from main import app
+from tests.test_config import TestSettings
 
 # Configure pytest-asyncio to use function-scoped event loops
-pytest_plugins = ('pytest_asyncio',)
+pytest_plugins = ("pytest_asyncio",)
 
 # CRITICAL: Force pytest to use .env.test BEFORE importing any settings
 # This must happen before any Settings objects are created
 os.environ["ENV_FILE"] = ".env.test"
 os.environ["DB_NAME"] = "bishl_test"
-os.environ["DB_URL"] = "mongodb+srv://test_user:YmIjOnKWuHcsvVbI@mflix.fmroc7j.mongodb.net/?retryWrites=true&w=majority&appName=mflix"
+os.environ["DB_URL"] = (
+    "mongodb+srv://test_user:YmIjOnKWuHcsvVbI@mflix.fmroc7j.mongodb.net/?retryWrites=true&w=majority&appName=mflix"
+)
 os.environ["ENVIRONMENT"] = "test"
-
-from main import app
-from tests.test_config import TestSettings
 
 
 @pytest.fixture(scope="function")
@@ -51,13 +54,15 @@ def pytest_runtest_setup(item):
 # Override app settings for testing
 app.state.settings = TestSettings()
 
+
 # Override the lifespan to prevent production DB connection during tests
 @asynccontextmanager
 async def test_lifespan(app):
     """Test lifespan that doesn't connect to production database"""
-    print(f"\n🧪 Test mode: Skipping production database connection")
+    print("\n🧪 Test mode: Skipping production database connection")
     yield
     # No cleanup needed - handled by fixtures
+
 
 # Replace the app's lifespan with test version
 app.router.lifespan_context = test_lifespan
@@ -69,7 +74,9 @@ async def cleanup_before_session():
     settings = TestSettings()
 
     # CRITICAL SAFETY CHECK: Verify we're using test database
-    assert settings.DB_NAME == "bishl_test", f"❌ CRITICAL: Session cleanup targeting wrong database: {settings.DB_NAME}"
+    assert (
+        settings.DB_NAME == "bishl_test"
+    ), f"❌ CRITICAL: Session cleanup targeting wrong database: {settings.DB_NAME}"
 
     print(f"\n🔧 Using test database: {settings.DB_NAME} at {settings.DB_URL}")
     client = AsyncIOMotorClient(settings.DB_URL)
@@ -98,12 +105,22 @@ async def mongodb():
 
     # CRITICAL: Verify we're using the correct test database
     actual_db_name = db.name
-    assert actual_db_name == "bishl_test", f"❌ SAFETY CHECK FAILED: Expected 'bishl_test' but got '{actual_db_name}'"
+    assert (
+        actual_db_name == "bishl_test"
+    ), f"❌ SAFETY CHECK FAILED: Expected 'bishl_test' but got '{actual_db_name}'"
 
     print(f"✅ Verified test database: {actual_db_name}")
 
     # Clean before test
-    collections_to_clean = ["users", "matches", "assignments", "teams", "clubs", "tournaments", "players"]
+    collections_to_clean = [
+        "users",
+        "matches",
+        "assignments",
+        "teams",
+        "clubs",
+        "tournaments",
+        "players",
+    ]
     for collection_name in collections_to_clean:
         try:
             await db[collection_name].delete_many({})
@@ -127,23 +144,23 @@ async def client(mongodb):
     Creates a fresh Motor client for app.state.mongodb per test to match the current event loop.
     """
     settings = TestSettings()
-    
+
     # Create a fresh Motor client bound to the CURRENT event loop
     motor_client = AsyncIOMotorClient(settings.DB_URL)
     motor_db = motor_client[settings.DB_NAME]
-    
+
     # Verify database
     assert motor_db.name == "bishl_test", f"❌ SAFETY: App using wrong database: {motor_db.name}"
-    
+
     # Set app state for this test
     app.state.mongodb = motor_db
     app.state.settings = settings
-    
-    print(f"✅ App configured with fresh Motor client for test")
-    
+
+    print("✅ App configured with fresh Motor client for test")
+
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
-    
+
     # Cleanup after test
     motor_client.close()
     app.state.mongodb = None
@@ -152,8 +169,9 @@ async def client(mongodb):
 @pytest_asyncio.fixture
 async def admin_token(mongodb):
     """Generate admin token for testing"""
-    from authentication import AuthHandler
     from bson import ObjectId
+
+    from authentication import AuthHandler
 
     auth = AuthHandler()
 
@@ -166,10 +184,7 @@ async def admin_token(mongodb):
         "roles": ["ADMIN", "REF_ADMIN"],
         "firstName": "Admin",
         "lastName": "User",
-        "club": {
-            "clubId": "test-club-id",
-            "clubName": "Test Club"
-        }
+        "club": {"clubId": "test-club-id", "clubName": "Test Club"},
     }
 
     # Insert admin user into database so it exists when endpoints look for it
@@ -181,17 +196,20 @@ async def admin_token(mongodb):
 @pytest_asyncio.fixture
 async def clean_collections(mongodb):
     """Clean specific collections before each test"""
+
     async def _clean(*collection_names):
         for name in collection_names:
             await mongodb[name].delete_many({})
+
     return _clean
 
 
 @pytest_asyncio.fixture
 async def create_test_user(mongodb):
     """Helper to create test users directly in DB (faster than API calls)"""
-    from authentication import AuthHandler
     from bson import ObjectId
+
+    from authentication import AuthHandler
 
     auth = AuthHandler()
 
@@ -231,9 +249,12 @@ async def test_isolation(mongodb):
     import uuid
 
     # CRITICAL SAFETY CHECK
-    assert mongodb.name == "bishl_test", f"❌ SAFETY: test_isolation using wrong database: {mongodb.name}"
+    assert (
+        mongodb.name == "bishl_test"
+    ), f"❌ SAFETY: test_isolation using wrong database: {mongodb.name}"
 
     class TestIsolation:
+
         def __init__(self, db):
             self.db = db
             self.id = f"test_{uuid.uuid4().hex[:8]}"

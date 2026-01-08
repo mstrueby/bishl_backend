@@ -8,8 +8,8 @@ from fastapi.responses import JSONResponse
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, DatabaseOperationException
 from logging_config import logger
+from models.matchday_responses import MatchdayLinks, MatchdayResponse
 from models.responses import StandardResponse
-from models.matchday_responses import MatchdayResponse, MatchdayLinks
 from models.tournaments import MatchdayBase, MatchdayDB, MatchdayUpdate
 from utils import DEBUG_LEVEL, my_jsonable_encoder
 
@@ -60,8 +60,8 @@ async def get_matchdays_for_round(
                                 links=MatchdayLinks(
                                     self=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday['alias']}",
                                     matches=f"/matches?tournament={tournament_alias}&season={season_alias}&round={round_alias}&matchday={matchday['alias']}",
-                                    round=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}"
-                                )
+                                    round=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}",
+                                ),
                             )
                             matchdays.append(matchday_response)
                         return JSONResponse(
@@ -131,8 +131,8 @@ async def get_matchday(
                                     links=MatchdayLinks(
                                         self=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_alias}",
                                         matches=f"/matches?tournament={tournament_alias}&season={season_alias}&round={round_alias}&matchday={matchday_alias}",
-                                        round=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}"
-                                    )
+                                        round=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}",
+                                    ),
                                 )
                                 return JSONResponse(
                                     status_code=status.HTTP_200_OK,
@@ -443,14 +443,13 @@ async def update_matchday(
                 # Recalculate standings if createStandings was updated
                 if matchday_dict.get("createStandings") is not None:
                     from services.stats_service import StatsService
+
                     stats_service = StatsService(mongodb)
                     await stats_service.aggregate_matchday_standings(
                         tournament_alias, season_alias, round_alias, updated_matchday["alias"]
                     )
-                    logger.info(
-                        f"Recalculated standings for matchday {updated_matchday['alias']}"
-                    )
-                
+                    logger.info(f"Recalculated standings for matchday {updated_matchday['alias']}")
+
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
                     content=jsonable_encoder(

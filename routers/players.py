@@ -3,7 +3,7 @@ import json
 import os
 import urllib.parse
 from datetime import datetime
-from typing import Any, List
+from typing import Any
 
 import aiohttp
 import cloudinary
@@ -25,8 +25,6 @@ from exceptions import (
 )
 from logging_config import logger
 from models.players import (
-    AssignedClubs,
-    AssignedTeams,
     AssignedTeamsInput,
     LicenseInvalidReasonCode,
     PlayerBase,
@@ -40,16 +38,17 @@ from models.players import (
 from models.responses import LicenceStats, PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.performance_monitor import monitor_query
-from services.stats_service import StatsService
 from services.player_assignment_service import PlayerAssignmentService
+from services.stats_service import StatsService
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
 
+
 # Helper function to get current user with roles, assumes AuthHandler is set up
-def get_current_user_with_roles(required_roles: List[str]):
+def get_current_user_with_roles(required_roles: list[str]):
     async def role_checker(token_payload: TokenPayload = Depends(auth.auth_wrapper)):
         if not any(role in token_payload.roles for role in required_roles):
             raise AuthorizationException(
@@ -57,7 +56,9 @@ def get_current_user_with_roles(required_roles: List[str]):
                 details={"user_roles": token_payload.roles},
             )
         return token_payload.sub  # Return the user subject/id
+
     return role_checker
+
 
 # upload file
 async def handle_image_upload(image: UploadFile, playerId) -> str:
@@ -107,15 +108,15 @@ async def bootstrap_classification(
 ):
     """
     Bootstrap license type classification for all players.
-    
+
     - Classifies licenseType based on passNo suffixes (F=DEVELOPMENT, A=SECONDARY, L=LOAN)
     - Applies "single license" heuristic for PRIMARY
     - Sets initial status=VALID for classified licenses
-    
+
     Args:
         reset: If True, reset licenseType/status/invalidReasonCodes before classification
         batch_size: Number of players to process in each batch
-    
+
     Only accessible by admins.
     """
     mongodb = request.app.state.mongodb
@@ -124,15 +125,15 @@ async def bootstrap_classification(
             message="Admin role required for license assignment bootstrap",
             details={"user_roles": token_payload.roles},
         )
-    
+
     assignment_service = PlayerAssignmentService(mongodb)
     modified_ids = await assignment_service.bootstrap_classification_for_all_players(
         reset=reset, batch_size=batch_size
     )
-    
+
     # Get classification statistics
     stats = await assignment_service.get_classification_stats()
-    
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -160,18 +161,18 @@ async def bootstrap_validation(
 ):
     """
     Bootstrap license validation for all players according to WKO/BISHL rules.
-    
+
     - Validates PRIMARY consistency
     - Validates LOAN consistency
     - Validates age group compliance
     - Validates OVERAGE rules
     - Validates WKO participation limits
     - Ensures no license has status=UNKNOWN after validation
-    
+
     Args:
         reset: If True, reset status/invalidReasonCodes before validation
         batch_size: Number of players to process in each batch
-    
+
     Only accessible by admins.
     """
     mongodb = request.app.state.mongodb
@@ -180,15 +181,15 @@ async def bootstrap_validation(
             message="Admin role required for license validation bootstrap",
             details={"user_roles": token_payload.roles},
         )
-    
+
     assignment_service = PlayerAssignmentService(mongodb)
     modified_ids = await assignment_service.bootstrap_validation_for_all_players(
         reset=reset, batch_size=batch_size
     )
-    
+
     # Get validation statistics
     stats = await assignment_service.get_validation_stats()
-    
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -211,25 +212,27 @@ async def bootstrap_validation(
 async def bootstrap_all(
     request: Request,
     reset_assignment: bool = Query(False, description="Reset licenseType/status before assignment"),
-    reset_validation: bool = Query(False, description="Reset status/invalidReasonCodes before validation"),
+    reset_validation: bool = Query(
+        False, description="Reset status/invalidReasonCodes before validation"
+    ),
     batch_size: int = Query(1000, description="Batch size for processing"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
     """
     Orchestrator endpoint to run both assignment and validation bootstrap in sequence.
-    
+
     First runs PlayerAssignmentService.bootstrap_all_players,
     then runs LicenseValidationService.bootstrap_all_players.
-    
+
     After completion, guarantees:
     - Every license has status=VALID or INVALID (never UNKNOWN)
     - Invalid licenses have at least one invalidReasonCode
-    
+
     Args:
         reset_assignment: Reset licenseType/status before assignment classification
         reset_validation: Reset status/invalidReasonCodes before validation
         batch_size: Number of players to process in each batch
-    
+
     Only accessible by admins.
     """
     mongodb = request.app.state.mongodb
@@ -238,16 +241,16 @@ async def bootstrap_all(
             message="Admin role required for full license bootstrap",
             details={"user_roles": token_payload.roles},
         )
-    
+
     assignment_service = PlayerAssignmentService(mongodb)
-    
+
     # Run full orchestration (classification + validation)
     result = await assignment_service.bootstrap_all_players(
         reset_classification=reset_assignment,
         reset_validation=reset_validation,
-        batch_size=batch_size
+        batch_size=batch_size,
     )
-    
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -432,7 +435,11 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                         "jerseyNo": team_to_assign.jerseyNo,
                         "active": team_to_assign.active,
                         "source": team_to_assign.source,
-                        "licenseType": team_to_assign.licenseType if hasattr(team_to_assign, 'licenseType') else "PRIMARY",
+                        "licenseType": (
+                            team_to_assign.licenseType
+                            if hasattr(team_to_assign, "licenseType")
+                            else "PRIMARY"
+                        ),
                         "modifyDate": team_to_assign.modifyDate,
                     }
                 )
@@ -464,17 +471,9 @@ async def get_licence_stats(request: Request):
     # Aggregate counts of valid and invalid player licenses
     # Note: A player is "invalid" if they have at least one team assignment with status=INVALID
     pipeline = [
-        {
-            "$project": {
-                "assignedTeams": 1
-            }
-        },
-        {
-            "$unwind": "$assignedTeams"
-        },
-        {
-            "$unwind": "$assignedTeams.teams"
-        },
+        {"$project": {"assignedTeams": 1}},
+        {"$unwind": "$assignedTeams"},
+        {"$unwind": "$assignedTeams.teams"},
         {
             "$facet": {
                 "player_counts": [
@@ -482,62 +481,54 @@ async def get_licence_stats(request: Request):
                         "$group": {
                             "_id": "$_id",
                             "is_invalid": {
-                                "$max": {
-                                    "$eq": ["$assignedTeams.teams.status", "INVALID"]
-                                }
+                                "$max": {"$eq": ["$assignedTeams.teams.status", "INVALID"]}
                             },
-                            "is_valid": {
-                                "$max": {
-                                    "$eq": ["$assignedTeams.teams.status", "VALID"]
-                                }
-                            }
+                            "is_valid": {"$max": {"$eq": ["$assignedTeams.teams.status", "VALID"]}},
                         }
                     },
                     {
                         "$group": {
                             "_id": None,
                             "invalid_players": {"$sum": {"$cond": ["$is_invalid", 1, 0]}},
-                            "valid_players": {"$sum": {"$cond": ["$is_valid", 1, 0]}}
+                            "valid_players": {"$sum": {"$cond": ["$is_valid", 1, 0]}},
                         }
-                    }
+                    },
                 ],
                 "reason_breakdown": [
-                    {
-                        "$match": {
-                            "assignedTeams.teams.status": "INVALID"
-                        }
-                    },
-                    {
-                        "$unwind": "$assignedTeams.teams.invalidReasonCodes"
-                    },
+                    {"$match": {"assignedTeams.teams.status": "INVALID"}},
+                    {"$unwind": "$assignedTeams.teams.invalidReasonCodes"},
                     {
                         "$group": {
                             "_id": "$assignedTeams.teams.invalidReasonCodes",
-                            "count": {"$sum": 1}
+                            "count": {"$sum": 1},
                         }
-                    }
-                ]
+                    },
+                ],
             }
-        }
+        },
     ]
 
     cursor = mongodb["players"].aggregate(pipeline)
     result_list = await cursor.to_list(length=1)
-    
+
     if not result_list:
         return StandardResponse(
             data=LicenceStats(valid_players=0, invalid_players=0, invalid_reason_breakdown={}),
-            message="No player data available"
+            message="No player data available",
         )
-    
+
     result = result_list[0]
-    counts = result["player_counts"][0] if result["player_counts"] else {"valid_players": 0, "invalid_players": 0}
+    counts = (
+        result["player_counts"][0]
+        if result["player_counts"]
+        else {"valid_players": 0, "invalid_players": 0}
+    )
     reasons = {item["_id"]: item["count"] for item in result["reason_breakdown"]}
 
     stats = LicenceStats(
         valid_players=counts.get("valid_players", 0),
         invalid_players=counts.get("invalid_players", 0),
-        invalid_reason_breakdown=reasons
+        invalid_reason_breakdown=reasons,
     )
 
     return StandardResponse(data=stats, message="Licence statistics retrieved successfully")
@@ -558,14 +549,11 @@ async def get_players_with_invalid_licences(
     Get a paginated list of players who have an invalid license with the specified reason code.
     """
     mongodb = request.app.state.mongodb
-    
+
     # Query for players having at least one team assignment with the specified invalid reason code
     query = {
         "assignedTeams.teams": {
-            "$elemMatch": {
-                "status": "INVALID",
-                "invalidReasonCodes": reason_code
-            }
+            "$elemMatch": {"status": "INVALID", "invalidReasonCodes": reason_code}
         }
     }
 
@@ -574,7 +562,7 @@ async def get_players_with_invalid_licences(
         query=query,
         page=page,
         page_size=page_size,
-        sort=[("lastName", 1), ("firstName", 1)]
+        sort=[("lastName", 1), ("firstName", 1)],
     )
 
     # Convert to PlayerDB models
@@ -585,7 +573,7 @@ async def get_players_with_invalid_licences(
         page=page,
         page_size=page_size,
         total_count=total_count,
-        message=f"Players with invalid license reason '{reason_code}' retrieved successfully"
+        message=f"Players with invalid license reason '{reason_code}' retrieved successfully",
     )
 
     return PaginatedResponse(**response_dict)
@@ -608,14 +596,14 @@ async def process_ishd_data(
 ):
     """
     Process ISHD player data synchronization.
-    
+
     Delegates to PlayerAssignmentService.process_ishd_sync() which handles:
     - Fetching player data from ISHD API
     - Comparing with existing database players
     - Adding/updating/removing player assignments
     - Applying license classification and validation
     - Logging all operations
-    
+
     Args:
         mode: Sync mode - "live" (default), "test" (use JSON files), "dry" (simulate only)
         run: Run number for test mode (determines which JSON files to use)
@@ -911,7 +899,7 @@ async def classify_player_licenses(
     id: str,
     request: Request,
     reset: bool = Query(False, description="Reset licenseType/status before classification"),
-    current_user: dict = Depends(get_current_user_with_roles(["ADMIN"]))
+    current_user: dict = Depends(get_current_user_with_roles(["ADMIN"])),
 ) -> JSONResponse:
     """
     Classify license types for a single player based on passNo heuristics.
@@ -921,10 +909,10 @@ async def classify_player_licenses(
     - Classifies licenseType based on passNo suffixes (F=DEVELOPMENT, A=SECONDARY, L=LOAN)
     - Applies "single license" heuristic for PRIMARY
     - Sets initial status=VALID for classified licenses
-    
+
     Args:
         reset: If True, reset licenseType/status/invalidReasonCodes before classification
-    
+
     Returns the updated player with classification applied.
     """
     mongodb = request.app.state.mongodb
@@ -970,7 +958,7 @@ async def validate_player_licenses(
     id: str,
     request: Request,
     reset: bool = Query(False, description="Reset status/invalidReasonCodes before validation"),
-    current_user: dict = Depends(get_current_user_with_roles(["ADMIN"]))
+    current_user: dict = Depends(get_current_user_with_roles(["ADMIN"])),
 ) -> JSONResponse:
     """
     Validate all licenses for a player according to WKO/BISHL rules.
@@ -1027,8 +1015,8 @@ async def validate_player_licenses(
     )
 
 
-@router.get("/{id}/stats", response_model=List[PlayerStats])
-async def get_player_stats(id: str, request: Request) -> List[PlayerStats]:
+@router.get("/{id}/stats", response_model=list[PlayerStats])
+async def get_player_stats(id: str, request: Request) -> list[PlayerStats]:
     mongodb = request.app.state.mongodb
     player = await mongodb["players"].find_one({"_id": id})
     if not player:

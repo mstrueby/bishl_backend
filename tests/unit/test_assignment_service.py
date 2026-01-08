@@ -1,17 +1,15 @@
 """Unit tests for AssignmentService"""
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
-from bson import ObjectId
 
-from services.assignment_service import AssignmentService
-from models.assignments import Status, Referee
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from exceptions import (
     ResourceNotFoundException,
     ValidationException,
-    DatabaseOperationException,
-    AuthorizationException
 )
+from models.assignments import Referee, Status
+from services.assignment_service import AssignmentService
 
 
 @pytest.fixture
@@ -41,11 +39,13 @@ def mock_db():
     db._users_collection = mock_users_collection
     db._matches_collection = mock_matches_collection
 
-    db.__getitem__ = MagicMock(side_effect=lambda name: {
-        'assignments': mock_assignments_collection,
-        'users': mock_users_collection,
-        'matches': mock_matches_collection
-    }.get(name))
+    db.__getitem__ = MagicMock(
+        side_effect=lambda name: {
+            "assignments": mock_assignments_collection,
+            "users": mock_users_collection,
+            "matches": mock_matches_collection,
+        }.get(name)
+    )
 
     return db
 
@@ -66,7 +66,7 @@ class TestGetAssignmentById:
             "_id": "assign-123",
             "matchId": "match-456",
             "referee": {"userId": "ref-789"},
-            "status": "ASSIGNED"
+            "status": "ASSIGNED",
         }
 
         mock_db._assignments_collection.find_one = AsyncMock(return_value=test_assignment)
@@ -94,7 +94,7 @@ class TestGetAssignmentsByMatch:
         """Test successful retrieval of match assignments"""
         test_assignments = [
             {"_id": "assign-1", "matchId": "match-123", "status": "ASSIGNED"},
-            {"_id": "assign-2", "matchId": "match-123", "status": "REQUESTED"}
+            {"_id": "assign-2", "matchId": "match-123", "status": "REQUESTED"},
         ]
 
         mock_db._assignments_find.to_list = AsyncMock(return_value=test_assignments)
@@ -123,7 +123,7 @@ class TestGetAssignmentsByReferee:
         """Test successful retrieval of referee assignments"""
         test_assignments = [
             {"_id": "assign-1", "referee": {"userId": "ref-123"}},
-            {"_id": "assign-2", "referee": {"userId": "ref-123"}}
+            {"_id": "assign-2", "referee": {"userId": "ref-123"}},
         ]
 
         mock_db._assignments_find.to_list = AsyncMock(return_value=test_assignments)
@@ -193,11 +193,11 @@ class TestCreateRefereeObject:
                 "club": {
                     "clubId": "club-456",
                     "clubName": "Test Club",
-                    "logoUrl": "http://logo.url"
+                    "logoUrl": "http://logo.url",
                 },
                 "points": 100,
-                "level": "S2"
-            }
+                "level": "S2",
+            },
         }
 
         mock_db._users_collection.find_one = AsyncMock(return_value=test_user)
@@ -226,12 +226,7 @@ class TestCreateRefereeObject:
     @pytest.mark.asyncio
     async def test_create_referee_not_referee_role(self, assignment_service, mock_db):
         """Test when user doesn't have REFEREE role"""
-        test_user = {
-            "_id": "user-123",
-            "firstName": "John",
-            "lastName": "Doe",
-            "roles": ["USER"]
-        }
+        test_user = {"_id": "user-123", "firstName": "John", "lastName": "Doe", "roles": ["USER"]}
 
         mock_db._users_collection.find_one = AsyncMock(return_value=test_user)
 
@@ -251,7 +246,7 @@ class TestSetRefereeInMatch:
             "lastName": "Doe",
             "clubId": "club-456",
             "clubName": "Test Club",
-            "logoUrl": "http://logo.url"
+            "logoUrl": "http://logo.url",
         }
 
         await assignment_service.set_referee_in_match("match-123", referee_data, 1)
@@ -270,7 +265,7 @@ class TestSetRefereeInMatch:
             "lastName": "Smith",
             "clubId": None,
             "clubName": None,
-            "logoUrl": None
+            "logoUrl": None,
         }
 
         await assignment_service.set_referee_in_match("match-123", referee_data, 2)
@@ -307,7 +302,7 @@ class TestCreateAssignment:
             clubName="Test Club",
             logoUrl=None,
             points=100,
-            level="S2"
+            level="S2",
         )
 
         mock_insert_result = MagicMock()
@@ -318,7 +313,7 @@ class TestCreateAssignment:
             "_id": "assign-new",
             "matchId": "match-123",
             "referee": referee.model_dump(),
-            "status": "REQUESTED"
+            "status": "REQUESTED",
         }
         mock_db._assignments_collection.find_one = AsyncMock(return_value=created_assignment)
 
@@ -328,7 +323,7 @@ class TestCreateAssignment:
             status=Status.requested,
             position=None,
             updated_by="admin-123",
-            updated_by_name="Admin User"
+            updated_by_name="Admin User",
         )
 
         assert result["_id"] == "assign-new"
@@ -349,17 +344,11 @@ class TestUpdateAssignment:
         mock_result.modified_count = 1
         mock_db._assignments_collection.update_one = AsyncMock(return_value=mock_result)
 
-        updated_assignment = {
-            "_id": "assign-123",
-            "status": "ACCEPTED"
-        }
+        updated_assignment = {"_id": "assign-123", "status": "ACCEPTED"}
         mock_db._assignments_collection.find_one = AsyncMock(return_value=updated_assignment)
 
         result = await assignment_service.update_assignment(
-            "assign-123",
-            update_data,
-            updated_by="ref-456",
-            updated_by_name="John Referee"
+            "assign-123", update_data, updated_by="ref-456", updated_by_name="John Referee"
         )
 
         assert result["status"] == "ACCEPTED"
@@ -373,10 +362,7 @@ class TestUpdateAssignment:
         mock_result.modified_count = 0
         mock_db._assignments_collection.update_one = AsyncMock(return_value=mock_result)
 
-        result = await assignment_service.update_assignment(
-            "assign-123",
-            {"status": "REQUESTED"}
-        )
+        result = await assignment_service.update_assignment("assign-123", {"status": "REQUESTED"})
 
         assert result is None
 
@@ -395,8 +381,7 @@ class TestDeleteAssignment:
 
         assert result is True
         mock_db._assignments_collection.delete_one.assert_called_once_with(
-            {"_id": "assign-123"}, 
-            session=None
+            {"_id": "assign-123"}, session=None
         )
 
     @pytest.mark.asyncio
@@ -417,17 +402,14 @@ class TestCheckAssignmentExists:
     @pytest.mark.asyncio
     async def test_assignment_exists(self, assignment_service, mock_db):
         """Test when assignment exists"""
-        mock_db._assignments_collection.find_one = AsyncMock(
-            return_value={"_id": "assign-123"}
-        )
+        mock_db._assignments_collection.find_one = AsyncMock(return_value={"_id": "assign-123"})
 
         result = await assignment_service.check_assignment_exists("match-123", "ref-456")
 
         assert result is True
-        mock_db._assignments_collection.find_one.assert_called_once_with({
-            "matchId": "match-123",
-            "referee.userId": "ref-456"
-        })
+        mock_db._assignments_collection.find_one.assert_called_once_with(
+            {"matchId": "match-123", "referee.userId": "ref-456"}
+        )
 
     @pytest.mark.asyncio
     async def test_assignment_does_not_exist(self, assignment_service, mock_db):
@@ -448,7 +430,7 @@ class TestGetMatch:
         test_match = {
             "_id": "match-123",
             "home": {"fullName": "Team A"},
-            "away": {"fullName": "Team B"}
+            "away": {"fullName": "Team B"},
         }
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
@@ -479,7 +461,7 @@ class TestAddStatusHistory:
             assignment_id="assign-123",
             new_status=Status.accepted,
             updated_by="ref-456",
-            updated_by_name="John Referee"
+            updated_by_name="John Referee",
         )
 
         mock_db._assignments_collection.update_one.assert_called_once()

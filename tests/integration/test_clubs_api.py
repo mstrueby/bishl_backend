@@ -1,8 +1,8 @@
-
 """Integration tests for clubs API endpoints"""
+
 import pytest
-from httpx import AsyncClient
 from bson import ObjectId
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
@@ -17,13 +17,11 @@ class TestClubsAPI:
             "alias": "test-hockey-club",
             "country": "Deutschland",
             "city": "Berlin",
-            "active": True
+            "active": True,
         }
 
         response = await client.post(
-            "/clubs",
-            data=club_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            "/clubs", data=club_data, headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert response
@@ -39,14 +37,16 @@ class TestClubsAPI:
         assert club_in_db is not None
         assert club_in_db["name"] == "Test Hockey Club"
 
-    async def test_create_club_duplicate_alias_fails(self, client: AsyncClient, mongodb, admin_token):
+    async def test_create_club_duplicate_alias_fails(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """Test creating club with existing alias fails"""
         # Setup - Create existing club
         existing_club = {
             "name": "Existing Club",
             "alias": "existing-club",
             "country": "Deutschland",
-            "active": True
+            "active": True,
         }
         await mongodb["clubs"].insert_one(existing_club)
 
@@ -54,13 +54,11 @@ class TestClubsAPI:
         duplicate_club_data = {
             "name": "Different Club",
             "alias": "existing-club",
-            "country": "Deutschland"
+            "country": "Deutschland",
         }
 
         response = await client.post(
-            "/clubs",
-            data=duplicate_club_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            "/clubs", data=duplicate_club_data, headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert
@@ -79,7 +77,7 @@ class TestClubsAPI:
             "alias": "test-club",
             "country": "Deutschland",
             "active": True,
-            "teams": []
+            "teams": [],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -111,7 +109,7 @@ class TestClubsAPI:
                 "alias": f"club-{i}",
                 "country": "Deutschland",
                 "active": True,
-                "teams": []
+                "teams": [],
             }
             for i in range(5)
         ]
@@ -139,7 +137,7 @@ class TestClubsAPI:
             "alias": "active-club",
             "country": "Deutschland",
             "active": True,
-            "teams": []
+            "teams": [],
         }
         inactive_club = {
             "_id": str(ObjectId()),
@@ -147,7 +145,7 @@ class TestClubsAPI:
             "alias": "inactive-club",
             "country": "Deutschland",
             "active": False,
-            "teams": []
+            "teams": [],
         }
         await mongodb["clubs"].insert_many([active_club, inactive_club])
 
@@ -168,7 +166,7 @@ class TestClubsAPI:
             "alias": "test-club",
             "country": "Deutschland",
             "active": True,
-            "teams": []
+            "teams": [],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -176,7 +174,7 @@ class TestClubsAPI:
         response = await client.patch(
             f"/clubs/{club['_id']}",
             data={"name": "Updated Name"},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -199,7 +197,7 @@ class TestClubsAPI:
             "alias": "test-club",
             "country": "Deutschland",
             "active": True,
-            "teams": []
+            "teams": [],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -207,7 +205,7 @@ class TestClubsAPI:
         response = await client.patch(
             f"/clubs/{club['_id']}",
             data={"name": "Test Club"},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert - Should return 200, not 304
@@ -225,14 +223,13 @@ class TestClubsAPI:
             "alias": "delete-club",
             "country": "Deutschland",
             "active": True,
-            "teams": []
+            "teams": [],
         }
         await mongodb["clubs"].insert_one(club)
 
         # Execute
         response = await client.delete(
-            f"/clubs/{club['_id']}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            f"/clubs/{club['_id']}", headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert
@@ -244,11 +241,7 @@ class TestClubsAPI:
 
     async def test_create_club_unauthorized(self, client: AsyncClient):
         """Test creating club without admin token fails"""
-        club_data = {
-            "name": "Test Club",
-            "alias": "test-club",
-            "country": "Deutschland"
-        }
+        club_data = {"name": "Test Club", "alias": "test-club", "country": "Deutschland"}
 
         response = await client.post("/clubs", data=club_data)
 

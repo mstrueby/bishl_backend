@@ -1,8 +1,7 @@
-
 """Integration tests for tournaments API endpoints"""
+
 import pytest
 from httpx import AsyncClient
-from bson import ObjectId
 
 
 @pytest.mark.asyncio
@@ -69,13 +68,11 @@ class TestTournamentsAPI:
             "ageGroup": {"key": "U18", "value": "U18"},
             "published": True,
             "active": True,
-            "seasons": []
+            "seasons": [],
         }
 
         response = await client.post(
-            "/tournaments",
-            json=tournament_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            "/tournaments", json=tournament_data, headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         assert response.status_code == 201
@@ -93,7 +90,7 @@ class TestTournamentsAPI:
             "name": "Test League",
             "alias": "test-league",
             "tinyName": "TL",
-            "ageGroup": {"key": "U18", "value": "U18"}
+            "ageGroup": {"key": "U18", "value": "U18"},
         }
 
         response = await client.post("/tournaments", json=tournament_data)
@@ -112,7 +109,7 @@ class TestTournamentsAPI:
         response = await client.patch(
             f"/tournaments/{tournament['_id']}",
             json={"name": "Updated League Name"},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -134,8 +131,7 @@ class TestTournamentsAPI:
 
         # Execute
         response = await client.delete(
-            f"/tournaments/{tournament['_id']}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            f"/tournaments/{tournament['_id']}", headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert
@@ -199,18 +195,14 @@ class TestSeasonsAPI:
             "name": "2025",
             "alias": "2025",
             "published": True,
-            "standingsSettings": {
-                "pointsWinReg": 3,
-                "pointsLossReg": 0,
-                "pointsDrawReg": 1
-            }
+            "standingsSettings": {"pointsWinReg": 3, "pointsLossReg": 0, "pointsDrawReg": 1},
         }
 
         # Execute
         response = await client.post(
             f"/tournaments/{tournament['alias']}/seasons",
             json=season_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -232,7 +224,7 @@ class TestSeasonsAPI:
         response = await client.patch(
             f"/tournaments/{tournament['alias']}/seasons/{season_id}",
             json={"name": "Updated Season"},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -253,7 +245,7 @@ class TestSeasonsAPI:
         # Execute
         response = await client.delete(
             f"/tournaments/{tournament['alias']}/seasons/{season_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -323,14 +315,14 @@ class TestRoundsAPI:
             "createStats": True,
             "matchdaysType": {"key": "PLAYOFF", "value": "Playoff"},
             "matchdaysSortedBy": {"key": "DATE", "value": "Datum"},
-            "published": True
+            "published": True,
         }
 
         # Execute
         response = await client.post(
             f"/tournaments/{tournament['alias']}/seasons/{season_alias}/rounds",
             json=round_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -353,7 +345,7 @@ class TestRoundsAPI:
         response = await client.patch(
             f"/tournaments/{tournament['alias']}/seasons/{season_alias}/rounds/{round_id}",
             json={"name": "Updated Round"},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -375,7 +367,7 @@ class TestRoundsAPI:
         # Execute
         response = await client.delete(
             f"/tournaments/{tournament['alias']}/seasons/{season_alias}/rounds/{round_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -446,14 +438,14 @@ class TestMatchdaysAPI:
             "type": {"key": "REGULAR", "value": "Regulär"},
             "createStandings": True,
             "createStats": True,
-            "published": True
+            "published": True,
         }
 
         # Execute
         response = await client.post(
             f"/tournaments/{tournament['alias']}/seasons/{season_alias}/rounds/{round_alias}/matchdays",
             json=matchday_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -477,7 +469,7 @@ class TestMatchdaysAPI:
         response = await client.patch(
             f"/tournaments/{tournament['alias']}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_id}",
             json={"name": "Updated Matchday"},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -500,7 +492,7 @@ class TestMatchdaysAPI:
         # Execute
         response = await client.delete(
             f"/tournaments/{tournament['alias']}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert

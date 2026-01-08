@@ -1,8 +1,8 @@
-
 """Integration tests for teams API endpoints"""
+
 import pytest
-from httpx import AsyncClient
 from bson import ObjectId
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
@@ -18,7 +18,7 @@ class TestTeamsAPI:
             "alias": "test-club",
             "country": "Deutschland",
             "active": True,
-            "teams": []
+            "teams": [],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -32,13 +32,13 @@ class TestTeamsAPI:
             "ageGroup": "HERREN",
             "teamNumber": 1,
             "active": True,
-            "external": False
+            "external": False,
         }
 
         response = await client.post(
             f"/clubs/{club['alias']}/teams",
             data=team_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert response
@@ -54,7 +54,9 @@ class TestTeamsAPI:
         assert len(club_in_db["teams"]) == 1
         assert club_in_db["teams"][0]["name"] == "1. Herren"
 
-    async def test_create_team_duplicate_alias_fails(self, client: AsyncClient, mongodb, admin_token):
+    async def test_create_team_duplicate_alias_fails(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """Test creating team with existing alias fails"""
         # Setup - Create club with existing team
         club = {
@@ -75,9 +77,9 @@ class TestTeamsAPI:
                     "teamNumber": 1,
                     "active": True,
                     "external": False,
-                    "teamPartnership": []
+                    "teamPartnership": [],
                 }
-            ]
+            ],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -91,13 +93,13 @@ class TestTeamsAPI:
             "ageGroup": "HERREN",
             "teamNumber": 2,
             "active": True,
-            "external": False
+            "external": False,
         }
 
         response = await client.post(
             f"/clubs/{club['alias']}/teams",
             data=duplicate_team_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -125,14 +127,14 @@ class TestTeamsAPI:
                     "teamNumber": 1,
                     "active": True,
                     "external": False,
-                    "teamPartnership": []
+                    "teamPartnership": [],
                 }
-            ]
+            ],
         }
         await mongodb["clubs"].insert_one(club)
 
         # Execute
-        response = await client.get(f"/clubs/test-club/teams/1-herren")
+        response = await client.get("/clubs/test-club/teams/1-herren")
 
         # Assert
         assert response.status_code == 200
@@ -151,7 +153,7 @@ class TestTeamsAPI:
             "alias": "test-club",
             "country": "Deutschland",
             "active": True,
-            "teams": []
+            "teams": [],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -177,7 +179,7 @@ class TestTeamsAPI:
                 "teamNumber": i,
                 "active": True,
                 "external": False,
-                "teamPartnership": []
+                "teamPartnership": [],
             }
             for i in range(1, 6)
         ]
@@ -187,7 +189,7 @@ class TestTeamsAPI:
             "alias": "test-club",
             "country": "Deutschland",
             "active": True,
-            "teams": teams
+            "teams": teams,
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -225,9 +227,9 @@ class TestTeamsAPI:
                     "teamNumber": 1,
                     "active": True,
                     "external": False,
-                    "teamPartnership": []
+                    "teamPartnership": [],
                 }
-            ]
+            ],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -235,7 +237,7 @@ class TestTeamsAPI:
         response = await client.patch(
             f"/clubs/test-club/teams/{team_id}",
             data={"name": "1. Herren Updated"},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -270,9 +272,9 @@ class TestTeamsAPI:
                     "teamNumber": 1,
                     "active": True,
                     "external": False,
-                    "teamPartnership": []
+                    "teamPartnership": [],
                 }
-            ]
+            ],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -280,7 +282,7 @@ class TestTeamsAPI:
         response = await client.patch(
             f"/clubs/test-club/teams/{team_id}",
             data={"name": "1. Herren"},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert - Should return 200, not 304
@@ -311,16 +313,15 @@ class TestTeamsAPI:
                     "teamNumber": 1,
                     "active": True,
                     "external": False,
-                    "teamPartnership": []
+                    "teamPartnership": [],
                 }
-            ]
+            ],
         }
         await mongodb["clubs"].insert_one(club)
 
         # Execute
         response = await client.delete(
-            f"/clubs/test-club/teams/{team_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            f"/clubs/test-club/teams/{team_id}", headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert
@@ -339,7 +340,7 @@ class TestTeamsAPI:
             "alias": "test-club",
             "country": "Deutschland",
             "active": True,
-            "teams": []
+            "teams": [],
         }
         await mongodb["clubs"].insert_one(club)
 
@@ -350,12 +351,9 @@ class TestTeamsAPI:
             "shortName": "TC 1H",
             "tinyName": "TC1H",
             "ageGroup": "HERREN",
-            "teamNumber": 1
+            "teamNumber": 1,
         }
 
-        response = await client.post(
-            f"/clubs/test-club/teams",
-            data=team_data
-        )
+        response = await client.post("/clubs/test-club/teams", data=team_data)
 
         assert response.status_code == 403

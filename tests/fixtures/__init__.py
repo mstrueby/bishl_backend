@@ -1,2 +1,1 @@
-
 """Test data fixtures"""

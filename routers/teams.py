@@ -65,7 +65,9 @@ async def delete_from_cloudinary(logo_url: str):
 
 
 # list all teams of one club
-@router.get("", response_description="List all teams of one club", response_model=PaginatedResponse[TeamDB])
+@router.get(
+    "", response_description="List all teams of one club", response_model=PaginatedResponse[TeamDB]
+)
 async def list_teams_of_one_club(
     request: Request,
     club_alias: str = Path(..., description="Club alias to list teams"),
@@ -76,33 +78,39 @@ async def list_teams_of_one_club(
     if (club := await mongodb["clubs"].find_one({"alias": club_alias})) is not None:
         all_teams = club.get("teams") or []
         total_count = len(all_teams)
-        
+
         # Calculate pagination manually for in-memory list
         page = max(1, page)  # Ensure page is at least 1
         page_size = max(1, min(page_size, 100))  # Ensure page_size is between 1 and 100
         skip = (page - 1) * page_size
-        teams_page = all_teams[skip:skip + page_size]
-        
+        teams_page = all_teams[skip : skip + page_size]
+
         # Convert to TeamDB models
         teams = [TeamDB(**team) for team in teams_page]
-        
+
         # Create paginated response
         paginated_result = PaginationHelper.create_response(
             items=teams,
             page=page,
             page_size=page_size,
             total_count=total_count,
-            message=f"Retrieved {len(teams)} teams for club {club_alias}"
+            message=f"Retrieved {len(teams)} teams for club {club_alias}",
         )
-        
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result)
+        )
     raise ResourceNotFoundException(
         resource_type="Club", resource_id=club_alias, details={"query_field": "alias"}
     )
 
 
 # get one team of a club
-@router.get("/{team_alias}", response_description="Get one team of a club", response_model=StandardResponse[TeamDB])
+@router.get(
+    "/{team_alias}",
+    response_description="Get one team of a club",
+    response_model=StandardResponse[TeamDB],
+)
 async def get_team(
     request: Request,
     club_alias: str = Path(..., description="Club alias to get team"),
@@ -119,7 +127,7 @@ async def get_team(
                 standard_response = StandardResponse(
                     success=True,
                     data=team_response,
-                    message=f"Team {team_alias} retrieved successfully"
+                    message=f"Team {team_alias} retrieved successfully",
                 )
                 return JSONResponse(
                     status_code=status.HTTP_200_OK, content=jsonable_encoder(standard_response)
@@ -134,7 +142,9 @@ async def get_team(
 
 
 # create new team
-@router.post("", response_description="Add new team to a club", response_model=StandardResponse[TeamDB])
+@router.post(
+    "", response_description="Add new team to a club", response_model=StandardResponse[TeamDB]
+)
 async def create_team(
     request: Request,
     club_alias: str = Path(..., description="Club alias to create team for"),
@@ -166,7 +176,8 @@ async def create_team(
     # check if team already exists
     if any(t.get("alias") == alias for t in club.get("teams", [])):
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=f"Team with alias {alias} already exists for club {club_alias}"
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Team with alias {alias} already exists for club {club_alias}",
         )
 
     try:
@@ -186,14 +197,14 @@ async def create_team(
             operation="validate",
             collection="clubs.teams",
             message="Invalid JSON format for teamPartnership",
-            details={"error": str(e), "field": "teamPartnership"}
+            details={"error": str(e), "field": "teamPartnership"},
         ) from e
     except Exception as e:
         raise DatabaseOperationException(
             operation="validate",
             collection="clubs.teams",
             message="Invalid teamPartnership format",
-            details={"error": str(e), "field": "teamPartnership"}
+            details={"error": str(e), "field": "teamPartnership"},
         ) from e
 
     # create team object
@@ -230,9 +241,7 @@ async def create_team(
                 inserted_team = updated_club["teams"][0]
                 team_response = TeamDB(**inserted_team)
                 standard_response = StandardResponse(
-                    success=True,
-                    data=team_response,
-                    message=f"Team {alias} created successfully"
+                    success=True, data=team_response, message=f"Team {alias} created successfully"
                 )
                 return JSONResponse(
                     status_code=status.HTTP_201_CREATED, content=jsonable_encoder(standard_response)
@@ -251,12 +260,14 @@ async def create_team(
             operation="create",
             collection="clubs.teams",
             message=f"Failed to create team {alias} for club {club_alias}",
-            details={"error": str(e)}
+            details={"error": str(e)},
         ) from e
 
 
 # Update team in club
-@router.patch("/{team_id}", response_description="Update team", response_model=StandardResponse[TeamDB])
+@router.patch(
+    "/{team_id}", response_description="Update team", response_model=StandardResponse[TeamDB]
+)
 async def update_team(
     request: Request,
     team_id: str,
@@ -314,14 +325,14 @@ async def update_team(
             operation="validate",
             collection="clubs.teams",
             message="Invalid JSON format for teamPartnership",
-            details={"error": str(e), "field": "teamPartnership"}
+            details={"error": str(e), "field": "teamPartnership"},
         ) from e
     except Exception as e:
         raise DatabaseOperationException(
             operation="validate",
             collection="clubs.teams",
             message="Invalid teamPartnership format",
-            details={"error": str(e), "field": "teamPartnership"}
+            details={"error": str(e), "field": "teamPartnership"},
         ) from e
 
     # Create team update object
@@ -347,16 +358,15 @@ async def update_team(
         team_data["logoUrl"] = await handle_logo_upload(
             logo, f"{club['alias']}--{current_team_alias}"
         )
-    elif logoUrl is not None: # Explicitly check for None to allow empty string if needed
+    elif logoUrl is not None:  # Explicitly check for None to allow empty string if needed
         team_data["logoUrl"] = str(logoUrl)
     # If logoUrl is provided and it's an empty string or None, we might want to clear the existing logo.
     # If logo is not provided and logoUrl is not provided, we keep the existing logoUrl.
-    elif logoUrl is None and "logoUrl" in team_data: # If logoUrl was explicitly set to None/empty
-         # This case is tricky. If logoUrl is None, we might intend to remove the logo.
-         # However, the original code only seemed to handle deletion if the club logo was being cleared.
-         # For simplicity, if logo and logoUrl are not provided, we don't modify logoUrl unless it's in team_data.
-         pass
-
+    elif logoUrl is None and "logoUrl" in team_data:  # If logoUrl was explicitly set to None/empty
+        # This case is tricky. If logoUrl is None, we might intend to remove the logo.
+        # However, the original code only seemed to handle deletion if the club logo was being cleared.
+        # For simplicity, if logo and logoUrl are not provided, we don't modify logoUrl unless it's in team_data.
+        pass
 
     print("team_data: ", team_data)
     team_enc = jsonable_encoder(team_data)
@@ -371,7 +381,8 @@ async def update_team(
     if update_data["$set"]:
         try:
             result = await mongodb["clubs"].update_one(
-                {"_id": club["_id"], "teams._id": team_id}, update_data # Use "teams._id" for matching the specific team
+                {"_id": club["_id"], "teams._id": team_id},
+                update_data,  # Use "teams._id" for matching the specific team
             )
             if result.modified_count == 0:
                 # This case should ideally not happen if team_index was found, but as a safeguard.
@@ -384,27 +395,30 @@ async def update_team(
                 operation="update",
                 collection="clubs.teams",
                 message=f"Failed to update team {team_id} in club {club_alias}",
-                details={"error": str(e)}
+                details={"error": str(e)},
             ) from e
 
     # Get the team from the club to return (whether updated or not)
     updated_club = await mongodb["clubs"].find_one(
-        {"alias": club_alias},
-        {"_id": 0, "teams": {"$elemMatch": {"_id": team_id}}}
+        {"alias": club_alias}, {"_id": 0, "teams": {"$elemMatch": {"_id": team_id}}}
     )
     if updated_club and "teams" in updated_club and updated_club["teams"]:
         team_response = TeamDB(**updated_club["teams"][0])
-        message = "No changes detected" if not update_data["$set"] else f"Team {team_id} updated successfully"
-        standard_response = StandardResponse(
-            success=True,
-            data=team_response,
-            message=message
+        message = (
+            "No changes detected"
+            if not update_data["$set"]
+            else f"Team {team_id} updated successfully"
         )
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(standard_response))
+        standard_response = StandardResponse(success=True, data=team_response, message=message)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK, content=jsonable_encoder(standard_response)
+        )
     else:
         # This case indicates an inconsistency if update succeeded but fetch failed.
         raise ResourceNotFoundException(
-            resource_type="Team", resource_id=team_id, details={"club_alias": club_alias, "fetch_error": "Team not found after update"}
+            resource_type="Team",
+            resource_id=team_id,
+            details={"club_alias": club_alias, "fetch_error": "Team not found after update"},
         )
 
 
@@ -435,7 +449,7 @@ async def delete_team(
         )
 
     delete_result = await mongodb["clubs"].update_one(
-        {"_id": club["_id"]}, {"$pull": {"teams": {"_id": team_id}}} # Match by club ID for safety
+        {"_id": club["_id"]}, {"$pull": {"teams": {"_id": team_id}}}  # Match by club ID for safety
     )
 
     if delete_result.modified_count == 1:
@@ -444,5 +458,7 @@ async def delete_team(
         # This case should ideally be caught by the team_exists check above,
         # but serves as a fallback if the team was removed between checks or if _id mismatch.
         raise ResourceNotFoundException(
-            resource_type="Team", resource_id=team_id, details={"club_alias": club_alias, "delete_error": "Team not found or not removed"}
+            resource_type="Team",
+            resource_id=team_id,
+            details={"club_alias": club_alias, "delete_error": "Team not found or not removed"},
         )

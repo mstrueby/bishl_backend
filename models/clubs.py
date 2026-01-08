@@ -1,5 +1,6 @@
-from bson import ObjectId
 from enum import Enum
+
+from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
 
@@ -47,6 +48,7 @@ class TeamPartnerships(BaseModel):
     teamId: str = Field(...)
     teamAlias: str = Field(...)
     teamName: str = Field(...)
+
 
 class TeamTypeEnum(str, Enum):
     COMPETITIVE = "COMPETITIVE"  # normaler ISHD/BISHL-Spielbetrieb

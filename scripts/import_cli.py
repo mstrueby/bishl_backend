@@ -181,11 +181,11 @@ class ImportCLI:
     def import_schedule(self) -> tuple[bool, str]:
         """Import match schedule"""
         logger.info("Starting schedule import...")
-        
+
         csv_path = "data/data_schedule_2025.csv"
         if not os.path.exists(csv_path):
             return False, f"Schedule CSV file not found: {csv_path}"
-        
+
         return self.service.import_schedule(csv_path, import_all=self.args.import_all)
 
     def import_teams(self) -> tuple[bool, str]:

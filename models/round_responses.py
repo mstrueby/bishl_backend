@@ -1,4 +1,3 @@
-
 """
 Round API Response Models
 These models define the structure returned by round API endpoints.
@@ -9,11 +8,12 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from models.tournaments import MongoBaseModel, MatchSettings, Standings
+from models.tournaments import MatchSettings, MongoBaseModel, Standings
 
 
 class RoundLinks(BaseModel):
     """HATEOAS links for round navigation"""
+
     self: str
     matchdays: str
     season: str
@@ -21,6 +21,7 @@ class RoundLinks(BaseModel):
 
 class RoundResponse(MongoBaseModel):
     """Round response without nested matchdays array"""
+
     name: str
     alias: str
     sortOrder: int
@@ -50,7 +51,7 @@ class RoundResponse(MongoBaseModel):
                 "links": {
                     "self": "/tournaments/bishl-2024/seasons/2024-25/rounds/regular",
                     "matchdays": "/tournaments/bishl-2024/seasons/2024-25/rounds/regular/matchdays",
-                    "season": "/tournaments/bishl-2024/seasons/2024-25"
-                }
+                    "season": "/tournaments/bishl-2024/seasons/2024-25",
+                },
             }
         }

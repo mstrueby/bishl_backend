@@ -1,8 +1,8 @@
 """Integration tests for matches API endpoints"""
+
 import pytest
-from httpx import AsyncClient
 from bson import ObjectId
-from unittest.mock import AsyncMock, patch, MagicMock
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
@@ -11,8 +11,9 @@ class TestMatchesAPI:
 
     async def test_create_match_success(self, client: AsyncClient, mongodb, admin_token):
         """Test creating a new match"""
-        from tests.fixtures.data_fixtures import create_test_tournament
         from bson import ObjectId
+
+        from tests.fixtures.data_fixtures import create_test_tournament
 
         # Setup: Insert required data directly into DB
         tournament = create_test_tournament()
@@ -26,7 +27,7 @@ class TestMatchesAPI:
                 "pointsWinOvertime": 2,
                 "pointsLossOvertime": 1,
                 "pointsWinShootout": 2,
-                "pointsLossShootout": 1
+                "pointsLossShootout": 1,
             }
 
         # Create teams with all required fields
@@ -40,7 +41,7 @@ class TestMatchesAPI:
             "shortName": "HOME",
             "tinyName": "HOM",
             "teamAlias": "home-team",
-            "published": True
+            "published": True,
         }
 
         away_team = {
@@ -50,7 +51,7 @@ class TestMatchesAPI:
             "shortName": "AWAY",
             "tinyName": "AWY",
             "teamAlias": "away-team",
-            "published": True
+            "published": True,
         }
 
         await mongodb["tournaments"].insert_one(tournament)
@@ -60,7 +61,10 @@ class TestMatchesAPI:
         match_data = {
             "matchId": 1001,
             "tournament": {"name": tournament["name"], "alias": tournament["alias"]},
-            "season": {"name": tournament["seasons"][0]["name"], "alias": tournament["seasons"][0]["alias"]},
+            "season": {
+                "name": tournament["seasons"][0]["name"],
+                "alias": tournament["seasons"][0]["alias"],
+            },
             "round": {"name": "Hauptrunde", "alias": "hauptrunde"},
             "matchday": {"name": "1. Spieltag", "alias": "1-spieltag"},
             "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
@@ -70,7 +74,7 @@ class TestMatchesAPI:
                 "name": home_team["name"],
                 "fullName": home_team["fullName"],
                 "shortName": home_team["shortName"],
-                "tinyName": home_team["tinyName"]
+                "tinyName": home_team["tinyName"],
             },
             "away": {
                 "teamId": away_team["teamId"],
@@ -78,16 +82,14 @@ class TestMatchesAPI:
                 "name": away_team["name"],
                 "fullName": away_team["fullName"],
                 "shortName": away_team["shortName"],
-                "tinyName": away_team["tinyName"]
-            }
+                "tinyName": away_team["tinyName"],
+            },
         }
 
         # Execute - No mocking needed! All operations are now direct DB calls
         # The service layer (StatsService, TournamentService) uses DB directly
         response = await client.post(
-            "/matches",
-            json=match_data,
-            headers={"Authorization": f"Bearer {admin_token}"}
+            "/matches", json=match_data, headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert response
@@ -150,7 +152,7 @@ class TestMatchesAPI:
             "pointsWinOvertime": 2,
             "pointsLossOvertime": 1,
             "pointsWinShootout": 2,
-            "pointsLossShootout": 1
+            "pointsLossShootout": 1,
         }
         await mongodb["tournaments"].insert_one(tournament)
 
@@ -161,7 +163,7 @@ class TestMatchesAPI:
         response = await client.patch(
             f"/matches/{match['_id']}",
             json={"matchStatus": {"key": "INPROGRESS", "value": "Live"}},
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -181,8 +183,7 @@ class TestMatchesAPI:
         await mongodb["matches"].insert_one(match)
 
         response = await client.patch(
-            f"/matches/{match['_id']}",
-            json={"matchStatus": {"key": "INPROGRESS"}}
+            f"/matches/{match['_id']}", json={"matchStatus": {"key": "INPROGRESS"}}
         )
 
         assert response.status_code == 403
@@ -200,7 +201,7 @@ class TestMatchesAPI:
             "pointsWinOvertime": 2,
             "pointsLossOvertime": 1,
             "pointsWinShootout": 2,
-            "pointsLossShootout": 1
+            "pointsLossShootout": 1,
         }
         await mongodb["tournaments"].insert_one(tournament)
 
@@ -211,38 +212,22 @@ class TestMatchesAPI:
                 "_id": str(ObjectId()),
                 "matchTime": "00:10",
                 "matchSeconds": 10,
-                "goalPlayer": {
-                    "playerId": "p1",
-                    "firstName": "John",
-                    "lastName": "Doe"
-                },
-                "assistPlayer": {
-                    "playerId": "p2",
-                    "firstName": "Jane",
-                    "lastName": "Doe"
-                }
+                "goalPlayer": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
+                "assistPlayer": {"playerId": "p2", "firstName": "Jane", "lastName": "Doe"},
             },
             {
                 "_id": str(ObjectId()),
                 "matchTime": "00:20",
                 "matchSeconds": 20,
-                "goalPlayer": {
-                    "playerId": "p3",
-                    "firstName": "Alice",
-                    "lastName": "Smith"
-                }
-            }
+                "goalPlayer": {"playerId": "p3", "firstName": "Alice", "lastName": "Smith"},
+            },
         ]
         match["away"]["scores"] = [
             {
                 "_id": str(ObjectId()),
                 "matchTime": "00:15",
                 "matchSeconds": 15,
-                "goalPlayer": {
-                    "playerId": "p4",
-                    "firstName": "Bob",
-                    "lastName": "Smith"
-                }
+                "goalPlayer": {"playerId": "p4", "firstName": "Bob", "lastName": "Smith"},
             }
         ]
         match["home"]["stats"] = {"goalsFor": 2, "goalsAgainst": 1}
@@ -253,10 +238,10 @@ class TestMatchesAPI:
         response = await client.patch(
             f"/matches/{match['_id']}",
             json={
-                "matchStatus": {"key": "FINISHED", "value":"beendet"},
-                "finishType": {"key": "REGULAR", "value": "Regulär"}
+                "matchStatus": {"key": "FINISHED", "value": "beendet"},
+                "finishType": {"key": "REGULAR", "value": "Regulär"},
             },
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         # Assert
@@ -277,12 +262,12 @@ class TestMatchesAPI:
 
         # Setup - Insert multiple matches with explicit season
         matches = [create_test_match() for _ in range(5)]
-        
+
         # Ensure all matches have the same season for consistent querying
         test_season = "2024-25"
         for match in matches:
             match["season"] = {"alias": test_season, "name": "2024/25"}
-        
+
         await mongodb["matches"].insert_many(matches)
 
         # Execute - Get first page with explicit season parameter
@@ -329,8 +314,7 @@ class TestMatchesAPI:
 
         # Execute
         response = await client.delete(
-            f"/matches/{match['_id']}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            f"/matches/{match['_id']}", headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         # Assert

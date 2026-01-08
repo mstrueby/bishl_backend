@@ -1,7 +1,8 @@
 """Test data fixtures and helper functions for creating test documents"""
+
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Any
 
 from bson import ObjectId
 from faker import Faker
@@ -14,14 +15,15 @@ def generate_test_id() -> str:
     return f"test_{uuid.uuid4().hex[:8]}"
 
 
-def create_test_user(test_id: str = None, **overrides) -> Dict[str, Any]:
+def create_test_user(test_id: str = None, **overrides) -> dict[str, Any]:
     """Create a test user document"""
     test_id = test_id or generate_test_id()
-    
+
     # Ensure password is hashed if provided as plain text
     password = overrides.get("password", "SecurePass123!")
     if not password.startswith("$argon2id$"):
         from authentication import AuthHandler
+
         auth = AuthHandler()
         password = auth.get_password_hash(password)
         # Update overrides so it doesn't overwrite the hashed password back to plain text
@@ -43,7 +45,7 @@ def create_test_user(test_id: str = None, **overrides) -> Dict[str, Any]:
     # Ensure email is correct if provided in overrides
     if "email" in overrides:
         user["email"] = overrides["email"]
-        
+
     user.update(overrides)
     return user
 
@@ -55,10 +57,7 @@ def create_test_tournament():
         "name": "Test League",
         "alias": "test-league",
         "tinyName": "TL",
-        "ageGroup": {
-            "key": "U18",
-            "value": "U18"
-        },
+        "ageGroup": {"key": "U18", "value": "U18"},
         "published": True,
         "active": True,
         "seasons": [
@@ -74,7 +73,7 @@ def create_test_tournament():
                     "pointsWinOvertime": 2,
                     "pointsLossOvertime": 1,
                     "pointsWinShootout": 2,
-                    "pointsLossShootout": 1
+                    "pointsLossShootout": 1,
                 },
                 "rounds": [
                     {
@@ -84,34 +83,26 @@ def create_test_tournament():
                         "sortOrder": 1,
                         "createStandings": True,
                         "createStats": True,
-                        "matchdaysType": {
-                            "key": "REGULAR",
-                            "value": "Regulär"
-                        },
-                        "matchdaysSortedBy": {
-                            "key": "DATE",
-                            "value": "Datum"
-                        },
+                        "matchdaysType": {"key": "REGULAR", "value": "Regulär"},
+                        "matchdaysSortedBy": {"key": "DATE", "value": "Datum"},
                         "published": True,
                         "matchdays": [
                             {
                                 "_id": str(ObjectId()),
                                 "name": "1. Spieltag",
                                 "alias": "1-spieltag",
-                                "type": {
-                                    "key": "REGULAR",
-                                    "value": "Regulär"
-                                },
+                                "type": {"key": "REGULAR", "value": "Regulär"},
                                 "createStandings": True,
                                 "createStats": True,
-                                "published": True
+                                "published": True,
                             }
-                        ]
+                        ],
                     }
-                ]
+                ],
             }
         ],
     }
+
 
 def create_test_team(team_id=None):
     """Create a test team document"""
@@ -140,36 +131,17 @@ def create_test_match(match_id=None, status="SCHEDULED"):
     return {
         "_id": match_id,
         "matchId": fake.random_int(1000, 9999),
-        "tournament": {
-            "name": "Test League",
-            "alias": "test-league"
-        },
-        "season": {
-            "name": "2024",
-            "alias": "2024"
-        },
-        "round": {
-            "name": "Hauptrunde",
-            "alias": "hauptrunde"
-        },
-        "matchday": {
-            "name": "1. Spieltag",
-            "alias": "1-spieltag"
-        },
+        "tournament": {"name": "Test League", "alias": "test-league"},
+        "season": {"name": "2024", "alias": "2024"},
+        "round": {"name": "Hauptrunde", "alias": "hauptrunde"},
+        "matchday": {"name": "1. Spieltag", "alias": "1-spieltag"},
         "matchStatus": {
             "key": status,
-            "value": "angesetzt" if status == "SCHEDULED" else "beendet"
+            "value": "angesetzt" if status == "SCHEDULED" else "beendet",
         },
-        "finishType": {
-            "key": "REGULAR",
-            "value": "Regulär"
-        },
+        "finishType": {"key": "REGULAR", "value": "Regulär"},
         "startDate": datetime.now() + timedelta(days=7),
-        "venue": {
-            "venueId": str(ObjectId()),
-            "name": "Test Arena",
-            "alias": "test-arena"
-        },
+        "venue": {"venueId": str(ObjectId()), "name": "Test Arena", "alias": "test-arena"},
         "home": {
             "clubId": str(ObjectId()),
             "clubName": "Home Club",
@@ -183,11 +155,7 @@ def create_test_match(match_id=None, status="SCHEDULED"):
             "logo": None,
             "roster": [],
             "rosterPublished": False,
-            "coach": {
-                "firstName": None,
-                "lastName": None,
-                "licence": None
-            },
+            "coach": {"firstName": None, "lastName": None, "licence": None},
             "staff": [],
             "scores": [],
             "penalties": [],
@@ -202,8 +170,8 @@ def create_test_match(match_id=None, status="SCHEDULED"):
                 "otWin": 0,
                 "otLoss": 0,
                 "soWin": 0,
-                "soLoss": 0
-            }
+                "soLoss": 0,
+            },
         },
         "away": {
             "clubId": str(ObjectId()),
@@ -218,11 +186,7 @@ def create_test_match(match_id=None, status="SCHEDULED"):
             "logo": None,
             "roster": [],
             "rosterPublished": False,
-            "coach": {
-                "firstName": None,
-                "lastName": None,
-                "licence": None
-            },
+            "coach": {"firstName": None, "lastName": None, "licence": None},
             "staff": [],
             "scores": [],
             "penalties": [],
@@ -237,8 +201,8 @@ def create_test_match(match_id=None, status="SCHEDULED"):
                 "otWin": 0,
                 "otLoss": 0,
                 "soWin": 0,
-                "soLoss": 0
-            }
+                "soLoss": 0,
+            },
         },
         "referee1": None,
         "referee2": None,
@@ -274,26 +238,18 @@ def create_test_match(match_id=None, status="SCHEDULED"):
             "awayUniformPlayerClothing": False,
             "awaySecondJerseySet": False,
             "refereePayment": {
-                "referee1": {
-                    "travelExpenses": 0.0,
-                    "expenseAllowance": 0.0,
-                    "gameFees": 0.0
-                },
-                "referee2": {
-                    "travelExpenses": 0.0,
-                    "expenseAllowance": 0.0,
-                    "gameFees": 0.0
-                }
+                "referee1": {"travelExpenses": 0.0, "expenseAllowance": 0.0, "gameFees": 0.0},
+                "referee2": {"travelExpenses": 0.0, "expenseAllowance": 0.0, "gameFees": 0.0},
             },
             "specialEvents": False,
             "refereeComments": None,
             "crowd": 0,
-            "isSaved": False
-        }
+            "isSaved": False,
+        },
     }
 
 
-def create_test_player(test_id: str = None, **overrides) -> Dict[str, Any]:
+def create_test_player(test_id: str = None, **overrides) -> dict[str, Any]:
     """Create a test player document"""
     test_id = test_id or generate_test_id()
     player = {
@@ -323,7 +279,7 @@ def create_test_player(test_id: str = None, **overrides) -> Dict[str, Any]:
     return player
 
 
-def create_test_club(test_id: str = None, **overrides) -> Dict[str, Any]:
+def create_test_club(test_id: str = None, **overrides) -> dict[str, Any]:
     """Create a test club document"""
     test_id = test_id or generate_test_id()
     club = {
@@ -340,7 +296,9 @@ def create_test_club(test_id: str = None, **overrides) -> Dict[str, Any]:
     return club
 
 
-def create_test_roster_player(player_id: str, jersey_number: int = 10, **overrides) -> Dict[str, Any]:
+def create_test_roster_player(
+    player_id: str, jersey_number: int = 10, **overrides
+) -> dict[str, Any]:
     """Create a test roster player entry with proper structure"""
     roster_player = {
         "player": {
@@ -351,7 +309,7 @@ def create_test_roster_player(player_id: str, jersey_number: int = 10, **overrid
             "displayFirstName": "Test",
             "displayLastName": "Player",
             "imageUrl": None,
-            "imageVisible": False
+            "imageVisible": False,
         },
         "playerPosition": {"key": "FW", "value": "Forward"},
         "passNumber": f"PASS-{player_id}",
@@ -359,7 +317,7 @@ def create_test_roster_player(player_id: str, jersey_number: int = 10, **overrid
         "assists": 0,
         "points": 0,
         "penaltyMinutes": 0,
-        "called": False
+        "called": False,
     }
     roster_player.update(overrides)
     return roster_player
@@ -384,7 +342,7 @@ def get_test_assignment_data():
             "clubName": None,
             "logoUrl": None,
             "points": 0,
-            "level": "S2"
+            "level": "S2",
         },
         "position": None,
         "statusHistory": [
@@ -392,7 +350,7 @@ def get_test_assignment_data():
                 "status": "REQUESTED",
                 "updateDate": datetime.now(),
                 "updatedBy": referee_id,
-                "updatedByName": "Test Referee"
+                "updatedByName": "Test Referee",
             }
-        ]
+        ],
     }

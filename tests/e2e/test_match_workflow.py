@@ -1,9 +1,10 @@
-
 """End-to-end tests for match workflow"""
-import pytest
-from httpx import AsyncClient
-from bson import ObjectId
+
 from datetime import datetime, timedelta
+
+import pytest
+from bson import ObjectId
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
@@ -61,7 +62,7 @@ class TestMatchWorkflow:
         # Create teams
         home_team_id = str(ObjectId())
         away_team_id = str(ObjectId())
-        
+
         home_team = {
             "_id": home_team_id,
             "name": "Home Tigers",
@@ -73,7 +74,7 @@ class TestMatchWorkflow:
             "clubName": "Home Club",
             "published": True,
         }
-        
+
         away_team = {
             "_id": away_team_id,
             "name": "Away Lions",
@@ -85,7 +86,7 @@ class TestMatchWorkflow:
             "clubName": "Away Club",
             "published": True,
         }
-        
+
         await mongodb["teams"].insert_many([home_team, away_team])
 
         # Create players
@@ -93,7 +94,7 @@ class TestMatchWorkflow:
         player2_id = str(ObjectId())
         player3_id = str(ObjectId())
         player4_id = str(ObjectId())
-        
+
         players = [
             {
                 "_id": player1_id,
@@ -380,53 +381,51 @@ class TestMatchWorkflow:
 
         # 8. Verify final match state
         match_doc = await mongodb["matches"].find_one({"_id": match_id})
-        
+
         # Verify match status
         assert match_doc["matchStatus"]["key"] == "FINISHED"
         assert match_doc["finishType"]["key"] == "REGULAR"
-        
+
         # Verify scores
         assert len(match_doc["home"]["scores"]) == 3
         assert len(match_doc["away"]["scores"]) == 2
-        
+
         # Verify penalties
         assert len(match_doc["home"]["penalties"]) == 1
-        
+
         # Verify match stats
         assert match_doc["home"]["stats"]["goalsFor"] == 3
         assert match_doc["home"]["stats"]["goalsAgainst"] == 2
         assert match_doc["home"]["stats"]["points"] == 3  # Win in regular time
         assert match_doc["home"]["stats"]["win"] == 1
         assert match_doc["home"]["stats"]["gamePlayed"] == 1
-        
+
         assert match_doc["away"]["stats"]["goalsFor"] == 2
         assert match_doc["away"]["stats"]["goalsAgainst"] == 3
         assert match_doc["away"]["stats"]["points"] == 0  # Loss
         assert match_doc["away"]["stats"]["loss"] == 1
         assert match_doc["away"]["stats"]["gamePlayed"] == 1
-        
+
         # Verify roster stats
-        home_roster_map = {
-            r["player"]["playerId"]: r for r in match_doc["home"]["roster"]
-        }
-        
+        home_roster_map = {r["player"]["playerId"]: r for r in match_doc["home"]["roster"]}
+
         # John Scorer: 2 goals, 1 assist = 3 points
         assert home_roster_map[player1_id]["goals"] == 2
         assert home_roster_map[player1_id]["assists"] == 0
         assert home_roster_map[player1_id]["points"] == 2
-        
+
         # Jane Assist: 1 goal, 1 assist = 2 points
         assert home_roster_map[player2_id]["goals"] == 1
         assert home_roster_map[player2_id]["assists"] == 1
         assert home_roster_map[player2_id]["points"] == 2
-        
+
         # Bob Penalty: 2 PIM
         assert home_roster_map[player3_id]["penaltyMinutes"] == 2
 
     async def test_overtime_match_workflow(self, client: AsyncClient, mongodb, admin_token):
         """Test match ending in overtime with correct point distribution"""
-        from tests.fixtures.data_fixtures import create_test_tournament, create_test_match
-        
+        from tests.fixtures.data_fixtures import create_test_match, create_test_tournament
+
         # Setup tournament with standings settings
         tournament = create_test_tournament()
         tournament["seasons"][0]["standingsSettings"] = {
@@ -438,14 +437,14 @@ class TestMatchWorkflow:
             "pointsLossShootout": 1,
         }
         await mongodb["tournaments"].insert_one(tournament)
-        
+
         # Create match
         match = create_test_match(status="INPROGRESS")
         match["home"]["stats"] = {"goalsFor": 3, "goalsAgainst": 2}
         match["away"]["stats"] = {"goalsFor": 2, "goalsAgainst": 3}
         await mongodb["matches"].insert_one(match)
         match_id = match["_id"]
-        
+
         # Finish in overtime
         response = await client.patch(
             f"/matches/{match_id}",
@@ -456,7 +455,7 @@ class TestMatchWorkflow:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert response.status_code == 200
-        
+
         # Verify overtime points
         match_doc = await mongodb["matches"].find_one({"_id": match_id})
         assert match_doc["home"]["stats"]["points"] == 2  # OT win
@@ -466,8 +465,8 @@ class TestMatchWorkflow:
 
     async def test_shootout_match_workflow(self, client: AsyncClient, mongodb, admin_token):
         """Test match ending in shootout with correct point distribution"""
-        from tests.fixtures.data_fixtures import create_test_tournament, create_test_match
-        
+        from tests.fixtures.data_fixtures import create_test_match, create_test_tournament
+
         # Setup tournament
         tournament = create_test_tournament()
         tournament["seasons"][0]["standingsSettings"] = {
@@ -479,14 +478,14 @@ class TestMatchWorkflow:
             "pointsLossShootout": 1,
         }
         await mongodb["tournaments"].insert_one(tournament)
-        
+
         # Create tied match
         match = create_test_match(status="INPROGRESS")
         match["home"]["stats"] = {"goalsFor": 2, "goalsAgainst": 2}
         match["away"]["stats"] = {"goalsFor": 2, "goalsAgainst": 2}
         await mongodb["matches"].insert_one(match)
         match_id = match["_id"]
-        
+
         # Finish in shootout
         response = await client.patch(
             f"/matches/{match_id}",
@@ -497,7 +496,7 @@ class TestMatchWorkflow:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert response.status_code == 200
-        
+
         # Verify shootout points (tied game, winner determined by shootout)
         match_doc = await mongodb["matches"].find_one({"_id": match_id})
         # In a tie, we can't determine winner without additional data,

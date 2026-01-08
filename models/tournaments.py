@@ -34,10 +34,10 @@ class PyObjectId(ObjectId):
 
 class MongoBaseModel(BaseModel):
     model_config = ConfigDict(
-        populate_by_name=True, 
-        arbitrary_types_allowed=True, 
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
         json_encoders={ObjectId: str},
-        by_alias=True
+        by_alias=True,
     )
 
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id", serialization_alias="_id")
@@ -266,6 +266,7 @@ class SeasonUpdate(MongoBaseModel):
 
 class AssignmentTimeWindow(BaseModel):
     """Time window configuration for player assignment changes"""
+
     enabled: bool = Field(default=True)
     startMonth: int = Field(default=1, ge=1, le=12, description="Start month (1-12)")
     startDay: int = Field(default=1, ge=1, le=31, description="Start day (1-31)")
@@ -273,7 +274,7 @@ class AssignmentTimeWindow(BaseModel):
     endDay: int = Field(default=1, ge=1, le=31, description="End day (1-31)")
     description: str | None = Field(
         default="Assignment changes allowed from January 1 to March 1",
-        description="Human-readable description of the time window"
+        description="Human-readable description of the time window",
     )
 
 
@@ -288,7 +289,7 @@ class TournamentBase(MongoBaseModel):
     website: HttpUrl | None = None
     assignmentTimeWindow: AssignmentTimeWindow = Field(
         default=AssignmentTimeWindow(),
-        description="Time window when player assignments can be modified"
+        description="Time window when player assignments can be modified",
     )
     seasons: list[SeasonBase] | None = Field(default_factory=list)
     legacyId: int | None = None

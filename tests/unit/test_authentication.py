@@ -1,28 +1,31 @@
 """Unit tests for AuthHandler"""
-import pytest
-from unittest.mock import MagicMock, patch
+
 from datetime import datetime, timedelta
+from unittest.mock import patch
+
 import jwt
-from authentication import AuthHandler, AuthenticationException
+import pytest
+
+from authentication import AuthenticationException, AuthHandler
 
 
 @pytest.fixture
 def auth_handler():
     """AuthHandler instance with test settings"""
     # Patch settings before creating AuthHandler and keep it active
-    patcher = patch('authentication.settings')
+    patcher = patch("authentication.settings")
     mock_settings = patcher.start()
-    
+
     mock_settings.SECRET_KEY = "test-secret-key"
     mock_settings.JWT_SECRET_KEY = "test-secret-key"
     mock_settings.JWT_REFRESH_SECRET_KEY = "test-refresh-secret"
     mock_settings.JWT_ALGORITHM = "HS256"
     mock_settings.ACCESS_TOKEN_EXPIRE_MINUTES = 30
     mock_settings.REFRESH_TOKEN_EXPIRE_DAYS = 7
-    
+
     handler = AuthHandler()
     yield handler
-    
+
     # Clean up the patch after test completes
     patcher.stop()
 
@@ -36,10 +39,7 @@ def mock_user():
         "roles": ["USER"],
         "firstName": "Test",
         "lastName": "User",
-        "club": {
-            "clubId": "test-club-id",
-            "clubName": "Test Club"
-        }
+        "club": {"clubId": "test-club-id", "clubName": "Test Club"},
     }
 
 
@@ -64,8 +64,9 @@ class TestEncodeToken:
 
         # Decode the raw JWT to check expiration (TokenPayload doesn't expose exp)
         import jwt
+
         raw_payload = jwt.decode(token, auth_handler.secret, algorithms=["HS256"])
-        
+
         assert "exp" in raw_payload
         exp_time = datetime.fromtimestamp(raw_payload["exp"])
         now = datetime.utcnow()
@@ -81,9 +82,10 @@ class TestEncodeToken:
         # Decode refresh token returns just the user ID (string), not TokenPayload
         user_id = auth_handler.decode_refresh_token(token)
         assert user_id == mock_user["_id"]
-        
+
         # Verify token type by decoding raw JWT
         import jwt
+
         raw_payload = jwt.decode(token, auth_handler.refresh_secret, algorithms=["HS256"])
         assert raw_payload["type"] == "refresh"
 
@@ -103,11 +105,7 @@ class TestDecodeToken:
     def test_decode_expired_token_raises_exception(self, auth_handler):
         """Test decoding expired token raises exception"""
         # Create expired token using the same secret as auth_handler
-        payload = {
-            "sub": "test-user",
-            "exp": datetime.now() - timedelta(hours=1),
-            "type": "access"
-        }
+        payload = {"sub": "test-user", "exp": datetime.now() - timedelta(hours=1), "type": "access"}
         expired_token = jwt.encode(payload, auth_handler.secret, algorithm="HS256")
 
         with pytest.raises(AuthenticationException) as exc_info:

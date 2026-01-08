@@ -14,7 +14,7 @@ from exceptions import (
 )
 from logging_config import logger
 from models.responses import StandardResponse
-from models.round_responses import RoundResponse, RoundLinks
+from models.round_responses import RoundLinks, RoundResponse
 from models.tournaments import RoundBase, RoundDB, RoundUpdate
 from utils import DEBUG_LEVEL, my_jsonable_encoder
 
@@ -65,8 +65,8 @@ async def get_rounds_for_season(
                         links=RoundLinks(
                             self=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_data['alias']}",
                             matchdays=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_data['alias']}/matchdays",
-                            season=f"/tournaments/{tournament_alias}/seasons/{season_alias}"
-                        )
+                            season=f"/tournaments/{tournament_alias}/seasons/{season_alias}",
+                        ),
                     )
                     rounds.append(round_response)
                 return JSONResponse(
@@ -127,8 +127,8 @@ async def get_round(
                             links=RoundLinks(
                                 self=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}",
                                 matchdays=f"/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays",
-                                season=f"/tournaments/{tournament_alias}/seasons/{season_alias}"
-                            )
+                                season=f"/tournaments/{tournament_alias}/seasons/{season_alias}",
+                            ),
                         )
                         return JSONResponse(
                             status_code=status.HTTP_200_OK,

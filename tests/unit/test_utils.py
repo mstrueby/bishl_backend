@@ -1,14 +1,16 @@
-
 """Unit tests for utility functions"""
-import pytest
+
 from datetime import datetime
+
+import pytest
+
 from utils import (
-    parse_datetime,
-    parse_time_to_seconds,
-    parse_time_from_seconds,
-    validate_match_time,
     flatten_dict,
-    to_camel
+    parse_datetime,
+    parse_time_from_seconds,
+    parse_time_to_seconds,
+    to_camel,
+    validate_match_time,
 )
 
 
@@ -94,25 +96,13 @@ class TestFlattenDict:
 
     def test_flatten_dict_simple(self):
         """Test flattening simple nested dict"""
-        input_dict = {
-            "a": 1,
-            "b": {
-                "c": 2,
-                "d": 3
-            }
-        }
+        input_dict = {"a": 1, "b": {"c": 2, "d": 3}}
         result = flatten_dict(input_dict)
         assert result == {"a": 1, "b.c": 2, "b.d": 3}
 
     def test_flatten_dict_deep_nesting(self):
         """Test flattening deeply nested dict"""
-        input_dict = {
-            "a": {
-                "b": {
-                    "c": 1
-                }
-            }
-        }
+        input_dict = {"a": {"b": {"c": 1}}}
         result = flatten_dict(input_dict)
         assert result == {"a.b.c": 1}
 
