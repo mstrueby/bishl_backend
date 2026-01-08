@@ -1028,48 +1028,8 @@ async def get_player_stats(id: str, request: Request) -> list[PlayerStats]:
     return player_stats
 
 
-@router.get("/{id}/possible-teams", response_model=list[dict])
-async def get_possible_teams(
-    id: str,
-    club_id: str = Query(None),
-    request: Request = None,
-    token_payload: TokenPayload = Depends(auth.auth_wrapper),
-):
-    """
-    Get possible teams for a player within a club.
-    """
-    mongodb = request.app.state.mongodb
-    service = PlayerAssignmentService(mongodb)
-
-    # Resolve club_id
-    target_club_id = club_id or token_payload.clubId
-
-    # Auth check
-    is_admin = "ADMIN" in token_payload.roles or "PLAYER_ADMIN" in token_payload.roles
-    is_club_admin = "CLUB_ADMIN" in token_payload.roles
-
-    if not is_admin and not is_club_admin:
-        raise AuthorizationException("Insufficient permissions to view possible teams")
-
-    if is_club_admin:
-        if not token_payload.clubId:
-            raise AuthorizationException("Club admin must be associated with a club")
-        if target_club_id and target_club_id != token_payload.clubId:
-            raise AuthorizationException("Can only access own club teams")
-        target_club_id = token_payload.clubId
-
-    if not target_club_id:
-        raise ValidationException(field="club_id", message="Club ID is required")
-
-    # Validate club exists and is active
-    club = await mongodb["clubs"].find_one({"_id": target_club_id, "active": True})
-    if not club:
-        raise ResourceNotFoundException(resource_type="Club", resource_id=target_club_id)
-
-    teams = await service.get_possible_teams_for_player(id, target_club_id)
-    return teams
-
-
+# GET ALL PLAYERS FOR ONE CLUB
+# --------
 @router.get(
     "/clubs/{club_alias}",
     response_description="Get all players for a club",
