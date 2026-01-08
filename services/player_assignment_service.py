@@ -245,24 +245,26 @@ class PlayerAssignmentService:
         """
         Checks if a player of a given age and sex is allowed to play in a team of a given age
         based on WKO secondary and overage rules.
-        
+
         Returns: (is_allowed, max_licenses, requires_admin)
         """
         if player_age not in self._wko_rules:
             return False, None, False
-            
+
         rule = self._wko_rules[player_age]
-        
+
         # Check secondaryRules (playing in older age groups)
         for sec in rule.secondaryRules:
             if sec.targetAgeGroup == team_age and (not sec.sex or sex in sec.sex):
                 return True, sec.maxLicenses, sec.requiresAdmin
-        
+
         # Check overAgeRules (playing in younger age groups)
         for over in rule.overAgeRules:
             if over.targetAgeGroup == team_age and (not over.sex or sex in over.sex):
-                return True, over.maxLicenses, over.requiresAdmin
-        
+                # overAgeRules might not have requiresAdmin, check if it exists
+                req_admin = getattr(over, "requiresAdmin", False)
+                return True, over.maxLicenses, req_admin
+
         # Default: not allowed
         return False, None, False
 
@@ -2465,5 +2467,76 @@ class PlayerAssignmentService:
         # Run the ISHD sync
         result = await self.process_ishd_sync(mode=mode, run=1)
         result["logs"] = log_lines + result.get("logs", [])
+
+        return result
+
+    async def get_possible_teams_for_player(self, player_id: str, club_id: str = None) -> list[dict]:
+        """
+        Calculate possible team assignments for a player within a specific club.
+        """
+        # 1. Fetch player
+        player = await self.db["players"].find_one({"_id": player_id})
+        if not player:
+            from exceptions import ResourceNotFoundException
+            raise ResourceNotFoundException(resource_type="Player", resource_id=player_id)
+
+        player_obj = PlayerDB(**self._prepare_player_for_validation(player))
+        player_age = player_obj.ageGroup
+        player_sex = player_obj.sex
+
+        # 2. Get club teams via aggregation
+        pipeline = [
+            {"$match": {"_id": club_id, "active": True}},
+            {"$unwind": "$teams"},
+            {"$match": {"teams.active": True}},
+            {"$replaceRoot": {"newRoot": {"$mergeObjects": ["$$ROOT", {"team": "$teams"}]}}},
+            {
+                "$project": {
+                    "teamId": "$team._id",
+                    "teamAlias": "$team.alias",
+                    "teamAgeGroup": "$team.ageGroup",
+                }
+            },
+        ]
+
+        teams_cursor = self.db["clubs"].aggregate(pipeline)
+        teams = await teams_cursor.to_list(length=None)
+
+        # 3. Exclude already assigned teams
+        assigned_team_ids = set()
+        for club_assignment in player.get("assignedTeams", []):
+            for team_assignment in club_assignment.get("teams", []):
+                assigned_team_ids.add(team_assignment["teamId"])
+
+        # 4. Filter and build result
+        result = []
+        for team in teams:
+            if team["teamId"] in assigned_team_ids:
+                continue
+
+            # Classify recommended type
+            rec_type = self._classify_single_license_by_age_group(
+                player_age, team["teamAgeGroup"], player_obj.overAge
+            )
+
+            # Check if allowed by WKO rules
+            is_allowed, max_lic, requires_admin = self._is_team_allowed(
+                player_age, team["teamAgeGroup"], player_sex
+            )
+
+            status_val = "VALID" if is_allowed else "INVALID"
+
+            result.append(
+                {
+                    "teamId": team["teamId"],
+                    "teamAlias": team["teamAlias"],
+                    "teamAgeGroup": team["teamAgeGroup"],
+                    "recommendedType": rec_type.value,
+                    "status": status_val,
+                    "reason": f"{rec_type.value} ({'allowed' if is_allowed else 'not allowed'})",
+                    "maxLicenses": max_lic,
+                    "requiresAdmin": requires_admin,
+                }
+            )
 
         return result
