@@ -583,6 +583,41 @@ async def get_players_with_invalid_licences(
 # ----------------------
 # NOTE: ISHD sync logic has been migrated to PlayerAssignmentService.process_ishd_sync()
 # This endpoint now delegates to the service for better separation of concerns.
+
+@router.get("/{id}/possible-teams", response_model=StandardResponse[list[dict]])
+async def get_possible_teams(
+    id: str,
+    club_id: str = Query(None),
+    request: Request = None,
+    tokenpayload: TokenPayload = Depends(auth.auth_wrapper)
+):
+    """
+    Get possible teams for a player based on WKO rules and current assignments.
+    """
+    mongodb = request.app.state.mongodb
+    service = PlayerAssignmentService(mongodb)
+
+    # Auth check
+    if "CLUB_ADMIN" in tokenpayload.roles or "PLAYER_ADMIN" in tokenpayload.roles:
+        target_club_id = club_id or tokenpayload.clubId
+        if not target_club_id:
+            raise AuthorizationException("Club ID required for CLUB_ADMIN")
+        
+        if target_club_id != tokenpayload.clubId and "ADMIN" not in tokenpayload.roles:
+            raise AuthorizationException("Can only access own club teams")
+        
+        # Verify club exists and is active if needed (omitted for brevity, as per prompt)
+    elif "ADMIN" not in tokenpayload.roles:
+        raise AuthorizationException("Unauthorized access to possible teams")
+
+    teams = await service.get_possible_teams_for_player(id, club_id)
+    
+    if not teams and not await mongodb["players"].find_one({"_id": id}):
+         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+
+    return StandardResponse(data=teams, message="Possible teams retrieved successfully")
+
+
 @router.get(
     "/process_ishd_data",
     response_description="Process ISHD player data to BISHL-Application",
