@@ -587,8 +587,8 @@ async def get_players_with_invalid_licences(
 @router.get("/{id}/possible-teams", response_model=StandardResponse[list[dict]])
 async def get_possible_teams(
     id: str,
+    request: Request,
     club_id: str = Query(None),
-    request: Request = None,
     tokenpayload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     """

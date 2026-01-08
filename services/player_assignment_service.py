@@ -261,7 +261,10 @@ class PlayerAssignmentService:
         # Check overAgeRules (playing in younger age groups)
         for over in rule.overAgeRules:
             if over.targetAgeGroup == team_age and (not over.sex or sex in over.sex):
-                return True, over.maxLicenses, over.requiresAdmin
+                # Overage rules in WKO might not have requiresAdmin field, 
+                # but we return a consistent signature. Default to False if missing.
+                requires_admin = getattr(over, "requiresAdmin", False)
+                return True, over.maxLicenses, requires_admin
         
         # Default: not allowed
         return False, None, False
