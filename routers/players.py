@@ -930,6 +930,78 @@ async def verify_ishd_data(
     )
 
 
+@router.post("/{id}/revalidate", response_model=StandardResponse[PlayerDB])
+async def revalidate_player(
+    id: str,
+    request: Request,
+    resetClassification: bool = Query(False, description="Reset classification before running"),
+    resetValidation: bool = Query(False, description="Reset validation before running"),
+    current_user: dict = Depends(get_current_user_with_roles(["ADMIN", "CLUB_ADMIN", "PLAYER_ADMIN"])),
+) -> JSONResponse:
+    """
+    Re-run classification and validation for a single player.
+    Only accessible by ADMIN, CLUB_ADMIN, or PLAYER_ADMIN.
+    """
+    mongodb = request.app.state.mongodb
+
+    # Load existing player
+    player_data = await mongodb["players"].find_one({"_id": id})
+    if not player_data:
+        raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+
+    assignment_service = PlayerAssignmentService(mongodb)
+
+    try:
+        # Classification step
+        class_modified = await assignment_service._update_player_classification_in_db(
+            id, reset=resetClassification
+        )
+
+        # Validation step
+        val_modified = await assignment_service._update_player_validation_in_db(
+            id, reset=resetValidation
+        )
+
+        # Reload updated player
+        updated_player_data = await mongodb["players"].find_one({"_id": id})
+        if not updated_player_data:
+             raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+        
+        updated_player = PlayerDB(**updated_player_data)
+
+        # Build message
+        if class_modified or val_modified:
+            message = "Player license classification and validation complete, changes applied"
+        else:
+            message = "Player license classification and validation complete, no changes needed"
+
+        logger.info(
+            f"Revalidation for player {id}: {updated_player.firstName} {updated_player.lastName} - "
+            f"class_modified: {class_modified}, val_modified: {val_modified}"
+        )
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(
+                StandardResponse[PlayerDB](
+                    success=True,
+                    data=updated_player.model_dump(by_alias=True),
+                    message=message,
+                )
+            ),
+        )
+
+    except Exception as e:
+        logger.error(f"Error during player revalidation: {str(e)}")
+        if isinstance(e, (ResourceNotFoundException, AuthorizationException)):
+            raise e
+        raise DatabaseOperationException(
+            operation="revalidate",
+            collection="players",
+            details={"player_id": id, "error": str(e)},
+        ) from e
+
+
 # Add POST endpoint for license assignment classification
 @router.post("/{id}/classify-licenses", response_model=StandardResponse[PlayerDB])
 async def classify_player_licenses(
