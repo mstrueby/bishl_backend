@@ -1647,20 +1647,39 @@ async def update_player(
             ),
         )
 
+    # NEW: revalidate when assignedTeams changed
+    assigned_teams_changed = "assignedTeams" in player_to_update
+
     try:
         update_result = await mongodb["players"].update_one(
             {"_id": id}, {"$set": player_to_update}, upsert=False
         )
-        if update_result.modified_count == 1:
-            updated_player = await mongodb["players"].find_one({"_id": id})
+        if update_result.modified_count == 1 or assigned_teams_changed:
+            message = "Player updated successfully"
+            
+            if assigned_teams_changed:
+                # Immediately run classification and validation for that player
+                assignment_service = PlayerAssignmentService(mongodb)
+                class_modified = await assignment_service._update_player_classification_in_db(id, reset=False)
+                val_modified = await assignment_service._update_player_validation_in_db(id, reset=False)
+                
+                message = "Player updated and licenses revalidated"
+                if class_modified or val_modified:
+                    message += " (classification/validation changes applied)"
+                
+                # Reload updated player
+                updated_player_data = await mongodb["players"].find_one({"_id": id})
+            else:
+                updated_player_data = await mongodb["players"].find_one({"_id": id})
+            
             logger.info(f"Player updated successfully: {id}")
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content=jsonable_encoder(
                     StandardResponse(
                         success=True,
-                        data=PlayerDB(**updated_player).model_dump(by_alias=True),
-                        message="Player updated successfully",
+                        data=PlayerDB(**updated_player_data).model_dump(by_alias=True),
+                        message=message,
                     )
                 ),
             )
