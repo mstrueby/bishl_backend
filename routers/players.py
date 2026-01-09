@@ -985,7 +985,7 @@ async def revalidate_player(
             content=jsonable_encoder(
                 StandardResponse[PlayerDB](
                     success=True,
-                    data=updated_player.model_dump(by_alias=True),
+                    data=updated_player,
                     message=message,
                 )
             ),
