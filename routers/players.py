@@ -579,17 +579,12 @@ async def get_players_with_invalid_licences(
     return PaginatedResponse(**response_dict)
 
 
-# PROCESS ISHD DATA
-# ----------------------
-# NOTE: ISHD sync logic has been migrated to PlayerAssignmentService.process_ishd_sync()
-# This endpoint now delegates to the service for better separation of concerns.
-
-@router.get("/{id}/possible-teams", response_model=StandardResponse[list[dict]])
+@router.get("/{id}/possible_teams", response_model=StandardResponse[list[dict]])
 async def get_possible_teams(
     id: str,
     request: Request,
     club_id: str = Query(None),
-    tokenpayload: TokenPayload = Depends(auth.auth_wrapper)
+    token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ):
     """
     Get possible teams for a player based on WKO rules and current assignments.
@@ -598,25 +593,32 @@ async def get_possible_teams(
     service = PlayerAssignmentService(mongodb)
 
     # Auth check
-    if "CLUB_ADMIN" in tokenpayload.roles or "PLAYER_ADMIN" in tokenpayload.roles:
-        target_club_id = club_id or tokenpayload.clubId
+    if "CLUB_ADMIN" in token_payload.roles:
+        target_club_id = token_payload.clubId
         if not target_club_id:
             raise AuthorizationException("Club ID required for CLUB_ADMIN")
-        
-        if target_club_id != tokenpayload.clubId and "ADMIN" not in tokenpayload.roles:
+        if club_id and club_id != target_club_id:
             raise AuthorizationException("Can only access own club teams")
-        
-        # Verify club exists and is active if needed (omitted for brevity, as per prompt)
-    elif "ADMIN" not in tokenpayload.roles:
+    elif "PLAYER_ADMIN" in token_payload.roles or "ADMIN" in token_payload.roles:
+        if not club_id:
+            raise AuthorizationException("Club ID required for PLAYER_ADMIN or ADMIN")
+        else:
+            target_club_id = club_id
+    else:
         raise AuthorizationException("Unauthorized access to possible teams")
 
-    teams = await service.get_possible_teams_for_player(id, club_id)
-    
+    teams = await service.get_possible_teams_for_player(id, target_club_id)
+
     if not teams and not await mongodb["players"].find_one({"_id": id}):
          raise ResourceNotFoundException(resource_type="Player", resource_id=id)
 
     return StandardResponse(data=teams, message="Possible teams retrieved successfully")
 
+
+# PROCESS ISHD DATA
+# ----------------------
+# NOTE: ISHD sync logic has been migrated to PlayerAssignmentService.process_ishd_sync()
+# This endpoint now delegates to the service for better separation of concerns.
 
 @router.get(
     "/process_ishd_data",
