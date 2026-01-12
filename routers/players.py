@@ -952,10 +952,10 @@ async def revalidate_player(
     assignment_service = PlayerAssignmentService(mongodb)
 
     try:
-        # Classification step
-        class_modified = await assignment_service._update_player_classification_in_db(
-            id, reset=resetClassification
-        )
+        # Classification step --> NO CLASSIFICATION ANYMORE, ONLY VALIDATION
+        # class_modified = await assignment_service._update_player_classification_in_db(
+        #    id, reset=resetClassification
+        #)
 
         # Validation step
         val_modified = await assignment_service._update_player_validation_in_db(
@@ -966,18 +966,18 @@ async def revalidate_player(
         updated_player_data = await mongodb["players"].find_one({"_id": id})
         if not updated_player_data:
              raise ResourceNotFoundException(resource_type="Player", resource_id=id)
-        
+
         updated_player = PlayerDB(**updated_player_data)
 
         # Build message
-        if class_modified or val_modified:
-            message = "Player license classification and validation complete, changes applied"
+        if val_modified:
+            message = "Player license validation complete, changes applied"
         else:
-            message = "Player license classification and validation complete, no changes needed"
+            message = "Player license validation complete, no changes needed"
 
         logger.info(
             f"Revalidation for player {id}: {updated_player.firstName} {updated_player.lastName} - "
-            f"class_modified: {class_modified}, val_modified: {val_modified}"
+            f"val_modified: {val_modified}"
         )
 
         return JSONResponse(
@@ -997,6 +997,164 @@ async def revalidate_player(
             raise e
         raise DatabaseOperationException(
             operation="revalidate",
+            collection="players",
+            details={"player_id": id, "error": str(e)},
+        ) from e
+
+
+@router.post("/{id}/auto-optimize", response_model=StandardResponse[PlayerDB])
+async def auto_optimize_player(
+    id: str,
+    request: Request,
+    keep_invalid: bool = Query(False, description="Skip removal of INVALID licenses"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+) -> JSONResponse:
+    """
+    Automatically optimize a player's licenses by classification, validation,
+    and optional removal of INVALID SECONDARY/OVERAGE licenses.
+    """
+    mongodb = request.app.state.mongodb
+    user_club_id = token_payload.clubId
+    user_role = "ADMIN"
+    if "CLUB_ADMIN" in token_payload.roles:
+        user_role = "CLUB_ADMIN"
+    elif "PLAYER_ADMIN" in token_payload.roles:
+        user_role = "PLAYER_ADMIN"
+    elif "ADMIN" not in token_payload.roles:
+        raise AuthorizationException(
+            message="Admin, Club Admin, or Player Admin role required",
+            details={"user_roles": token_payload.roles},
+        )
+
+    # 1. Load player data
+    player_data = await mongodb["players"].find_one({"_id": id})
+    if not player_data:
+        raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+
+    # Pre-Count for summary
+    before_summary = {
+        "total": 0,
+        "by_status": {"VALID": 0, "INVALID": 0, "UNKNOWN": 0},
+        "by_type": {}
+    }
+    for club in player_data.get("assignedTeams", []):
+        for team in club.get("teams", []):
+            before_summary["total"] += 1
+            status_val = team.get("status", "UNKNOWN")
+            before_summary["by_status"][status_val] = before_summary["by_status"].get(status_val, 0) + 1
+            type_val = team.get("licenseType", "UNKNOWN")
+            before_summary["by_type"][type_val] = before_summary["by_type"].get(type_val, 0) + 1
+
+    assignment_service = PlayerAssignmentService(mongodb)
+    
+    # 2. Classify + Validate (in-memory copy)
+    player_copy = json.loads(json.dumps(player_data)) # Deep copy
+    await assignment_service.classify_license_types_for_player(player_copy)
+    await assignment_service.validate_licenses_for_player(player_copy)
+
+    removed_licenses = []
+    # 3. Constrained Cleanup
+    if not keep_invalid:
+        optimized_assigned_teams = []
+        for club in player_copy.get("assignedTeams", []):
+            club_id = club.get("clubId")
+            removable_teams = []
+            keep_teams = []
+            
+            for team in club.get("teams", []):
+                # CLUB_ADMIN constraint 1: Own club only
+                if user_role == "CLUB_ADMIN" and club_id != user_club_id:
+                    keep_teams.append(team)
+                    continue
+                    
+                # Constraint 2: Only SECONDARY/OVERAGE
+                if team.get("licenseType") not in ["SECONDARY", "OVERAGE"]:
+                    keep_teams.append(team)
+                    continue
+                    
+                # Constraint 3: Must be INVALID
+                if team.get("status") != "INVALID":
+                    keep_teams.append(team)
+                    continue
+                    
+                # Candidate for removal
+                removable_teams.append(team)
+            
+            # Constraint 4: Keep at least 1 license per club
+            if len(keep_teams) == 0 and removable_teams:
+                # Promote first removable to keep
+                keep_teams.append(removable_teams.pop(0))
+            
+            # Log removals
+            for team in removable_teams:
+                removed_licenses.append({
+                    "clubId": club_id,
+                    "teamAlias": team.get("teamAlias"),
+                    "licenseType": team.get("licenseType"),
+                    "reason": team.get("invalidReasonCodes", [])
+                })
+            
+            # Update club teams
+            if keep_teams:
+                club["teams"] = keep_teams
+                optimized_assigned_teams.append(club)
+        
+        player_copy["assignedTeams"] = optimized_assigned_teams
+
+    # 4. Persists & Final Polish
+    try:
+        await mongodb["players"].update_one(
+            {"_id": id}, 
+            {"$set": {"assignedTeams": player_copy["assignedTeams"]}}
+        )
+
+        # ALWAYS final classify + validate (persisted)
+        await assignment_service._update_player_classification_in_db(id, reset=False)
+        await assignment_service._update_player_validation_in_db(id, reset=False)
+
+        # 5. Post-count & Summary
+        final_player_data = await mongodb["players"].find_one({"_id": id})
+        after_summary = {
+            "total": 0,
+            "by_status": {"VALID": 0, "INVALID": 0, "UNKNOWN": 0},
+            "by_type": {}
+        }
+        for club in final_player_data.get("assignedTeams", []):
+            for team in club.get("teams", []):
+                after_summary["total"] += 1
+                status_val = team.get("status", "UNKNOWN")
+                after_summary["by_status"][status_val] = after_summary["by_status"].get(status_val, 0) + 1
+                type_val = team.get("licenseType", "UNKNOWN")
+                after_summary["by_type"][type_val] = after_summary["by_type"].get(type_val, 0) + 1
+
+        actions = {
+            "removedCount": len(removed_licenses),
+            "removed": removed_licenses,
+            "before": before_summary,
+            "after": after_summary,
+            "clubAdminScope": user_club_id if user_role == "CLUB_ADMIN" else None
+        }
+
+        # 6. Response
+        if len(removed_licenses) > 0:
+            message = f"Auto-optimized: {len(removed_licenses)} INVALID licenses removed (scoped to own club, SECONDARY/OVERAGE only). Final classify+validate applied."
+        else:
+            message = "Classified and validated licenses (no removals needed)."
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder({
+                "success": True,
+                "data": PlayerDB(**final_player_data).model_dump(by_alias=True),
+                "message": message,
+                "actions": actions,
+            })
+        )
+
+    except Exception as e:
+        logger.error(f"Error during auto-optimization for player {id}: {str(e)}")
+        raise DatabaseOperationException(
+            operation="auto-optimize",
             collection="players",
             details={"player_id": id, "error": str(e)},
         ) from e
@@ -1656,22 +1814,22 @@ async def update_player(
         )
         if update_result.modified_count == 1 or assigned_teams_changed:
             message = "Player updated successfully"
-            
+
             if assigned_teams_changed:
                 # Immediately run classification and validation for that player
                 assignment_service = PlayerAssignmentService(mongodb)
                 class_modified = await assignment_service._update_player_classification_in_db(id, reset=False)
                 val_modified = await assignment_service._update_player_validation_in_db(id, reset=False)
-                
+
                 message = "Player updated and licenses revalidated"
                 if class_modified or val_modified:
                     message += " (classification/validation changes applied)"
-                
+
                 # Reload updated player
                 updated_player_data = await mongodb["players"].find_one({"_id": id})
             else:
                 updated_player_data = await mongodb["players"].find_one({"_id": id})
-            
+
             logger.info(f"Player updated successfully: {id}")
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
