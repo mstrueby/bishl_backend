@@ -1002,7 +1002,7 @@ async def revalidate_player(
         ) from e
 
 
-@router.post("/{id}/auto-optimize", response_model=StandardResponse[PlayerDB])
+@router.post("/{id}/auto_optimize", response_model=StandardResponse[PlayerDB])
 async def auto_optimize_player(
     id: str,
     request: Request,
@@ -1046,9 +1046,9 @@ async def auto_optimize_player(
             before_summary["by_type"][type_val] = before_summary["by_type"].get(type_val, 0) + 1
 
     assignment_service = PlayerAssignmentService(mongodb)
-    
+
     # 2. Classify + Validate (in-memory copy)
-    player_copy = json.loads(json.dumps(player_data)) # Deep copy
+    player_copy = my_jsonable_encoder(player_data)  # Deep copy using my_jsonable_encoder to handle datetime
     await assignment_service.classify_license_types_for_player(player_copy)
     await assignment_service.validate_licenses_for_player(player_copy)
 
@@ -1060,31 +1060,31 @@ async def auto_optimize_player(
             club_id = club.get("clubId")
             removable_teams = []
             keep_teams = []
-            
+
             for team in club.get("teams", []):
                 # CLUB_ADMIN constraint 1: Own club only
                 if user_role == "CLUB_ADMIN" and club_id != user_club_id:
                     keep_teams.append(team)
                     continue
-                    
+
                 # Constraint 2: Only SECONDARY/OVERAGE
                 if team.get("licenseType") not in ["SECONDARY", "OVERAGE"]:
                     keep_teams.append(team)
                     continue
-                    
+
                 # Constraint 3: Must be INVALID
                 if team.get("status") != "INVALID":
-                    keep_teams.append(team)
-                    continue
-                    
+                   keep_teams.append(team)
+                   continue
+
                 # Candidate for removal
                 removable_teams.append(team)
-            
+
             # Constraint 4: Keep at least 1 license per club
             if len(keep_teams) == 0 and removable_teams:
                 # Promote first removable to keep
                 keep_teams.append(removable_teams.pop(0))
-            
+
             # Log removals
             for team in removable_teams:
                 removed_licenses.append({
@@ -1093,12 +1093,12 @@ async def auto_optimize_player(
                     "licenseType": team.get("licenseType"),
                     "reason": team.get("invalidReasonCodes", [])
                 })
-            
+
             # Update club teams
             if keep_teams:
                 club["teams"] = keep_teams
                 optimized_assigned_teams.append(club)
-        
+
         player_copy["assignedTeams"] = optimized_assigned_teams
 
     # 4. Persists & Final Polish
