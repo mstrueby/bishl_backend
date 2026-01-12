@@ -71,8 +71,22 @@ def flatten_dict(d, parent_key="", sep="."):
 
 
 def my_jsonable_encoder(obj):
+    if isinstance(obj, dict):
+        items = obj.items()
+    elif hasattr(obj, "__dict__"):
+        items = obj.__dict__.items()
+    elif hasattr(obj, "dict"):
+        # For Pydantic v1 models
+        items = obj.dict().items()
+    elif hasattr(obj, "model_dump"):
+        # For Pydantic v2 models
+        items = obj.model_dump().items()
+    else:
+        # Fallback to standard jsonable_encoder for other types
+        return jsonable_encoder(obj)
+
     result: dict = {}
-    for field_name, val in obj.__dict__.items():
+    for field_name, val in items:
         # print(field_name, "/", val, "/", dict)
         if field_name == "id":
             # If the field name is 'id', use '_id' as the key instead.
@@ -82,9 +96,16 @@ def my_jsonable_encoder(obj):
             # Use jsonable_encoder to properly serialize datetime
             result[field_name] = jsonable_encoder(val)
             continue
-        if isinstance(val, BaseModel) and val:
-            # Recursively encode nested collections
+        if isinstance(val, (BaseModel, dict)):
+            # Recursively encode nested models or dicts
             result[field_name] = my_jsonable_encoder(val)
+            continue
+        if isinstance(val, list):
+            # Handle lists of objects
+            result[field_name] = [
+                my_jsonable_encoder(item) if isinstance(item, (BaseModel, dict)) else jsonable_encoder(item)
+                for item in val
+            ]
             continue
         result[field_name] = jsonable_encoder(val)
     return result
