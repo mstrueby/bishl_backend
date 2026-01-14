@@ -52,6 +52,23 @@ class Settings(BaseSettings):
     CLDY_API_KEY: str = Field(default="", description="Cloudinary API key")
     CLDY_API_SECRET: str = Field(default="", description="Cloudinary API secret")
 
+    # Assignment Time Window (Global constraint for player assignment changes)
+    ASSIGNMENT_WINDOW_ENABLED: bool = Field(
+        default=True, description="Whether assignment time window restrictions are enabled"
+    )
+    ASSIGNMENT_WINDOW_START_MONTH: int = Field(
+        default=1, ge=1, le=12, description="Start month for assignment changes (1-12)"
+    )
+    ASSIGNMENT_WINDOW_START_DAY: int = Field(
+        default=1, ge=1, le=31, description="Start day for assignment changes (1-31)"
+    )
+    ASSIGNMENT_WINDOW_END_MONTH: int = Field(
+        default=3, ge=1, le=12, description="End month for assignment changes (1-12)"
+    )
+    ASSIGNMENT_WINDOW_END_DAY: int = Field(
+        default=1, ge=1, le=31, description="End day for assignment changes (1-31)"
+    )
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 
