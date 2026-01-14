@@ -103,7 +103,11 @@ def my_jsonable_encoder(obj):
         if isinstance(val, list):
             # Handle lists of objects
             result[field_name] = [
-                my_jsonable_encoder(item) if isinstance(item, (BaseModel, dict)) else jsonable_encoder(item)
+                (
+                    my_jsonable_encoder(item)
+                    if isinstance(item, (BaseModel, dict))
+                    else jsonable_encoder(item)
+                )
                 for item in val
             ]
             continue

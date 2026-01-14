@@ -245,27 +245,27 @@ class PlayerAssignmentService:
         """
         Checks if a player of a given age and sex is allowed to play in a team of a given age
         based on WKO secondary and overage rules.
-        
+
         Returns: (is_allowed, max_licenses, requires_admin)
         """
         if player_age not in self._wko_rules:
             return False, None, False
-            
+
         rule = self._wko_rules[player_age]
-        
+
         # Check secondaryRules (playing in older age groups)
         for sec in rule.secondaryRules:
             if sec.targetAgeGroup == team_age and (not sec.sex or sex in sec.sex):
                 return True, sec.maxLicenses, sec.requiresAdmin
-        
+
         # Check overAgeRules (playing in younger age groups)
         for over in rule.overAgeRules:
             if over.targetAgeGroup == team_age and (not over.sex or sex in over.sex):
-                # Overage rules in WKO might not have requiresAdmin field, 
+                # Overage rules in WKO might not have requiresAdmin field,
                 # but we return a consistent signature. Default to False if missing.
                 requires_admin = getattr(over, "requiresAdmin", False)
                 return True, over.maxLicenses, requires_admin
-        
+
         # Default: not allowed
         return False, None, False
 

@@ -584,7 +584,7 @@ async def get_possible_teams(
     id: str,
     request: Request,
     club_id: str = Query(None),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
     """
     Get possible teams for a player based on WKO rules and current assignments.
@@ -610,7 +610,7 @@ async def get_possible_teams(
     teams = await service.get_possible_teams_for_player(id, target_club_id)
 
     if not teams and not await mongodb["players"].find_one({"_id": id}):
-         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+        raise ResourceNotFoundException(resource_type="Player", resource_id=id)
 
     return StandardResponse(data=teams, message="Possible teams retrieved successfully")
 
@@ -619,6 +619,7 @@ async def get_possible_teams(
 # ----------------------
 # NOTE: ISHD sync logic has been migrated to PlayerAssignmentService.process_ishd_sync()
 # This endpoint now delegates to the service for better separation of concerns.
+
 
 @router.get(
     "/process_ishd_data",
@@ -936,7 +937,9 @@ async def revalidate_player(
     request: Request,
     resetClassification: bool = Query(False, description="Reset classification before running"),
     resetValidation: bool = Query(False, description="Reset validation before running"),
-    current_user: dict = Depends(get_current_user_with_roles(["ADMIN", "CLUB_ADMIN", "PLAYER_ADMIN"])),
+    current_user: dict = Depends(
+        get_current_user_with_roles(["ADMIN", "CLUB_ADMIN", "PLAYER_ADMIN"])
+    ),
 ) -> JSONResponse:
     """
     Re-run classification and validation for a single player.
@@ -955,7 +958,7 @@ async def revalidate_player(
         # Classification step --> NO CLASSIFICATION ANYMORE, ONLY VALIDATION
         # class_modified = await assignment_service._update_player_classification_in_db(
         #    id, reset=resetClassification
-        #)
+        # )
 
         # Validation step
         val_modified = await assignment_service._update_player_validation_in_db(
@@ -965,7 +968,7 @@ async def revalidate_player(
         # Reload updated player
         updated_player_data = await mongodb["players"].find_one({"_id": id})
         if not updated_player_data:
-             raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+            raise ResourceNotFoundException(resource_type="Player", resource_id=id)
 
         updated_player = PlayerDB(**updated_player_data)
 
@@ -1035,20 +1038,24 @@ async def auto_optimize_player(
     before_summary = {
         "total": 0,
         "by_status": {"VALID": 0, "INVALID": 0, "UNKNOWN": 0},
-        "by_type": {}
+        "by_type": {},
     }
     for club in player_data.get("assignedTeams", []):
         for team in club.get("teams", []):
             before_summary["total"] += 1
             status_val = team.get("status", "UNKNOWN")
-            before_summary["by_status"][status_val] = before_summary["by_status"].get(status_val, 0) + 1
+            before_summary["by_status"][status_val] = (
+                before_summary["by_status"].get(status_val, 0) + 1
+            )
             type_val = team.get("licenseType", "UNKNOWN")
             before_summary["by_type"][type_val] = before_summary["by_type"].get(type_val, 0) + 1
 
     assignment_service = PlayerAssignmentService(mongodb)
 
     # 2. Classify + Validate (in-memory copy)
-    player_copy = my_jsonable_encoder(player_data)  # Deep copy using my_jsonable_encoder to handle datetime
+    player_copy = my_jsonable_encoder(
+        player_data
+    )  # Deep copy using my_jsonable_encoder to handle datetime
     await assignment_service.classify_license_types_for_player(player_copy)
     await assignment_service.validate_licenses_for_player(player_copy)
 
@@ -1074,8 +1081,8 @@ async def auto_optimize_player(
 
                 # Constraint 3: Must be INVALID
                 if team.get("status") != "INVALID":
-                   keep_teams.append(team)
-                   continue
+                    keep_teams.append(team)
+                    continue
 
                 # Candidate for removal
                 removable_teams.append(team)
@@ -1087,12 +1094,14 @@ async def auto_optimize_player(
 
             # Log removals
             for team in removable_teams:
-                removed_licenses.append({
-                    "clubId": club_id,
-                    "teamAlias": team.get("teamAlias"),
-                    "licenseType": team.get("licenseType"),
-                    "reason": team.get("invalidReasonCodes", [])
-                })
+                removed_licenses.append(
+                    {
+                        "clubId": club_id,
+                        "teamAlias": team.get("teamAlias"),
+                        "licenseType": team.get("licenseType"),
+                        "reason": team.get("invalidReasonCodes", []),
+                    }
+                )
 
             # Update club teams
             if keep_teams:
@@ -1104,8 +1113,7 @@ async def auto_optimize_player(
     # 4. Persists & Final Polish
     try:
         await mongodb["players"].update_one(
-            {"_id": id}, 
-            {"$set": {"assignedTeams": player_copy["assignedTeams"]}}
+            {"_id": id}, {"$set": {"assignedTeams": player_copy["assignedTeams"]}}
         )
 
         # ALWAYS final classify + validate (persisted)
@@ -1117,13 +1125,15 @@ async def auto_optimize_player(
         after_summary = {
             "total": 0,
             "by_status": {"VALID": 0, "INVALID": 0, "UNKNOWN": 0},
-            "by_type": {}
+            "by_type": {},
         }
         for club in final_player_data.get("assignedTeams", []):
             for team in club.get("teams", []):
                 after_summary["total"] += 1
                 status_val = team.get("status", "UNKNOWN")
-                after_summary["by_status"][status_val] = after_summary["by_status"].get(status_val, 0) + 1
+                after_summary["by_status"][status_val] = (
+                    after_summary["by_status"].get(status_val, 0) + 1
+                )
                 type_val = team.get("licenseType", "UNKNOWN")
                 after_summary["by_type"][type_val] = after_summary["by_type"].get(type_val, 0) + 1
 
@@ -1132,7 +1142,7 @@ async def auto_optimize_player(
             "removed": removed_licenses,
             "before": before_summary,
             "after": after_summary,
-            "clubAdminScope": user_club_id if user_role == "CLUB_ADMIN" else None
+            "clubAdminScope": user_club_id if user_role == "CLUB_ADMIN" else None,
         }
 
         # 6. Response
@@ -1143,12 +1153,14 @@ async def auto_optimize_player(
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=jsonable_encoder({
-                "success": True,
-                "data": PlayerDB(**final_player_data).model_dump(by_alias=True),
-                "message": message,
-                "actions": actions,
-            })
+            content=jsonable_encoder(
+                {
+                    "success": True,
+                    "data": PlayerDB(**final_player_data).model_dump(by_alias=True),
+                    "message": message,
+                    "actions": actions,
+                }
+            ),
         )
 
     except Exception as e:
@@ -1818,8 +1830,12 @@ async def update_player(
             if assigned_teams_changed:
                 # Immediately run classification and validation for that player
                 assignment_service = PlayerAssignmentService(mongodb)
-                class_modified = await assignment_service._update_player_classification_in_db(id, reset=False)
-                val_modified = await assignment_service._update_player_validation_in_db(id, reset=False)
+                class_modified = await assignment_service._update_player_classification_in_db(
+                    id, reset=False
+                )
+                val_modified = await assignment_service._update_player_validation_in_db(
+                    id, reset=False
+                )
 
                 message = "Player updated and licenses revalidated"
                 if class_modified or val_modified:
