@@ -66,6 +66,7 @@ class Suspension(BaseModel):
 
 class ClubTypeEnum(str, Enum):
     MAIN = "MAIN"
+    LOAN = "LOAN"
     DEVELOPMENT = "DEVELOPMENT"
 
 

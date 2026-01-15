@@ -1089,11 +1089,6 @@ async def auto_optimize_player(
                     keep_teams.append(team)
                     continue
 
-                # Constraint 4: if managedByISHD==true and licence.source==ISHD then do not remove
-                if player_copy.get("managedByISHD") and team.get("source") == "ISHD":
-                    keep_teams.append(team)
-                    continue
-
                 # Candidate for removal (was previously restricted to SECONDARY/OVERAGE, 
                 # now also allowing PRIMARY removal if invalid, but with global 'keep at least one' check)
                 removable_teams.append(team)
@@ -1107,11 +1102,11 @@ async def auto_optimize_player(
 
             # Log and track
             total_licenses_kept += len(keep_teams)
-            
+
             # Constraint: Keep at least 1 license GLOBALLY
             # If after processing all clubs we would have 0, we must keep at least one.
             # However, we process club by club. Let's adjust the logic to be safer.
-            
+
             # Temporary storage to update later
             club["_keep"] = keep_teams
             club["_remove"] = removable_teams
