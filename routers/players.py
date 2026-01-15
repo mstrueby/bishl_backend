@@ -1079,6 +1079,11 @@ async def auto_optimize_player(
                     keep_teams.append(team)
                     continue
 
+                # Constraint 2: keep LOAN/SPECIAL/DEVELOPMENT
+                if team.get("licenseType") in ["LOAN", "SPECIAL", "DEVELOPMENT"]:
+                    keep_teams.append(team)
+                    continue
+
                 # Constraint 3: Must be INVALID to be even considered for removal
                 if team.get("status") != "INVALID":
                     keep_teams.append(team)
