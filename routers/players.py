@@ -1089,6 +1089,11 @@ async def auto_optimize_player(
                     keep_teams.append(team)
                     continue
 
+                # Constraint 4: if managedByISHD==true and licence.source==ISHD then do not remove
+                if player_copy.get("managedByISHD") and team.get("source") == "ISHD":
+                    keep_teams.append(team)
+                    continue
+
                 # Candidate for removal (was previously restricted to SECONDARY/OVERAGE, 
                 # now also allowing PRIMARY removal if invalid, but with global 'keep at least one' check)
                 removable_teams.append(team)
