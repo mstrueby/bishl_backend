@@ -1059,36 +1059,68 @@ async def auto_optimize_player(
     # 3. Constrained Cleanup
     if not keep_invalid:
         optimized_assigned_teams = []
+        
+        # Track global count of licenses across all clubs
+        total_licenses_before_cleanup = sum(len(club.get("teams", [])) for club in player_copy.get("assignedTeams", []))
+        total_licenses_kept = 0
+
+        # First pass: Identify what we MUST keep and what we CAN remove
+        # We need to process in a way that ensures at least one license remains globally
+        # and own club (if CLUB_ADMIN) must have at least one license.
+        
         for club in player_copy.get("assignedTeams", []):
             club_id = club.get("clubId")
             removable_teams = []
             keep_teams = []
 
             for team in club.get("teams", []):
-                # CLUB_ADMIN constraint 1: Own club only
+                # CLUB_ADMIN constraint 1: Own club only (cannot remove from other clubs)
                 if user_role == "CLUB_ADMIN" and club_id != user_club_id:
                     keep_teams.append(team)
                     continue
 
-                # Constraint 2: Only SECONDARY/OVERAGE
-                if team.get("licenseType") not in ["SECONDARY", "OVERAGE"]:
-                    keep_teams.append(team)
-                    continue
-
-                # Constraint 3: Must be INVALID
+                # Constraint 3: Must be INVALID to be even considered for removal
                 if team.get("status") != "INVALID":
                     keep_teams.append(team)
                     continue
 
-                # Candidate for removal
+                # Candidate for removal (was previously restricted to SECONDARY/OVERAGE, 
+                # now also allowing PRIMARY removal if invalid, but with global 'keep at least one' check)
                 removable_teams.append(team)
 
-            # Constraint 4: Keep at least 1 license per club
-            if len(keep_teams) == 0 and removable_teams:
-                # Promote first removable to keep
-                keep_teams.append(removable_teams.pop(0))
+            # Own club constraint: If this is the user's own club and they are a CLUB_ADMIN, 
+            # they must have at least one license left in their club.
+            if user_role == "CLUB_ADMIN" and club_id == user_club_id:
+                if len(keep_teams) == 0 and removable_teams:
+                    # Promote one to keep to ensure own club has at least one
+                    keep_teams.append(removable_teams.pop(0))
 
-            # Log removals
+            # Log and track
+            total_licenses_kept += len(keep_teams)
+            
+            # Constraint: Keep at least 1 license GLOBALLY
+            # If after processing all clubs we would have 0, we must keep at least one.
+            # However, we process club by club. Let's adjust the logic to be safer.
+            
+            # Temporary storage to update later
+            club["_keep"] = keep_teams
+            club["_remove"] = removable_teams
+
+        # Final check: Ensure at least one license exists globally
+        all_keep = [t for c in player_copy.get("assignedTeams", []) for t in c.get("_keep")]
+        if not all_keep:
+            # We must promote one from any club's removable list
+            for club in player_copy.get("assignedTeams", []):
+                if club.get("_remove"):
+                    club["_keep"].append(club["_remove"].pop(0))
+                    break
+
+        # Reconstruct optimized_assigned_teams and log removals
+        for club in player_copy.get("assignedTeams", []):
+            club_id = club.get("clubId")
+            keep_teams = club.pop("_keep")
+            removable_teams = club.pop("_remove")
+
             for team in removable_teams:
                 removed_licenses.append(
                     {
@@ -1099,7 +1131,6 @@ async def auto_optimize_player(
                     }
                 )
 
-            # Update club teams
             if keep_teams:
                 club["teams"] = keep_teams
                 optimized_assigned_teams.append(club)
