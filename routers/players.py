@@ -435,7 +435,11 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                         "jerseyNo": team_to_assign.jerseyNo,
                         "active": team_to_assign.active,
                         "source": team_to_assign.source,
-                        "licenseType": "UNKNOWN",
+                        "licenseType": (
+                            team_to_assign.licenseType
+                            if hasattr(team_to_assign, "licenseType")
+                            else "PRIMARY"
+                        ),
                         "modifyDate": team_to_assign.modifyDate,
                     }
                 )
@@ -575,7 +579,7 @@ async def get_players_with_invalid_licences(
     return PaginatedResponse(**response_dict)
 
 
-@router.get("/{id}/possible_teams", response_model=StandardResponse[list[dict]])
+@router.get("/{id}/possible-teams", response_model=StandardResponse[list[dict]])
 async def get_possible_teams(
     id: str,
     request: Request,
