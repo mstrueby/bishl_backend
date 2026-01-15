@@ -435,11 +435,7 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                         "jerseyNo": team_to_assign.jerseyNo,
                         "active": team_to_assign.active,
                         "source": team_to_assign.source,
-                        "licenseType": (
-                            team_to_assign.licenseType
-                            if hasattr(team_to_assign, "licenseType")
-                            else "PRIMARY"
-                        ),
+                        "licenseType": "UNKNOWN",
                         "modifyDate": team_to_assign.modifyDate,
                     }
                 )
