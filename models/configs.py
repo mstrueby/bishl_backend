@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class ConfigValue(BaseModel):
     key: str
-    value: str | int | float  # Adjust types as needed
+    value: str | int | float | bool  # Adjust types as needed
     sortOrder: int
 
 

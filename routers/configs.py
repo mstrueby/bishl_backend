@@ -13,6 +13,15 @@ auth = AuthHandler()
 
 # Config document
 configs: list[Config] = [  # Use List[Config] for type hinting
+    Config(key="PLAYER_ASSIGNMENT_WINDOW",
+           name="Zeitfenster für Spielerzuweisungen",
+           value=[
+               ConfigValue(key="ENABLED", value=True, sortOrder=1),
+               ConfigValue(key="START_MONTH", value=1, sortOrder=2),
+               ConfigValue(key="START_DAY", value=1, sortOrder=3),
+               ConfigValue(key="END_MONTH", value=3, sortOrder=4),
+               ConfigValue(key="END_DAY", value=1, sortOrder=5)
+           ]),
     Config(
         key="COUNTRY",
         name="Land",
@@ -78,7 +87,9 @@ configs: list[Config] = [  # Use List[Config] for type hinting
         name="Penalty Code",
         value=[
             ConfigValue(key="A", value="Behinderung", sortOrder=1),
-            ConfigValue(key="B", value="Unerlaubter Körperangriff", sortOrder=2),
+            ConfigValue(key="B",
+                        value="Unerlaubter Körperangriff",
+                        sortOrder=2),
             ConfigValue(key="C", value="Übertriebene Härte", sortOrder=3),
             ConfigValue(key="D", value="Cross-Check", sortOrder=4),
             ConfigValue(key="E", value="Halten", sortOrder=5),
@@ -93,14 +104,22 @@ configs: list[Config] = [  # Use List[Config] for type hinting
             ConfigValue(key="N", value="Stockendstoß", sortOrder=14),
             ConfigValue(key="O", value="Kniecheck", sortOrder=15),
             ConfigValue(key="P", value="Kopfstoß", sortOrder=16),
-            ConfigValue(key="Q", value="Check gegen Kopf- und Nackenbereich", sortOrder=17),
+            ConfigValue(key="Q",
+                        value="Check gegen Kopf- und Nackenbereich",
+                        sortOrder=17),
             ConfigValue(key="R", value="Fußtritt", sortOrder=18),
             ConfigValue(key="W", value="Wechselfehler", sortOrder=19),
             ConfigValue(key="X", value="Spielverzögerung", sortOrder=20),
             ConfigValue(key="Y", value="Vergehen von Torhütern", sortOrder=21),
-            ConfigValue(key="ZA", value="Bankstrafe, Fehlverhalten", sortOrder=23),
-            ConfigValue(key="ZB", value="Vergehen auf der Strafbank", sortOrder=24),
-            ConfigValue(key="ZC", value="Vergehen im Zusammenhang mit Ausrüstung", sortOrder=25),
+            ConfigValue(key="ZA",
+                        value="Bankstrafe, Fehlverhalten",
+                        sortOrder=23),
+            ConfigValue(key="ZB",
+                        value="Vergehen auf der Strafbank",
+                        sortOrder=24),
+            ConfigValue(key="ZC",
+                        value="Vergehen im Zusammenhang mit Ausrüstung",
+                        sortOrder=25),
         ],
     ),
     Config(
@@ -126,21 +145,25 @@ configs: list[Config] = [  # Use List[Config] for type hinting
 
 
 # Get all configs
-@router.get("", response_model=list[Config], response_description="Get all configs")
+@router.get("",
+            response_model=list[Config],
+            response_description="Get all configs")
 async def get_all_configs(request: Request):
-    return JSONResponse(
-        status_code=status.HTTP_200_OK, content=[config.model_dump() for config in configs]
-    )
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=[config.model_dump() for config in configs])
 
 
 # Get one config
-@router.get("/{key}", response_model=Config, response_description="Get one config")
+@router.get("/{key}",
+            response_model=Config,
+            response_description="Get one config")
 async def get_one_config(request: Request, key: str = Path(...)):
     lower_key = key.lower()
     for config in configs:
         if config.key.lower() == lower_key:
             logger.debug(f"Config retrieved: {key}")
-            return JSONResponse(status_code=status.HTTP_200_OK, content=config.model_dump())
-    raise ResourceNotFoundException(
-        resource_type="Config", resource_id=key, details={"searched_key": lower_key}
-    )
+            return JSONResponse(status_code=status.HTTP_200_OK,
+                                content=config.model_dump())
+    raise ResourceNotFoundException(resource_type="Config",
+                                    resource_id=key,
+                                    details={"searched_key": lower_key})

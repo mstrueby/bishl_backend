@@ -1005,7 +1005,7 @@ async def revalidate_player(
         ) from e
 
 
-@router.post("/{id}/auto_optimize", response_model=StandardResponse[PlayerDB])
+@router.post("/{id}/auto-optimize", response_model=StandardResponse[PlayerDB])
 async def auto_optimize_player(
     id: str,
     request: Request,
