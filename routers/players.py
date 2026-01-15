@@ -1059,7 +1059,7 @@ async def auto_optimize_player(
     # 3. Constrained Cleanup
     if not keep_invalid:
         optimized_assigned_teams = []
-        
+
         # Track global count of licenses across all clubs
         total_licenses_before_cleanup = sum(len(club.get("teams", [])) for club in player_copy.get("assignedTeams", []))
         total_licenses_kept = 0
@@ -1067,7 +1067,7 @@ async def auto_optimize_player(
         # First pass: Identify what we MUST keep and what we CAN remove
         # We need to process in a way that ensures at least one license remains globally
         # and own club (if CLUB_ADMIN) must have at least one license.
-        
+
         for club in player_copy.get("assignedTeams", []):
             club_id = club.get("clubId")
             removable_teams = []
@@ -1086,6 +1086,11 @@ async def auto_optimize_player(
 
                 # Constraint 3: Must be INVALID to be even considered for removal
                 if team.get("status") != "INVALID":
+                    keep_teams.append(team)
+                    continue
+
+                # Constraint 4: if managedByISHD==True then DO NOT remove licenses with source==ISHD
+                if player_copy.get("managedByISHD") is True and team.get("source") == "ISHD":
                     keep_teams.append(team)
                     continue
 
