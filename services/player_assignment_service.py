@@ -1747,7 +1747,7 @@ class PlayerAssignmentService:
         clubs_cursor = self.db["clubs"].find(club_query)
         clubs = await clubs_cursor.to_list(length=None)
 
-        # 4. Exclude already assigned teams
+        # 4. Identify assigned teams
         assigned_team_ids = set()
         for club_assignment in player.get("assignedTeams", []):
             for team_assignment in club_assignment.get("teams", []):
@@ -1756,10 +1756,7 @@ class PlayerAssignmentService:
         results = []
         for club in clubs:
             for team in club.get("teams", []):
-                if team["_id"] in assigned_team_ids:
-                    continue
-
-                # 5. Classify and validate
+                team_id = team["_id"]
                 team_age_group = team.get("ageGroup")
 
                 # Recommendation logic
@@ -1782,7 +1779,7 @@ class PlayerAssignmentService:
                 # 6. Build result
                 results.append(
                     {
-                        "teamId": team["_id"],
+                        "teamId": team_id,
                         "teamAlias": team.get("alias"),
                         "teamName": team.get("name"),
                         "teamAgeGroup": team_age_group,
@@ -1793,6 +1790,7 @@ class PlayerAssignmentService:
                         "requiresAdmin": requires_admin,
                         "clubId": club["_id"],
                         "clubName": club["name"],
+                        "assigned": team_id in assigned_team_ids,
                     }
                 )
 
