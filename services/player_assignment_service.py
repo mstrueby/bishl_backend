@@ -1442,7 +1442,7 @@ class PlayerAssignmentService:
                         )
 
                     # Also mark all HOBBY teams as invalid
-                    for hobby_team in hobby_teams:
+                    for _, hobby_team in hobby_teams:
                         hobby_team["status"] = LicenseStatusEnum.INVALID
                         if LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT not in hobby_team.get(
                             "invalidReasonCodes", []
