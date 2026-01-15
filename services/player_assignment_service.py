@@ -332,6 +332,13 @@ class PlayerAssignmentService:
                 if pass_no.strip().upper().endswith("F"):
                     club["clubType"] = ClubTypeEnum.DEVELOPMENT
 
+        # Step 2b: Detect LOAN clubs - check ALL teams (not just newly classified)
+        # A club is LOAN if passNo ends with 'L' OR licenseType is LOAN
+        for club, team in all_licenses:
+            pass_no = team.get("passNo") or ""
+            if pass_no.strip().upper().endswith("L") or team.get("licenseType") == LicenseTypeEnum.LOAN:
+                club["clubType"] = ClubTypeEnum.LOAN
+
         # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
         # We need to determine player's age group first
         player_obj = PlayerDB(**self._prepare_player_for_validation(player))
