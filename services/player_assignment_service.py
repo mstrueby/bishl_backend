@@ -869,19 +869,25 @@ class PlayerAssignmentService:
                         LicenseInvalidReasonCode.LOAN_CLUB_CONFLICT
                     )
 
-        # Rule 3: No other license in same age group as LOAN in other clubs
+        # Rule 3: LOAN cannot be in the same age group as any license in other clubs
+        # When conflict exists, invalidate the LOAN (not the other license - PRIMARY takes priority)
+        loan_team = loan_info["team"]
         for club in player["assignedTeams"]:
             if club.get("clubId") == loan_club_id:
                 continue
             for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
                 if team.get("teamAgeGroup") == loan_age_group:
-                    team["status"] = LicenseStatusEnum.INVALID
-                    if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
+                    # Conflict found - invalidate the LOAN license, not this one
+                    loan_team["status"] = LicenseStatusEnum.INVALID
+                    if LicenseInvalidReasonCode.LOAN_AGE_GROUP_CONFLICT not in loan_team.get(
                         "invalidReasonCodes", []
                     ):
-                        team.setdefault("invalidReasonCodes", []).append(
-                            LicenseInvalidReasonCode.AGE_GROUP_VIOLATION
+                        loan_team.setdefault("invalidReasonCodes", []).append(
+                            LicenseInvalidReasonCode.LOAN_AGE_GROUP_CONFLICT
                         )
+                    return  # LOAN is already invalid, no need to check further
 
     def _validate_import_conflicts(self, player: dict) -> None:
         """
