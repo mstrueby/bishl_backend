@@ -332,7 +332,14 @@ class PlayerAssignmentService:
                 if pass_no.strip().upper().endswith("F"):
                     club["clubType"] = ClubTypeEnum.DEVELOPMENT
 
-        # Step 2b: Detect LOAN clubs - check ALL teams (not just newly classified)
+        # Step 2b: Detect DEVELOPMENT clubs - check ALL teams (not just newly classified)
+        # A club is DEVELOPMENT if passNo ends with 'F'
+        for club, team in all_licenses:
+            pass_no = team.get("passNo") or ""
+            if pass_no.strip().upper().endswith("F"):
+                club["clubType"] = ClubTypeEnum.DEVELOPMENT
+
+        # Step 2c: Detect LOAN clubs - check ALL teams (not just newly classified)
         # A club is LOAN if passNo ends with 'L' OR licenseType is LOAN
         for club, team in all_licenses:
             pass_no = team.get("passNo") or ""
@@ -877,14 +884,24 @@ class PlayerAssignmentService:
                         )
 
     def _validate_import_conflicts(self, player: dict) -> None:
-        """Validate ISHD vs BISHL conflicts - ISHD never overrides BISHL (skip adminOverride=True)"""
+        """
+        Validate ISHD vs BISHL conflicts - ISHD never overrides BISHL (skip adminOverride=True).
+        
+        Respects clubType separation: MAIN and DEVELOPMENT are separate pools.
+        BISHL PRIMARY in MAIN should NOT conflict with ISHD PRIMARY in DEVELOPMENT.
+        """
         if not player.get("assignedTeams"):
             return
 
-        # Collect BISHL licenses by type
-        bishl_licenses = {}
+        # Collect BISHL licenses by (clubType, licenseType) tuple
+        # This ensures MAIN and DEVELOPMENT pools are separate
+        bishl_licenses_by_pool: dict[tuple[ClubTypeEnum, LicenseTypeEnum], set] = {}
 
         for club in player["assignedTeams"]:
+            club_type = club.get("clubType", ClubTypeEnum.MAIN)
+            if club_type not in [ClubTypeEnum.MAIN, ClubTypeEnum.DEVELOPMENT]:
+                club_type = ClubTypeEnum.MAIN
+
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
@@ -892,27 +909,28 @@ class PlayerAssignmentService:
                     team.get("source") == SourceEnum.BISHL
                     and team.get("status") == LicenseStatusEnum.VALID
                 ):
-                    # Fix 1: Exclude DEVELOPMENT (F-suffix) from causing conflicts for MAIN ISHD licenses
-                    pass_no = team.get("passNo") or ""
-                    if pass_no.strip().upper().endswith("F"):
-                        continue
-
                     license_type = team.get("licenseType")
-                    if license_type not in bishl_licenses:
-                        bishl_licenses[license_type] = set()
-                    bishl_licenses[license_type].add(team.get("teamId"))
+                    pool_key = (club_type, license_type)
+                    if pool_key not in bishl_licenses_by_pool:
+                        bishl_licenses_by_pool[pool_key] = set()
+                    bishl_licenses_by_pool[pool_key].add(team.get("teamId"))
 
-        # Check ISHD licenses for conflicts
+        # Check ISHD licenses for conflicts within the SAME clubType pool
         for club in player["assignedTeams"]:
+            club_type = club.get("clubType", ClubTypeEnum.MAIN)
+            if club_type not in [ClubTypeEnum.MAIN, ClubTypeEnum.DEVELOPMENT]:
+                club_type = ClubTypeEnum.MAIN
+
             for team in club.get("teams", []):
                 if (
                     team.get("source") == SourceEnum.ISHD
                     and team.get("status") == LicenseStatusEnum.VALID
                 ):
-                    # If there's a BISHL license of the same type, mark ISHD as conflict
                     license_type = team.get("licenseType")
-                    if license_type in bishl_licenses:
-                        # For PRIMARY, any BISHL PRIMARY conflicts
+                    pool_key = (club_type, license_type)
+                    
+                    # Only conflict if BISHL license exists in the SAME clubType pool
+                    if pool_key in bishl_licenses_by_pool:
                         if license_type == LicenseTypeEnum.PRIMARY:
                             team["status"] = LicenseStatusEnum.INVALID
                             if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
