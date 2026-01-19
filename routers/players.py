@@ -60,6 +60,50 @@ def get_current_user_with_roles(required_roles: list[str]):
     return role_checker
 
 
+@router.get(
+    "/wko-rules",
+    response_description="Get structured document about implemented WKO-Rules",
+    response_model=StandardResponse,
+)
+async def get_wko_rules(request: Request):
+    """
+    Returns a structured document about implemented WKO-Rules,
+    including age groups, overage rules, and equipment requirements.
+    """
+    # WKO Rules from service
+    wko_rules = PlayerAssignmentService.WKO_RULES
+
+    # Dynamic rules from models (documentation of logic)
+    dynamic_rules = {
+        "fullFaceReq": {
+            "description": "Full face protection requirement",
+            "rule": "Required for all players born on or after 1993-01-01",
+            "threshold_date": "1993-01-01",
+        },
+        "ageGroups": {
+            "description": "Age group calculation based on birth year relative to current year",
+            "logic": [
+                {"max_age_diff": 7, "group": "U8"},
+                {"max_age_diff": 9, "group": "U10"},
+                {"max_age_diff": 12, "group": "U13"},
+                {"max_age_diff": 15, "group": "U16"},
+                {"max_age_diff": 18, "group": "U19"},
+                {"default": "HERREN (Male) / DAMEN (Female)"},
+            ],
+        },
+        "overAgeRules": {
+            "description": "Special over-age eligibility rules (e.g. Bambini rule)",
+            "details": "Specific rules apply for U13, U16, U19 and DAMEN based on sex and birth month.",
+        },
+    }
+
+    return StandardResponse(
+        success=True,
+        message="WKO Rules retrieved successfully",
+        data={"wko_rules": jsonable_encoder(wko_rules), "dynamic_rules": dynamic_rules},
+    )
+
+
 # upload file
 async def handle_image_upload(image: UploadFile, playerId) -> str:
     if image:
