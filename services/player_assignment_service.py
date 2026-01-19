@@ -304,6 +304,11 @@ class PlayerAssignmentService:
         # Classify based on age group comparison rather than defaulting to PRIMARY
         if len(all_licenses) == 1:
             club, team = all_licenses[0]
+            
+            # PROTECT LOAN and SPECIAL licenses from being changed
+            if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+                return player
+                
             team_age_group = team.get("teamAgeGroup")
 
             # Get player's age group for comparison
@@ -326,6 +331,10 @@ class PlayerAssignmentService:
 
         # Step 2: Apply suffix-based classification
         for club, team in all_licenses:
+            # PROTECT LOAN and SPECIAL licenses from being changed
+            if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+                continue
+                
             # Only classify if licenseType is UNKNOWN or not set
             if team.get("licenseType") == LicenseTypeEnum.UNKNOWN or not team.get("licenseType"):
                 license_type = self._classify_by_pass_suffix(team.get("passNo", ""))
@@ -357,6 +366,10 @@ class PlayerAssignmentService:
 
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
+                # PROTECT LOAN and SPECIAL licenses from being changed
+                if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+                    continue
+                    
                 if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
                     team_age_group = team.get("teamAgeGroup")
                     # If team age group matches player age group, set as PRIMARY
@@ -376,6 +389,10 @@ class PlayerAssignmentService:
 
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
+                    # PROTECT LOAN and SPECIAL licenses from being changed
+                    if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+                        continue
+                        
                     # Only check UNKNOWN licenses
                     if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
                         team_age_group = team.get("teamAgeGroup")
@@ -411,6 +428,8 @@ class PlayerAssignmentService:
             club_id = club.get("clubId")
             if club_id not in clubs_with_primary:
                 # Find ISHD UNKNOWN licenses in this club
+                # (LOAN and SPECIAL are already protected by being skipped in previous steps, 
+                # but we check licenseType == UNKNOWN here anyway)
                 ishd_unknown_licenses = [
                     team
                     for team in club.get("teams", [])
@@ -446,6 +465,10 @@ class PlayerAssignmentService:
         unknown_licenses = []
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
+                # PROTECT LOAN and SPECIAL licenses from being changed
+                if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+                    continue
+                    
                 if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
                     unknown_licenses.append((club, team))
 
