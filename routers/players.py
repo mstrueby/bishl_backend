@@ -96,7 +96,7 @@ async def delete_from_cloudinary(image_url: str):
 # BOOTSTRAP PLAYER LICENCE CLASSIFICATION (heuristic classification)
 # ----------------------
 @router.post(
-    "/bootstrap_classification",
+    "/bootstrap-classification",
     response_description="Bootstrap player license assignment based on passNo heuristics",
     include_in_schema=False,
 )
@@ -149,7 +149,7 @@ async def bootstrap_classification(
 # BOOTSTRAP PLAYER VALIDATION (WKO/BISHL rules)
 # ----------------------
 @router.post(
-    "/bootstrap_validation",
+    "/bootstrap-validation",
     response_description="Bootstrap player license validation based on WKO/BISHL rules",
     include_in_schema=False,
 )
@@ -205,7 +205,7 @@ async def bootstrap_validation(
 # BOOTSTRAP ALL (orchestrator for both services)
 # ----------------------
 @router.post(
-    "/bootstrap_all",
+    "/bootstrap-all",
     response_description="Bootstrap both assignment and validation for all players",
     include_in_schema=False,
 )
@@ -618,7 +618,7 @@ async def get_possible_teams(
 
 
 @router.get(
-    "/process_ishd_data",
+    "/process-ishd-data",
     response_description="Process ISHD player data to BISHL-Application",
     include_in_schema=False,
 )
