@@ -552,13 +552,11 @@ class PlayerAssignmentService:
                     return LicenseTypeEnum.SECONDARY
         
         # Check OVERAGE rules (playing in younger age groups)
-        # Only recommend OVERAGE if player actually has overAge=true
-        if player_is_overage:
-            for over_rule in player_rule.overAgeRules:
-                if over_rule.targetAgeGroup == team_age_group:
-                    # Check sex restriction if defined
-                    if not over_rule.sex or player_sex in over_rule.sex:
-                        return LicenseTypeEnum.OVERAGE
+        for over_rule in player_rule.overAgeRules:
+            if over_rule.targetAgeGroup == team_age_group:
+                # Check sex restriction if defined
+                if not over_rule.sex or player_sex in over_rule.sex:
+                    return LicenseTypeEnum.OVERAGE
         
         # Fallback to PRIMARY (will likely be INVALID status)
         return LicenseTypeEnum.PRIMARY
