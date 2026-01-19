@@ -89,7 +89,8 @@ async def get_wko_rules(request: Request):
                 {"year_range": f"{current_year - 12} - {current_year - 10}", "group": "U13"},
                 {"year_range": f"{current_year - 15} - {current_year - 13}", "group": "U16"},
                 {"year_range": f"{current_year - 18} - {current_year - 16}", "group": "U19"},
-                {"year_range": f"<= {current_year - 19}", "group": "HERREN (Male) / DAMEN (Female)"},
+                {"year_range": f"<= {current_year - 19}", "group": "HERREN"},
+                {"year_range": f"<= {current_year - 19}", "group": "DAMEN"},
             ],
         },
         "overAgeRules": {
