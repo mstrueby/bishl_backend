@@ -241,7 +241,7 @@ class PlayerAssignmentService:
             player_copy["displayLastName"] = player_copy.get("lastName", "")
         return player_copy
 
-    def _is_team_allowed(self, player_age: str, team_age: str, sex: SexEnum):
+    def _is_team_allowed(self, player_age: str, team_age: str, sex: SexEnum, over_age_flag: bool = False):
         """
         Checks if a player of a given age and sex is allowed to play in a team of a given age
         based on WKO secondary and overage rules.
@@ -261,6 +261,10 @@ class PlayerAssignmentService:
         # Check overAgeRules (playing in younger age groups)
         for over in rule.overAgeRules:
             if over.targetAgeGroup == team_age and (not over.sex or sex in over.sex):
+                # Only allowed if player has the overAge flag set to true
+                if not over_age_flag:
+                    return False, over.maxLicenses, getattr(over, "requiresAdmin", False)
+                
                 # Overage rules in WKO might not have requiresAdmin field,
                 # but we return a consistent signature. Default to False if missing.
                 requires_admin = getattr(over, "requiresAdmin", False)
@@ -1848,7 +1852,7 @@ class PlayerAssignmentService:
 
                 # WKO compliance check
                 is_allowed, max_lic, requires_admin = self._is_team_allowed(
-                    player_age, team_age_group, player_sex
+                    player_age, team_age_group, player_sex, player_obj.overAge
                 )
 
                 # Special case: PRIMARY (player's own age group) is always allowed
