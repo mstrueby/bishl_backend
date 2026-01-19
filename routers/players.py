@@ -94,7 +94,31 @@ async def get_wko_rules(request: Request):
         },
         "overAgeRules": {
             "description": "Special over-age eligibility rules (e.g. Bambini rule)",
-            "details": "Specific rules apply for U13, U16, U19 and DAMEN based on sex and birth month.",
+            "logic": [
+                {
+                    "target_group": "U13",
+                    "female": {"year_of_birth": current_year - 10},
+                    "male": {
+                        "start_date": f"{current_year - 10}-09-01",
+                        "end_date": f"{current_year - 10}-12-31",
+                    },
+                },
+                {
+                    "target_group": "U16",
+                    "female": {"year_of_birth": current_year - 13},
+                    "male": "Not eligible",
+                },
+                {
+                    "target_group": "U19",
+                    "female": {"year_of_birth": current_year - 16},
+                    "male": "Not eligible",
+                },
+                {
+                    "target_group": "DAMEN",
+                    "female": {"year_of_birth": current_year - 19},
+                    "male": "Not applicable",
+                },
+            ],
         },
     }
 

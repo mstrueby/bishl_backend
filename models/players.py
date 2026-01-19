@@ -194,7 +194,7 @@ class PlayerBase(MongoBaseModel):
     nationality: str | None = None
     position: PositionEnum = Field(default=PositionEnum.SKATER)
     source: SourceEnum = Field(default=SourceEnum.BISHL)
-    sex: SexEnum = Field(default=SexEnum.MALE)
+    sex: SexEnum = Field(default=SexEnum.MALE)dynamic_rules 
     assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
     playUpTrackings: list[PlayUpTracking] | None = Field(
         default_factory=list, description="Track play-up occurrences separately from licenses"
