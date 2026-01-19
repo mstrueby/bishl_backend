@@ -406,12 +406,25 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
 
     assigned_teams_dict = []
     print("assignment_team_objs:", assigned_teams_objs)
+    
+    # Track teamIds to check for duplicates
+    seen_team_ids = set()
+    
     for club_to_assign in assigned_teams_objs:
         club_exists = await mongodb["clubs"].find_one({"_id": club_to_assign.clubId})
         if not club_exists:
             raise ResourceNotFoundException(resource_type="Club", resource_id=club_to_assign.clubId)
         teams = []
         for team_to_assign in club_to_assign.teams:
+            # CHECK FOR DUPLICATES
+            if team_to_assign.teamId in seen_team_ids:
+                raise ValidationException(
+                    field="assignedTeams",
+                    message=f"Duplicate team assignment detected: teamId {team_to_assign.teamId}",
+                    details={"teamId": team_to_assign.teamId}
+                )
+            seen_team_ids.add(team_to_assign.teamId)
+            
             print("team_to_assign:", club_exists["name"], "/", team_to_assign)
             team = next(
                 (team for team in club_exists["teams"] if team["_id"] == team_to_assign.teamId),
