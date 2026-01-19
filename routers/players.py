@@ -72,6 +72,7 @@ async def get_wko_rules(request: Request):
     """
     # WKO Rules from service
     wko_rules = PlayerAssignmentService.WKO_RULES
+    current_year = datetime.now().year
 
     # Dynamic rules from models (documentation of logic)
     dynamic_rules = {
@@ -83,11 +84,11 @@ async def get_wko_rules(request: Request):
         "ageGroups": {
             "description": "Age group calculation based on birth year relative to current year",
             "logic": [
-                {"max_age_diff": 7, "group": "U8"},
-                {"max_age_diff": 9, "group": "U10"},
-                {"max_age_diff": 12, "group": "U13"},
-                {"max_age_diff": 15, "group": "U16"},
-                {"max_age_diff": 18, "group": "U19"},
+                {"year_range": f">= {current_year - 7}", "group": "U8"},
+                {"year_range": f"{current_year - 9} - {current_year - 8}", "group": "U10"},
+                {"year_range": f"{current_year - 12} - {current_year - 10}", "group": "U13"},
+                {"year_range": f"{current_year - 15} - {current_year - 13}", "group": "U16"},
+                {"year_range": f"{current_year - 18} - {current_year - 16}", "group": "U19"},
                 {"default": "HERREN (Male) / DAMEN (Female)"},
             ],
         },
