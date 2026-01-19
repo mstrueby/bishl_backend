@@ -503,6 +503,66 @@ class PlayerAssignmentService:
         # Validation step will catch any age group violations
         return LicenseTypeEnum.PRIMARY
 
+    def _get_recommended_license_type(
+        self,
+        player_age_group: str,
+        team_age_group: str,
+        player_sex: SexEnum,
+        player_is_overage: bool,
+    ) -> LicenseTypeEnum:
+        """
+        Determine the recommended license type for a team based on WKO rules.
+        
+        Used by get_possible_teams endpoint to suggest license types upfront.
+        This is NOT the classification logic used during PATCH - that remains unchanged.
+        
+        Rules:
+        - Same age group → PRIMARY
+        - In secondaryRules → SECONDARY (if sex matches)
+        - In overAgeRules → OVERAGE (only if player has overAge=true AND sex matches)
+        - Otherwise → PRIMARY (fallback, likely INVALID)
+        
+        Args:
+            player_age_group: Player's age group (e.g., "U16")
+            team_age_group: Team's age group
+            player_sex: Player's sex for rule matching
+            player_is_overage: Whether player has overAge flag
+            
+        Returns:
+            LicenseTypeEnum recommendation
+        """
+        if not player_age_group or not team_age_group:
+            return LicenseTypeEnum.PRIMARY
+        
+        # Same age group → PRIMARY
+        if player_age_group == team_age_group:
+            return LicenseTypeEnum.PRIMARY
+        
+        # Check WKO rules
+        if player_age_group not in self._wko_rules:
+            return LicenseTypeEnum.PRIMARY
+        
+        player_rule = self._wko_rules[player_age_group]
+        
+        # Check SECONDARY rules (playing in older age groups)
+        for sec_rule in player_rule.secondaryRules:
+            if sec_rule.targetAgeGroup == team_age_group:
+                # Check sex restriction if defined
+                if not sec_rule.sex or player_sex in sec_rule.sex:
+                    return LicenseTypeEnum.SECONDARY
+        
+        # Check OVERAGE rules (playing in younger age groups)
+        # Only recommend OVERAGE if player actually has overAge=true
+        if player_is_overage:
+            for over_rule in player_rule.overAgeRules:
+                if over_rule.targetAgeGroup == team_age_group:
+                    # Check sex restriction if defined
+                    if not over_rule.sex or player_sex in over_rule.sex:
+                        return LicenseTypeEnum.OVERAGE
+        
+        # Fallback to PRIMARY (will likely be INVALID status)
+        return LicenseTypeEnum.PRIMARY
+
     def _classify_by_pass_suffix(self, pass_no: str) -> str:
         """
         Classify license type based on passNo suffix.
@@ -1783,9 +1843,9 @@ class PlayerAssignmentService:
                 team_id = team["_id"]
                 team_age_group = team.get("ageGroup")
 
-                # Recommendation logic
-                rec_type = self._classify_single_license_by_age_group(
-                    player_age, team_age_group, player_obj.overAge
+                # Recommendation logic based on WKO rules
+                rec_type = self._get_recommended_license_type(
+                    player_age, team_age_group, player_sex, player_obj.overAge
                 )
 
                 # WKO compliance check
