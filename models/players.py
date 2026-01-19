@@ -193,7 +193,6 @@ class PlayerBase(MongoBaseModel):
     displayLastName: str = Field(...)
     nationality: str | None = None
     position: PositionEnum = Field(default=PositionEnum.SKATER)
-    fullFaceReq: bool = False
     source: SourceEnum = Field(default=SourceEnum.BISHL)
     sex: SexEnum = Field(default=SexEnum.MALE)
     assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
@@ -219,6 +218,13 @@ class PlayerBase(MongoBaseModel):
 
 class PlayerDB(PlayerBase):
     """Player model for database operations"""
+
+    @property
+    def fullFaceReq(self) -> bool:
+        """Determine if full face protection is required based on birthdate (>= 1.1.1993)"""
+        if not self.birthdate:
+            return False
+        return self.birthdate >= datetime(1993, 1, 1)
 
     @property
     def ageGroup(self) -> str:
@@ -294,6 +300,7 @@ class PlayerDB(PlayerBase):
         result = super().model_dump(*args, **kwargs)
         result["ageGroup"] = self.ageGroup
         result["overAge"] = self.overAge
+        result["fullFaceReq"] = self.fullFaceReq
         return result
 
 
