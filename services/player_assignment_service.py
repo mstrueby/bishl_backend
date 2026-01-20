@@ -241,7 +241,9 @@ class PlayerAssignmentService:
             player_copy["displayLastName"] = player_copy.get("lastName", "")
         return player_copy
 
-    def _is_team_allowed(self, player_age: str, team_age: str, sex: SexEnum, over_age_flag: bool = False):
+    def _is_team_allowed(
+        self, player_age: str, team_age: str, sex: SexEnum, over_age_flag: bool = False
+    ):
         """
         Checks if a player of a given age and sex is allowed to play in a team of a given age
         based on WKO secondary and overage rules.
@@ -264,7 +266,7 @@ class PlayerAssignmentService:
                 # Only allowed if player has the overAge flag set to true
                 if not over_age_flag:
                     return False, over.maxLicenses, getattr(over, "requiresAdmin", False)
-                
+
                 # Overage rules in WKO might not have requiresAdmin field,
                 # but we return a consistent signature. Default to False if missing.
                 requires_admin = getattr(over, "requiresAdmin", False)
@@ -304,11 +306,11 @@ class PlayerAssignmentService:
         # Classify based on age group comparison rather than defaulting to PRIMARY
         if len(all_licenses) == 1:
             club, team = all_licenses[0]
-            
+
             # PROTECT LOAN and SPECIAL licenses from being changed
             if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
                 return player
-                
+
             team_age_group = team.get("teamAgeGroup")
 
             # Get player's age group for comparison
@@ -334,7 +336,7 @@ class PlayerAssignmentService:
             # PROTECT LOAN and SPECIAL licenses from being changed
             if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
                 continue
-                
+
             # Only classify if licenseType is UNKNOWN or not set
             if team.get("licenseType") == LicenseTypeEnum.UNKNOWN or not team.get("licenseType"):
                 license_type = self._classify_by_pass_suffix(team.get("passNo", ""))
@@ -356,7 +358,10 @@ class PlayerAssignmentService:
         # A club is LOAN if passNo ends with 'L' OR licenseType is LOAN
         for club, team in all_licenses:
             pass_no = team.get("passNo") or ""
-            if pass_no.strip().upper().endswith("L") or team.get("licenseType") == LicenseTypeEnum.LOAN:
+            if (
+                pass_no.strip().upper().endswith("L")
+                or team.get("licenseType") == LicenseTypeEnum.LOAN
+            ):
                 club["clubType"] = ClubTypeEnum.LOAN
 
         # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
@@ -369,7 +374,7 @@ class PlayerAssignmentService:
                 # PROTECT LOAN and SPECIAL licenses from being changed
                 if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
                     continue
-                    
+
                 if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
                     team_age_group = team.get("teamAgeGroup")
                     # If team age group matches player age group, set as PRIMARY
@@ -392,7 +397,7 @@ class PlayerAssignmentService:
                     # PROTECT LOAN and SPECIAL licenses from being changed
                     if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
                         continue
-                        
+
                     # Only check UNKNOWN licenses
                     if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
                         team_age_group = team.get("teamAgeGroup")
@@ -428,7 +433,7 @@ class PlayerAssignmentService:
             club_id = club.get("clubId")
             if club_id not in clubs_with_primary:
                 # Find ISHD UNKNOWN licenses in this club
-                # (LOAN and SPECIAL are already protected by being skipped in previous steps, 
+                # (LOAN and SPECIAL are already protected by being skipped in previous steps,
                 # but we check licenseType == UNKNOWN here anyway)
                 ishd_unknown_licenses = [
                     team
@@ -468,7 +473,7 @@ class PlayerAssignmentService:
                 # PROTECT LOAN and SPECIAL licenses from being changed
                 if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
                     continue
-                    
+
                 if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
                     unknown_licenses.append((club, team))
 
@@ -539,52 +544,52 @@ class PlayerAssignmentService:
     ) -> LicenseTypeEnum:
         """
         Determine the recommended license type for a team based on WKO rules.
-        
+
         Used by get_possible_teams endpoint to suggest license types upfront.
         This is NOT the classification logic used during PATCH - that remains unchanged.
-        
+
         Rules:
         - Same age group → PRIMARY
         - In secondaryRules → SECONDARY (if sex matches)
         - In overAgeRules → OVERAGE (only if player has overAge=true AND sex matches)
         - Otherwise → PRIMARY (fallback, likely INVALID)
-        
+
         Args:
             player_age_group: Player's age group (e.g., "U16")
             team_age_group: Team's age group
             player_sex: Player's sex for rule matching
             player_is_overage: Whether player has overAge flag
-            
+
         Returns:
             LicenseTypeEnum recommendation
         """
         if not player_age_group or not team_age_group:
             return LicenseTypeEnum.PRIMARY
-        
+
         # Same age group → PRIMARY
         if player_age_group == team_age_group:
             return LicenseTypeEnum.PRIMARY
-        
+
         # Check WKO rules
         if player_age_group not in self._wko_rules:
             return LicenseTypeEnum.PRIMARY
-        
+
         player_rule = self._wko_rules[player_age_group]
-        
+
         # Check SECONDARY rules (playing in older age groups)
         for sec_rule in player_rule.secondaryRules:
             if sec_rule.targetAgeGroup == team_age_group:
                 # Check sex restriction if defined
                 if not sec_rule.sex or player_sex in sec_rule.sex:
                     return LicenseTypeEnum.SECONDARY
-        
+
         # Check OVERAGE rules (playing in younger age groups)
         for over_rule in player_rule.overAgeRules:
             if over_rule.targetAgeGroup == team_age_group:
                 # Check sex restriction if defined
                 if not over_rule.sex or player_sex in over_rule.sex:
                     return LicenseTypeEnum.OVERAGE
-        
+
         # Fallback to PRIMARY (will likely be INVALID status)
         return LicenseTypeEnum.PRIMARY
 
@@ -977,7 +982,7 @@ class PlayerAssignmentService:
     def _validate_import_conflicts(self, player: dict) -> None:
         """
         Validate ISHD vs BISHL conflicts - ISHD never overrides BISHL (skip adminOverride=True).
-        
+
         Respects clubType separation: MAIN and DEVELOPMENT are separate pools.
         BISHL PRIMARY in MAIN should NOT conflict with ISHD PRIMARY in DEVELOPMENT.
         """
@@ -1019,7 +1024,7 @@ class PlayerAssignmentService:
                 ):
                     license_type = team.get("licenseType")
                     pool_key = (club_type, license_type)
-                    
+
                     # Only conflict if BISHL license exists in the SAME clubType pool
                     if pool_key in bishl_licenses_by_pool:
                         if license_type == LicenseTypeEnum.PRIMARY:

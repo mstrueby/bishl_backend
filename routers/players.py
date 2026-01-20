@@ -476,10 +476,10 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
 
     assigned_teams_dict = []
     print("assignment_team_objs:", assigned_teams_objs)
-    
+
     # Track teamIds to check for duplicates
     seen_team_ids = set()
-    
+
     for club_to_assign in assigned_teams_objs:
         club_exists = await mongodb["clubs"].find_one({"_id": club_to_assign.clubId})
         if not club_exists:
@@ -491,10 +491,10 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                 raise ValidationException(
                     field="assignedTeams",
                     message=f"Duplicate team assignment detected: teamId {team_to_assign.teamId}",
-                    details={"teamId": team_to_assign.teamId}
+                    details={"teamId": team_to_assign.teamId},
                 )
             seen_team_ids.add(team_to_assign.teamId)
-            
+
             print("team_to_assign:", club_exists["name"], "/", team_to_assign)
             team = next(
                 (team for team in club_exists["teams"] if team["_id"] == team_to_assign.teamId),
@@ -1144,7 +1144,7 @@ async def auto_optimize_player(
         optimized_assigned_teams = []
 
         # Track global count of licenses across all clubs
-        total_licenses_before_cleanup = sum(len(club.get("teams", [])) for club in player_copy.get("assignedTeams", []))
+        # total_licenses_before_cleanup = sum(len(club.get("teams", [])) for club in player_copy.get("assignedTeams", []))
         total_licenses_kept = 0
 
         # First pass: Identify what we MUST keep and what we CAN remove
@@ -1177,11 +1177,11 @@ async def auto_optimize_player(
                     keep_teams.append(team)
                     continue
 
-                # Candidate for removal (was previously restricted to SECONDARY/OVERAGE, 
+                # Candidate for removal (was previously restricted to SECONDARY/OVERAGE,
                 # now also allowing PRIMARY removal if invalid, but with global 'keep at least one' check)
                 removable_teams.append(team)
 
-            # Own club constraint: If this is the user's own club and they are a CLUB_ADMIN, 
+            # Own club constraint: If this is the user's own club and they are a CLUB_ADMIN,
             # they must have at least one license left in their club.
             if user_role == "CLUB_ADMIN" and club_id == user_club_id:
                 if len(keep_teams) == 0 and removable_teams:

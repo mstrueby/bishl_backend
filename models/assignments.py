@@ -9,7 +9,6 @@ from models.users import RefereeLevel
 from utils import prevent_empty_str
 
 
-
 class PyObjectId(ObjectId):
 
     @classmethod
