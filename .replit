@@ -104,8 +104,8 @@ pattern = "**/*.py"
 start = "pylsp"
 
 [deployment]
-run = ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 8080"]
-deploymentTarget = "cloudrun"
+run = ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
+deploymentTarget = "autoscale"
 
 [workflows]
 runButton = "Project"
