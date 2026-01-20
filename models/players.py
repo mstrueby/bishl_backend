@@ -1,130 +1,211 @@
-from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, ConfigDict
-from pydantic_core import core_schema
-from typing import Optional, List, Any
 from datetime import datetime
 from enum import Enum
-from models.matches import MatchTournament, MatchSeason, MatchRound, MatchMatchday
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic_core import core_schema
+
+from models.clubs import TeamTypeEnum
+from models.matches import MatchMatchday, MatchRound, MatchSeason, MatchTournament
 
 
 class PyObjectId(ObjectId):
 
-  @classmethod
-  def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any) -> core_schema.CoreSchema:
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x), return_schema=core_schema.str_schema()
-      ),
-    )
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
 
-  @classmethod
-  def validate(cls, v: Any) -> ObjectId:
-    if isinstance(v, ObjectId):
-      return v
-    if not ObjectId.is_valid(v):
-      raise ValueError("Invalid ObjectId")
-    return ObjectId(v)
+        def validate_object_id(value: str, _info) -> ObjectId:
+            if isinstance(value, ObjectId):
+                return value
+            if not ObjectId.is_valid(value):
+                raise ValueError("Invalid ObjectId")
+            return ObjectId(value)
 
-  @classmethod
-  def __get_pydantic_json_schema__(cls, schema: Any, handler: Any) -> dict:
-    return {"type": "string", "format": "objectid"}
+        return core_schema.with_info_plain_validator_function(
+            validate_object_id,
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda x: str(x), return_schema=core_schema.str_schema()
+            ),
+        )
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema, handler):
+        return {"type": "string", "format": "objectid"}
 
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
-  
-  id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    model_config = ConfigDict(
+        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
+    )
+
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
 class PositionEnum(str, Enum):
-  SKATER = 'Skater'
-  GOALIE = 'Goalie'
+    SKATER = "Skater"
+    GOALIE = "Goalie"
 
 
 class SourceEnum(str, Enum):
-  ISHD = 'ISHD'
-  BISHL = 'BISHL'
-  CALLED = 'CALLED'
+    ISHD = "ISHD"
+    BISHL = "BISHL"
+    CALLED = "CALLED"
 
 
 class SexEnum(str, Enum):
-  MALE = 'männlich'
-  FEMALE = 'weiblich'
+    MALE = "männlich"
+    FEMALE = "weiblich"
+
+
+class Suspension(BaseModel):
+    startDate: datetime = Field(...)
+    endDate: datetime = Field(...)
+    reason: str = Field(...)
+    teamIds: list[str] | None = Field(default_factory=list)
+
+
+class ClubTypeEnum(str, Enum):
+    MAIN = "MAIN"
+    LOAN = "LOAN"
+    DEVELOPMENT = "DEVELOPMENT"
+
+
+class LicenseTypeEnum(str, Enum):
+    UNKNOWN = "UNKNOWN"
+    PRIMARY = "PRIMARY"  # Stammverein/-team
+    SECONDARY = "SECONDARY"  # A-Pass, Zweitspielrecht im Sinne WKO
+    OVERAGE = "OVERAGE"  # Kann noch eine AK tiefer spielen
+    LOAN = "LOAN"  # Leihgabe
+    HOBBY = "HOBBY"  # Hobby-Pass, darf keinen anderen haben
+    SPECIAL = "SPECIAL"  # Sondergenehmigung etc.
+
+
+class LicenseStatusEnum(str, Enum):
+    UNKNOWN = "UNKNOWN"
+    VALID = "VALID"
+    INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
+
+
+class LicenseInvalidReasonCode(str, Enum):
+    MULTIPLE_PRIMARY = "MULTIPLE_PRIMARY"
+    TOO_MANY_LOAN = "TOO_MANY_LOAN"
+    LOAN_CLUB_CONFLICT = "LOAN_CLUB_CONFLICT"
+    LOAN_AGE_GROUP_CONFLICT = "LOAN_AGE_GROUP_CONFLICT"
+    AGE_GROUP_VIOLATION = "AGE_GROUP_VIOLATION"
+    OVERAGE_NOT_ALLOWED = "OVERAGE_NOT_ALLOWED"
+    EXCEEDS_WKO_LIMIT = "EXCEEDS_WKO_LIMIT"
+    CONFLICTING_CLUB = "CONFLICTING_CLUB"
+    IMPORT_CONFLICT = "IMPORT_CONFLICT"
+    UNKNOWN_LICENCE_TYPE = "UNKNOWN_LICENCE_TYPE"
+    HOBBY_PLAYER_CONFLICT = "HOBBY_PLAYER_CONFLICT"
+
+
+class PlayUpOccurrence(BaseModel):
+    matchId: str = Field(..., description="ID of the match where play-up occurred")
+    matchStartDate: datetime = Field(..., description="Start date of the match")
+    counted: bool = Field(
+        default=True, description="Whether this occurrence counts towards play-up limits"
+    )
+
+
+class PlayUpTracking(BaseModel):
+    tournamentAlias: str = Field(..., description="Tournament where play-up occurred")
+    seasonAlias: str = Field(..., description="Season where play-up occurred")
+    fromTeamId: str = Field(..., description="ID of the player's regular team")
+    toTeamId: str = Field(..., description="ID of the team player played up to")
+    occurrences: list[PlayUpOccurrence] = Field(
+        default_factory=list, description="List of play-up occurrences"
+    )
 
 
 class AssignedTeams(BaseModel):
-  teamId: str = Field(...)
-  teamName: str = Field(...)
-  teamAlias: str = Field(...)
-  teamAgeGroup: str = Field(...)
-  teamIshdId: Optional[str] = None
-  passNo: str = Field(...)
-  source: SourceEnum = Field(default=SourceEnum.BISHL)
-  modifyDate: Optional[datetime] = None
-  active: bool = False
-  jerseyNo: Optional[int] = None
+    teamId: str = Field(...)
+    teamName: str = Field(...)
+    teamAlias: str = Field(...)
+    teamType: TeamTypeEnum = Field(default=TeamTypeEnum.COMPETITIVE)
+    teamAgeGroup: str = Field(...)
+    teamIshdId: str | None = None
+    passNo: str | None = Field(default=None)
+    licenseType: LicenseTypeEnum = Field(default=LicenseTypeEnum.UNKNOWN)
+    status: LicenseStatusEnum = Field(default=LicenseStatusEnum.UNKNOWN)
+    invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(default_factory=list)
+    adminOverride: bool = Field(default=False, description="Admin has confirmed VALID")
+    overrideReason: str | None = None
+    overrideDate: datetime | None = None
+    validFrom: datetime | None = None
+    validTo: datetime | None = None
+    source: SourceEnum = Field(default=SourceEnum.BISHL)
+    modifyDate: datetime | None = None
+    active: bool = False
+    jerseyNo: int | None = None
 
 
 class AssignedClubs(BaseModel):
-  clubId: str = Field(...)
-  clubName: str = Field(...)
-  clubAlias: str = Field(...)
-  clubIshdId: Optional[int] = None
-  teams: list[AssignedTeams] = Field(...)
+    clubId: str = Field(...)
+    clubName: str = Field(...)
+    clubAlias: str = Field(...)
+    clubIshdId: int | None = None
+    clubType: ClubTypeEnum = Field(default=ClubTypeEnum.MAIN)
+    teams: list[AssignedTeams] = Field(...)
+
 
 class TeamInput(BaseModel):
-  teamId: str = Field(...)
-  passNo: str = Field(...)
-  jerseyNo: Optional[int] = None
-  active: Optional[bool] = False
-  source: Optional[SourceEnum] = Field(default=SourceEnum.BISHL)
-  modifyDate: Optional[datetime] = None
+    teamId: str = Field(...)
+    passNo: str = Field(...)
+    jerseyNo: int | None = None
+    active: bool | None = False
+    source: SourceEnum | None = Field(default=SourceEnum.BISHL)
+    modifyDate: datetime | None = None
+
 
 class AssignedTeamsInput(BaseModel):
-  clubId: str = Field(...)
-  teams: List[TeamInput] = Field(...)
+    clubId: str = Field(...)
+    teams: list[TeamInput] = Field(...)
+
 
 class PlayerStatsTeam(BaseModel):
-  #team_id: str = Field(...)
-  name: str = Field(...)
-  fullName: str = Field(...)
-  shortName: str = Field(...)
-  tinyName: str = Field(...)
+    # team_id: str = Field(...)
+    name: str = Field(...)
+    fullName: str = Field(...)
+    shortName: str = Field(...)
+    tinyName: str = Field(...)
 
 
 class PlayerStats(BaseModel):
-  tournament: MatchTournament = Field(...)
-  season: MatchSeason = Field(...)
-  round: MatchRound = Field(...)
-  matchday: Optional[MatchMatchday] = None
-  team: PlayerStatsTeam = Field(...)
-  gamesPlayed: int = Field(0)
-  goals: int = Field(0)
-  assists: int = Field(0)
-  points: int = Field(0)
-  penaltyMinutes: int = Field(0)
-  calledMatches: int = Field(0)
+    tournament: MatchTournament = Field(...)
+    season: MatchSeason = Field(...)
+    round: MatchRound = Field(...)
+    matchday: MatchMatchday | None = None
+    team: PlayerStatsTeam = Field(...)
+    gamesPlayed: int = Field(0)
+    goals: int = Field(0)
+    assists: int = Field(0)
+    points: int = Field(0)
+    penaltyMinutes: int = Field(0)
+    calledMatches: int = Field(0)
 
 
 class PlayerBase(MongoBaseModel):
-  firstName: str = Field(...)
-  lastName: str = Field(...)
-  birthdate: datetime = Field(..., description='format: yyyy-mm-dd hh:mi:ss')
-  displayFirstName: str = Field(...)
-  displayLastName: str = Field(...)
-  nationality: Optional[str] = None
-  position: PositionEnum = Field(default=PositionEnum.SKATER)
-  fullFaceReq: bool = False
-  source: SourceEnum = Field(default=SourceEnum.BISHL)
-  sex: SexEnum = Field(default=SexEnum.MALE)
-  assignedTeams: Optional[List[AssignedClubs]] = Field(default_factory=list)
-  stats: Optional[List[PlayerStats]] = Field(default_factory=list)
-  imageUrl: Optional[HttpUrl] = None
-  imageVisible: bool = False
-  legacyId: Optional[int] = None
-  managedByISHD: bool = True
-  """
+    firstName: str = Field(...)
+    lastName: str = Field(...)
+    birthdate: datetime = Field(..., description="format: yyyy-mm-dd hh:mi:ss")
+    displayFirstName: str = Field(...)
+    displayLastName: str = Field(...)
+    nationality: str | None = None
+    position: PositionEnum = Field(default=PositionEnum.SKATER)
+    source: SourceEnum = Field(default=SourceEnum.BISHL)
+    sex: SexEnum = Field(default=SexEnum.MALE)
+    assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
+    playUpTrackings: list[PlayUpTracking] | None = Field(
+        default_factory=list, description="Track play-up occurrences separately from licenses"
+    )
+    suspensions: list[Suspension] | None = Field(default_factory=list)
+    stats: list[PlayerStats] | None = Field(default_factory=list)
+    imageUrl: HttpUrl | None = None
+    imageVisible: bool = False
+    legacyId: int | None = None
+    managedByISHD: bool = True
+    """
   @validator('firstName', 'lastName', 'position', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
@@ -134,103 +215,114 @@ class PlayerBase(MongoBaseModel):
     return empty_str_to_none(v, field.name)
 """
 
-def _player_db_schema_extra(schema: dict, model: Any) -> None:
-    """Enhance schema documentation by adding computed properties"""
-    props = schema.setdefault("properties", {})
-    props["ageGroup"] = {"type": "string"}
-    props["overAge"] = {"type": "boolean"}
-
 
 class PlayerDB(PlayerBase):
-  model_config = ConfigDict(
-    populate_by_name=True, 
-    arbitrary_types_allowed=True,
-    json_schema_extra=_player_db_schema_extra
-  )
-  
-  createDate: Optional[datetime] = None
+    """Player model for database operations"""
 
-  @property
-  def ageGroup(self) -> str:
-      """Determine age group dynamically based on birth year"""
-      if self.birthdate is None:
-          return "UNKNOWN"
+    @property
+    def fullFaceReq(self) -> bool:
+        """Determine if full face protection is required based on birthdate (>= 1.1.1993)"""
+        if not self.birthdate:
+            return False
+        return self.birthdate >= datetime(1993, 1, 1)
 
-      current_year = datetime.now().year
-      birth_year = self.birthdate.year
+    @property
+    def ageGroup(self) -> str:
+        """Determine age group dynamically based on birth year"""
+        if self.birthdate is None:
+            return "UNKNOWN"
 
-      # Determine age group classification using birth year and current year
-      if birth_year >= current_year - 7:  # for year 2025: 2018 and above
-          return "U8"
-      elif birth_year >= current_year - 9:  # for year 2025: from 2016 to 2017
-          return "U10"
-      elif birth_year >= current_year - 12:  # for year 2025: from 2013 to 2015
-          return "U13"
-      elif birth_year >= current_year - 15:  # for year 2025: from 2010 to 2012
-          return "U16"
-      elif birth_year >= current_year - 18:  # for year 2025: from 2007 to 2009
-          return "U19"
-      else:
-          return "HERREN" if self.sex == SexEnum.MALE else "DAMEN"
+        current_year = datetime.now().year
+        birth_year = self.birthdate.year
 
-  @property
-  def overAge(self) -> bool:
-    """Evaluate compliance with Bambini over age rule """
-    if not self.birthdate:
-        return False
+        # Determine age group classification using birth year and current year
+        if birth_year >= current_year - 7:  # for year 2025: 2018 and above
+            return "U8"
+        elif birth_year >= current_year - 9:  # for year 2025: from 2016 to 2017
+            return "U10"
+        elif birth_year >= current_year - 12:  # for year 2025: from 2013 to 2015
+            return "U13"
+        elif birth_year >= current_year - 15:  # for year 2025: from 2010 to 2012
+            return "U16"
+        elif birth_year >= current_year - 18:  # for year 2025: from 2007 to 2009
+            return "U19"
+        else:
+            return "HERREN" if self.sex == SexEnum.MALE else "DAMEN"
 
-    current_year = datetime.now().year
+    @property
+    def overAge(self) -> bool:
+        """Evaluate compliance with Bambini over age rule"""
+        if not self.birthdate:
+            return False
 
-    if self.ageGroup == "U13":
-      if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 10:
-        return True
-      elif self.sex == SexEnum.MALE and self.birthdate > datetime(current_year - 10, 8, 31) and self.birthdate < datetime(current_year - 9, 1, 1):
-        return True
-      else:
-        return False
-    elif self.ageGroup == "U16":
-      if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 13:
-        return True
-      else:
-        return False
-    elif self.ageGroup == "U19":
-      if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 16:
-        return True
-      else:
-        return False
-    elif self.ageGroup == "DAMEN":
-      if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 19:
-        return True
-      else:
-        return False
-    else:
-      return False
+        current_year = datetime.now().year
 
-  def model_dump(self, **kwargs):
-      """Override model_dump for Pydantic v2 to include computed properties"""
-      data = super().model_dump(**kwargs)
-      data["ageGroup"] = self.ageGroup
-      data["overAge"] = self.overAge
-      return data
+        if self.ageGroup == "U13":
+            if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 10:
+                return True
+            elif (
+                self.sex == SexEnum.MALE
+                and self.birthdate > datetime(current_year - 10, 8, 31)
+                and self.birthdate < datetime(current_year - 9, 1, 1)
+            ):
+                return True
+            else:
+                return False
+        elif self.ageGroup == "U16":
+            if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 13:
+                return True
+            else:
+                return False
+        elif self.ageGroup == "U19":
+            if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 16:
+                return True
+            else:
+                return False
+        elif self.ageGroup == "DAMEN":
+            if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 19:
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+        json_schema_extra={
+            "properties": {"ageGroup": {"type": "string"}, "overAge": {"type": "boolean"}}
+        },
+    )
+
+    def model_dump(self, *args, **kwargs):
+        """Incorporate properties when converting to dictionary"""
+        result = super().model_dump(*args, **kwargs)
+        result["ageGroup"] = self.ageGroup
+        result["overAge"] = self.overAge
+        result["fullFaceReq"] = self.fullFaceReq
+        return result
 
 
 class PlayerUpdate(MongoBaseModel):
-  firstName: Optional[str] = None
-  lastName: Optional[str] = None
-  birthdate: Optional[datetime] = None
-  displayFirstName: Optional[str] = None
-  displayLastName: Optional[str] = None
-  nationality: Optional[str] = None
-  position: Optional[PositionEnum] = None
-  fullFaceReq: Optional[bool] = None
-  source: Optional[SourceEnum] = None
-  sex: Optional[SexEnum] = None
-  assignedTeams: Optional[List[AssignedClubs]] = None
-  stats: Optional[List[PlayerStats]] = None
-  imageUrl: Optional[HttpUrl] = None
-  imageVisible: Optional[bool] = None
-  managedByISHD: Optional[bool] = None
-  """
+    firstName: str | None = None
+    lastName: str | None = None
+    birthdate: datetime | None = None
+    displayFirstName: str | None = None
+    displayLastName: str | None = None
+    nationality: str | None = None
+    position: PositionEnum | None = None
+    fullFaceReq: bool | None = None
+    source: SourceEnum | None = None
+    sex: SexEnum | None = None
+    assignedTeams: list[AssignedClubs] | None = None
+    playUpTrackings: list[PlayUpTracking] | None = None
+    suspensions: list[Suspension] | None = None
+    stats: list[PlayerStats] | None = None
+    imageUrl: HttpUrl | None = None
+    imageVisible: bool | None = None
+    managedByISHD: bool | None = None
+    """
   @validator('firstName', 'lastName', pre=True, always=True)
   def validate_null_strings(cls, v, field):
     return prevent_empty_str(v, field.name)
@@ -243,34 +335,79 @@ class PlayerUpdate(MongoBaseModel):
 
 # ---- ISHD Log Model
 
+
 class IshdActionEnum(str, Enum):
-  ADD_PLAYER = 'Add new Player'
-  ADD_CLUB = 'Add club/team assignment'
-  ADD_TEAM = 'Add team assigment'
-  DEL_TEAM = 'Remove team assigment'
-  DEL_CLUB = 'Remove club assignment'
-  
+    ADD_PLAYER = "Add new Player"
+    ADD_CLUB = "Add club/team assignment"
+    ADD_TEAM = "Add team assigment"
+    DEL_TEAM = "Remove team assigment"
+    DEL_CLUB = "Remove club assignment"
 
 
 class IshdLogPlayer(BaseModel):
-  action: Optional[IshdActionEnum] = None
-  firstName: str = Field(...)
-  lastName: str = Field(...)
-  birthdate: datetime = Field(...)
+    action: IshdActionEnum | None = None
+    firstName: str = Field(...)
+    lastName: str = Field(...)
+    birthdate: datetime = Field(...)
 
 
 class IshdLogTeam(BaseModel):
-  teamIshdId: str = Field(...)
-  url: str = Field(...)
-  players: Optional[List[IshdLogPlayer]] = None
+    teamIshdId: str = Field(...)
+    url: str = Field(...)
+    players: list[IshdLogPlayer] = Field(default_factory=list)
 
 
 class IshdLogClub(BaseModel):
-  clubName: str = Field(...)
-  ishdId: int = Field(...)
-  teams: Optional[List[IshdLogTeam]] = None
+    clubName: str = Field(...)
+    ishdId: int = Field(...)
+    teams: list[IshdLogTeam] = Field(default_factory=list)
 
 
 class IshdLogBase(MongoBaseModel):
-  processDate: datetime = Field(...)
-  clubs: Optional[List[IshdLogClub]] = None
+    processDate: datetime = Field(...)
+    clubs: list[IshdLogClub] = Field(default_factory=list)
+
+
+# WKO Rules Model
+# ----------------
+
+
+class SecondaryRule(BaseModel):
+    targetAgeGroup: str = Field(..., description="e.g. HERREN, U19")
+    sex: list[SexEnum] = Field(default_factory=list, description="Allowed sexes")
+    maxLicenses: int | None = Field(
+        default=None,
+        description="Max number of licenses in this target group for one player",
+    )
+    requiresAdmin: bool = Field(
+        default=False, description="Whether this rule requires admin approval"
+    )
+
+
+class OverAgeRule(BaseModel):
+    targetAgeGroup: str = Field(..., description="e.g. U16, U13")
+    sex: list[SexEnum] = Field(default_factory=list, description="Allowed sexes")
+    maxLicenses: int | None = Field(
+        default=None,
+        description="Max number of licenses in this target group for one player",
+    )
+    maxOverAgePlayersPerTeam: int | None = Field(
+        default=None,
+        description="Max over-age players per team in this target group",
+    )
+
+
+class WkoRule(BaseModel):
+    ageGroup: str = Field(..., description="Base age group, e.g. U16, HERREN")
+    label: str = Field(..., description="Display name")
+    sortOrder: int = Field(...)
+
+    altKey: str | None = Field(default=None, description="Alternative name from WKO")
+    sex: list[SexEnum] = Field(default_factory=list, description="Allowed sexes")
+
+    secondaryRules: list[SecondaryRule] = Field(default_factory=list)
+    overAgeRules: list[OverAgeRule] = Field(default_factory=list)
+    maxTotalAgeClasses: dict[SexEnum, int | None] = Field(
+        default_factory=lambda: {SexEnum.MALE: 2, SexEnum.FEMALE: 2},
+        description="Max number of age classes player can participate in",
+    )

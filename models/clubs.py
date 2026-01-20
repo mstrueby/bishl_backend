@@ -1,71 +1,80 @@
+from enum import Enum
+
 from bson import ObjectId
-from pydantic import Field, BaseModel, HttpUrl, EmailStr, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
-from typing import Optional, List, Any
 
 
 class PyObjectId(ObjectId):
 
-  @classmethod
-  def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any) -> core_schema.CoreSchema:
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x), return_schema=core_schema.str_schema()
-      ),
-    )
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
 
-  @classmethod
-  def validate(cls, v: Any) -> ObjectId:
-    if isinstance(v, ObjectId):
-      return v
-    if not ObjectId.is_valid(v):
-      raise ValueError("Invalid ObjectId")
-    return ObjectId(v)
+        def validate_object_id(value, _info):
+            if isinstance(value, ObjectId):
+                return value
+            if not ObjectId.is_valid(value):
+                raise ValueError("Invalid ObjectId")
+            return ObjectId(value)
 
-  @classmethod
-  def __get_pydantic_json_schema__(cls, schema: Any, handler: Any) -> dict:
-    return {"type": "string", "format": "objectid"}
+        return core_schema.with_info_plain_validator_function(
+            validate_object_id,
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda x: str(x), return_schema=core_schema.str_schema()
+            ),
+        )
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema, handler):
+        return {"type": "string", "format": "objectid"}
 
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
-  
-  id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    model_config = ConfigDict(
+        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
+    )
+
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
 # Clubs
 # ------------
 
+
 class TeamPartnerships(BaseModel):
-  clubId: str = Field(...)
-  clubAlias: str = Field(...)
-  clubName: str = Field(...)
-  teamId: str = Field(...)
-  teamAlias: str = Field(...)
-  teamName: str = Field(...)
+    clubId: str = Field(...)
+    clubAlias: str = Field(...)
+    clubName: str = Field(...)
+    teamId: str = Field(...)
+    teamAlias: str = Field(...)
+    teamName: str = Field(...)
+
+
+class TeamTypeEnum(str, Enum):
+    COMPETITIVE = "COMPETITIVE"  # normaler ISHD/BISHL-Spielbetrieb
+    HOBBY = "HOBBY"
 
 
 # sub documents
 class TeamBase(MongoBaseModel):
-  name: str = Field(...)
-  alias: str = Field(...)
-  fullName: str = Field(...)
-  shortName: str = Field(...)
-  tinyName: str = Field(...)
-  ageGroup: str = Field(...)
-  teamNumber: int = Field(...)
-  teamPartnership: List[TeamPartnerships] = Field(default_factory=list)
-  active: Optional[bool] = False
-  external: Optional[bool] = False
-  logoUrl: Optional[HttpUrl] = None
-  ishdId: Optional[str] = None
-  legacyId: Optional[int] = None
+    name: str = Field(...)
+    alias: str = Field(...)
+    fullName: str = Field(...)
+    shortName: str = Field(...)
+    tinyName: str = Field(...)
+    teamType: TeamTypeEnum = Field(default=TeamTypeEnum.COMPETITIVE)
+    ageGroup: str = Field(...)
+    teamNumber: int = Field(...)
+    teamPartnership: list[TeamPartnerships] = Field(default_factory=list)
+    active: bool | None = False
+    external: bool | None = False
+    logoUrl: HttpUrl | None = None
+    ishdId: str | None = None
+    legacyId: int | None = None
 
-  @field_validator('ishdId', mode='before')
-  @classmethod
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+    @field_validator("ishdId", mode="before")
+    def empty_str_to_none(cls, v):
+        return None if v == "" else v
 
 
 """
@@ -84,37 +93,38 @@ class TeamBase(MongoBaseModel):
 """
 
 
-@field_validator('teamNumber', mode='before')
+@field_validator("teamNumber", mode="before")
 def int_must_be_positive(cls, v):
-  if v < 1 or v is None:
-    raise ValueError("Field must be positive")
+    if v < 1 or v is None:
+        raise ValueError("Field must be positive")
+    return v
 
 
 class TeamDB(TeamBase):
-  pass
+    pass
 
 
 class TeamUpdate(MongoBaseModel):
-  name: Optional[str] = None
-  alias: Optional[str] = None
-  fullName: Optional[str] = None  
-  shortName: Optional[str] = None
-  tinyName: Optional[str] = None
-  ageGroup: Optional[str] = None
-  teamNumber: Optional[int] = None
-  teamPartnership: Optional[List[TeamPartnerships]] = None
-  active: Optional[bool] = False
-  external: Optional[bool] = False
-  logoUrl: Optional[HttpUrl] = None
-  ishdId: Optional[str] = None
-  legacyId: Optional[int] = None
+    name: str | None = None
+    alias: str | None = None
+    fullName: str | None = None
+    shortName: str | None = None
+    tinyName: str | None = None
+    teamType: TeamTypeEnum | None = None
+    ageGroup: str | None = None
+    teamNumber: int | None = None
+    teamPartnership: list[TeamPartnerships] | None = None
+    active: bool | None = False
+    external: bool | None = False
+    logoUrl: HttpUrl | None = None
+    ishdId: str | None = None
+    legacyId: int | None = None
 
-  @field_validator('ishdId', mode='before')
-  @classmethod
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+    @field_validator("ishdId", mode="before")
+    def empty_str_to_none(cls, v):
+        return None if v == "" else v
 
-  """  
+    """
 
   @validator('name',
              'alias',
@@ -136,35 +146,44 @@ class TeamUpdate(MongoBaseModel):
 
   """
 
+
 class ClubBase(MongoBaseModel):
-  name: str = Field(...)
-  alias: str = Field(...)
-  addressName: Optional[str] = None
-  street: Optional[str] = None
-  zipCode: Optional[str] = None
-  city: Optional[str] = None
-  country: str = Field(...)
-  email: Optional[EmailStr] = None
-  yearOfFoundation: Optional[int] = None
-  description: Optional[str] = None
-  website: Optional[HttpUrl] = None
-  ishdId: Optional[int] = None
-  active: Optional[bool] = False
-  teams: Optional[List[TeamBase]] = Field(default_factory=list)
-  legacyId: Optional[int] = None
-  logoUrl: Optional[HttpUrl] = None
+    name: str = Field(...)
+    alias: str = Field(...)
+    addressName: str | None = None
+    street: str | None = None
+    zipCode: str | None = None
+    city: str | None = None
+    country: str = Field(...)
+    email: EmailStr | None = None
+    yearOfFoundation: int | None = None
+    description: str | None = None
+    website: HttpUrl | None = None
+    ishdId: int | None = None
+    active: bool | None = False
+    teams: list[TeamBase] | None = Field(default_factory=list)
+    legacyId: int | None = None
+    logoUrl: HttpUrl | None = None
 
-  @field_validator('email',
-             'website',
-             'yearOfFoundation',
-             'ishdId',
-             'logoUrl',
-             mode='before')
-  @classmethod
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+    @field_validator(
+        "addressName",
+        "street",
+        "zipCode",
+        "city",
+        "description",
+        "email",
+        "website",
+        "yearOfFoundation",
+        "ishdId",
+        "logoUrl",
+        "legacyId",
+        mode="before",
+    )
+    @classmethod
+    def empty_str_to_none(cls, v):
+        return None if v == "" else v
 
-  """
+    """
   @validator('name', 'alias', 'country', pre=True, always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":
@@ -174,32 +193,45 @@ class ClubBase(MongoBaseModel):
 
 
 class ClubDB(ClubBase):
-  pass
+    pass
 
 
 class ClubUpdate(MongoBaseModel):
-  name: Optional[str] = None
-  alias: Optional[str] = None
-  addressName: Optional[str] = None
-  street: Optional[str] = None
-  zipCode: Optional[str] = None
-  city: Optional[str] = None
-  country: Optional[str] = None
-  email: Optional[EmailStr] = None
-  yearOfFoundation: Optional[int] = None
-  description: Optional[str] = None
-  website: Optional[HttpUrl] = None
-  ishdId: Optional[int] = None
-  active: Optional[bool] = None
-  legacyId: Optional[int] = None
-  logoUrl: Optional[str] = None
+    name: str | None = None
+    alias: str | None = None
+    addressName: str | None = None
+    street: str | None = None
+    zipCode: str | None = None
+    city: str | None = None
+    country: str | None = None
+    email: EmailStr | None = None
+    yearOfFoundation: int | None = None
+    description: str | None = None
+    website: HttpUrl | None = None
+    ishdId: int | None = None
+    active: bool | None = None
+    legacyId: int | None = None
+    logoUrl: str | None = None
 
-  @field_validator('email', 'website', 'logoUrl', mode='before')
-  @classmethod
-  def empty_str_to_none(cls, v):
-    return None if v == "" else v
+    @field_validator(
+        "addressName",
+        "street",
+        "zipCode",
+        "city",
+        "description",
+        "email",
+        "website",
+        "logoUrl",
+        "yearOfFoundation",
+        "ishdId",
+        "legacyId",
+        mode="before",
+    )
+    @classmethod
+    def empty_str_to_none(cls, v):
+        return None if v == "" else v
 
-  """
+    """
   @validator('name', 'alias', 'country', pre=True, always=True)
   def prevent_null_value(cls, v):
     if v is None or v == "":

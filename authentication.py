@@ -1,119 +1,167 @@
-import jwt
-import os
-from typing import Optional
-from fastapi import HTTPException, Security
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from passlib.context import CryptContext
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, InvalidHash
 from datetime import datetime, timedelta
+
+import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHash, VerifyMismatchError
+from fastapi import Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from passlib.context import CryptContext
+
+from config import settings
+from exceptions import AuthenticationException
 
 
 class AuthHandler:
-  security = HTTPBearer()
-  # Keep bcrypt for legacy password verification
-  pwd_content_legacy = CryptContext(schemes=["bcrypt"], deprecated="auto")
-  # New argon2 hasher
-  argon2_hasher = PasswordHasher()
-  secret = os.environ.get("SECRET_KEY")
+    security = HTTPBearer()
+    # Keep bcrypt for legacy password verification
+    pwd_content_legacy = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    # New argon2 hasher
+    argon2_hasher = PasswordHasher()
+    secret = settings.SECRET_KEY
+    refresh_secret = settings.SECRET_KEY + "_refresh"  # Separate secret for refresh tokens
 
-  def get_password_hash(self, password):
-    """Hash password using argon2 (new standard)"""
-    return self.argon2_hasher.hash(password)
+    def get_password_hash(self, password):
+        """Hash password using argon2 (new standard)"""
+        return self.argon2_hasher.hash(password)
 
-  def verify_password(self, plain_password, hashed_password):
-    """Verify password - supports both argon2 and legacy bcrypt"""
-    # Try argon2 first (new format starts with $argon2)
-    if hashed_password.startswith('$argon2'):
-      try:
-        return self.argon2_hasher.verify(hashed_password, plain_password)
-      except (VerifyMismatchError, InvalidHash):
-        return False
-    
-    # Fallback to bcrypt (legacy passwords)
-    try:
-      return self.pwd_content_legacy.verify(plain_password, hashed_password)
-    except:
-      return False
-  
-  def needs_rehash(self, hashed_password):
-    """Check if password needs to be upgraded from bcrypt to argon2"""
-    return not hashed_password.startswith('$argon2')
+    def verify_password(self, plain_password, hashed_password):
+        """Verify password - supports both argon2 and legacy bcrypt"""
+        # Try argon2 first (new format starts with $argon2)
+        if hashed_password.startswith("$argon2"):
+            try:
+                return self.argon2_hasher.verify(hashed_password, plain_password)
+            except (VerifyMismatchError, InvalidHash):
+                return False
 
-  def encode_token(self, user):
-    payload = {
-        "exp":
-        datetime.now() +
-        timedelta(days=0, minutes=int(os.environ['API_TIMEOUT_MIN'])),
-        "iat":
-        datetime.now(),
-        "sub":
-        user["_id"],
-        "roles":
-        user["roles"],
-        "firstName":
-        user["firstName"],
-        "lastName":
-        user["lastName"],
-        "clubId":
-        user["club"]["clubId"] if user["club"] else None,
-        "clubName":
-        user["club"]["clubName"] if user["club"] else None
-    }
-    return jwt.encode(payload, self.secret, algorithm="HS256")
+        # Fallback to bcrypt (legacy passwords)
+        try:
+            return self.pwd_content_legacy.verify(plain_password, hashed_password)
+        except Exception:
+            return False
 
-  def decode_token(self, token):
-    try:
-      payload = jwt.decode(token, self.secret, algorithms=["HS256"])
-      return TokenPayload(sub=payload["sub"],
-        roles=payload["roles"],
-        firstName=payload.get("firstName"),
-        lastName=payload.get("lastName"),
-        clubId=payload.get("clubId"),
-        clubName=payload.get("clubName"))
-    except jwt.ExpiredSignatureError:
-      raise HTTPException(status_code=401, detail="Signature has expired")
-    except jwt.InvalidTokenError:
-      raise HTTPException(status_code=401, detail="Invalid token")
-  
-  def encode_reset_token(self, user):
-    payload = {
-        "exp": datetime.now() + timedelta(hours=1),  # Token expires in 1 hour
-        "iat": datetime.now(),
-        "sub": user["_id"],
-        "type": "reset"
-    }
-    return jwt.encode(payload, self.secret, algorithm="HS256")
+    def needs_rehash(self, hashed_password):
+        """Check if password needs to be upgraded from bcrypt to argon2"""
+        return not hashed_password.startswith("$argon2")
 
-  def decode_reset_token(self, token):
-    try:
-      payload = jwt.decode(token, self.secret, algorithms=["HS256"])
-      if payload.get("type") != "reset":
-          raise jwt.InvalidTokenError
-      return TokenPayload(sub=payload["sub"], roles=[])
-    except jwt.ExpiredSignatureError:
-      raise HTTPException(status_code=401, detail="Reset token has expired")
-    except jwt.InvalidTokenError:
-      raise HTTPException(status_code=401, detail="Invalid reset token")
+    def encode_token(self, user: dict) -> str:
+        """Generate short-lived access token (30 minutes)"""
+        payload = {
+            "exp": datetime.now() + timedelta(minutes=30),
+            "iat": datetime.now(),
+            "sub": user["_id"],
+            "roles": user["roles"],
+            "firstName": user["firstName"],
+            "lastName": user["lastName"],
+            "clubId": user.get("club", {}).get("clubId") if user.get("club") else None,
+            "clubName": user.get("club", {}).get("clubName") if user.get("club") else None,
+            "type": "access",
+        }
+        return jwt.encode(payload, self.secret, algorithm="HS256")
 
+    def encode_refresh_token(self, user):
+        """Generate long-lived refresh token (7 days)"""
+        payload = {
+            "exp": datetime.now() + timedelta(days=7),  # Long-lived refresh token
+            "iat": datetime.now(),
+            "sub": user["_id"],
+            "roles": user["roles"],
+            "firstName": user["firstName"],
+            "lastName": user["lastName"],
+            "clubId": user.get("club", {}).get("clubId") if user.get("club") else None,
+            "clubName": user.get("club", {}).get("clubName") if user.get("club") else None,
+            "type": "refresh",
+        }
+        return jwt.encode(payload, self.refresh_secret, algorithm="HS256")
 
-  def auth_wrapper(self,
-                   auth: HTTPAuthorizationCredentials = Security(security)):
-    return self.decode_token(auth.credentials)
+    def decode_token(self, token):
+        """Decode and validate access token"""
+        try:
+            payload = jwt.decode(token, self.secret, algorithms=["HS256"])
+            if payload.get("type") != "access":
+                raise jwt.InvalidTokenError("Not an access token")
+            return TokenPayload(
+                sub=payload["sub"],
+                roles=payload["roles"],
+                firstName=payload.get("firstName"),
+                lastName=payload.get("lastName"),
+                clubId=payload.get("clubId"),
+                clubName=payload.get("clubName"),
+            )
+        except jwt.ExpiredSignatureError as e:
+            raise AuthenticationException(
+                message="Token has expired", details={"reason": "expired_signature"}
+            ) from e
+        except jwt.InvalidTokenError as e:
+            raise AuthenticationException(
+                message="Invalid token", details={"reason": "invalid_token"}
+            ) from e
+
+    def decode_refresh_token(self, token):
+        """Decode and validate refresh token"""
+        try:
+            payload = jwt.decode(token, self.refresh_secret, algorithms=["HS256"])
+            if payload.get("type") != "refresh":
+                raise jwt.InvalidTokenError("Not a refresh token")
+            return payload["sub"]  # Return only user ID
+        except jwt.ExpiredSignatureError as e:
+            raise AuthenticationException(
+                message="Refresh token has expired", details={"reason": "expired_refresh_token"}
+            ) from e
+        except jwt.InvalidTokenError as e:
+            raise AuthenticationException(
+                message="Invalid refresh token", details={"reason": "invalid_refresh_token"}
+            ) from e
+
+    def encode_reset_token(self, user):
+        payload = {
+            "exp": datetime.now() + timedelta(hours=1),  # Token expires in 1 hour
+            "iat": datetime.now(),
+            "sub": user["_id"],
+            "type": "reset",
+        }
+        return jwt.encode(payload, self.secret, algorithm="HS256")
+
+    def decode_reset_token(self, token):
+        try:
+            payload = jwt.decode(token, self.secret, algorithms=["HS256"])
+            if payload.get("type") != "reset":
+                raise jwt.InvalidTokenError
+            return TokenPayload(sub=payload["sub"], roles=[])
+        except jwt.ExpiredSignatureError as e:
+            raise AuthenticationException(
+                message="Reset token has expired", details={"reason": "expired_reset_token"}
+            ) from e
+        except jwt.InvalidTokenError as e:
+            raise AuthenticationException(
+                message="Invalid reset token", details={"reason": "invalid_reset_token"}
+            ) from e
+
+    def has_role(self, user_roles: list, required_role: str) -> bool:
+        """Check if user has a specific role"""
+        return required_role in user_roles
+
+    def has_any_role(self, user_roles: list, required_roles: list) -> bool:
+        """Check if user has any of the required roles"""
+        return any(role in user_roles for role in required_roles)
+
+    def auth_wrapper(self, auth: HTTPAuthorizationCredentials = Security(security)):
+        return self.decode_token(auth.credentials)
 
 
 class TokenPayload:
 
-  def __init__(self,
-               sub: str,
-               roles: list,
-               firstName: Optional[str] = None,
-               lastName: Optional[str] = None,
-               clubId: Optional[str] = None,
-               clubName: Optional[str] = None):
-    self.sub = sub
-    self.roles = roles
-    self.firstName = firstName
-    self.lastName = lastName
-    self.clubId = clubId
-    self.clubName = clubName
+    def __init__(
+        self,
+        sub: str,
+        roles: list,
+        firstName: str | None = None,
+        lastName: str | None = None,
+        clubId: str | None = None,
+        clubName: str | None = None,
+    ):
+        self.sub = sub
+        self.roles = roles
+        self.firstName = firstName
+        self.lastName = lastName
+        self.clubId = clubId
+        self.clubName = clubName

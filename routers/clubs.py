@@ -1,24 +1,33 @@
-import os
-from typing import List, Optional
+import cloudinary
+import cloudinary.uploader
 from fastapi import (
     APIRouter,
-    Request,
-    status,
-    HTTPException,
     Depends,
-    Form,
     File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
     UploadFile,
+    status,
 )
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from models.clubs import ClubBase, ClubDB, ClubUpdate
-from authentication import AuthHandler, TokenPayload
-from pymongo.errors import DuplicateKeyError
 from pydantic import EmailStr, HttpUrl
+from pymongo.errors import DuplicateKeyError
+
+from authentication import AuthHandler, TokenPayload
+from exceptions import (
+    AuthorizationException,
+    DatabaseOperationException,
+    ResourceNotFoundException,
+    ValidationException,
+)
+from logging_config import logger
+from models.clubs import ClubBase, ClubDB, ClubUpdate
+from models.responses import PaginatedResponse, StandardResponse
+from services.pagination import PaginationHelper
 from utils import configure_cloudinary
-import cloudinary
-import cloudinary.uploader
 
 router = APIRouter()
 auth = AuthHandler()
@@ -27,83 +36,100 @@ configure_cloudinary()
 
 # upload file
 async def handle_logo_upload(logo: UploadFile, alias: str) -> str:
-  if logo:
-    result = cloudinary.uploader.upload(
-        logo.file,
-        folder="logos/",
-        public_id=alias,
-        overwrite=True,
-        crop="scale",
-        height=200,
-    )
-    print(f"Logo uploaded to Cloudinary: {result['public_id']}")
-    return result["secure_url"]
-  raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                      detail="No logo uploaded.")
+    if logo:
+        result = cloudinary.uploader.upload(
+            logo.file,
+            folder="logos/",
+            public_id=alias,
+            overwrite=True,
+            crop="scale",
+            height=200,
+        )
+        print(f"Logo uploaded to Cloudinary: {result['public_id']}")
+        return str(result["secure_url"])
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No logo uploaded.")
 
 
 # Helper function to delete file from Cloudinary
 async def delete_from_cloudinary(logo_url: str):
-  if logo_url:
-    try:
-      public_id = logo_url.rsplit('/', 1)[-1].split('.')[0]
-      result = cloudinary.uploader.destroy(f"logos/{public_id}")
-      print("Logo deleted from Cloudinary:", f"logos/{public_id}")
-      print("Result:", result)
-      return result
-    except Exception as e:
-      raise HTTPException(status_code=500, detail=str(e))
+    if logo_url:
+        try:
+            public_id = logo_url.rsplit("/", 1)[-1].split(".")[0]
+            result = cloudinary.uploader.destroy(f"logos/{public_id}")
+            logger.info(f"Logo deleted from Cloudinary: logos/{public_id}")
+            logger.debug(f"Result: {result}")
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # list all clubs
-@router.get("/",
-            response_description="List all clubs",
-            response_model=List[ClubDB])
+@router.get("", response_description="List all clubs", response_model=PaginatedResponse[ClubDB])
 async def list_clubs(
     request: Request,
-    active: Optional[bool] = None,  # Added active parameter
-    page: int = 1,
+    active: bool | None = None,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=100, description="Items per page"),
 ) -> JSONResponse:
-  mongodb = request.app.state.mongodb
-  #RESULTS_PER_PAGE = int(os.environ['RESULTS_PER_PAGE'])
-  RESULTS_PER_PAGE = 100
-  skip = (page - 1) * RESULTS_PER_PAGE
-  query = {}
-  if active is not None:  # Filter by active if provided
-    query["active"] = active
-  full_query = await mongodb["clubs"].find(query).sort(
-      "name", 1).skip(skip).limit(RESULTS_PER_PAGE).to_list(length=None)
-  clubs = [ClubDB(**raw_club) for raw_club in full_query]
-  return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(clubs))
+    mongodb = request.app.state.mongodb
+    query = {}
+    if active is not None:
+        query["active"] = active
+
+    items, total_count = await PaginationHelper.paginate_query(
+        collection=mongodb["clubs"], query=query, page=page, page_size=page_size, sort=[("name", 1)]
+    )
+
+    paginated_result = PaginationHelper.create_response(
+        items=[ClubDB(**club) for club in items],
+        page=page,
+        page_size=page_size,
+        total_count=total_count,
+        message=f"Retrieved {len(items)} clubs",
+    )
+
+    return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
 
 # get club by Alias
-@router.get("/{alias}",
-            response_description="Get a single club",
-            response_model=ClubDB)
-async def get_club(alias: str, request: Request) -> JSONResponse:
-  mongodb = request.app.state.mongodb
-  if (club := await mongodb["clubs"].find_one({"alias": alias})) is not None:
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content=jsonable_encoder(ClubDB(**club)))
-  raise HTTPException(status_code=404,
-                      detail=f"Club with alias {alias} not found")
+@router.get(
+    "/{alias}", response_description="Get a single club", response_model=StandardResponse[ClubDB]
+)
+async def get_club(alias: str, request: Request) -> StandardResponse[ClubDB]:
+    mongodb = request.app.state.mongodb
+    if (club := await mongodb["clubs"].find_one({"alias": alias})) is not None:
+        return StandardResponse(
+            success=True, data=ClubDB(**club), message="Club retrieved successfully"
+        )
+    raise ResourceNotFoundException(
+        resource_type="Club", resource_id=alias, details={"query_field": "alias"}
+    )
+
 
 # get club by ID
-@router.get("/id/{id}",
-            response_description="Get a single club by ID",
-            response_model=ClubDB)
+@router.get(
+    "/id/{id}",
+    response_description="Get a single club by ID",
+    response_model=StandardResponse[ClubDB],
+)
 async def get_club_by_id(id: str, request: Request) -> JSONResponse:
     mongodb = request.app.state.mongodb
     if (club := await mongodb["clubs"].find_one({"_id": id})) is not None:
-        return JSONResponse(status_code=status.HTTP_200_OK,
-                          content=jsonable_encoder(ClubDB(**club)))
-    raise HTTPException(status_code=404,
-                       detail=f"Club with id {id} not found")
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=ClubDB(**club), message="Club retrieved successfully"
+                )
+            ),
+        )
+    raise ResourceNotFoundException(
+        resource_type="Club", resource_id=id, details={"query_field": "_id"}
+    )
+
 
 # create new club
-@router.post("/", response_description="Add new club", response_model=ClubDB)
+@router.post("", response_description="Add new club", response_model=StandardResponse[ClubDB])
 async def create_club(
     request: Request,
     name: str = Form(...),
@@ -122,138 +148,211 @@ async def create_club(
     logo: UploadFile = File(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
-  mongodb = request.app.state.mongodb
-  if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    mongodb = request.app.state.mongodb
+    if "ADMIN" not in token_payload.roles:
+        raise AuthorizationException(
+            message="Admin role required to create clubs",
+            details={"user_role": token_payload.roles},
+        )
 
-  club = ClubBase(
-      name=name,
-      alias=alias,
-      addressName=addressName,
-      street=street,
-      zipCode=zipCode,
-      city=city,
-      country=country,
-      email=email,
-      yearOfFoundation=yearOfFoundation,
-      description=description,
-      website=website,
-      ishdId=ishdId,
-      active=active,
-  )
-  club_data = jsonable_encoder(club)
+    club = ClubBase(
+        name=name,
+        alias=alias,
+        addressName=addressName,
+        street=street,
+        zipCode=zipCode,
+        city=city,
+        country=country,
+        email=email,
+        yearOfFoundation=yearOfFoundation,
+        description=description,
+        website=website,
+        ishdId=ishdId,
+        active=active,
+    )
+    club_data = jsonable_encoder(club)
 
-  if logo:
-    club_data['logoUrl'] = await handle_logo_upload(logo, alias)
+    # Check for duplicate alias
+    existing_club = await mongodb["clubs"].find_one({"alias": alias})
+    if existing_club:
+        raise ValidationException(
+            field="alias",
+            message=f"Club with alias '{alias}' already exists",
+            details={"alias": alias, "existing_club_id": str(existing_club["_id"])},
+        )
 
-  # insert club
-  try:
-    print("club_data: ", club_data)
-    new_club = await mongodb["clubs"].insert_one(club_data)
-    created_club = await mongodb["clubs"].find_one(
-        {"_id": new_club.inserted_id})
-    if created_club:
-      return JSONResponse(status_code=status.HTTP_201_CREATED,
-                          content=jsonable_encoder(ClubDB(**created_club)))
-    else:
-      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                          detail="Failed to create club")
-  except DuplicateKeyError:
-    raise HTTPException(status_code=400,
-                        detail=f"Club {club_data['name']} already exists.")
-  except Exception as e:
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=str(e))
+    if logo:
+        club_data["logoUrl"] = await handle_logo_upload(logo, alias)
+
+    # insert club
+    try:
+        # filter out None values
+        club_data = {k: v for k, v in club_data.items() if v is not None}
+        logger.info(f"Creating new club: {club_data}")
+        new_club = await mongodb["clubs"].insert_one(club_data)
+        created_club = await mongodb["clubs"].find_one({"_id": new_club.inserted_id})
+        if created_club:
+            logger.info(f"Club created successfully: {name}")
+            return JSONResponse(
+                status_code=status.HTTP_201_CREATED,
+                content=jsonable_encoder(
+                    StandardResponse(
+                        success=True,
+                        data=ClubDB(**created_club),
+                        message=f"Club '{created_club['name']}' created successfully",
+                    )
+                ),
+            )
+        else:
+            raise DatabaseOperationException(
+                operation="insert",
+                collection="clubs",
+                details={"club_name": name, "reason": "Insert acknowledged but club not found"},
+            )
+    except DuplicateKeyError as e:
+        logger.error(f"Duplicate key error creating club {name}: {str(e)}")
+        raise DatabaseOperationException(
+            operation="insert",
+            collection="clubs",
+            details={
+                "club_name": name,
+                "reason": "Duplicate key - club already exists",
+                "error": str(e),
+            },
+        ) from e
+    except Exception as e:
+        logger.error(f"Unexpected error creating club {name}: {type(e).__name__}: {str(e)}")
+        logger.error(f"Club data being inserted: {club_data}")
+        raise DatabaseOperationException(
+            operation="insert",
+            collection="clubs",
+            details={"club_name": name, "error": str(e), "error_type": type(e).__name__},
+        ) from e
 
 
 # Update club
-@router.patch("/{id}",
-              response_description="Update club",
-              response_model=ClubDB)
+@router.patch("/{id}", response_description="Update club", response_model=StandardResponse[ClubDB])
 async def update_club(
     request: Request,
     id: str,
-    name: Optional[str] = Form(None),
-    alias: Optional[str] = Form(None),
-    addressName: Optional[str] = Form(None),
-    street: Optional[str] = Form(None),
-    zipCode: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
-    country: Optional[str] = Form(None),
-    email: Optional[EmailStr] = Form(None),
-    yearOfFoundation: Optional[int] = Form(None),
-    description: Optional[str] = Form(None),
-    website: Optional[HttpUrl] = Form(None),
-    ishdId: Optional[int] = Form(None),
-    active: Optional[bool] = Form(None),
-    logo: Optional[UploadFile] = File(None),
-    logoUrl: Optional[HttpUrl] = Form(None),
+    name: str | None = Form(None),
+    alias: str | None = Form(None),
+    addressName: str | None = Form(None),
+    street: str | None = Form(None),
+    zipCode: str | None = Form(None),
+    city: str | None = Form(None),
+    country: str | None = Form(None),
+    email: EmailStr | None = Form(None),
+    yearOfFoundation: int | None = Form(None),
+    description: str | None = Form(None),
+    website: HttpUrl | None = Form(None),
+    ishdId: int | None = Form(None),
+    active: bool | None = Form(None),
+    logo: UploadFile | None = File(None),
+    logoUrl: str | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
-  mongodb = request.app.state.mongodb
-  if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
+    mongodb = request.app.state.mongodb
+    if "ADMIN" not in token_payload.roles:
+        raise AuthorizationException(
+            message="Admin role required to update clubs",
+            details={"user_role": token_payload.roles},
+        )
 
-  # retrieve existing club
-  existing_club = await mongodb["clubs"].find_one({"_id": id})
-  if not existing_club:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Club with id {id} not found")
+    # retrieve existing club
+    existing_club = await mongodb["clubs"].find_one({"_id": id})
+    if not existing_club:
+        raise ResourceNotFoundException(resource_type="Club", resource_id=id)
 
-  club_data = ClubUpdate(name=name,
-                         alias=alias,
-                         addressName=addressName,
-                         street=street,
-                         zipCode=zipCode,
-                         city=city,
-                         country=country,
-                         email=email,
-                         yearOfFoundation=yearOfFoundation,
-                         description=description,
-                         website=website,
-                         ishdId=ishdId,
-                         active=active).dict(exclude_none=True)
-  club_data.pop('id', None)
+    club_data = ClubUpdate(
+        name=name,
+        alias=alias,
+        addressName=addressName,
+        street=street,
+        zipCode=zipCode,
+        city=city,
+        country=country,
+        email=email,
+        yearOfFoundation=yearOfFoundation,
+        description=description,
+        website=website,
+        ishdId=ishdId,
+        active=active,
+    ).model_dump(exclude_none=True)
+    club_data.pop("id", None)
 
-  # handle image upload
-  if logo:
-    club_data['logoUrl'] = await handle_logo_upload(logo,
-                                                    existing_club['alias'])
-  elif logoUrl:
-    club_data['logoUrl'] = logoUrl
-  elif existing_club['logoUrl']:
-    await delete_from_cloudinary(existing_club['logoUrl'])
-    club_data['logoUrl'] = None
+    # Debug: Log what was received for logo handling
+    logger.debug(f"Logo upload handling - logo file provided: {logo is not None}")
+    logger.debug(f"Logo upload handling - logoUrl value: {repr(logoUrl)}")
+    logger.debug(f"Logo upload handling - existing logoUrl: {existing_club.get('logoUrl')}")
 
-  print("club_data: ", club_data)
+    # Handle logo upload/deletion/keeping
+    if logo:
+        # Case 1: New file uploaded - always replace/set logo
+        logger.debug("Logo handling: Uploading new logo file")
+        if existing_club.get("logoUrl"):
+            logger.debug(f"Logo handling: Deleting existing logo: {existing_club['logoUrl']}")
+            await delete_from_cloudinary(existing_club["logoUrl"])
+        club_data["logoUrl"] = await handle_logo_upload(logo, existing_club["alias"])
+        logger.debug(f"Logo handling: New logo uploaded: {club_data['logoUrl']}")
+    elif logoUrl == "":
+        # Case 2: Empty string means delete the logo
+        logger.debug("Logo handling: Deleting logo (empty string received)")
+        if existing_club.get("logoUrl"):
+            await delete_from_cloudinary(existing_club["logoUrl"])
+            logger.debug(f"Logo handling: Deleted existing logo: {existing_club['logoUrl']}")
+        club_data["logoUrl"] = None
+    elif logoUrl is not None:
+        # Case 3: logoUrl has a value (URL string) - keep/update URL
+        logger.debug(f"Logo handling: Setting logoUrl to provided value: {logoUrl}")
+        club_data["logoUrl"] = logoUrl
+    else:
+        # Case 4: logoUrl not in FormData - don't include in update (keep existing)
+        logger.debug("Logo handling: logoUrl not provided, removing from update data")
+        club_data.pop("logoUrl", None)
 
-  #Exclude unchanged data
-  club_to_update = {
-      k: v
-      for k, v in club_data.items() if v != existing_club.get(k, None)
-  }
-  print("club_to__update", club_to_update)
-  if not club_to_update:
-    print("No changes to update")
-    return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+    logger.debug(f"club_data: {club_data}")
 
-  # update club
-  try:
-    update_result = await mongodb["clubs"].update_one({"_id": id},
-                                                      {"$set": club_to_update})
-    if update_result.modified_count == 1:
-      updated_club = await mongodb["clubs"].find_one({"_id": id})
-      return JSONResponse(status_code=status.HTTP_200_OK,
-                          content=jsonable_encoder(ClubDB(**updated_club)))
-    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        content="Failed to update club")
-  except DuplicateKeyError:
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=f"Club {club_data.get('name', '')} already exists.")
-  except Exception as e:
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=str(e))
+    # Exclude unchanged data
+    club_to_update = {k: v for k, v in club_data.items() if v != existing_club.get(k, None)}
+    if not club_to_update:
+        logger.info(f"No changes to update for club {id}")
+        # Return 200 with existing data instead of 304
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True, data=ClubDB(**existing_club), message="No changes detected"
+                )
+            ),
+        )
+
+    # update club
+    try:
+        logger.info(f"Updating club {existing_club.get('name', id)}")
+        update_result = await mongodb["clubs"].update_one({"_id": id}, {"$set": club_to_update})
+        if update_result.modified_count == 1:
+            updated_club = await mongodb["clubs"].find_one({"_id": id})
+            logger.info(f"Club updated successfully: {existing_club.get('name', id)}")
+            return StandardResponse(
+                success=True,
+                data=ClubDB(**updated_club),
+                message=f"Club '{updated_club['name']}' updated successfully",
+            )
+        return StandardResponse(
+            success=False, data=ClubDB(**existing_club), message="Failed to update club"
+        )
+    except DuplicateKeyError as e:
+        raise DatabaseOperationException(
+            operation="update",
+            collection="clubs",
+            details={"club_id": id, "reason": "Duplicate key - club name already exists"},
+        ) from e
+    except Exception as e:
+        logger.error(f"Unexpected error updating club {id}: {str(e)}")
+        raise DatabaseOperationException(
+            operation="update", collection="clubs", details={"club_id": id, "error": str(e)}
+        ) from e
 
 
 # Delete club
@@ -263,16 +362,25 @@ async def delete_club(
     id: str,
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
-  mongodb = request.app.state.mongodb
-  if "ADMIN" not in token_payload.roles:
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  existing_club = await mongodb["clubs"].find_one({"_id": id})
-  if not existing_club:
-    raise HTTPException(status_code=404,
-                        detail=f"Club with id {id} not found")
-  result = await mongodb['clubs'].delete_one({"_id": id})
-  if result.deleted_count == 1:
-    await delete_from_cloudinary(existing_club['logoUrl'])
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-  raise HTTPException(status_code=404,
-                      detail=f"Club with id {id} not found")
+    mongodb = request.app.state.mongodb
+    if "ADMIN" not in token_payload.roles:
+        raise AuthorizationException(
+            message="Admin role required to delete clubs",
+            details={"user_role": token_payload.roles},
+        )
+    existing_club = await mongodb["clubs"].find_one({"_id": id})
+    if not existing_club:
+        raise ResourceNotFoundException(resource_type="Club", resource_id=id)
+
+    logger.info(f"Deleting club: {existing_club.get('name', id)}")
+    result = await mongodb["clubs"].delete_one({"_id": id})
+    if result.deleted_count == 1:
+        if existing_club.get("logoUrl"):
+            await delete_from_cloudinary(existing_club["logoUrl"])
+        logger.info(f"Club deleted successfully: {existing_club.get('name', id)}")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    raise DatabaseOperationException(
+        operation="delete",
+        collection="clubs",
+        details={"club_id": id, "deleted_count": result.deleted_count},
+    )

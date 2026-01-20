@@ -1,66 +1,69 @@
-from bson import ObjectId
-from pydantic import Field, BaseModel, ConfigDict, field_validator, HttpUrl
-from pydantic_core import core_schema
-from typing import Optional, Any
 from datetime import datetime
+
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic_core import core_schema
+
 from utils import prevent_empty_str
 
 
 class PyObjectId(ObjectId):
 
-  @classmethod
-  def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any) -> core_schema.CoreSchema:
-    return core_schema.no_info_plain_validator_function(
-      cls.validate,
-      serialization=core_schema.plain_serializer_function_ser_schema(
-        lambda x: str(x), return_schema=core_schema.str_schema()
-      ),
-    )
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
 
-  @classmethod
-  def validate(cls, v: Any) -> ObjectId:
-    if isinstance(v, ObjectId):
-      return v
-    if not ObjectId.is_valid(v):
-      raise ValueError("Invalid ObjectId")
-    return ObjectId(v)
+        def validate_object_id(value: str, _info) -> ObjectId:
+            if isinstance(value, ObjectId):
+                return value
+            if not ObjectId.is_valid(value):
+                raise ValueError("Invalid ObjectId")
+            return ObjectId(value)
 
-  @classmethod
-  def __get_pydantic_json_schema__(cls, schema: Any, handler: Any) -> dict:
-    return {"type": "string", "format": "objectid"}
+        return core_schema.with_info_plain_validator_function(
+            validate_object_id,
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda x: str(x), return_schema=core_schema.str_schema()
+            ),
+        )
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema, handler):
+        return {"type": "string", "format": "objectid"}
 
 
 class MongoBaseModel(BaseModel):
-  model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
-  
-  id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    model_config = ConfigDict(
+        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
+    )
+
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
 class Author(BaseModel):
-  firstName: str = Field(...)
-  lastName: str = Field(...)
+    firstName: str = Field(...)
+    lastName: str = Field(...)
 
-  @field_validator('firstName', 'lastName', mode='before')
-  @classmethod
-  def validate_null_strings(cls, v, info):
-    return prevent_empty_str(v, info.field_name)
+    @field_validator("firstName", "lastName", mode="before")
+    @classmethod
+    def validate_null_strings(cls, v, info):
+        return prevent_empty_str(v, info.field_name)
 
 
 class User(BaseModel):
-  userId: str = Field(...)
-  firstName: str = Field(...)
-  lastName: str = Field(...)
+    userId: str = Field(...)
+    firstName: str = Field(...)
+    lastName: str = Field(...)
 
-  @field_validator('userId', 'firstName', 'lastName', mode='before')
-  @classmethod
-  def validate_null_strings(cls, v, info):
-    return prevent_empty_str(v, info.field_name)
+    @field_validator("userId", "firstName", "lastName", mode="before")
+    @classmethod
+    def validate_null_strings(cls, v, info):
+        return prevent_empty_str(v, info.field_name)
 
 
 class Revision(MongoBaseModel):
-  updateData: dict = Field(...)
-  updateUser: User = Field(...)
-  updateDate: datetime = Field(...)
+    updateData: dict = Field(...)
+    updateUser: User = Field(...)
+    updateDate: datetime = Field(...)
 
 
 # Posts
@@ -68,57 +71,61 @@ class Revision(MongoBaseModel):
 
 
 class PostBase(MongoBaseModel):
-  title: str = Field(...)
-  alias: str = Field(...)
-  content: str = Field(...)
-  author: Optional[Author] = None
-  tags: Optional[list] = Field(default_factory=list)
-  imageUrl: Optional[HttpUrl] = None
-  published: bool = False
-  featured: bool = False
-  deleted: bool = False
-  publishDateFrom: Optional[datetime] = None
-  publishDateTo: Optional[datetime] = None
-  legacyId: Optional[int] = None
+    title: str = Field(...)
+    alias: str = Field(...)
+    content: str = Field(...)
+    author: Author | None = None
+    tags: list | None = Field(default_factory=list)
+    imageUrl: HttpUrl | None = None
+    published: bool = False
+    featured: bool = False
+    deleted: bool = False
+    publishDateFrom: datetime | None = None
+    publishDateTo: datetime | None = None
+    legacyId: int | None = None
 
 
 """
-  @validator('title', 'alias', 'content', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+  @field_validator('title', 'alias', 'content', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
-  @validator('imageUrl', pre=True, always=True)
-  def validate_strings(cls, v, field):
-    return empty_str_to_none(v, field.name)
+  @field_validator('imageUrl', mode='before')
+  @classmethod
+  def validate_strings(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
 """
 
 
 class PostDB(PostBase):
-  createDate: Optional[datetime] = None
-  createUser: User = Field(...)
-  updateDate: Optional[datetime] = None
-  updateUser: Optional[User] = None
-  revisions: list[Revision] = Field(default_factory=list)
+    createDate: datetime | None = None
+    createUser: User = Field(...)
+    updateDate: datetime | None = None
+    updateUser: User | None = None
+    revisions: list[Revision] = Field(default_factory=list)
 
 
 class PostUpdate(MongoBaseModel):
-  title: Optional[str] = None
-  alias: Optional[str] = None
-  content: Optional[str] = None
-  author: Optional[Author] = None
-  tags: Optional[list] = Field(default_factory=list)
-  imageUrl: Optional[HttpUrl] = None
-  published: Optional[bool] = None
-  featured: Optional[bool] = None
-  deleted: Optional[bool] = None
-  publishDateFrom: Optional[datetime] = None
-  publishDateTo: Optional[datetime] = None
-  """
-  @validator('title', 'alias', 'content', pre=True, always=True)
-  def validate_null_strings(cls, v, field):
-    return prevent_empty_str(v, field.name)
+    title: str | None = None
+    alias: str | None = None
+    content: str | None = None
+    author: Author | None = None
+    tags: list | None = Field(default_factory=list)
+    imageUrl: HttpUrl | None = None
+    published: bool | None = None
+    featured: bool | None = None
+    deleted: bool | None = None
+    publishDateFrom: datetime | None = None
+    publishDateTo: datetime | None = None
+    """
+  @field_validator('title', 'alias', 'content', mode='before')
+  @classmethod
+  def validate_null_strings(cls, v, info):
+    return prevent_empty_str(v, info.field_name)
 
-  @validator('imageUrl', pre=True, always=True)
-  def validate_strings(cls, v, field):
-    return empty_str_to_none(v, field.name)
+  @field_validator('imageUrl', mode='before')
+  @classmethod
+  def validate_strings(cls, v, info):
+    return empty_str_to_none(v, info.field_name)
   """

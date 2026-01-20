@@ -1,35 +1,31 @@
 #!/usr/bin/env python
+import argparse
 import csv
 import os
-import certifi
-import argparse
 
+import certifi
 import requests
 from pymongo import MongoClient
+
 from models.clubs import TeamBase
 
 # Get environment variables
 filename = "data/data_new_teams.csv"
-BASE_URL = os.environ['BE_API_URL']
-BASE_URL = os.environ['BE_API_URL_PROD']
+BASE_URL = os.environ["BE_API_URL"]
+BASE_URL = os.environ["BE_API_URL_PROD"]
 
 # MongoDB setup
-client = MongoClient(os.environ['DB_URL'], tlsCAFile=certifi.where())
-db = client[os.environ['DB_NAME']]
+client = MongoClient(os.environ["DB_URL"], tlsCAFile=certifi.where())
+db = client[os.environ["DB_NAME"]]
 
 # Set up argument parser
-parser = argparse.ArgumentParser(description='Manage teams.')
-parser.add_argument('--importAll',
-                    action='store_true',
-                    help='Import all teams.')
+parser = argparse.ArgumentParser(description="Manage teams.")
+parser.add_argument("--importAll", action="store_true", help="Import all teams.")
 args = parser.parse_args()
 
 # First login user to get token
 login_url = f"{BASE_URL}/users/login"
-login_data = {
-    "email": os.environ['SYS_ADMIN_EMAIL'],
-    "password": os.environ['SYS_ADMIN_PASSWORD']
-}
+login_data = {"email": os.environ["SYS_ADMIN_EMAIL"], "password": os.environ["SYS_ADMIN_PASSWORD"]}
 
 try:
     # Login and get token
@@ -38,32 +34,28 @@ try:
         print("Error logging in")
         exit()
 
-    token = login_response.json()["token"]
-    headers = {
-        'Authorization': f'Bearer {token}'
-    }
-    
-    with open(filename, encoding='utf-8') as f:
-        reader = csv.DictReader(f, 
-                             delimiter=';',
-                             quotechar='"',
-                             doublequote=True,
-                             skipinitialspace=True)
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with open(filename, encoding="utf-8") as f:
+        reader = csv.DictReader(
+            f, delimiter=";", quotechar='"', doublequote=True, skipinitialspace=True
+        )
         for row in reader:
-            #print(row)
-            clubAlias=row['clubAlias']
+            # print(row)
+            clubAlias = row["clubAlias"]
             # Create a new team instance
             team = TeamBase(
-                name=row['name'],
-                alias=row['alias'],
-                fullName=row['fullName'],
-                shortName=row['shortName'],
-                tinyName=row['tinyName'],
-                ageGroup=row['ageGroup'],
-                teamNumber=row['teamNumber'],
+                name=row["name"],
+                alias=row["alias"],
+                fullName=row["fullName"],
+                shortName=row["shortName"],
+                tinyName=row["tinyName"],
+                ageGroup=row["ageGroup"],
+                teamNumber=row["teamNumber"],
                 active=True,
                 external=False,
-                ishdId=row['ishdId'],
+                ishdId=row["ishdId"],
             )
 
             # Post the new team to the endpoint
@@ -79,7 +71,9 @@ try:
             elif response.status_code == 409:
                 print(f"Team already exists: {clubAlias} / {team.name}")
             else:
-                print(f"Failed to add team: {clubAlias} {team.name}. Status Code: {response.status_code}")
+                print(
+                    f"Failed to add team: {clubAlias} {team.name}. Status Code: {response.status_code}"
+                )
                 exit()
 
 except Exception as e:

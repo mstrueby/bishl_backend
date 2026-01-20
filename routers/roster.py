@@ -1,171 +1,64 @@
 # filename: routers/roster.py
-from typing import List
-from fastapi import APIRouter, Request, Body, Response, status, HTTPException, Depends, Path
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
-from models.matches import RosterPlayer
+from fastapi import APIRouter, Body, Depends, Path, Request
+
 from authentication import AuthHandler, TokenPayload
-import httpx
-import os
-from utils import calc_player_card_stats, populate_event_player_fields
+from models.matches import RosterPlayer
+from models.responses import StandardResponse
+from services.roster_service import RosterService
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = os.environ['BE_API_URL']
-DEBUG_LEVEL = int(os.environ.get('DEBUG_LEVEL', 0))
+
 
 # get roster of a team
-@router.get("/",
-            response_description="Get roster of a team",
-            response_model=List[RosterPlayer])
+@router.get(
+    "",
+    response_description="Get roster of a team",
+    response_model=StandardResponse[list[RosterPlayer]],
+)
 async def get_roster(
     request: Request,
     match_id: str = Path(..., description="The match id of the roster"),
-    team_flag: str = Path(
-        ..., description="The team flag (home/away) of the roster")
-) -> JSONResponse:
-  mongodb = request.app.state.mongodb
-  team_flag = team_flag.lower()
-  if team_flag not in ["home", "away"]:
-    raise HTTPException(status_code=400, detail="Invalid team flag")
-  match = await mongodb["matches"].find_one({"_id": match_id})
-  if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    team_flag: str = Path(..., description="The team flag (home/away) of the roster"),
+) -> StandardResponse[list[RosterPlayer]]:
+    mongodb = request.app.state.mongodb
+    service = RosterService(mongodb)
 
-  roster = match.get(team_flag, {}).get("roster") or []
-
-  if not isinstance(roster, list):
-    raise HTTPException(status_code=500,
-                        detail="Unexpected data structure in roster")
-  
-  # Populate display fields from player data
-  for roster_entry in roster:
-    if roster_entry.get("player"):
-      await populate_event_player_fields(mongodb, roster_entry["player"])
-  
-  roster_players = [RosterPlayer(**player) for player in roster]
-  return JSONResponse(status_code=status.HTTP_200_OK,
-                      content=jsonable_encoder(roster_players))
+    roster_players = await service.get_roster(match_id, team_flag)
+    return StandardResponse(
+        success=True,
+        data=roster_players,
+        message=f"Retrieved {len(roster_players)} roster players for {team_flag} team",
+    )
 
 
 # update roster of a team
-@router.put("/",
-            response_description="Update roster of a team",
-            response_model=List[RosterPlayer])
+@router.put(
+    "",
+    response_description="Update roster of a team",
+    response_model=StandardResponse[list[RosterPlayer]],
+)
 async def update_roster(
     request: Request,
     match_id: str = Path(..., description="The match id of the roster"),
-    team_flag: str = Path(
-        ..., description="The team flag (home/away) of the roster"),
-    roster: List[RosterPlayer] = Body(...,
-                                      description="The roster to be updated"),
-    token_payload: TokenPayload = Depends(auth.auth_wrapper)
-) -> Response:
-  mongodb = request.app.state.mongodb
-  if not any(role in token_payload.roles
-             for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
-    raise HTTPException(status_code=403, detail="Nicht authorisiert")
-  if DEBUG_LEVEL > 10:
-    print("new roster: ", roster)
-  team_flag = team_flag.lower()
-  if team_flag not in ["home", "away"]:
-    raise HTTPException(status_code=400, detail="Invalid team flag")
-  match = await mongodb["matches"].find_one({"_id": match_id})
-  if match is None:
-    raise HTTPException(status_code=404,
-                        detail=f"Match with id {match_id} not found")
+    team_flag: str = Path(..., description="The team flag (home/away) of the roster"),
+    roster: list[RosterPlayer] = Body(..., description="The roster to be updated"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+) -> StandardResponse[list[RosterPlayer]]:
+    mongodb = request.app.state.mongodb
+    service = RosterService(mongodb)
 
-  # check if any player from the new roster exists in scores or penalties array of the match
-  scores = match.get(team_flag, {}).get("scores") or []
-  penalties = match.get(team_flag, {}).get("penalties") or []
-  existing_player_ids = {
-      player['player']['playerId']
-      for player in (match.get(team_flag, {}).get('roster') or [])
-  }
-  new_player_ids = {player.player.playerId for player in roster}
-  added_player_ids = list(new_player_ids - existing_player_ids)
-  removed_player_ids = list(existing_player_ids - new_player_ids)
-  all_effected_player_ids = added_player_ids + removed_player_ids
-  all_players = removed_player_ids + list(new_player_ids)
-  # temporary process always all players:
-  all_effected_player_ids = all_players
-  if DEBUG_LEVEL > 10:
-    print("xxx new player_ids: ", new_player_ids)
-    print("xxx added_player_ids: ", added_player_ids)
-    print("xxx removed_player_ids: ", removed_player_ids)
-    print("all_effected_player_ids: ", all_effected_player_ids)
+    updated_roster, was_modified = await service.update_roster(
+        match_id=match_id,
+        team_flag=team_flag,
+        roster_data=roster,
+        user_roles=token_payload.roles,
+    )
 
-  for score in scores:
-    if score['goalPlayer']['playerId'] not in new_player_ids or \
-       (score['assistPlayer'] and score['assistPlayer']['playerId'] not in new_player_ids):
-      raise HTTPException(
-          status_code=400,
-          detail=
-          "Roster can not be updated. All players in scores must be in roster")
+    message = (
+        f"Roster updated successfully for {team_flag} team"
+        if was_modified
+        else f"Roster unchanged for {team_flag} team (data identical)"
+    )
 
-  for penalty in penalties:
-    if penalty['penaltyPlayer']['playerId'] not in new_player_ids:
-      raise HTTPException(
-          status_code=400,
-          detail=
-          "Roster can not be updated. All players in penalties must be in roster"
-      )
-
-  # Populate display fields from player data before saving
-  roster_data = jsonable_encoder(roster)
-  for roster_entry in roster_data:
-    if roster_entry.get("player"):
-      await populate_event_player_fields(mongodb, roster_entry["player"])
-
-  # Create a mapping of playerId to new jersey number for updates
-  jersey_updates = {
-    roster_entry["player"]["playerId"]: roster_entry["player"]["jerseyNumber"]
-    for roster_entry in roster_data
-    if roster_entry.get("player", {}).get("playerId") and roster_entry.get("player", {}).get("jerseyNumber") is not None
-  }
-
-  # do update
-  try:
-    # Update roster
-    await mongodb["matches"].update_one(
-        {"_id": match_id}, {"$set": {
-            f"{team_flag}.roster": roster_data
-        }})
-    
-    # Update jersey numbers in scores and penalties
-    if jersey_updates:
-      # Update scores - goal players
-      for player_id, jersey_number in jersey_updates.items():
-        await mongodb["matches"].update_one(
-            {"_id": match_id},
-            {"$set": {f"{team_flag}.scores.$[score].goalPlayer.jerseyNumber": jersey_number}},
-            array_filters=[{"score.goalPlayer.playerId": player_id}]
-        )
-        
-        # Update scores - assist players
-        await mongodb["matches"].update_one(
-            {"_id": match_id},
-            {"$set": {f"{team_flag}.scores.$[score].assistPlayer.jerseyNumber": jersey_number}},
-            array_filters=[{"score.assistPlayer.playerId": player_id}]
-        )
-        
-        # Update penalties
-        await mongodb["matches"].update_one(
-            {"_id": match_id},
-            {"$set": {f"{team_flag}.penalties.$[penalty].penaltyPlayer.jerseyNumber": jersey_number}},
-            array_filters=[{"penalty.penaltyPlayer.playerId": player_id}]
-        )
-      
-      if DEBUG_LEVEL > 0:
-        print(f"Updated jersey numbers for {len(jersey_updates)} players in scores/penalties")
-    
-    # PHASE 1 OPTIMIZATION: Skip heavy player calculations completely
-    # Roster stats within the match document are maintained via incremental updates in scores/penalties
-    if DEBUG_LEVEL > 0:
-      print(f"Roster updated - skipped heavy player calculations for match {match_id}")
-    
-    return await get_roster(request, match_id, team_flag)
-
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    return StandardResponse(success=True, data=updated_roster, message=message)

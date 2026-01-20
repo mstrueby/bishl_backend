@@ -7,12 +7,16 @@ entrypoint = "main.py"
 # A list of globs that specify which files and directories should
 # be hidden in the workspace.
 hidden = ["venv", ".config", "**/__pycache__", "**/.mypy_cache", "**/*.pyc"]
-modules = ["python-3.12"]
+modules = ["python-3.11", "python-3.12"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
 
 # Specifies which nix channel to use when building the environment.
 [nix]
 channel = "stable-22_11"
-packages = ["cacert", "libxcrypt"]
+packages = ["cacert", "cargo", "libiconv", "libxcrypt", "rustc"]
 
 # The command to start the interpreter.
 #[interpreter]
@@ -103,24 +107,63 @@ start = "pylsp"
 run = ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 8080"]
 deploymentTarget = "cloudrun"
 
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 8080
-externalPort = 80
-
 [workflows]
 runButton = "Project"
 
 [[workflows.workflow]]
-name = "Run"
-author = 19449957
+name = "Server"
+author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
+args = "uvicorn main:app --host 0.0.0.0 --port 5000 --reload"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "Server"
+author = "agent"
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "uvicorn main:app --host 0.0.0.0 --port 5000 --reload"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "Full Build"
+author = 19449957
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "poetry install"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "ruff check --fix ."
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "black ."
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "mypy ."
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Server"
 
 [[workflows.workflow]]
 name = "Project"
