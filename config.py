@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     MAIL_PORT: int = Field(default=587, description="SMTP port")
     MAIL_SERVER: str = Field(default="smtp.gmail.com", description="SMTP server")
     MAIL_FROM_NAME: str = Field(default="App", description="Default sender name")
-    MAIL_STARTTLS: bool = Field(default=True, description="Use STARTTLS")
+    MAIL_TLS: bool = Field(default=True, description="Use STARTTLS (mapped to MAIL_STARTTLS)")
     MAIL_SSL_TLS: bool = Field(default=False, description="Use SSL/TLS")
     USE_CREDENTIALS: bool = Field(default=True, description="Use SMTP credentials")
     VALIDATE_CERTS: bool = Field(default=True, description="Validate SSL certificates")
