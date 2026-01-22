@@ -32,6 +32,6 @@ async def send_email(subject: str, recipients: list, body: str, cc: list | None 
         cc=cc or [],
         body=body,
         subtype=MessageType.html,
-        reply_to=[reply_to] if isinstance(reply_to, str) else reply_to
+        reply_to=reply_to
     )
     await fastmail.send_message(message)
