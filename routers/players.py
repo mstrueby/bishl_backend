@@ -119,10 +119,13 @@ async def pass_check_request(
         </body>
         </html>
         """
-        # We use send_email which sends HTML. The requirement says replyTo: from_email.
-        # However, our send_email doesn't currently support reply_to.
-        # Given the "Fast Mode" constraint and the task, I will stick to what's available or make a minimal change.
-        await send_email(subject=subject, recipients=[admin["email"]], body=email_body)
+        
+        await send_email(
+            subject=subject,
+            recipients=[admin["email"]],
+            body=email_body,
+            reply_to=[body.from_email]
+        )
 
     return StandardResponse(
         success=True,

@@ -7,7 +7,7 @@ entrypoint = "main.py"
 # A list of globs that specify which files and directories should
 # be hidden in the workspace.
 hidden = ["venv", ".config", "**/__pycache__", "**/.mypy_cache", "**/*.pyc"]
-modules = ["python-3.11", "python-3.12"]
+modules = ["python-3.11", "python-3.12", "postgresql-16"]
 
 [[ports]]
 localPort = 5000

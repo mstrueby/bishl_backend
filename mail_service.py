@@ -20,7 +20,7 @@ conf = ConnectionConfig(
 fastmail = FastMail(conf)
 
 
-async def send_email(subject: str, recipients: list, body: str, cc: list | None = None):
+async def send_email(subject: str, recipients: list, body: str, cc: list | None = None, reply_to: list | None = None):
     """Send email (only in production environment)"""
     # Only send emails in production environment
     if settings.ENVIRONMENT != "production":
@@ -30,6 +30,11 @@ async def send_email(subject: str, recipients: list, body: str, cc: list | None 
         return
 
     message = MessageSchema(
-        subject=subject, recipients=recipients, cc=cc or [], body=body, subtype=MessageType.html
+        subject=subject,
+        recipients=recipients,
+        cc=cc or [],
+        body=body,
+        subtype=MessageType.html,
+        reply_to=[reply_to] if isinstance(reply_to, str) else reply_to
     )
     await fastmail.send_message(message)
