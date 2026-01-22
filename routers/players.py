@@ -12,7 +12,7 @@ from bson.objectid import ObjectId
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from pydantic import HttpUrl
+from pydantic import BaseModel, EmailStr, HttpUrl
 
 from authentication import AuthHandler, TokenPayload
 from config import settings
@@ -24,7 +24,7 @@ from exceptions import (
     ValidationException,
 )
 from logging_config import logger
-from pydantic import BaseModel, HttpUrl, EmailStr
+from mail_service import send_email
 from models.players import (
     AssignedTeamsInput,
     LicenseInvalidReasonCode,
@@ -42,7 +42,6 @@ from services.performance_monitor import monitor_query
 from services.player_assignment_service import PlayerAssignmentService
 from services.stats_service import StatsService
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
-from mail_service import send_email
 
 router = APIRouter()
 auth = AuthHandler()
@@ -55,7 +54,9 @@ class PassCheckRequest(BaseModel):
     message: str
 
 
-@router.post("/pass-check-request", status_code=status.HTTP_201_CREATED, response_model=StandardResponse)
+@router.post(
+    "/pass-check-request", status_code=status.HTTP_201_CREATED, response_model=StandardResponse
+)
 async def pass_check_request(
     request: Request,
     body: PassCheckRequest,
@@ -91,11 +92,11 @@ async def pass_check_request(
         return StandardResponse(
             success=True,
             message="Request processed, but no PLAYER_ADMINs found to notify.",
-            data={"player_id": body.player_id}
+            data={"player_id": body.player_id},
         )
 
     admin_emails = [admin["email"] for admin in player_admins if "email" in admin]
-    
+
     # Get club name of from_user
     from_user_club_name = "unbekanntem Verein"
     if from_user.get("club") and from_user["club"].get("clubName"):
@@ -103,7 +104,7 @@ async def pass_check_request(
 
     # Build email content
     subject = f"[bishl.de] Bitte die Lizenzen von {player.firstName} {player.lastName} überprüfen"
-    
+
     # Send email to each PLAYER_ADMIN
     for admin in player_admins:
         admin_name = f"{admin.get('firstName', '')} {admin.get('lastName', '')}".strip() or "Admin"
@@ -121,16 +122,12 @@ async def pass_check_request(
         # We use send_email which sends HTML. The requirement says replyTo: from_email.
         # However, our send_email doesn't currently support reply_to.
         # Given the "Fast Mode" constraint and the task, I will stick to what's available or make a minimal change.
-        await send_email(
-            subject=subject,
-            recipients=[admin["email"]],
-            body=email_body
-        )
+        await send_email(subject=subject, recipients=[admin["email"]], body=email_body)
 
     return StandardResponse(
         success=True,
         message="Pass check request sent successfully",
-        data={"player_id": body.player_id, "recipients_count": len(admin_emails)}
+        data={"player_id": body.player_id, "recipients_count": len(admin_emails)},
     )
 
 
