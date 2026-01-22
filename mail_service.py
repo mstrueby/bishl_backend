@@ -21,14 +21,11 @@ fastmail = FastMail(conf)
 
 
 async def send_email(subject: str, recipients: list, body: str, cc: list | None = None, reply_to: list | None = None):
-    """Send email (only in production environment)"""
-    # Only send emails in production environment
-    if settings.ENVIRONMENT != "production":
-        logger.info(
-            f"Non-production mode ({settings.ENVIRONMENT}): Skipping email '{subject}' to {recipients}"
-        )
-        return
+    """Send email"""
+    # Force sending in development for testing if needed, or check environment
+    logger.info(f"Sending email '{subject}' to {recipients}. Environment: {settings.ENVIRONMENT}")
 
+    # Explicitly removed the production check to allow emails in dev if secrets are present
     message = MessageSchema(
         subject=subject,
         recipients=recipients,
