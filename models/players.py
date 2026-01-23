@@ -24,8 +24,7 @@ class PyObjectId(ObjectId):
         return core_schema.with_info_plain_validator_function(
             validate_object_id,
             serialization=core_schema.plain_serializer_function_ser_schema(
-                lambda x: str(x), return_schema=core_schema.str_schema()
-            ),
+                lambda x: str(x), return_schema=core_schema.str_schema()),
         )
 
     @classmethod
@@ -34,9 +33,9 @@ class PyObjectId(ObjectId):
 
 
 class MongoBaseModel(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
-    )
+    model_config = ConfigDict(populate_by_name=True,
+                              arbitrary_types_allowed=True,
+                              json_encoders={ObjectId: str})
 
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
@@ -62,6 +61,28 @@ class Suspension(BaseModel):
     endDate: datetime = Field(...)
     reason: str = Field(...)
     teamIds: list[str] | None = Field(default_factory=list)
+
+    # neu für spielbasierte Sperren
+    tournamentAlias: str | None = Field(
+        default=None, description="Turnier, in dem die Sperre verhängt wurde")
+    seasonAlias: str | None = Field(default=None,
+                                    description="Saison für Kontext/Stats")
+    totalGames: int | None = Field(
+        default=None, description="Anzahl Spiele Sperre (wenn spielbasiert)")
+    gamesServed: int = Field(default=0, description="Bereits verbüßte Spiele")
+    @property
+    def active(self) -> bool:
+        """Determines if the suspension is currently active based on dates"""
+        now = datetime.now()
+        if self.startDate and now < self.startDate:
+            return False
+        if self.endDate and now > self.endDate:
+            return False
+        return True
+    globalLock: bool = Field(
+        default=True,
+        description=
+        "Wenn True, gilt die Sperre auch für andere Teams/Tournaments")
 
 
 class ClubTypeEnum(str, Enum):
@@ -98,24 +119,28 @@ class LicenseInvalidReasonCode(str, Enum):
     IMPORT_CONFLICT = "IMPORT_CONFLICT"
     UNKNOWN_LICENCE_TYPE = "UNKNOWN_LICENCE_TYPE"
     HOBBY_PLAYER_CONFLICT = "HOBBY_PLAYER_CONFLICT"
+    SUSPENDED = "SUSPENDED"
 
 
 class PlayUpOccurrence(BaseModel):
-    matchId: str = Field(..., description="ID of the match where play-up occurred")
-    matchStartDate: datetime = Field(..., description="Start date of the match")
+    matchId: str = Field(...,
+                         description="ID of the match where play-up occurred")
+    matchStartDate: datetime = Field(...,
+                                     description="Start date of the match")
     counted: bool = Field(
-        default=True, description="Whether this occurrence counts towards play-up limits"
-    )
+        default=True,
+        description="Whether this occurrence counts towards play-up limits")
 
 
 class PlayUpTracking(BaseModel):
-    tournamentAlias: str = Field(..., description="Tournament where play-up occurred")
+    tournamentAlias: str = Field(
+        ..., description="Tournament where play-up occurred")
     seasonAlias: str = Field(..., description="Season where play-up occurred")
     fromTeamId: str = Field(..., description="ID of the player's regular team")
-    toTeamId: str = Field(..., description="ID of the team player played up to")
+    toTeamId: str = Field(...,
+                          description="ID of the team player played up to")
     occurrences: list[PlayUpOccurrence] = Field(
-        default_factory=list, description="List of play-up occurrences"
-    )
+        default_factory=list, description="List of play-up occurrences")
 
 
 class AssignedTeams(BaseModel):
@@ -128,8 +153,10 @@ class AssignedTeams(BaseModel):
     passNo: str | None = Field(default=None)
     licenseType: LicenseTypeEnum = Field(default=LicenseTypeEnum.UNKNOWN)
     status: LicenseStatusEnum = Field(default=LicenseStatusEnum.UNKNOWN)
-    invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(default_factory=list)
-    adminOverride: bool = Field(default=False, description="Admin has confirmed VALID")
+    invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(
+        default_factory=list)
+    adminOverride: bool = Field(default=False,
+                                description="Admin has confirmed VALID")
     overrideReason: str | None = None
     overrideDate: datetime | None = None
     validFrom: datetime | None = None
@@ -197,8 +224,8 @@ class PlayerBase(MongoBaseModel):
     sex: SexEnum = Field(default=SexEnum.MALE)
     assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
     playUpTrackings: list[PlayUpTracking] | None = Field(
-        default_factory=list, description="Track play-up occurrences separately from licenses"
-    )
+        default_factory=list,
+        description="Track play-up occurrences separately from licenses")
     suspensions: list[Suspension] | None = Field(default_factory=list)
     stats: list[PlayerStats] | None = Field(default_factory=list)
     imageUrl: HttpUrl | None = None
@@ -260,11 +287,9 @@ class PlayerDB(PlayerBase):
         if self.ageGroup == "U13":
             if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 10:
                 return True
-            elif (
-                self.sex == SexEnum.MALE
-                and self.birthdate > datetime(current_year - 10, 8, 31)
-                and self.birthdate < datetime(current_year - 9, 1, 1)
-            ):
+            elif (self.sex == SexEnum.MALE
+                  and self.birthdate > datetime(current_year - 10, 8, 31)
+                  and self.birthdate < datetime(current_year - 9, 1, 1)):
                 return True
             else:
                 return False
@@ -291,7 +316,14 @@ class PlayerDB(PlayerBase):
         arbitrary_types_allowed=True,
         json_encoders={ObjectId: str},
         json_schema_extra={
-            "properties": {"ageGroup": {"type": "string"}, "overAge": {"type": "boolean"}}
+            "properties": {
+                "ageGroup": {
+                    "type": "string"
+                },
+                "overAge": {
+                    "type": "boolean"
+                }
+            }
         },
     )
 
@@ -312,7 +344,6 @@ class PlayerUpdate(MongoBaseModel):
     displayLastName: str | None = None
     nationality: str | None = None
     position: PositionEnum | None = None
-    fullFaceReq: bool | None = None
     source: SourceEnum | None = None
     sex: SexEnum | None = None
     assignedTeams: list[AssignedClubs] | None = None
@@ -374,22 +405,25 @@ class IshdLogBase(MongoBaseModel):
 
 class SecondaryRule(BaseModel):
     targetAgeGroup: str = Field(..., description="e.g. HERREN, U19")
-    sex: list[SexEnum] = Field(default_factory=list, description="Allowed sexes")
+    sex: list[SexEnum] = Field(default_factory=list,
+                               description="Allowed sexes")
     maxLicenses: int | None = Field(
         default=None,
-        description="Max number of licenses in this target group for one player",
+        description=
+        "Max number of licenses in this target group for one player",
     )
     requiresAdmin: bool = Field(
-        default=False, description="Whether this rule requires admin approval"
-    )
+        default=False, description="Whether this rule requires admin approval")
 
 
 class OverAgeRule(BaseModel):
     targetAgeGroup: str = Field(..., description="e.g. U16, U13")
-    sex: list[SexEnum] = Field(default_factory=list, description="Allowed sexes")
+    sex: list[SexEnum] = Field(default_factory=list,
+                               description="Allowed sexes")
     maxLicenses: int | None = Field(
         default=None,
-        description="Max number of licenses in this target group for one player",
+        description=
+        "Max number of licenses in this target group for one player",
     )
     maxOverAgePlayersPerTeam: int | None = Field(
         default=None,
@@ -402,12 +436,17 @@ class WkoRule(BaseModel):
     label: str = Field(..., description="Display name")
     sortOrder: int = Field(...)
 
-    altKey: str | None = Field(default=None, description="Alternative name from WKO")
-    sex: list[SexEnum] = Field(default_factory=list, description="Allowed sexes")
+    altKey: str | None = Field(default=None,
+                               description="Alternative name from WKO")
+    sex: list[SexEnum] = Field(default_factory=list,
+                               description="Allowed sexes")
 
     secondaryRules: list[SecondaryRule] = Field(default_factory=list)
     overAgeRules: list[OverAgeRule] = Field(default_factory=list)
     maxTotalAgeClasses: dict[SexEnum, int | None] = Field(
-        default_factory=lambda: {SexEnum.MALE: 2, SexEnum.FEMALE: 2},
+        default_factory=lambda: {
+            SexEnum.MALE: 2,
+            SexEnum.FEMALE: 2
+        },
         description="Max number of age classes player can participate in",
     )
