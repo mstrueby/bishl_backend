@@ -236,6 +236,7 @@ async def handle_image_upload(image: UploadFile, playerId) -> str:
 
 async def delete_from_cloudinary(image_url: str):
     if image_url:
+        public_id = None
         try:
             public_id = image_url.rsplit("/", 1)[-1].split(".")[0]
             result = cloudinary.uploader.destroy(f"players/{public_id}")
@@ -246,7 +247,7 @@ async def delete_from_cloudinary(image_url: str):
             raise ExternalServiceException(
                 service_name="Cloudinary",
                 message="Failed to delete image",
-                details={"public_id": f"players/{public_id}", "error": str(e)},
+                details={"public_id": f"players/{public_id}" if public_id else "unknown", "error": str(e)},
             ) from e
 
 
@@ -713,6 +714,8 @@ async def get_players_with_invalid_licences(
 ):
     """
     Get a paginated list of players who have an invalid license with the specified reason code.
+    Revalidates all matching players first to ensure current license status (e.g. expired suspensions),
+    then returns the paginated result of still-invalid players.
     """
     mongodb = request.app.state.mongodb
 
@@ -723,6 +726,17 @@ async def get_players_with_invalid_licences(
         }
     }
 
+    # Get all matching player IDs first (without pagination) to revalidate all
+    cursor = mongodb["players"].find(query, {"_id": 1})
+    all_player_ids = [doc["_id"] async for doc in cursor]
+
+    # Revalidate all matching players to ensure current license status
+    assignment_service = PlayerAssignmentService(mongodb)
+    for player_id in all_player_ids:
+        await assignment_service.update_player_validation_in_db(player_id, reset=True)
+
+    # After revalidation, re-query to get only those still invalid with this reason
+    # and apply pagination to the fresh results
     items, total_count = await PaginationHelper.paginate_query(
         collection=mongodb["players"],
         query=query,
@@ -1509,9 +1523,8 @@ async def get_player_stats(id: str, request: Request) -> list[PlayerStats]:
         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
 
     player_obj = PlayerDB(**player)
-    stats_service = StatsService(mongodb)
-    player_stats = await stats_service.get_player_stats(player_obj)
-    return player_stats
+    # Stats are stored directly on the player object
+    return player_obj.stats or []
 
 
 # GET ALL PLAYERS FOR ONE CLUB
@@ -1544,13 +1557,27 @@ async def get_players_for_club(
         raise ResourceNotFoundException(resource_type="Club", resource_id=club_alias)
     result = await get_paginated_players(mongodb, q, page, club_alias, None, sortby, all, active)
 
+    # Revalidate each player to ensure current license status (e.g. expired suspensions)
+    assignment_service = PlayerAssignmentService(mongodb)
+    validated_items = []
+    for player_data in result["results"]:
+        player_id = player_data.get("_id")
+        if player_id:
+            fresh_player = await assignment_service.update_player_validation_in_db(player_id, reset=True)
+            if fresh_player:
+                validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
+            else:
+                validated_items.append(player_data)
+        else:
+            validated_items.append(player_data)
+
     # Use PaginationHelper to create the response
     paginated_result = PaginationHelper.create_response(
-        items=result["results"],
+        items=validated_items,
         page=result["page"],
         page_size=settings.RESULTS_PER_PAGE if not all else result["total"],
         total_count=result["total"],
-        message=f"Retrieved {len(result['results'])} players for club {club_alias}",
+        message=f"Retrieved {len(validated_items)} players for club {club_alias}",
     )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
@@ -1599,13 +1626,27 @@ async def get_players_for_team(
         mongodb, q, page, club_alias, team_alias, sortby, all, active
     )
 
+    # Revalidate each player to ensure current license status (e.g. expired suspensions)
+    assignment_service = PlayerAssignmentService(mongodb)
+    validated_items = []
+    for player_data in result["results"]:
+        player_id = player_data.get("_id")
+        if player_id:
+            fresh_player = await assignment_service.update_player_validation_in_db(player_id, reset=True)
+            if fresh_player:
+                validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
+            else:
+                validated_items.append(player_data)
+        else:
+            validated_items.append(player_data)
+
     # Use PaginationHelper to create the response
     paginated_result = PaginationHelper.create_response(
-        items=result["results"],
+        items=validated_items,
         page=result["page"],
         page_size=settings.RESULTS_PER_PAGE if not all else result["total"],
         total_count=result["total"],
-        message=f"Retrieved {len(result['results'])} players for team {team_alias} in club {club_alias}",
+        message=f"Retrieved {len(validated_items)} players for team {team_alias} in club {club_alias}",
     )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
@@ -1685,7 +1726,8 @@ async def get_players(
         for item in items:
             player_id = item.get("_id")
             if player_id:
-                fresh_player = await assignment_service.update_player_validation_in_db(player_id)
+                # reset=True ensures we start from clean state and properly detect expired suspensions
+                fresh_player = await assignment_service.update_player_validation_in_db(player_id, reset=True)
                 if fresh_player:
                     validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
                 else:
@@ -1718,7 +1760,8 @@ async def get_player(
     assignment_service = PlayerAssignmentService(mongodb)
 
     # Trigger fresh validation before returning to ensure current license status
-    fresh_player = await assignment_service.update_player_validation_in_db(id)
+    # reset=True ensures we start from clean state and properly detect expired suspensions
+    fresh_player = await assignment_service.update_player_validation_in_db(id, reset=True)
 
     if fresh_player is None:
         # Fallback to normal fetch if validation didn't find player
