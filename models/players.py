@@ -70,6 +70,7 @@ class Suspension(BaseModel):
     totalGames: int | None = Field(
         default=None, description="Anzahl Spiele Sperre (wenn spielbasiert)")
     gamesServed: int = Field(default=0, description="Bereits verbüßte Spiele")
+
     @property
     def active(self) -> bool:
         """Determines if the suspension is currently active based on dates"""

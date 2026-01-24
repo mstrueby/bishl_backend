@@ -1,10 +1,13 @@
 from datetime import datetime
+from enum import Enum
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
 
 from models.assignments import Referee
+from models.players import LicenseStatusEnum
+
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 
 
@@ -23,8 +26,7 @@ class PyObjectId(ObjectId):
         return core_schema.with_info_plain_validator_function(
             validate_object_id,
             serialization=core_schema.plain_serializer_function_ser_schema(
-                lambda x: str(x), return_schema=core_schema.str_schema()
-            ),
+                lambda x: str(x), return_schema=core_schema.str_schema()),
         )
 
     @classmethod
@@ -33,9 +35,9 @@ class PyObjectId(ObjectId):
 
 
 class MongoBaseModel(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
-    )
+    model_config = ConfigDict(populate_by_name=True,
+                              arbitrary_types_allowed=True,
+                              json_encoders={ObjectId: str})
 
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
@@ -88,6 +90,7 @@ class RosterPlayer(BaseModel):
     points: int = 0
     penaltyMinutes: int = 0
     called: bool = False
+    eligibilityStatus = LicenseStatusEnum  # Snapshot bei Aufstellung
 
 
 class ScoresBase(MongoBaseModel):
@@ -205,6 +208,13 @@ class RosterStatus(BaseModel):
     value: str = Field(...)
 
 
+class RosterStatusEnum(str, Enum):
+    DRAFT = "DRAFT"
+    SUBMITTED = "SUBMITTED"
+    APPROVED = "APPROVED"
+    INVALID = "INVALID"
+
+
 class MatchTeam(BaseModel):
     clubId: str | None = None
     clubName: str | None = None
@@ -224,10 +234,18 @@ class MatchTeam(BaseModel):
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = Field(default_factory=MatchStats)
     rosterStatus: RosterStatus = Field(
-        default_factory=lambda: RosterStatus(key="DRAFT", value="Entwurf")
-    )
+        default_factory=lambda: RosterStatus(key="DRAFT", value="Entwurf"))
+    rosterWorkflowStatus: RosterStatusEnum = Field(
+        default=RosterStatusEnum.DRAFT)
+    eligibilityTimestamp: datetime | None = None
+    eligibilityValidator: str | None = None
 
-    @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
+    @field_validator("teamAlias",
+                     "name",
+                     "fullName",
+                     "shortName",
+                     "tinyName",
+                     mode="before")
     @classmethod
     def validate_null_strings(cls, v, info):
         return prevent_empty_str(v, info.field_name)
@@ -252,8 +270,16 @@ class MatchTeamUpdate(BaseModel):
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = None
     rosterStatus: RosterStatus | None = None
+    rosterWorkflowStatus: RosterStatusEnum | None = None
+    eligibilityTimestamp: datetime | None = None
+    eligibilityValidator: str | None = None
 
-    @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
+    @field_validator("teamAlias",
+                     "name",
+                     "fullName",
+                     "shortName",
+                     "tinyName",
+                     mode="before")
     @classmethod
     def validate_null_strings(cls, v, info):
         return prevent_empty_str(v, info.field_name)
@@ -272,8 +298,10 @@ class RefereePaymentDetails(BaseModel):
 
 
 class RefereePayment(BaseModel):
-    referee1: RefereePaymentDetails | None = Field(default_factory=RefereePaymentDetails)
-    referee2: RefereePaymentDetails | None = Field(default_factory=RefereePaymentDetails)
+    referee1: RefereePaymentDetails | None = Field(
+        default_factory=RefereePaymentDetails)
+    referee2: RefereePaymentDetails | None = Field(
+        default_factory=RefereePaymentDetails)
 
 
 class Official(BaseModel):
@@ -311,7 +339,8 @@ class SupplementarySheet(BaseModel):
     awayPlayerPasses: bool | None = False
     awayUniformPlayerClothing: bool | None = False
     awaySecondJerseySet: bool | None = False
-    refereePayment: RefereePayment | None = Field(default_factory=RefereePayment)
+    refereePayment: RefereePayment | None = Field(
+        default_factory=RefereePayment)
     specialEvents: bool | None = False
     refereeComments: str | None = None
     crowd: int | None = 0
@@ -332,14 +361,15 @@ class MatchBase(MongoBaseModel):
     referee1: Referee | None = None
     referee2: Referee | None = None
     matchStatus: KeyValue = Field(
-        default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt")
-    )
-    finishType: KeyValue = Field(default_factory=lambda: KeyValue(key="REGULAR", value="Regulär"))
+        default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
+    finishType: KeyValue = Field(
+        default_factory=lambda: KeyValue(key="REGULAR", value="Regulär"))
     venue: MatchVenue | None = None
     startDate: datetime | None = None
     published: bool = False
     matchSheetComplete: bool = False
-    supplementarySheet: SupplementarySheet | None = Field(default_factory=SupplementarySheet)
+    supplementarySheet: SupplementarySheet | None = Field(
+        default_factory=SupplementarySheet)
 
 
 class MatchDB(MatchBase):
@@ -360,10 +390,14 @@ class MatchListTeam(BaseModel):
     rosterPublished: bool | None = False
     stats: MatchStats | None = Field(default_factory=MatchStats)
     rosterStatus: RosterStatus = Field(
-        default_factory=lambda: RosterStatus(key="VALID", value="Gültig")
-    )
+        default_factory=lambda: RosterStatus(key="VALID", value="Gültig"))
 
-    @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
+    @field_validator("teamAlias",
+                     "name",
+                     "fullName",
+                     "shortName",
+                     "tinyName",
+                     mode="before")
     @classmethod
     def validate_null_strings(cls, v, info):
         return prevent_empty_str(v, info.field_name)
@@ -380,9 +414,9 @@ class MatchListBase(MongoBaseModel):
     referee1: Referee | None = None
     referee2: Referee | None = None
     matchStatus: KeyValue = Field(
-        default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt")
-    )
-    finishType: KeyValue = Field(default_factory=lambda: KeyValue(key="REGULAR", value="Regulär"))
+        default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
+    finishType: KeyValue = Field(
+        default_factory=lambda: KeyValue(key="REGULAR", value="Regulär"))
     venue: MatchVenue | None = None
     startDate: datetime | None = None
     published: bool = False
@@ -405,4 +439,5 @@ class MatchUpdate(MongoBaseModel):
     startDate: datetime | None = None
     published: bool | None = False
     matchSheetComplete: bool | None = False
-    supplementarySheet: SupplementarySheet | None = Field(default_factory=SupplementarySheet)
+    supplementarySheet: SupplementarySheet | None = Field(
+        default_factory=SupplementarySheet)
