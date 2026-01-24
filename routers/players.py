@@ -1621,6 +1621,7 @@ async def get_players(
     sortby: str = "firstName",
     all: bool = False,
     active: bool | None = None,
+    validate: bool = Query(False, description="Trigger fresh license validation for each player (can be slow for large pages)"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1675,18 +1676,24 @@ async def get_players(
     items = await cursor.to_list(length=None)
 
     # Trigger fresh validation for each player to ensure current license status
-    assignment_service = PlayerAssignmentService(mongodb)
+    # Skip validation if all=True (large result set) or validate=False (explicit opt-out)
+    should_validate = validate and not all
     validated_items = []
-    for item in items:
-        player_id = item.get("_id")
-        if player_id:
-            fresh_player = await assignment_service.update_player_validation_in_db(player_id)
-            if fresh_player:
-                validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
+
+    if should_validate:
+        assignment_service = PlayerAssignmentService(mongodb)
+        for item in items:
+            player_id = item.get("_id")
+            if player_id:
+                fresh_player = await assignment_service.update_player_validation_in_db(player_id)
+                if fresh_player:
+                    validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
+                else:
+                    validated_items.append(PlayerDB(**item).model_dump(by_alias=True))
             else:
                 validated_items.append(PlayerDB(**item).model_dump(by_alias=True))
-        else:
-            validated_items.append(PlayerDB(**item).model_dump(by_alias=True))
+    else:
+        validated_items = [PlayerDB(**item).model_dump(by_alias=True) for item in items]
 
     # Create the paginated response
     paginated_result = PaginationHelper.create_response(
