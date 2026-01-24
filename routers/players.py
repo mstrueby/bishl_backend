@@ -1546,7 +1546,7 @@ async def get_players_for_club(
 
     # Use PaginationHelper to create the response
     paginated_result = PaginationHelper.create_response(
-        items=[player.model_dump(by_alias=True) for player in result["results"]],
+        items=result["results"],
         page=result["page"],
         page_size=settings.RESULTS_PER_PAGE if not all else result["total"],
         total_count=result["total"],
@@ -1601,7 +1601,7 @@ async def get_players_for_team(
 
     # Use PaginationHelper to create the response
     paginated_result = PaginationHelper.create_response(
-        items=[player.model_dump(by_alias=True) for player in result["results"]],
+        items=result["results"],
         page=result["page"],
         page_size=settings.RESULTS_PER_PAGE if not all else result["total"],
         total_count=result["total"],
