@@ -74,6 +74,10 @@ Preferred communication style: Simple, everyday language.
 - **CLUB_ADMIN Authorization**: PUT roster endpoint validates CLUB_ADMIN can only edit their own team; SUBMITTED rosters only editable by home team
 - **Validate Endpoint**: POST `/matches/{id}/{team}/roster/validate` validates all roster players, updates eligibilityStatus per player, sets roster status to APPROVED (all valid) or INVALID
 - **Auto-Reset**: When roster.players is updated, status resets to DRAFT and eligibility metadata is cleared
+- **Auto-Validation on Player Read**: 
+  - GET `/players/{id}` always triggers fresh license validation before returning
+  - GET `/players` has optional `validate` query parameter (default: false) for opt-in validation
+  - Roster reads do NOT trigger validation (as required)
 
 ## External Dependencies
 
