@@ -8,12 +8,6 @@ from pydantic_core import core_schema
 from models.clubs import TeamTypeEnum
 
 
-class LicenseStatusEnum(str, Enum):
-    UNKNOWN = "UNKNOWN"
-    VALID = "VALID"
-    INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
-
-
 class MatchTournament(BaseModel):
     name: str = Field(...)
     alias: str = Field(...)
@@ -105,6 +99,7 @@ class Suspension(BaseModel):
         if self.endDate and now > self.endDate:
             return False
         return True
+
     globalLock: bool = Field(
         default=True,
         description=
