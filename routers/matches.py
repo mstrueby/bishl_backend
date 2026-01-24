@@ -23,6 +23,7 @@ from models.matches import (
     MatchStats,
     MatchTeamUpdate,
     MatchUpdate,
+    RosterStatusEnum,
 )
 from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
@@ -87,10 +88,10 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
     if not match:
         raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
 
-    # Set default rosterStatus to VALID if not present (for existing matches)
+    # Set default rosterStatus to DRAFT if not present (for existing matches)
     for team_key in ["home", "away"]:
         if match.get(team_key) and "rosterStatus" not in match[team_key]:
-            match[team_key]["rosterStatus"] = {"key": "VALID", "value": "Gültig"}
+            match[team_key]["rosterStatus"] = RosterStatusEnum.DRAFT
 
     # Populate EventPlayer display fields for scores and penalties
     for team_key in ["home", "away"]:

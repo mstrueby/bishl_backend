@@ -6,9 +6,33 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
 
 from models.assignments import Referee
-from models.players import LicenseStatusEnum
-
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
+
+
+class LicenseStatusEnum(str, Enum):
+    UNKNOWN = "UNKNOWN"
+    VALID = "VALID"
+    INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
+
+
+class MatchTournament(BaseModel):
+    name: str = Field(...)
+    alias: str = Field(...)
+
+
+class MatchSeason(BaseModel):
+    name: str = Field(...)
+    alias: str = Field(...)
+
+
+class MatchRound(BaseModel):
+    name: str = Field(...)
+    alias: str = Field(...)
+
+
+class MatchMatchday(BaseModel):
+    name: str = Field(...)
+    alias: str = Field(...)
 
 
 class PyObjectId(ObjectId):
@@ -90,7 +114,7 @@ class RosterPlayer(BaseModel):
     points: int = 0
     penaltyMinutes: int = 0
     called: bool = False
-    eligibilityStatus = LicenseStatusEnum  # Snapshot bei Aufstellung
+    eligibilityStatus: LicenseStatusEnum = LicenseStatusEnum.UNKNOWN  # Snapshot bei Aufstellung
 
 
 class ScoresBase(MongoBaseModel):
@@ -203,11 +227,6 @@ class Staff(BaseModel):
     role: str | None = None
 
 
-class RosterStatus(BaseModel):
-    key: str = Field(...)
-    value: str = Field(...)
-
-
 class RosterStatusEnum(str, Enum):
     DRAFT = "DRAFT"
     SUBMITTED = "SUBMITTED"
@@ -233,9 +252,7 @@ class MatchTeam(BaseModel):
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = Field(default_factory=MatchStats)
-    rosterStatus: RosterStatus = Field(
-        default_factory=lambda: RosterStatus(key="DRAFT", value="Entwurf"))
-    rosterWorkflowStatus: RosterStatusEnum = Field(
+    rosterStatus: RosterStatusEnum = Field(
         default=RosterStatusEnum.DRAFT)
     eligibilityTimestamp: datetime | None = None
     eligibilityValidator: str | None = None
@@ -269,8 +286,7 @@ class MatchTeamUpdate(BaseModel):
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = None
-    rosterStatus: RosterStatus | None = None
-    rosterWorkflowStatus: RosterStatusEnum | None = None
+    rosterStatus: RosterStatusEnum | None = None
     eligibilityTimestamp: datetime | None = None
     eligibilityValidator: str | None = None
 
@@ -389,8 +405,8 @@ class MatchListTeam(BaseModel):
     logo: HttpUrl | None = None
     rosterPublished: bool | None = False
     stats: MatchStats | None = Field(default_factory=MatchStats)
-    rosterStatus: RosterStatus = Field(
-        default_factory=lambda: RosterStatus(key="VALID", value="Gültig"))
+    rosterStatus: RosterStatusEnum = Field(
+        default=RosterStatusEnum.DRAFT)
 
     @field_validator("teamAlias",
                      "name",

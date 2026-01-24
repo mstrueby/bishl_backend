@@ -99,8 +99,8 @@ class TestMatchesAPI:
         assert match_response["data"]["matchStatus"]["key"] == "SCHEDULED"
         assert match_response["data"]["home"]["teamId"] == home_team_id
         assert match_response["data"]["away"]["teamId"] == away_team_id
-        assert match_response["data"]["home"]["rosterStatus"]["key"] == "DRAFT"
-        assert match_response["data"]["away"]["rosterStatus"]["key"] == "DRAFT"
+        assert match_response["data"]["home"]["rosterStatus"] == "DRAFT"
+        assert match_response["data"]["away"]["rosterStatus"] == "DRAFT"
 
         # Assert database - verify match was created with calculated stats
         match_in_db = await mongodb["matches"].find_one({"_id": match_response["data"]["_id"]})
@@ -126,9 +126,9 @@ class TestMatchesAPI:
         assert response_data["success"] is True
         assert response_data["data"]["_id"] == match["_id"]
         assert response_data["data"]["matchId"] == match["matchId"]
-        # Existing matches without rosterStatus should default to VALID
-        assert response_data["data"]["home"]["rosterStatus"]["key"] == "VALID"
-        assert response_data["data"]["away"]["rosterStatus"]["key"] == "VALID"
+        # Existing matches without rosterStatus should default to DRAFT
+        assert response_data["data"]["home"]["rosterStatus"] == "DRAFT"
+        assert response_data["data"]["away"]["rosterStatus"] == "DRAFT"
 
     async def test_get_match_not_found(self, client: AsyncClient):
         """Test retrieving non-existent match returns 404"""

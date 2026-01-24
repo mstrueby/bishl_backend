@@ -6,7 +6,32 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from pydantic_core import core_schema
 
 from models.clubs import TeamTypeEnum
-from models.matches import MatchMatchday, MatchRound, MatchSeason, MatchTournament
+
+
+class LicenseStatusEnum(str, Enum):
+    UNKNOWN = "UNKNOWN"
+    VALID = "VALID"
+    INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
+
+
+class MatchTournament(BaseModel):
+    name: str = Field(...)
+    alias: str = Field(...)
+
+
+class MatchSeason(BaseModel):
+    name: str = Field(...)
+    alias: str = Field(...)
+
+
+class MatchRound(BaseModel):
+    name: str = Field(...)
+    alias: str = Field(...)
+
+
+class MatchMatchday(BaseModel):
+    name: str = Field(...)
+    alias: str = Field(...)
 
 
 class PyObjectId(ObjectId):
