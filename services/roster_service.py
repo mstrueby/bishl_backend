@@ -265,6 +265,7 @@ class RosterService:
         roster_update: RosterUpdate,
         user_roles: list[str],
         user_id: str | None = None,
+        skip_status_validation: bool = False,
     ) -> tuple[Roster, bool]:
         """
         Atomically update the entire roster object.
@@ -282,6 +283,7 @@ class RosterService:
             roster_update: The RosterUpdate with fields to update
             user_roles: User's roles for authorization
             user_id: Optional user ID for tracking who made the change
+            skip_status_validation: If True, skip status transition validation (for validate endpoint)
 
         Returns:
             Tuple of (updated Roster, was_modified flag)
@@ -320,9 +322,10 @@ class RosterService:
 
         # Handle status transition
         if roster_update.status is not None and roster_update.status != current_roster.status:
-            self.validate_status_transition(
-                current_roster.status, roster_update.status, match_id, team_flag
-            )
+            if not skip_status_validation:
+                self.validate_status_transition(
+                    current_roster.status, roster_update.status, match_id, team_flag
+                )
             update_dict["status"] = roster_update.status.value
 
         # Handle simple field updates

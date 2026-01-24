@@ -800,7 +800,10 @@ class PlayerAssignmentService:
         # Step 12: Validate HOBBY exclusivity
         self._validate_hobby_exclusivity(player)
 
-        # Step 13: Ensure no UNKNOWN status remains
+        # Step 13: Validate suspensions (check active suspensions per team)
+        self._validate_suspensions(player)
+
+        # Step 14: Ensure no UNKNOWN status remains
         self._enforce_no_unknown_status(player)
 
         return player
@@ -1572,6 +1575,90 @@ class PlayerAssignmentService:
                                 LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT
                             )
 
+    def _validate_suspensions(self, player: dict) -> None:
+        """
+        Validate that player is not actively suspended for any team.
+
+        For each active suspension:
+        - If globalLock=True: invalidate ALL teams
+        - If globalLock=False: only invalidate teams whose teamId is in suspension.teamIds
+
+        Suspensions with adminOverride on the team license are skipped.
+        """
+        if not player.get("assignedTeams"):
+            return
+
+        suspensions = player.get("suspensions") or []
+        if not suspensions:
+            return
+
+        # Find active suspensions
+        now = datetime.now()
+        active_suspensions = []
+
+        for susp in suspensions:
+            # Check if suspension is active (same logic as Suspension.active property)
+            start_date = susp.get("startDate")
+            end_date = susp.get("endDate")
+
+            # Convert string dates if needed
+            if isinstance(start_date, str):
+                try:
+                    start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+                except (ValueError, TypeError):
+                    start_date = None
+            if isinstance(end_date, str):
+                try:
+                    end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+                except (ValueError, TypeError):
+                    end_date = None
+
+            # Check if active: now >= startDate AND (endDate is None OR now <= endDate)
+            if start_date and now < start_date:
+                continue  # Not yet started
+            if end_date and now > end_date:
+                continue  # Already ended
+
+            active_suspensions.append(susp)
+
+        if not active_suspensions:
+            return
+
+        # Apply suspensions to teams
+        for club in player["assignedTeams"]:
+            for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
+
+                team_id = team.get("teamId")
+
+                for susp in active_suspensions:
+                    global_lock = susp.get("globalLock")
+                    suspension_team_ids = susp.get("teamIds") or []
+
+                    is_suspended = False
+                    if global_lock is True:
+                        is_suspended = True
+                    elif global_lock is False and suspension_team_ids:
+                        is_suspended = team_id and team_id in suspension_team_ids
+                    elif global_lock is None:
+                        is_suspended = True
+
+                    if is_suspended:
+                        team["status"] = LicenseStatusEnum.INVALID
+                        if LicenseInvalidReasonCode.SUSPENDED not in team.get(
+                            "invalidReasonCodes", []
+                        ):
+                            team.setdefault("invalidReasonCodes", []).append(
+                                LicenseInvalidReasonCode.SUSPENDED
+                            )
+                        logger.debug(
+                            f"Player {player.get('firstName')} {player.get('lastName')} "
+                            f"suspended for team {team.get('teamName')}: {susp.get('reason')} "
+                            f"(globalLock={global_lock}, teamIds={suspension_team_ids})"
+                        )
+                        break  # One suspension is enough to invalidate
+
     def _enforce_no_unknown_status(self, player: dict) -> None:
         """
         Ensure no license has status=UNKNOWN after validation.
@@ -1698,6 +1785,28 @@ class PlayerAssignmentService:
             f"{player.get('firstName')} {player.get('lastName')}"
         )
         return True
+
+    async def update_player_validation_in_db(self, player_id: str, reset: bool = False) -> dict | None:
+        """
+        Public method to update player validation in database.
+
+        Loads player, runs license validation (including suspension checks),
+        persists changes, and returns the updated player document.
+
+        Args:
+            player_id: The player's _id
+            reset: If True, reset status and invalidReasonCodes before validation
+
+        Returns:
+            Updated player dict if found, None if player not found
+        """
+        was_modified = await self._update_player_validation_in_db(player_id, reset=reset)
+
+        # Return the updated player document
+        player = await self.db["players"].find_one({"_id": player_id})
+        if player:
+            logger.info(f"Validated player {player_id}, modified={was_modified}")
+        return player
 
     # ========================================================================
     # ORCHESTRATION METHODS
