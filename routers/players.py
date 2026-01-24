@@ -119,7 +119,7 @@ async def pass_check_request(
         </body>
         </html>
         """
-        
+
         await send_email(
             subject=subject,
             recipients=[admin["email"]],
@@ -1324,8 +1324,8 @@ async def auto_optimize_player(
         )
 
         # ALWAYS final classify + validate (persisted)
-        await assignment_service._update_player_classification_in_db(id, reset=False)
-        await assignment_service._update_player_validation_in_db(id, reset=False)
+        await assignment_service._update_player_classification_in_db(id, reset=True)
+        await assignment_service._update_player_validation_in_db(id, reset=True)
 
         # 5. Post-count & Summary
         final_player_data = await mongodb["players"].find_one({"_id": id})
@@ -2066,10 +2066,10 @@ async def update_player(
                 # Immediately run classification and validation for that player
                 assignment_service = PlayerAssignmentService(mongodb)
                 class_modified = await assignment_service._update_player_classification_in_db(
-                    id, reset=False
+                    id, reset=True
                 )
                 val_modified = await assignment_service._update_player_validation_in_db(
-                    id, reset=False
+                    id, reset=True
                 )
 
                 message = "Player updated and licenses revalidated"
