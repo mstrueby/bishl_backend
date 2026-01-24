@@ -77,7 +77,7 @@ class SexEnum(str, Enum):
 
 class Suspension(BaseModel):
     startDate: datetime = Field(...)
-    endDate: datetime = Field(...)
+    endDate: datetime | None = Field(default=None)
     reason: str = Field(...)
     teamIds: list[str] | None = Field(default_factory=list)
 
@@ -89,6 +89,10 @@ class Suspension(BaseModel):
     totalGames: int | None = Field(
         default=None, description="Anzahl Spiele Sperre (wenn spielbasiert)")
     gamesServed: int = Field(default=0, description="Bereits verbüßte Spiele")
+    globalLock: bool = Field(
+        default=True,
+        description=
+        "Wenn True, gilt die Sperre auch für andere Teams/Tournaments")
 
     @property
     def active(self) -> bool:
@@ -100,10 +104,18 @@ class Suspension(BaseModel):
             return False
         return True
 
-    globalLock: bool = Field(
-        default=True,
-        description=
-        "Wenn True, gilt die Sperre auch für andere Teams/Tournaments")
+    model_config = ConfigDict(
+        json_schema_extra={"properties": {
+            "active": {
+                "type": "boolean"
+            }
+        }})
+
+    def model_dump(self, *args, **kwargs):
+        """Incorporate properties when converting to dictionary"""
+        result = super().model_dump(*args, **kwargs)
+        result["active"] = self.active
+        return result
 
 
 class ClubTypeEnum(str, Enum):
@@ -338,6 +350,9 @@ class PlayerDB(PlayerBase):
         json_encoders={ObjectId: str},
         json_schema_extra={
             "properties": {
+                "active": {
+                    "type": "boolean"
+                },
                 "ageGroup": {
                     "type": "string"
                 },
