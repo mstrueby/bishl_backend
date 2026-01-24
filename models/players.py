@@ -105,11 +105,16 @@ class Suspension(BaseModel):
         return True
 
     model_config = ConfigDict(
-        json_schema_extra={"properties": {
-            "active": {
-                "type": "boolean"
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+        json_schema_extra={
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                }
             }
-        }})
+        })
 
     def model_dump(self, *args, **kwargs):
         """Incorporate properties when converting to dictionary"""
@@ -358,6 +363,9 @@ class PlayerDB(PlayerBase):
                 },
                 "overAge": {
                     "type": "boolean"
+                },
+                "fullFaceReq": {
+                    "type": "boolean"
                 }
             }
         },
@@ -369,6 +377,9 @@ class PlayerDB(PlayerBase):
         result["ageGroup"] = self.ageGroup
         result["overAge"] = self.overAge
         result["fullFaceReq"] = self.fullFaceReq
+        if self.suspensions:
+            # Re-serialize suspensions to ensure their model_dump is called
+            result["suspensions"] = [s.model_dump(*args, **kwargs) for s in self.suspensions]
         return result
 
 

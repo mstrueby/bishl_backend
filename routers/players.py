@@ -539,7 +539,7 @@ async def get_paginated_players(
     return {
         "total": total,
         "page": page,
-        "results": [PlayerDB(**raw_player) for raw_player in players],
+        "results": [PlayerDB(**raw_player).model_dump(by_alias=True) for raw_player in players],
     }
 
 
