@@ -1890,15 +1890,20 @@ async def create_player(
             f"Creating new player: {firstName} {lastName} ({birthdate.strftime('%Y-%m-%d')})"
         )
         await mongodb["players"].insert_one(player)
-        created_player = await mongodb["players"].find_one({"_id": player_id})
-        if created_player:
+
+        # Revalidate licenses after creation to ensure current license status
+        assignment_service = PlayerAssignmentService(mongodb)
+        await assignment_service._update_player_classification_in_db(player_id, reset=True)
+        fresh_player = await assignment_service.update_player_validation_in_db(player_id, reset=True)
+
+        if fresh_player:
             logger.info(f"Player created successfully: {player_id}")
             return JSONResponse(
                 status_code=status.HTTP_201_CREATED,
                 content=jsonable_encoder(
                     StandardResponse(
                         success=True,
-                        data=PlayerDB(**created_player).model_dump(by_alias=True),
+                        data=PlayerDB(**fresh_player).model_dump(by_alias=True),
                         message="Player created successfully",
                     )
                 ),
@@ -2083,46 +2088,50 @@ async def update_player(
 
     logger.debug(f"player_to_update: {player_to_update}")
     if not player_to_update:
-        logger.debug("No changes to update")
+        logger.debug("No changes to update, but still revalidating for freshest license status")
+        # Still revalidate to ensure current license status even if no changes
+        assignment_service = PlayerAssignmentService(mongodb)
+        fresh_player = await assignment_service.update_player_validation_in_db(id, reset=True)
+        player_data = fresh_player if fresh_player else existing_player
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=jsonable_encoder(
                 StandardResponse(
                     success=True,
-                    data=PlayerDB(**existing_player).model_dump(by_alias=True),
+                    data=PlayerDB(**player_data).model_dump(by_alias=True),
                     message="No changes detected",
                 )
             ),
         )
 
-    # NEW: revalidate when assignedTeams changed
+    # Determine if we need to run classification (only when assignedTeams changed)
     assigned_teams_changed = "assignedTeams" in player_to_update
+    # Always revalidate to ensure current license status (e.g. expired suspensions)
+    suspensions_changed = "suspensions" in player_to_update
 
     try:
         update_result = await mongodb["players"].update_one(
             {"_id": id}, {"$set": player_to_update}, upsert=False
         )
-        if update_result.modified_count == 1 or assigned_teams_changed:
+        if update_result.modified_count == 1:
             message = "Player updated successfully"
 
+            # Always revalidate licenses after update to ensure current status
+            assignment_service = PlayerAssignmentService(mongodb)
+            
             if assigned_teams_changed:
-                # Immediately run classification and validation for that player
-                assignment_service = PlayerAssignmentService(mongodb)
-                class_modified = await assignment_service._update_player_classification_in_db(
-                    id, reset=True
-                )
-                val_modified = await assignment_service._update_player_validation_in_db(
-                    id, reset=True
-                )
-
+                # Run classification when team assignments changed
+                await assignment_service._update_player_classification_in_db(id, reset=True)
+            
+            # Always run validation with reset=True to get current license status
+            fresh_player = await assignment_service.update_player_validation_in_db(id, reset=True)
+            
+            if assigned_teams_changed or suspensions_changed:
                 message = "Player updated and licenses revalidated"
-                if class_modified or val_modified:
-                    message += " (classification/validation changes applied)"
 
-                # Reload updated player
-                updated_player_data = await mongodb["players"].find_one({"_id": id})
-            else:
-                updated_player_data = await mongodb["players"].find_one({"_id": id})
+            # Fallback to re-fetching if validation returned None
+            if not fresh_player:
+                fresh_player = await mongodb["players"].find_one({"_id": id})
 
             logger.info(f"Player updated successfully: {id}")
             return JSONResponse(
@@ -2130,7 +2139,7 @@ async def update_player(
                 content=jsonable_encoder(
                     StandardResponse(
                         success=True,
-                        data=PlayerDB(**updated_player_data).model_dump(by_alias=True),
+                        data=PlayerDB(**fresh_player).model_dump(by_alias=True),
                         message=message,
                     )
                 ),
