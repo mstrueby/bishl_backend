@@ -15,26 +15,6 @@ class LicenseStatusEnum(str, Enum):
     INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
 
 
-class MatchTournament(BaseModel):
-    name: str = Field(...)
-    alias: str = Field(...)
-
-
-class MatchSeason(BaseModel):
-    name: str = Field(...)
-    alias: str = Field(...)
-
-
-class MatchRound(BaseModel):
-    name: str = Field(...)
-    alias: str = Field(...)
-
-
-class MatchMatchday(BaseModel):
-    name: str = Field(...)
-    alias: str = Field(...)
-
-
 class PyObjectId(ObjectId):
 
     @classmethod
@@ -234,6 +214,47 @@ class RosterStatusEnum(str, Enum):
     INVALID = "INVALID"
 
 
+class Roster(BaseModel):
+    """Consolidated roster object containing all roster-related data for a team."""
+    players: list[RosterPlayer] = Field(default_factory=list)
+    status: RosterStatusEnum = Field(default=RosterStatusEnum.DRAFT)
+    published: bool = False
+    eligibilityTimestamp: datetime | None = None
+    eligibilityValidator: str | None = None
+    coach: Coach = Field(default_factory=Coach)
+    staff: list[Staff] = Field(default_factory=list)
+
+    # Valid status transitions: DRAFT -> SUBMITTED -> APPROVED, any -> INVALID, any -> DRAFT (reset)
+    VALID_TRANSITIONS: dict[RosterStatusEnum, set[RosterStatusEnum]] = {
+        RosterStatusEnum.DRAFT: {RosterStatusEnum.SUBMITTED, RosterStatusEnum.INVALID},
+        RosterStatusEnum.SUBMITTED: {RosterStatusEnum.APPROVED, RosterStatusEnum.INVALID, RosterStatusEnum.DRAFT},
+        RosterStatusEnum.APPROVED: {RosterStatusEnum.INVALID, RosterStatusEnum.DRAFT},
+        RosterStatusEnum.INVALID: {RosterStatusEnum.DRAFT},
+    }
+
+    def can_transition_to(self, new_status: RosterStatusEnum) -> bool:
+        """Check if transition from current status to new_status is allowed."""
+        return new_status in self.VALID_TRANSITIONS.get(self.status, set())
+
+
+class RosterUpdate(BaseModel):
+    """Update model for roster - all fields optional for partial updates."""
+    players: list[RosterPlayer] | None = None
+    status: RosterStatusEnum | None = None
+    published: bool | None = None
+    eligibilityTimestamp: datetime | None = None
+    eligibilityValidator: str | None = None
+    coach: Coach | None = None
+    staff: list[Staff] | None = None
+
+
+class RosterSummary(BaseModel):
+    """Lightweight roster summary for list views (no player details)."""
+    status: RosterStatusEnum = Field(default=RosterStatusEnum.DRAFT)
+    published: bool = False
+    playerCount: int = 0
+
+
 class MatchTeam(BaseModel):
     clubId: str | None = None
     clubName: str | None = None
@@ -245,17 +266,10 @@ class MatchTeam(BaseModel):
     shortName: str = Field(...)
     tinyName: str = Field(...)
     logo: HttpUrl | None = None
-    roster: list[RosterPlayer] | None = Field(default_factory=list)
-    rosterPublished: bool | None = False
-    coach: Coach = Field(default_factory=Coach)
-    staff: list[Staff] | None = Field(default_factory=list)
+    roster: Roster = Field(default_factory=Roster)
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = Field(default_factory=MatchStats)
-    rosterStatus: RosterStatusEnum = Field(
-        default=RosterStatusEnum.DRAFT)
-    eligibilityTimestamp: datetime | None = None
-    eligibilityValidator: str | None = None
 
     @field_validator("teamAlias",
                      "name",
@@ -279,16 +293,10 @@ class MatchTeamUpdate(BaseModel):
     shortName: str | None = "DEFAULT"
     tinyName: str | None = "DEFAULT"
     logo: HttpUrl | None = None
-    roster: list[RosterPlayer] | None = Field(default_factory=list)
-    rosterPublished: bool | None = None
-    coach: Coach | None = Field(default_factory=Coach)
-    staff: list[Staff] | None = Field(default_factory=list)
+    roster: RosterUpdate | None = None
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = None
-    rosterStatus: RosterStatusEnum | None = None
-    eligibilityTimestamp: datetime | None = None
-    eligibilityValidator: str | None = None
 
     @field_validator("teamAlias",
                      "name",
@@ -403,10 +411,8 @@ class MatchListTeam(BaseModel):
     shortName: str = Field(...)
     tinyName: str = Field(...)
     logo: HttpUrl | None = None
-    rosterPublished: bool | None = False
+    roster: RosterSummary = Field(default_factory=RosterSummary)
     stats: MatchStats | None = Field(default_factory=MatchStats)
-    rosterStatus: RosterStatusEnum = Field(
-        default=RosterStatusEnum.DRAFT)
 
     @field_validator("teamAlias",
                      "name",

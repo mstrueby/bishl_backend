@@ -688,7 +688,12 @@ class StatsService:
             )
 
         team_data = match.get(team_flag, {})
-        roster = team_data.get("roster", [])
+        roster_data = team_data.get("roster", {})
+        # Handle both new nested structure and legacy flat structure
+        if isinstance(roster_data, dict):
+            roster = roster_data.get("players", [])
+        else:
+            roster = roster_data if roster_data else []
         scoreboard = team_data.get("scores", [])
         penaltysheet = team_data.get("penalties", [])
 
@@ -803,12 +808,12 @@ class StatsService:
     @monitor_query("save_roster_to_db")
     async def _save_roster_to_db(self, match_id: str, team_flag: str, roster: list[dict]) -> None:
         """
-        Save updated roster to the database.
+        Save updated roster players to the database.
 
         Args:
             match_id: The match ID
             team_flag: The team flag ('home' or 'away')
-            roster: Updated roster list
+            roster: Updated roster players list
         """
 
         if self.db is None:
@@ -819,8 +824,9 @@ class StatsService:
 
         if roster:
             try:
+                # Save to the new nested roster.players path
                 result = await self.db["matches"].update_one(
-                    {"_id": match_id}, {"$set": {f"{team_flag}.roster": roster}}
+                    {"_id": match_id}, {"$set": {f"{team_flag}.roster.players": roster}}
                 )
                 if not result.acknowledged:
                     raise DatabaseOperationException(
@@ -1014,7 +1020,12 @@ class StatsService:
                 "match_status": match.get("matchStatus", {}),
             }
 
-            roster = match.get(team_flag, {}).get("roster", [])
+            roster_data = match.get(team_flag, {}).get("roster", {})
+            # Handle both new nested structure and legacy flat structure
+            if isinstance(roster_data, dict):
+                roster = roster_data.get("players", [])
+            else:
+                roster = roster_data if roster_data else []
             team = self._create_team_dict(match.get(team_flag, {}))
 
             logger.debug(f"Processing {team_flag} roster", extra={"roster_size": len(roster)})
@@ -1260,7 +1271,12 @@ class StatsService:
 
         for match in matches:
             for team_flag in ["home", "away"]:
-                roster = match.get(team_flag, {}).get("roster", [])
+                roster_data = match.get(team_flag, {}).get("roster", {})
+                # Handle both new nested structure and legacy flat structure
+                if isinstance(roster_data, dict):
+                    roster = roster_data.get("players", [])
+                else:
+                    roster = roster_data if roster_data else []
                 for roster_player in roster:
                     if roster_player.get("player", {}).get(
                         "playerId"

@@ -88,18 +88,51 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
     if not match:
         raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
 
-    # Set default rosterStatus to DRAFT if not present (for existing matches)
+    # Handle roster structure: convert legacy flat structure to nested if needed
     for team_key in ["home", "away"]:
-        if match.get(team_key) and "rosterStatus" not in match[team_key]:
-            match[team_key]["rosterStatus"] = RosterStatusEnum.DRAFT
+        team = match.get(team_key, {})
+        if not team:
+            continue
+            
+        roster_data = team.get("roster")
+        
+        # Handle legacy flat structure (roster is a list of players)
+        if isinstance(roster_data, list):
+            team["roster"] = {
+                "players": roster_data,
+                "status": team.get("rosterStatus", RosterStatusEnum.DRAFT.value),
+                "published": team.get("rosterPublished", False),
+                "eligibilityTimestamp": team.get("eligibilityTimestamp"),
+                "eligibilityValidator": team.get("eligibilityValidator"),
+                "coach": team.get("coach", {}),
+                "staff": team.get("staff", []),
+            }
+            # Remove old flat fields
+            for old_field in ["rosterStatus", "rosterPublished", "eligibilityTimestamp", "eligibilityValidator", "coach", "staff"]:
+                team.pop(old_field, None)
+        # Handle missing roster (initialize empty)
+        elif roster_data is None:
+            team["roster"] = {
+                "players": [],
+                "status": RosterStatusEnum.DRAFT.value,
+                "published": False,
+                "coach": {},
+                "staff": [],
+            }
+        # Nested structure exists, ensure default status
+        elif isinstance(roster_data, dict) and "status" not in roster_data:
+            roster_data["status"] = RosterStatusEnum.DRAFT.value
 
     # Populate EventPlayer display fields for scores and penalties
     for team_key in ["home", "away"]:
         team = match.get(team_key, {})
+        if not team:
+            continue
 
-        # Populate roster player fields
-        roster = team.get("roster", [])
-        for roster_entry in roster:
+        # Populate roster player fields (now nested under roster.players)
+        roster = team.get("roster", {})
+        players = roster.get("players", []) if isinstance(roster, dict) else []
+        for roster_entry in players:
             if roster_entry.get("player"):
                 await populate_event_player_fields(mongodb, roster_entry["player"])
 
@@ -1053,14 +1086,18 @@ async def update_match(
         and r_alias
         and md_alias
     ):
+        home_roster = existing_match.get("home", {}).get("roster", {})
+        home_roster_players = home_roster.get("players", []) if isinstance(home_roster, dict) else home_roster
         home_players = [
             player.get("player", {}).get("playerId")
-            for player in existing_match.get("home", {}).get("roster", [])
+            for player in home_roster_players
             if player.get("player", {}).get("playerId")
         ]
+        away_roster = existing_match.get("away", {}).get("roster", {})
+        away_roster_players = away_roster.get("players", []) if isinstance(away_roster, dict) else away_roster
         away_players = [
             player.get("player", {}).get("playerId")
-            for player in existing_match.get("away", {}).get("roster", [])
+            for player in away_roster_players
             if player.get("player", {}).get("playerId")
         ]
         player_ids = home_players + away_players
@@ -1127,11 +1164,15 @@ async def delete_match(
         r_alias = round_data.get("alias", None)
         md_alias = matchday.get("alias", None)
 
+        home_roster = match.get("home", {}).get("roster", {})
+        home_roster_players = home_roster.get("players", []) if isinstance(home_roster, dict) else (home_roster or [])
         home_players = [
-            player["player"]["playerId"] for player in match.get("home", {}).get("roster") or []
+            player["player"]["playerId"] for player in home_roster_players
         ]
+        away_roster = match.get("away", {}).get("roster", {})
+        away_roster_players = away_roster.get("players", []) if isinstance(away_roster, dict) else (away_roster or [])
         away_players = [
-            player["player"]["playerId"] for player in match.get("away", {}).get("roster") or []
+            player["player"]["playerId"] for player in away_roster_players
         ]
         if DEBUG_LEVEL > 0:
             logger.debug(f"### home_players: {home_players}")

@@ -9,6 +9,7 @@ from exceptions import (
     ResourceNotFoundException,
     ValidationException,
 )
+from models.matches import RosterStatusEnum, RosterUpdate
 from services.roster_service import RosterService
 
 
@@ -47,38 +48,48 @@ class TestGetRoster:
     """Test roster retrieval"""
 
     @pytest.mark.asyncio
-    async def test_validate_roster_duplicate_players(self, roster_service):
-        """Test validation fails when roster contains duplicate players"""
+    async def test_get_roster_returns_roster_object(self, roster_service, mock_db):
+        """Test successful roster retrieval returns Roster object"""
         from bson import ObjectId
 
-        from models.matches import EventPlayer, RosterPlayer
+        from models.matches import Roster
 
         match_id = str(ObjectId())
-        match = {"_id": match_id, "home": {"scores": [], "penalties": []}}
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {
+                    "players": [
+                        {
+                            "player": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
+                            "playerPosition": {"key": "FW", "value": "Forward"},
+                            "passNumber": "123",
+                            "goals": 2,
+                            "assists": 1,
+                        }
+                    ],
+                    "status": "SUBMITTED",
+                    "published": True,
+                    "coach": {"firstName": "Coach", "lastName": "Test"},
+                    "staff": [],
+                }
+            },
+        }
 
-        # Create roster with duplicate player
-        new_roster = [
-            RosterPlayer(
-                player=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
-                playerPosition={"key": "FW", "value": "Forward"},
-                passNumber="123",
-            ),
-            RosterPlayer(
-                player=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
-                playerPosition={"key": "DF", "value": "Defense"},
-                passNumber="456",
-            ),
-        ]
+        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
 
-        with pytest.raises(ValidationException) as exc_info:
-            await roster_service.validate_roster_changes(match, "home", new_roster)
+        result = await roster_service.get_roster(match_id, "home")
 
-        assert "duplicate players" in exc_info.value.message.lower()
-        assert "p1" in exc_info.value.details["duplicate_player_ids"]
+        assert isinstance(result, Roster)
+        assert len(result.players) == 1
+        assert result.players[0].player.playerId == "p1"
+        assert result.status == RosterStatusEnum.SUBMITTED
+        assert result.published is True
+        assert result.coach.firstName == "Coach"
 
     @pytest.mark.asyncio
-    async def test_get_roster_success(self, roster_service, mock_db):
-        """Test successful roster retrieval"""
+    async def test_get_roster_handles_legacy_flat_structure(self, roster_service, mock_db):
+        """Test roster retrieval handles legacy flat structure"""
         from bson import ObjectId
 
         match_id = str(ObjectId())
@@ -90,10 +101,12 @@ class TestGetRoster:
                         "player": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
                         "playerPosition": {"key": "FW", "value": "Forward"},
                         "passNumber": "123",
-                        "goals": 2,
-                        "assists": 1,
                     }
-                ]
+                ],
+                "rosterStatus": "APPROVED",
+                "rosterPublished": True,
+                "coach": {"firstName": "Legacy", "lastName": "Coach"},
+                "staff": [{"firstName": "Staff", "lastName": "Member", "role": "Trainer"}],
             },
         }
 
@@ -101,9 +114,11 @@ class TestGetRoster:
 
         result = await roster_service.get_roster(match_id, "home")
 
-        assert len(result) == 1
-        assert result[0].player.playerId == "p1"
-        assert result[0].goals == 2
+        assert len(result.players) == 1
+        assert result.status == RosterStatusEnum.APPROVED
+        assert result.published is True
+        assert result.coach.firstName == "Legacy"
+        assert len(result.staff) == 1
 
     @pytest.mark.asyncio
     async def test_get_roster_match_not_found(self, roster_service, mock_db):
@@ -135,17 +150,56 @@ class TestGetRoster:
         from bson import ObjectId
 
         match_id = str(ObjectId())
-        test_match = {"_id": match_id, "home": {"roster": []}}
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {
+                    "players": [],
+                    "status": "DRAFT",
+                    "published": False,
+                }
+            },
+        }
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
 
         result = await roster_service.get_roster(match_id, "home")
 
-        assert result == []
+        assert result.players == []
+        assert result.status == RosterStatusEnum.DRAFT
 
 
-class TestValidateRosterChanges:
-    """Test roster validation"""
+class TestValidateRosterPlayers:
+    """Test roster player validation"""
+
+    @pytest.mark.asyncio
+    async def test_validate_roster_duplicate_players(self, roster_service):
+        """Test validation fails when roster contains duplicate players"""
+        from bson import ObjectId
+
+        from models.matches import EventPlayer, RosterPlayer
+
+        match_id = str(ObjectId())
+        match = {"_id": match_id, "home": {"scores": [], "penalties": []}}
+
+        new_players = [
+            RosterPlayer(
+                player=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
+                playerPosition={"key": "FW", "value": "Forward"},
+                passNumber="123",
+            ),
+            RosterPlayer(
+                player=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
+                playerPosition={"key": "DF", "value": "Defense"},
+                passNumber="456",
+            ),
+        ]
+
+        with pytest.raises(ValidationException) as exc_info:
+            await roster_service.validate_roster_players(match, "home", new_players)
+
+        assert "duplicate players" in exc_info.value.message.lower()
+        assert "p1" in exc_info.value.details["duplicate_player_ids"]
 
     @pytest.mark.asyncio
     async def test_validate_roster_with_scores_success(self, roster_service):
@@ -163,7 +217,7 @@ class TestValidateRosterChanges:
             },
         }
 
-        new_roster = [
+        new_players = [
             RosterPlayer(
                 player=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
                 playerPosition={"key": "FW", "value": "Forward"},
@@ -176,8 +230,7 @@ class TestValidateRosterChanges:
             ),
         ]
 
-        # Should not raise exception
-        await roster_service.validate_roster_changes(match, "home", new_roster)
+        await roster_service.validate_roster_players(match, "home", new_players)
 
     @pytest.mark.asyncio
     async def test_validate_roster_missing_goal_player(self, roster_service):
@@ -195,7 +248,7 @@ class TestValidateRosterChanges:
             },
         }
 
-        new_roster = [
+        new_players = [
             RosterPlayer(
                 player=EventPlayer(playerId="p2", firstName="Jane", lastName="Doe"),
                 playerPosition={"key": "DF", "value": "Defense"},
@@ -204,7 +257,7 @@ class TestValidateRosterChanges:
         ]
 
         with pytest.raises(ValidationException) as exc_info:
-            await roster_service.validate_roster_changes(match, "home", new_roster)
+            await roster_service.validate_roster_players(match, "home", new_players)
 
         assert "players in scores must be in roster" in exc_info.value.message
 
@@ -221,7 +274,7 @@ class TestValidateRosterChanges:
             "home": {"scores": [], "penalties": [{"penaltyPlayer": {"playerId": "p1"}}]},
         }
 
-        new_roster = [
+        new_players = [
             RosterPlayer(
                 player=EventPlayer(playerId="p2", firstName="Jane", lastName="Doe"),
                 playerPosition={"key": "DF", "value": "Defense"},
@@ -230,9 +283,51 @@ class TestValidateRosterChanges:
         ]
 
         with pytest.raises(ValidationException) as exc_info:
-            await roster_service.validate_roster_changes(match, "home", new_roster)
+            await roster_service.validate_roster_players(match, "home", new_players)
 
         assert "players in penalties must be in roster" in exc_info.value.message
+
+
+class TestValidateStatusTransition:
+    """Test roster status transition validation"""
+
+    def test_valid_draft_to_submitted(self, roster_service):
+        """Test DRAFT -> SUBMITTED is allowed"""
+        roster_service.validate_status_transition(
+            RosterStatusEnum.DRAFT, RosterStatusEnum.SUBMITTED, "match-1", "home"
+        )
+
+    def test_valid_submitted_to_approved(self, roster_service):
+        """Test SUBMITTED -> APPROVED is allowed"""
+        roster_service.validate_status_transition(
+            RosterStatusEnum.SUBMITTED, RosterStatusEnum.APPROVED, "match-1", "home"
+        )
+
+    def test_valid_any_to_invalid(self, roster_service):
+        """Test any status -> INVALID is allowed"""
+        for status in RosterStatusEnum:
+            if status != RosterStatusEnum.INVALID:
+                roster_service.validate_status_transition(
+                    status, RosterStatusEnum.INVALID, "match-1", "home"
+                )
+
+    def test_invalid_draft_to_approved(self, roster_service):
+        """Test DRAFT -> APPROVED is not allowed (must go through SUBMITTED)"""
+        with pytest.raises(ValidationException) as exc_info:
+            roster_service.validate_status_transition(
+                RosterStatusEnum.DRAFT, RosterStatusEnum.APPROVED, "match-1", "home"
+            )
+
+        assert "cannot transition" in exc_info.value.message.lower()
+
+    def test_invalid_approved_to_submitted(self, roster_service):
+        """Test APPROVED -> SUBMITTED is not allowed"""
+        with pytest.raises(ValidationException) as exc_info:
+            roster_service.validate_status_transition(
+                RosterStatusEnum.APPROVED, RosterStatusEnum.SUBMITTED, "match-1", "home"
+            )
+
+        assert "cannot transition" in exc_info.value.message.lower()
 
 
 class TestUpdateJerseyNumbers:
@@ -248,8 +343,7 @@ class TestUpdateJerseyNumbers:
 
         await roster_service.update_jersey_numbers(match_id, "home", jersey_updates)
 
-        # Should have called update_one 4 times (goal players, assist players, penalties for each player)
-        assert mock_db._matches_collection.update_one.call_count == 6  # 2 players * 3 updates each
+        assert mock_db._matches_collection.update_one.call_count == 6
 
     @pytest.mark.asyncio
     async def test_update_jersey_numbers_empty_updates(self, roster_service, mock_db):
@@ -259,7 +353,6 @@ class TestUpdateJerseyNumbers:
         match_id = str(ObjectId())
         await roster_service.update_jersey_numbers(match_id, "home", {})
 
-        # Should not call update_one
         mock_db._matches_collection.update_one.assert_not_called()
 
 
@@ -267,33 +360,73 @@ class TestUpdateRoster:
     """Test roster update operation"""
 
     @pytest.mark.asyncio
-    async def test_update_roster_success(self, roster_service, mock_db):
-        """Test successful roster update"""
+    async def test_update_roster_players(self, roster_service, mock_db):
+        """Test successful roster player update"""
         from bson import ObjectId
 
         from models.matches import EventPlayer, RosterPlayer
 
         match_id = str(ObjectId())
-        test_match = {"_id": match_id, "home": {"roster": [], "scores": [], "penalties": []}}
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {"players": [], "status": "DRAFT", "published": False},
+                "scores": [],
+                "penalties": [],
+            },
+        }
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
         mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
-        new_roster = [
-            RosterPlayer(
-                player=EventPlayer(
-                    playerId="p1", firstName="John", lastName="Doe", jerseyNumber=10
-                ),
-                playerPosition={"key": "FW", "value": "Forward"},
-                passNumber="123",
-            )
-        ]
+        roster_update = RosterUpdate(
+            players=[
+                RosterPlayer(
+                    player=EventPlayer(
+                        playerId="p1", firstName="John", lastName="Doe", jerseyNumber=10
+                    ),
+                    playerPosition={"key": "FW", "value": "Forward"},
+                    passNumber="123",
+                )
+            ]
+        )
 
         with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
-            await roster_service.update_roster(match_id, "home", new_roster, user_roles=["ADMIN"])
+            result, was_modified = await roster_service.update_roster(
+                match_id, "home", roster_update, user_roles=["ADMIN"]
+            )
 
-        # Verify update was called
         assert mock_db._matches_collection.update_one.called
+
+    @pytest.mark.asyncio
+    async def test_update_roster_status_transition(self, roster_service, mock_db):
+        """Test roster status update"""
+        from bson import ObjectId
+
+        match_id = str(ObjectId())
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {"players": [], "status": "DRAFT", "published": False},
+                "scores": [],
+                "penalties": [],
+            },
+        }
+
+        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+
+        roster_update = RosterUpdate(status=RosterStatusEnum.SUBMITTED)
+
+        with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
+            result, was_modified = await roster_service.update_roster(
+                match_id, "home", roster_update, user_roles=["ADMIN"]
+            )
+
+        assert was_modified is True
+        call_args = mock_db._matches_collection.update_one.call_args
+        update_dict = call_args[0][1]["$set"]
+        assert "home.roster.status" in update_dict
 
     @pytest.mark.asyncio
     async def test_update_roster_unauthorized(self, roster_service, mock_db):
@@ -301,35 +434,99 @@ class TestUpdateRoster:
         from bson import ObjectId
 
         match_id = str(ObjectId())
+        roster_update = RosterUpdate(published=True)
+
         with pytest.raises(AuthorizationException):
-            await roster_service.update_roster(match_id, "home", [], user_roles=["USER"])
+            await roster_service.update_roster(match_id, "home", roster_update, user_roles=["USER"])
 
     @pytest.mark.asyncio
     async def test_update_roster_no_changes(self, roster_service, mock_db):
-        """Test successful handling when no changes detected"""
+        """Test handling when no fields provided"""
         from bson import ObjectId
 
-        from models.matches import EventPlayer, RosterPlayer
-
         match_id = str(ObjectId())
-        test_match = {"_id": match_id, "home": {"roster": [], "scores": [], "penalties": []}}
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {"players": [], "status": "DRAFT", "published": False},
+                "scores": [],
+                "penalties": [],
+            },
+        }
 
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
-        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=0))
 
-        new_roster = [
-            RosterPlayer(
-                player=EventPlayer(playerId="p1", firstName="John", lastName="Doe"),
-                playerPosition={"key": "FW", "value": "Forward"},
-                passNumber="123",
-            )
-        ]
+        roster_update = RosterUpdate()
 
         with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
-            roster, was_modified = await roster_service.update_roster(
-                match_id, "home", new_roster, user_roles=["ADMIN"]
+            result, was_modified = await roster_service.update_roster(
+                match_id, "home", roster_update, user_roles=["ADMIN"]
             )
 
-            # Should return successfully with was_modified=False
-            assert was_modified is False
-            assert len(roster) >= 0  # Roster can be empty or contain players
+        assert was_modified is False
+
+    @pytest.mark.asyncio
+    async def test_update_roster_approved_sets_eligibility(self, roster_service, mock_db):
+        """Test that approving roster auto-sets eligibility metadata"""
+        from bson import ObjectId
+
+        match_id = str(ObjectId())
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {"players": [], "status": "SUBMITTED", "published": False},
+                "scores": [],
+                "penalties": [],
+            },
+        }
+
+        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+
+        roster_update = RosterUpdate(status=RosterStatusEnum.APPROVED)
+
+        with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
+            await roster_service.update_roster(
+                match_id, "home", roster_update, user_roles=["ADMIN"], user_id="admin-123"
+            )
+
+        call_args = mock_db._matches_collection.update_one.call_args
+        update_dict = call_args[0][1]["$set"]
+        assert "home.roster.eligibilityTimestamp" in update_dict
+        assert "home.roster.eligibilityValidator" in update_dict
+        assert update_dict["home.roster.eligibilityValidator"] == "admin-123"
+
+
+class TestGetRosterPlayers:
+    """Test get_roster_players convenience method"""
+
+    @pytest.mark.asyncio
+    async def test_get_roster_players_returns_list(self, roster_service, mock_db):
+        """Test get_roster_players returns player list only"""
+        from bson import ObjectId
+
+        match_id = str(ObjectId())
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {
+                    "players": [
+                        {
+                            "player": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
+                            "playerPosition": {"key": "FW", "value": "Forward"},
+                            "passNumber": "123",
+                        }
+                    ],
+                    "status": "DRAFT",
+                    "published": False,
+                }
+            },
+        }
+
+        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
+
+        result = await roster_service.get_roster_players(match_id, "home")
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0].player.playerId == "p1"
