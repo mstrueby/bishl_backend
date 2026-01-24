@@ -377,8 +377,9 @@ class PlayerDB(PlayerBase):
         result["ageGroup"] = self.ageGroup
         result["overAge"] = self.overAge
         result["fullFaceReq"] = self.fullFaceReq
-        if self.suspensions:
+        if "suspensions" in result and result["suspensions"]:
             # Re-serialize suspensions to ensure their model_dump is called
+            # Use self.suspensions which are model objects, not result['suspensions'] which are already dicts
             result["suspensions"] = [s.model_dump(*args, **kwargs) for s in self.suspensions]
         return result
 

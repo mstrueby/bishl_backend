@@ -1699,6 +1699,7 @@ async def get_player(
         raise ResourceNotFoundException(resource_type="Player", resource_id=id)
 
     player_obj = PlayerDB(**player)
+    # Use standard response to ensure properties are included
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content=jsonable_encoder(
