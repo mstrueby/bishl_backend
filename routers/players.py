@@ -1674,13 +1674,27 @@ async def get_players(
 
     items = await cursor.to_list(length=None)
 
+    # Trigger fresh validation for each player to ensure current license status
+    assignment_service = PlayerAssignmentService(mongodb)
+    validated_items = []
+    for item in items:
+        player_id = item.get("_id")
+        if player_id:
+            fresh_player = await assignment_service.update_player_validation_in_db(player_id)
+            if fresh_player:
+                validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
+            else:
+                validated_items.append(PlayerDB(**item).model_dump(by_alias=True))
+        else:
+            validated_items.append(PlayerDB(**item).model_dump(by_alias=True))
+
     # Create the paginated response
     paginated_result = PaginationHelper.create_response(
-        items=[PlayerDB(**item).model_dump(by_alias=True) for item in items],
+        items=validated_items,
         page=page,
         page_size=page_size if not all else total_count,
         total_count=total_count,
-        message=f"Retrieved {len(items)} players",
+        message=f"Retrieved {len(validated_items)} players",
     )
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
@@ -1694,11 +1708,19 @@ async def get_player(
     id: str, request: Request, token_payload: TokenPayload = Depends(auth.auth_wrapper)
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    player = await mongodb["players"].find_one({"_id": id})
-    if player is None:
-        raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+    assignment_service = PlayerAssignmentService(mongodb)
 
-    player_obj = PlayerDB(**player)
+    # Trigger fresh validation before returning to ensure current license status
+    fresh_player = await assignment_service.update_player_validation_in_db(id)
+
+    if fresh_player is None:
+        # Fallback to normal fetch if validation didn't find player
+        player = await mongodb["players"].find_one({"_id": id})
+        if player is None:
+            raise ResourceNotFoundException(resource_type="Player", resource_id=id)
+        fresh_player = player
+
+    player_obj = PlayerDB(**fresh_player)
     # Use standard response to ensure properties are included
     return JSONResponse(
         status_code=status.HTTP_200_OK,
