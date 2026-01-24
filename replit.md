@@ -65,6 +65,16 @@ Preferred communication style: Simple, everyday language.
 - **Backward Compatibility**: Legacy flat structure (roster as list + rosterStatus field) is auto-converted on read
 - **Migration Script**: `scripts/migrate_roster_structure.py` transforms existing documents to new structure
 
+### License Validation & Suspension Checking (Added January 2026)
+- **Suspension Validation**: PlayerAssignmentService checks player.suspensions for active suspensions during license validation
+- **Suspension Rules**: 
+  - `globalLock=true`: Invalidates ALL teams
+  - `globalLock=false` with `teamIds`: Only invalidates specified teams
+  - `globalLock=null/missing`: Defaults to invalidating all teams (safe default)
+- **CLUB_ADMIN Authorization**: PUT roster endpoint validates CLUB_ADMIN can only edit their own team; SUBMITTED rosters only editable by home team
+- **Validate Endpoint**: POST `/matches/{id}/{team}/roster/validate` validates all roster players, updates eligibilityStatus per player, sets roster status to APPROVED (all valid) or INVALID
+- **Auto-Reset**: When roster.players is updated, status resets to DRAFT and eligibility metadata is cleared
+
 ## External Dependencies
 
 ### Database
