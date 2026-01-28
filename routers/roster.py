@@ -7,7 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
 from logging_config import logger
-from models.matches import LicenseStatusEnum, Roster, RosterPlayer, RosterStatusEnum, RosterUpdate
+from models.matches import LicenseStatusEnum, Roster, RosterPlayer, RosterStatus, RosterUpdate
 from models.responses import StandardResponse
 from services.player_assignment_service import PlayerAssignmentService
 from services.roster_service import RosterService
@@ -26,7 +26,7 @@ def _check_club_admin_authorization(
     token_payload: TokenPayload,
     match: dict,
     team_flag: str,
-    current_roster_status: RosterStatusEnum,
+    current_roster_status: RosterStatus,
 ) -> None:
     """
     Check CLUB_ADMIN authorization for roster updates.
@@ -60,7 +60,7 @@ def _check_club_admin_authorization(
             },
         )
 
-    if current_roster_status == RosterStatusEnum.SUBMITTED and team_flag != "home":
+    if current_roster_status == RosterStatus.SUBMITTED and team_flag != "home":
         raise AuthorizationException(
             message="Cannot modify SUBMITTED roster for away team. Only home team admin can modify.",
             details={
@@ -171,11 +171,11 @@ async def update_roster(
     )
 
     force_draft_reset = False
-    if roster_update.players is not None:
+    if roster_update.players is not None and roster_update.status != RosterStatus.SUBMITTED:
         force_draft_reset = True
 
     if force_draft_reset:
-        roster_update.status = RosterStatusEnum.DRAFT
+        roster_update.status = RosterStatus.DRAFT
         roster_update.eligibilityTimestamp = None
         roster_update.eligibilityValidator = None
 
@@ -307,7 +307,7 @@ async def validate_roster(
             f"Validated player {player_id} for team {team_id}: {player_status.value}"
         )
 
-    new_status = RosterStatusEnum.APPROVED if all_valid else RosterStatusEnum.INVALID
+    new_status = RosterStatus.APPROVED if all_valid else RosterStatus.INVALID
 
     roster_update = RosterUpdate(
         players=updated_players,

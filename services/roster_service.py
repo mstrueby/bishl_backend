@@ -16,7 +16,7 @@ from exceptions import (
     ValidationException,
 )
 from logging_config import logger
-from models.matches import Roster, RosterPlayer, RosterStatusEnum, RosterUpdate
+from models.matches import Roster, RosterPlayer, RosterStatus, RosterUpdate
 from utils import populate_event_player_fields
 
 
@@ -181,7 +181,7 @@ class RosterService:
                 )
 
     def validate_status_transition(
-        self, current_status: RosterStatusEnum, new_status: RosterStatusEnum, match_id: str, team_flag: str
+        self, current_status: RosterStatus, new_status: RosterStatus, match_id: str, team_flag: str
     ) -> None:
         """
         Validate that the status transition is allowed.
@@ -196,10 +196,10 @@ class RosterService:
             ValidationException: If the status transition is not allowed
         """
         valid_transitions = {
-            RosterStatusEnum.DRAFT: {RosterStatusEnum.SUBMITTED, RosterStatusEnum.INVALID},
-            RosterStatusEnum.SUBMITTED: {RosterStatusEnum.APPROVED, RosterStatusEnum.INVALID, RosterStatusEnum.DRAFT},
-            RosterStatusEnum.APPROVED: {RosterStatusEnum.INVALID, RosterStatusEnum.DRAFT},
-            RosterStatusEnum.INVALID: {RosterStatusEnum.DRAFT},
+            RosterStatus.DRAFT: {RosterStatus.SUBMITTED, RosterStatus.INVALID},
+            RosterStatus.SUBMITTED: {RosterStatus.APPROVED, RosterStatus.INVALID, RosterStatus.DRAFT},
+            RosterStatus.APPROVED: {RosterStatus.INVALID, RosterStatus.DRAFT},
+            RosterStatus.INVALID: {RosterStatus.DRAFT},
         }
 
         allowed = valid_transitions.get(current_status, set())
@@ -345,7 +345,7 @@ class RosterService:
             update_dict["eligibilityValidator"] = roster_update.eligibilityValidator
 
         # Auto-update eligibility timestamp/validator on status change to APPROVED
-        if roster_update.status == RosterStatusEnum.APPROVED:
+        if roster_update.status == RosterStatus.APPROVED:
             if "eligibilityTimestamp" not in update_dict:
                 update_dict["eligibilityTimestamp"] = datetime.utcnow()
             if "eligibilityValidator" not in update_dict and user_id:

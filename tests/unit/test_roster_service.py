@@ -9,7 +9,7 @@ from exceptions import (
     ResourceNotFoundException,
     ValidationException,
 )
-from models.matches import RosterStatusEnum, RosterUpdate
+from models.matches import RosterStatus, RosterUpdate
 from services.roster_service import RosterService
 
 
@@ -83,7 +83,7 @@ class TestGetRoster:
         assert isinstance(result, Roster)
         assert len(result.players) == 1
         assert result.players[0].player.playerId == "p1"
-        assert result.status == RosterStatusEnum.SUBMITTED
+        assert result.status == RosterStatus.SUBMITTED
         assert result.published is True
         assert result.coach.firstName == "Coach"
 
@@ -115,7 +115,7 @@ class TestGetRoster:
         result = await roster_service.get_roster(match_id, "home")
 
         assert len(result.players) == 1
-        assert result.status == RosterStatusEnum.APPROVED
+        assert result.status == RosterStatus.APPROVED
         assert result.published is True
         assert result.coach.firstName == "Legacy"
         assert len(result.staff) == 1
@@ -166,7 +166,7 @@ class TestGetRoster:
         result = await roster_service.get_roster(match_id, "home")
 
         assert result.players == []
-        assert result.status == RosterStatusEnum.DRAFT
+        assert result.status == RosterStatus.DRAFT
 
 
 class TestValidateRosterPlayers:
@@ -294,28 +294,28 @@ class TestValidateStatusTransition:
     def test_valid_draft_to_submitted(self, roster_service):
         """Test DRAFT -> SUBMITTED is allowed"""
         roster_service.validate_status_transition(
-            RosterStatusEnum.DRAFT, RosterStatusEnum.SUBMITTED, "match-1", "home"
+            RosterStatus.DRAFT, RosterStatus.SUBMITTED, "match-1", "home"
         )
 
     def test_valid_submitted_to_approved(self, roster_service):
         """Test SUBMITTED -> APPROVED is allowed"""
         roster_service.validate_status_transition(
-            RosterStatusEnum.SUBMITTED, RosterStatusEnum.APPROVED, "match-1", "home"
+            RosterStatus.SUBMITTED, RosterStatus.APPROVED, "match-1", "home"
         )
 
     def test_valid_any_to_invalid(self, roster_service):
         """Test any status -> INVALID is allowed"""
-        for status in RosterStatusEnum:
-            if status != RosterStatusEnum.INVALID:
+        for status in RosterStatus:
+            if status != RosterStatus.INVALID:
                 roster_service.validate_status_transition(
-                    status, RosterStatusEnum.INVALID, "match-1", "home"
+                    status, RosterStatus.INVALID, "match-1", "home"
                 )
 
     def test_invalid_draft_to_approved(self, roster_service):
         """Test DRAFT -> APPROVED is not allowed (must go through SUBMITTED)"""
         with pytest.raises(ValidationException) as exc_info:
             roster_service.validate_status_transition(
-                RosterStatusEnum.DRAFT, RosterStatusEnum.APPROVED, "match-1", "home"
+                RosterStatus.DRAFT, RosterStatus.APPROVED, "match-1", "home"
             )
 
         assert "cannot transition" in exc_info.value.message.lower()
@@ -324,7 +324,7 @@ class TestValidateStatusTransition:
         """Test APPROVED -> SUBMITTED is not allowed"""
         with pytest.raises(ValidationException) as exc_info:
             roster_service.validate_status_transition(
-                RosterStatusEnum.APPROVED, RosterStatusEnum.SUBMITTED, "match-1", "home"
+                RosterStatus.APPROVED, RosterStatus.SUBMITTED, "match-1", "home"
             )
 
         assert "cannot transition" in exc_info.value.message.lower()
@@ -416,7 +416,7 @@ class TestUpdateRoster:
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
         mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
-        roster_update = RosterUpdate(status=RosterStatusEnum.SUBMITTED)
+        roster_update = RosterUpdate(status=RosterStatus.SUBMITTED)
 
         with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
             result, was_modified = await roster_service.update_roster(
@@ -483,7 +483,7 @@ class TestUpdateRoster:
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
         mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
-        roster_update = RosterUpdate(status=RosterStatusEnum.APPROVED)
+        roster_update = RosterUpdate(status=RosterStatus.APPROVED)
 
         with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
             await roster_service.update_roster(

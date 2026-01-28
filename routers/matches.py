@@ -23,7 +23,7 @@ from models.matches import (
     MatchStats,
     MatchTeamUpdate,
     MatchUpdate,
-    RosterStatusEnum,
+    RosterStatus,
 )
 from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
@@ -93,14 +93,14 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
         team = match.get(team_key, {})
         if not team:
             continue
-            
+
         roster_data = team.get("roster")
-        
+
         # Handle legacy flat structure (roster is a list of players)
         if isinstance(roster_data, list):
             team["roster"] = {
                 "players": roster_data,
-                "status": team.get("rosterStatus", RosterStatusEnum.DRAFT.value),
+                "status": team.get("rosterStatus", RosterStatus.DRAFT.value),
                 "published": team.get("rosterPublished", False),
                 "eligibilityTimestamp": team.get("eligibilityTimestamp"),
                 "eligibilityValidator": team.get("eligibilityValidator"),
@@ -114,14 +114,14 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
         elif roster_data is None:
             team["roster"] = {
                 "players": [],
-                "status": RosterStatusEnum.DRAFT.value,
+                "status": RosterStatus.DRAFT.value,
                 "published": False,
                 "coach": {},
                 "staff": [],
             }
         # Nested structure exists, ensure default status
         elif isinstance(roster_data, dict) and "status" not in roster_data:
-            roster_data["status"] = RosterStatusEnum.DRAFT.value
+            roster_data["status"] = RosterStatus.DRAFT.value
 
     # Populate EventPlayer display fields for scores and penalties
     for team_key in ["home", "away"]:

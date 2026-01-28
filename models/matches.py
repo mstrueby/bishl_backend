@@ -207,7 +207,7 @@ class Staff(BaseModel):
     role: str | None = None
 
 
-class RosterStatusEnum(str, Enum):
+class RosterStatus(str, Enum):
     DRAFT = "DRAFT"
     SUBMITTED = "SUBMITTED"
     APPROVED = "APPROVED"
@@ -217,7 +217,7 @@ class RosterStatusEnum(str, Enum):
 class Roster(BaseModel):
     """Consolidated roster object containing all roster-related data for a team."""
     players: list[RosterPlayer] = Field(default_factory=list)
-    status: RosterStatusEnum = Field(default=RosterStatusEnum.DRAFT)
+    status: RosterStatus = Field(default=RosterStatus.DRAFT)
     published: bool = False
     eligibilityTimestamp: datetime | None = None
     eligibilityValidator: str | None = None
@@ -225,14 +225,14 @@ class Roster(BaseModel):
     staff: list[Staff] = Field(default_factory=list)
 
     # Valid status transitions: DRAFT -> SUBMITTED -> APPROVED, any -> INVALID, any -> DRAFT (reset)
-    VALID_TRANSITIONS: dict[RosterStatusEnum, set[RosterStatusEnum]] = {
-        RosterStatusEnum.DRAFT: {RosterStatusEnum.SUBMITTED, RosterStatusEnum.INVALID},
-        RosterStatusEnum.SUBMITTED: {RosterStatusEnum.APPROVED, RosterStatusEnum.INVALID, RosterStatusEnum.DRAFT},
-        RosterStatusEnum.APPROVED: {RosterStatusEnum.INVALID, RosterStatusEnum.DRAFT},
-        RosterStatusEnum.INVALID: {RosterStatusEnum.DRAFT},
+    VALID_TRANSITIONS: dict[RosterStatus, set[RosterStatus]] = {
+        RosterStatus.DRAFT: {RosterStatus.SUBMITTED, RosterStatus.INVALID},
+        RosterStatus.SUBMITTED: {RosterStatus.APPROVED, RosterStatus.INVALID, RosterStatus.DRAFT},
+        RosterStatus.APPROVED: {RosterStatus.INVALID, RosterStatus.DRAFT},
+        RosterStatus.INVALID: {RosterStatus.DRAFT},
     }
 
-    def can_transition_to(self, new_status: RosterStatusEnum) -> bool:
+    def can_transition_to(self, new_status: RosterStatus) -> bool:
         """Check if transition from current status to new_status is allowed."""
         return new_status in self.VALID_TRANSITIONS.get(self.status, set())
 
@@ -240,7 +240,7 @@ class Roster(BaseModel):
 class RosterUpdate(BaseModel):
     """Update model for roster - all fields optional for partial updates."""
     players: list[RosterPlayer] | None = None
-    status: RosterStatusEnum | None = None
+    status: RosterStatus | None = None
     published: bool | None = None
     eligibilityTimestamp: datetime | None = None
     eligibilityValidator: str | None = None
@@ -250,7 +250,7 @@ class RosterUpdate(BaseModel):
 
 class RosterSummary(BaseModel):
     """Lightweight roster summary for list views (no player details)."""
-    status: RosterStatusEnum = Field(default=RosterStatusEnum.DRAFT)
+    status: RosterStatus = Field(default=RosterStatus.DRAFT)
     published: bool = False
     playerCount: int = 0
 
