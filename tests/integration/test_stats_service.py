@@ -47,7 +47,10 @@ class TestStatsServiceIntegration:
         match = create_test_match(status="FINISHED")
         player1 = create_test_roster_player("player-1")
         player2 = create_test_roster_player("player-2")
-        match["home"]["roster"] = [player1, player2]
+        match["home"]["roster"] = {
+            "players": [player1, player2],
+            "status": "SUBMITTED"
+        }
         match["home"]["scores"] = [
             {
                 "_id": str(ObjectId()),
@@ -96,17 +99,17 @@ class TestStatsServiceIntegration:
 
         # Assert - Verify database was updated
         updated_match = await mongodb["matches"].find_one({"_id": match["_id"]})
-        roster = updated_match["home"]["roster"]
+        roster_players = updated_match["home"]["roster"]["players"]
 
         # Player 1: 2 goals, 0 assists, 2 points, 2 PIM
-        player1_stats = next(p for p in roster if p["player"]["playerId"] == "player-1")
+        player1_stats = next(p for p in roster_players if p["player"]["playerId"] == "player-1")
         assert player1_stats["goals"] == 2
         assert player1_stats["assists"] == 0
         assert player1_stats["points"] == 2
         assert player1_stats["penaltyMinutes"] == 2
 
         # Player 2: 0 goals, 1 assist, 1 point, 0 PIM
-        player2_stats = next(p for p in roster if p["player"]["playerId"] == "player-2")
+        player2_stats = next(p for p in roster_players if p["player"]["playerId"] == "player-2")
         assert player2_stats["goals"] == 0
         assert player2_stats["assists"] == 1
         assert player2_stats["points"] == 1
@@ -316,7 +319,10 @@ class TestStatsServiceIntegration:
         roster_player["points"] = 3
         roster_player["penaltyMinutes"] = 4
         roster_player["called"] = False
-        match["home"]["roster"] = [roster_player]
+        match["home"]["roster"] = {
+            "players": [roster_player],
+            "status": "SUBMITTED"
+        }
         await mongodb["matches"].insert_one(match)
 
         # Execute
@@ -418,7 +424,10 @@ class TestStatsServiceIntegration:
             roster_player = create_test_roster_player("player-called-1")
             roster_player["called"] = True
             roster_player["goals"] = 1
-            match["home"]["roster"] = [roster_player]
+            match["home"]["roster"] = {
+                "players": [roster_player],
+                "status": "SUBMITTED"
+            }
             await mongodb["matches"].insert_one(match)
 
         # Create a mock token payload
@@ -475,10 +484,10 @@ class TestStatsServiceIntegration:
                     }
                 ]
 
-                # Create response mock
+                # Create response mock - note: json() is synchronous in httpx
                 response = AsyncMock()
                 response.status_code = 200
-                response.json = AsyncMock(return_value=actual_player)
+                response.json = lambda: actual_player
                 return response
 
             # Set up GET to use our side effect
