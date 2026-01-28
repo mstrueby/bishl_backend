@@ -14,25 +14,25 @@ def mock_db():
 
     # Create mock collections with proper async methods
     mock_matches_collection = MagicMock()
-    mock_matches_collection.update_one = AsyncMock(return_value=MagicMock(acknowledged=True))
+    mock_matches_collection.update_one = AsyncMock(return_value=MagicMock(
+        acknowledged=True))
     mock_matches_collection.find_one = AsyncMock()
     mock_matches_collection.find = MagicMock()
 
     mock_players_collection = MagicMock()
     mock_players_collection.find_one = AsyncMock()
-    mock_players_collection.update_one = AsyncMock(return_value=MagicMock(acknowledged=True))
+    mock_players_collection.update_one = AsyncMock(return_value=MagicMock(
+        acknowledged=True))
 
     # Store collections as attributes for easier access in tests
     db._matches_collection = mock_matches_collection
     db._players_collection = mock_players_collection
 
     # Attach collections to db
-    db.__getitem__ = MagicMock(
-        side_effect=lambda name: {
-            "matches": mock_matches_collection,
-            "players": mock_players_collection,
-        }.get(name)
-    )
+    db.__getitem__ = MagicMock(side_effect=lambda name: {
+        "matches": mock_matches_collection,
+        "players": mock_players_collection,
+    }.get(name))
 
     return db
 
@@ -203,37 +203,53 @@ class TestCalculateRosterStats:
         test_match = {
             "_id": match_id,
             "home": {
-                "roster": [
-                    {
-                        "_id": "r1",
-                        "player": {"playerId": "player-1"},
-                        "goals": 0,
-                        "assists": 0,
-                        "points": 0,
-                        "penaltyMinutes": 0,
-                    },
-                    {
-                        "_id": "r2",
-                        "player": {"playerId": "player-2"},
-                        "goals": 0,
-                        "assists": 0,
-                        "points": 0,
-                        "penaltyMinutes": 0,
-                    },
-                ],
+                "roster": {
+                    "players": [
+                        {
+                            "_id": "r1",
+                            "player": {
+                                "playerId": "player-1"
+                            },
+                            "goals": 0,
+                            "assists": 0,
+                            "points": 0,
+                            "penaltyMinutes": 0,
+                        },
+                        {
+                            "_id": "r2",
+                            "player": {
+                                "playerId": "player-2"
+                            },
+                            "goals": 0,
+                            "assists": 0,
+                            "points": 0,
+                            "penaltyMinutes": 0,
+                        },
+                    ]
+                },
                 "scores": [
                     {
-                        "goalPlayer": {"playerId": "player-1"},
-                        "assistPlayer": {"playerId": "player-2"},
+                        "goalPlayer": {
+                            "playerId": "player-1"
+                        },
+                        "assistPlayer": {
+                            "playerId": "player-2"
+                        },
                     },
-                    {"goalPlayer": {"playerId": "player-1"}, "assistPlayer": None},
+                    {
+                        "goalPlayer": {
+                            "playerId": "player-1"
+                        },
+                        "assistPlayer": None
+                    },
                 ],
                 "penalties": [],
             },
         }
 
         # Mock the find_one to return test match
-        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
+        mock_db._matches_collection.find_one = AsyncMock(
+            return_value=test_match)
 
         # Now always uses direct DB access
         await stats_service.calculate_roster_stats(match_id, "home")
@@ -241,9 +257,9 @@ class TestCalculateRosterStats:
         # Verify update was called with correct stats
         update_call = mock_db._matches_collection.update_one.call_args
         update_document = update_call[0][1]  # Second positional argument
-        updated_roster = update_document["$set"]["home.roster"]
+        updated_players = update_document["$set"]["home.roster.players"]
 
-        roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
+        roster_by_id = {r["player"]["playerId"]: r for r in updated_players}
         assert roster_by_id["player-1"]["goals"] == 2
         assert roster_by_id["player-1"]["assists"] == 0
         assert roster_by_id["player-1"]["points"] == 2
@@ -260,35 +276,57 @@ class TestCalculateRosterStats:
         test_match = {
             "_id": match_id,
             "home": {
-                "roster": [
-                    {
-                        "_id": "r1",
-                        "player": {"playerId": "player-1"},
-                        "goals": 0,
-                        "assists": 0,
-                        "points": 0,
-                        "penaltyMinutes": 0,
-                    },
-                    {
-                        "_id": "r2",
-                        "player": {"playerId": "player-2"},
-                        "goals": 0,
-                        "assists": 0,
-                        "points": 0,
-                        "penaltyMinutes": 0,
-                    },
-                ],
+                "roster": {
+                    "players": [
+                        {
+                            "_id": "r1",
+                            "player": {
+                                "playerId": "player-1"
+                            },
+                            "goals": 0,
+                            "assists": 0,
+                            "points": 0,
+                            "penaltyMinutes": 0,
+                        },
+                        {
+                            "_id": "r2",
+                            "player": {
+                                "playerId": "player-2"
+                            },
+                            "goals": 0,
+                            "assists": 0,
+                            "points": 0,
+                            "penaltyMinutes": 0,
+                        },
+                    ]
+                },
                 "scores": [],
                 "penalties": [
-                    {"penaltyPlayer": {"playerId": "player-1"}, "penaltyMinutes": 2},
-                    {"penaltyPlayer": {"playerId": "player-1"}, "penaltyMinutes": 2},
-                    {"penaltyPlayer": {"playerId": "player-2"}, "penaltyMinutes": 5},
+                    {
+                        "penaltyPlayer": {
+                            "playerId": "player-1"
+                        },
+                        "penaltyMinutes": 2
+                    },
+                    {
+                        "penaltyPlayer": {
+                            "playerId": "player-1"
+                        },
+                        "penaltyMinutes": 2
+                    },
+                    {
+                        "penaltyPlayer": {
+                            "playerId": "player-2"
+                        },
+                        "penaltyMinutes": 5
+                    },
                 ],
             },
         }
 
         # Mock the find_one to return test match
-        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
+        mock_db._matches_collection.find_one = AsyncMock(
+            return_value=test_match)
 
         # Now always uses direct DB access
         await stats_service.calculate_roster_stats(match_id, "home")
@@ -296,9 +334,9 @@ class TestCalculateRosterStats:
         # Verify update was called with correct stats
         update_call = mock_db._matches_collection.update_one.call_args
         update_document = update_call[0][1]  # Second positional argument
-        updated_roster = update_document["$set"]["home.roster"]
+        updated_players = update_document["$set"]["home.roster.players"]
 
-        roster_by_id = {r["player"]["playerId"]: r for r in updated_roster}
+        roster_by_id = {r["player"]["playerId"]: r for r in updated_players}
         assert roster_by_id["player-1"]["penaltyMinutes"] == 4
         assert roster_by_id["player-2"]["penaltyMinutes"] == 5
 
@@ -310,48 +348,46 @@ class TestCalculateStandings:
     async def test_standings_sorting_by_points(self, stats_service, mock_db):
         """Test standings are sorted by points"""
         # Create mock matches with team stats
-        matches = [
-            {
-                "home": {
-                    "fullName": "Team A",
-                    "shortName": "TMA",
-                    "tinyName": "A",
-                    "logo": "http://example.com/a.png",
-                    "stats": {
-                        "gamePlayed": 1,
-                        "goalsFor": 3,
-                        "goalsAgainst": 1,
-                        "points": 3,
-                        "win": 1,
-                        "loss": 0,
-                        "draw": 0,
-                        "otWin": 0,
-                        "otLoss": 0,
-                        "soWin": 0,
-                        "soLoss": 0,
-                    },
+        matches = [{
+            "home": {
+                "fullName": "Team A",
+                "shortName": "TMA",
+                "tinyName": "A",
+                "logo": "http://example.com/a.png",
+                "stats": {
+                    "gamePlayed": 1,
+                    "goalsFor": 3,
+                    "goalsAgainst": 1,
+                    "points": 3,
+                    "win": 1,
+                    "loss": 0,
+                    "draw": 0,
+                    "otWin": 0,
+                    "otLoss": 0,
+                    "soWin": 0,
+                    "soLoss": 0,
                 },
-                "away": {
-                    "fullName": "Team B",
-                    "shortName": "TMB",
-                    "tinyName": "B",
-                    "logo": "http://example.com/b.png",
-                    "stats": {
-                        "gamePlayed": 1,
-                        "goalsFor": 1,
-                        "goalsAgainst": 3,
-                        "points": 0,
-                        "win": 0,
-                        "loss": 1,
-                        "draw": 0,
-                        "otWin": 0,
-                        "otLoss": 0,
-                        "soWin": 0,
-                        "soLoss": 0,
-                    },
+            },
+            "away": {
+                "fullName": "Team B",
+                "shortName": "TMB",
+                "tinyName": "B",
+                "logo": "http://example.com/b.png",
+                "stats": {
+                    "gamePlayed": 1,
+                    "goalsFor": 1,
+                    "goalsAgainst": 3,
+                    "points": 0,
+                    "win": 0,
+                    "loss": 1,
+                    "draw": 0,
+                    "otWin": 0,
+                    "otLoss": 0,
+                    "soWin": 0,
+                    "soLoss": 0,
                 },
-            }
-        ]
+            },
+        }]
 
         # Call the private method directly for unit testing
         standings = stats_service._calculate_standings(matches)
@@ -466,11 +502,13 @@ class TestCalculateStandings:
         teams_list = list(standings.keys())
         assert teams_list[0] == "Team A"
         assert standings["Team A"]["points"] == 3
-        assert standings["Team A"]["goalsFor"] - standings["Team A"]["goalsAgainst"] == 2
+        assert standings["Team A"]["goalsFor"] - standings["Team A"][
+            "goalsAgainst"] == 2
 
         assert teams_list[1] == "Team B"
         assert standings["Team B"]["points"] == 3
-        assert standings["Team B"]["goalsFor"] - standings["Team B"]["goalsAgainst"] == -2
+        assert standings["Team B"]["goalsFor"] - standings["Team B"][
+            "goalsAgainst"] == -2
 
 
 class TestTeamStandingsHelpers:
@@ -576,8 +614,20 @@ class TestRosterStatsHelpers:
     def test_initialize_roster_player_stats(self, stats_service):
         """Test initialization of player stats from roster"""
         roster = [
-            {"player": {"playerId": "player-1"}, "goals": 0, "assists": 0},
-            {"player": {"playerId": "player-2"}, "goals": 0, "assists": 0},
+            {
+                "player": {
+                    "playerId": "player-1"
+                },
+                "goals": 0,
+                "assists": 0
+            },
+            {
+                "player": {
+                    "playerId": "player-2"
+                },
+                "goals": 0,
+                "assists": 0
+            },
         ]
 
         player_stats = stats_service._initialize_roster_player_stats(roster)
@@ -599,11 +649,17 @@ class TestRosterStatsHelpers:
 
         assert player_stats == {}
 
-    def test_calculate_scoring_stats_creates_missing_player(self, stats_service):
+    def test_calculate_scoring_stats_creates_missing_player(
+            self, stats_service):
         """Test that scoring stats creates entry for player not in initial roster"""
-        scoreboard = [
-            {"goalPlayer": {"playerId": "player-3"}, "assistPlayer": {"playerId": "player-4"}}
-        ]
+        scoreboard = [{
+            "goalPlayer": {
+                "playerId": "player-3"
+            },
+            "assistPlayer": {
+                "playerId": "player-4"
+            }
+        }]
         player_stats = {}
 
         stats_service._calculate_scoring_stats(scoreboard, player_stats)
@@ -615,7 +671,12 @@ class TestRosterStatsHelpers:
 
     def test_calculate_scoring_stats_no_assist(self, stats_service):
         """Test scoring stats when there's no assist player"""
-        scoreboard = [{"goalPlayer": {"playerId": "player-1"}, "assistPlayer": None}]
+        scoreboard = [{
+            "goalPlayer": {
+                "playerId": "player-1"
+            },
+            "assistPlayer": None
+        }]
         player_stats = {}
 
         stats_service._calculate_scoring_stats(scoreboard, player_stats)
@@ -625,18 +686,26 @@ class TestRosterStatsHelpers:
 
     def test_apply_stats_to_roster(self, stats_service):
         """Test applying calculated stats to roster"""
-        roster = [
-            {
-                "player": {"playerId": "player-1"},
-                "goals": 0,
-                "assists": 0,
-                "points": 0,
-                "penaltyMinutes": 0,
+        roster = [{
+            "player": {
+                "playerId": "player-1"
+            },
+            "goals": 0,
+            "assists": 0,
+            "points": 0,
+            "penaltyMinutes": 0,
+        }]
+        player_stats = {
+            "player-1": {
+                "goals": 2,
+                "assists": 1,
+                "points": 3,
+                "penaltyMinutes": 4
             }
-        ]
-        player_stats = {"player-1": {"goals": 2, "assists": 1, "points": 3, "penaltyMinutes": 4}}
+        }
 
-        updated_roster = stats_service._apply_stats_to_roster(roster, player_stats)
+        updated_roster = stats_service._apply_stats_to_roster(
+            roster, player_stats)
 
         assert updated_roster[0]["goals"] == 2
         assert updated_roster[0]["assists"] == 1
@@ -647,7 +716,8 @@ class TestRosterStatsHelpers:
 class TestEdgeCases:
     """Test edge cases and error conditions"""
 
-    def test_calculate_match_stats_with_unknown_finish_type(self, stats_service):
+    def test_calculate_match_stats_with_unknown_finish_type(
+            self, stats_service):
         """Test match stats with unknown finish type"""
         result = stats_service.calculate_match_stats(
             match_status="FINISHED",

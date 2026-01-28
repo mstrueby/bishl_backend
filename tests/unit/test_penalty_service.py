@@ -141,7 +141,7 @@ class TestCreatePenalty:
 
         assert "$push" in update_operations
         assert "$inc" in update_operations
-        assert update_operations["$inc"]["home.roster.$[penaltyPlayer].penaltyMinutes"] == 2
+        assert update_operations["$inc"]["home.roster.players.$[penaltyPlayer].penaltyMinutes"] == 2
 
     @pytest.mark.asyncio
     async def test_create_penalty_wrong_status(self, penalty_service, mock_db):
@@ -190,7 +190,7 @@ class TestCreatePenalty:
         # Verify 10 minutes were added
         update_call = mock_db._matches_collection.update_one.call_args
         update_operations = update_call[0][1]
-        assert update_operations["$inc"]["home.roster.$[penaltyPlayer].penaltyMinutes"] == 10
+        assert update_operations["$inc"]["home.roster.players.$[penaltyPlayer].penaltyMinutes"] == 10
 
 
 class TestDeletePenalty:
@@ -223,7 +223,7 @@ class TestDeletePenalty:
 
         assert "$pull" in update_operations
         assert "$inc" in update_operations
-        assert update_operations["$inc"]["home.roster.$[penaltyPlayer].penaltyMinutes"] == -2
+        assert update_operations["$inc"]["home.roster.players.$[penaltyPlayer].penaltyMinutes"] == -2
 
     @pytest.mark.asyncio
     async def test_delete_penalty_not_found(self, penalty_service, mock_db):
