@@ -49,8 +49,13 @@ class ScoreService:
         self, match: dict, team_flag: str, score_data: dict
     ) -> None:
         """Validate that goal and assist players are in the roster"""
-        roster = match.get(team_flag, {}).get("roster") or []
-        roster_player_ids = {player["player"]["playerId"] for player in roster}
+        roster_data = match.get(team_flag, {}).get("roster") or {}
+        if isinstance(roster_data, list):
+            players = roster_data
+        else:
+            players = roster_data.get("players") or []
+
+        roster_player_ids = {player["player"]["playerId"] for player in players}
 
         # Check goal player
         goal_player = score_data.get("goalPlayer")
@@ -206,20 +211,27 @@ class ScoreService:
         # Add roster incremental updates
         roster_increments: dict[str, int] = {}
         if goal_player_id:
-            roster_increments[f"{team_flag}.roster.$[goalPlayer].goals"] = 1
-            roster_increments[f"{team_flag}.roster.$[goalPlayer].points"] = 1
+            roster_increments[f"{team_flag}.roster.players.$[goalPlayer].goals"] = 1
+            roster_increments[f"{team_flag}.roster.players.$[goalPlayer].points"] = 1
         if assist_player_id:
-            roster_increments[f"{team_flag}.roster.$[assistPlayer].assists"] = 1
-            roster_increments[f"{team_flag}.roster.$[assistPlayer].points"] = 1
+            roster_increments[f"{team_flag}.roster.players.$[assistPlayer].assists"] = 1
+            roster_increments[f"{team_flag}.roster.players.$[assistPlayer].points"] = 1
 
         if roster_increments:
             update_operations["$inc"].update(roster_increments)
+
+        # Build array filters
+        final_array_filters = []
+        if goal_player_id:
+            final_array_filters.append({"goalPlayer.player.playerId": goal_player_id})
+        if assist_player_id:
+            final_array_filters.append({"assistPlayer.player.playerId": assist_player_id})
 
         # Execute update
         update_result = await self.db["matches"].update_one(
             {"_id": match_id},
             update_operations,
-            array_filters=array_filters if array_filters else None,
+            array_filters=final_array_filters if final_array_filters else None,
         )
 
         if update_result.modified_count == 0:
@@ -345,19 +357,19 @@ class ScoreService:
         assist_player_id = assist_player.get("playerId") if assist_player else None
 
         # Build decremental update operations
-        array_filters = []
+        final_array_filters = []
         if goal_player_id:
-            array_filters.append({"goalPlayer.player.playerId": goal_player_id})
+            final_array_filters.append({"goalPlayer.player.playerId": goal_player_id})
         if assist_player_id:
-            array_filters.append({"assistPlayer.player.playerId": assist_player_id})
+            final_array_filters.append({"assistPlayer.player.playerId": assist_player_id})
 
         roster_decrements: dict[str, int] = {}
         if goal_player_id:
-            roster_decrements[f"{team_flag}.roster.$[goalPlayer].goals"] = -1
-            roster_decrements[f"{team_flag}.roster.$[goalPlayer].points"] = -1
+            roster_decrements[f"{team_flag}.roster.players.$[goalPlayer].goals"] = -1
+            roster_decrements[f"{team_flag}.roster.players.$[goalPlayer].points"] = -1
         if assist_player_id:
-            roster_decrements[f"{team_flag}.roster.$[assistPlayer].assists"] = -1
-            roster_decrements[f"{team_flag}.roster.$[assistPlayer].points"] = -1
+            roster_decrements[f"{team_flag}.roster.players.$[assistPlayer].assists"] = -1
+            roster_decrements[f"{team_flag}.roster.players.$[assistPlayer].points"] = -1
 
         inc_operations = {
             f"{team_flag}.stats.goalsFor": -1,
@@ -374,7 +386,7 @@ class ScoreService:
         result = await self.db["matches"].update_one(
             {"_id": match_id, f"{team_flag}.scores._id": score_id},
             update_operations,
-            array_filters=array_filters if array_filters else None,
+            array_filters=final_array_filters if final_array_filters else None,
         )
 
         if result.modified_count == 0:

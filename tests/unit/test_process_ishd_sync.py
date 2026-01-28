@@ -18,11 +18,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from bson import ObjectId
 
-from models.clubs import TeamTypeEnum
+from models.clubs import TeamType
 from models.players import (
-    LicenseStatusEnum,
-    LicenseTypeEnum,
-    SourceEnum,
+    LicenseStatus,
+    LicenseType,
+    Source,
 )
 from services.player_assignment_service import PlayerAssignmentService
 
@@ -126,7 +126,7 @@ class TestProcessIshdSync:
             "alias": alias,
             "ageGroup": age_group,
             "ishdId": ishd_id,
-            "teamType": TeamTypeEnum.COMPETITIVE,
+            "teamType": TeamType.COMPETITIVE,
         }
 
     def create_assigned_team(
@@ -137,7 +137,7 @@ class TestProcessIshdSync:
         team_age_group: str = "U16",
         team_ishd_id: str = "T001",
         pass_no: str = "BER123",
-        source: SourceEnum = SourceEnum.ISHD,
+        source: Source = Source.ISHD,
         modify_date: datetime = None,
     ) -> dict:
         """Helper to create assigned team structure"""
@@ -150,8 +150,8 @@ class TestProcessIshdSync:
             "teamAgeGroup": team_age_group,
             "teamIshdId": team_ishd_id,
             "passNo": pass_no,
-            "licenseType": LicenseTypeEnum.PRIMARY.value,
-            "licenseStatus": LicenseStatusEnum.VALID.value,
+            "licenseType": LicenseType.PRIMARY.value,
+            "licenseStatus": LicenseStatus.VALID.value,
             "source": source.value,
             "modifyDate": modify_date,
         }
@@ -199,7 +199,7 @@ class TestProcessIshdSync:
             "assignedTeams": assigned_teams,
             "managedByISHD": managed_by_ishd,
             "active": True,
-            "source": SourceEnum.ISHD.value,
+            "source": Source.ISHD.value,
         }
 
     def create_ishd_player_data(
@@ -262,7 +262,7 @@ class TestProcessIshdSync:
         mock_db["teams"].find_one = AsyncMock(
             return_value={
                 "_id": team_id,
-                "teamType": TeamTypeEnum.COMPETITIVE,
+                "teamType": TeamType.COMPETITIVE,
             }
         )
         mock_db["players"].insert_one = AsyncMock(
@@ -347,7 +347,7 @@ class TestProcessIshdSync:
         mock_db["teams"].find_one = AsyncMock(
             return_value={
                 "_id": new_team_id,
-                "teamType": TeamTypeEnum.COMPETITIVE,
+                "teamType": TeamType.COMPETITIVE,
             }
         )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
@@ -429,7 +429,7 @@ class TestProcessIshdSync:
         mock_db["teams"].find_one = AsyncMock(
             return_value={
                 "_id": new_team_id,
-                "teamType": TeamTypeEnum.COMPETITIVE,
+                "teamType": TeamType.COMPETITIVE,
             }
         )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
@@ -480,7 +480,7 @@ class TestProcessIshdSync:
             team_alias="hawks-u16",
             team_ishd_id="T001",
             pass_no="BER123",
-            source=SourceEnum.ISHD,
+            source=Source.ISHD,
         )
         assigned_club = self.create_assigned_club(
             club_id=club_id,
@@ -505,7 +505,7 @@ class TestProcessIshdSync:
         mock_db["teams"].find_one = AsyncMock(
             return_value={
                 "_id": team_id,
-                "teamType": TeamTypeEnum.COMPETITIVE,
+                "teamType": TeamType.COMPETITIVE,
             }
         )
         mock_db["players"].update_one = AsyncMock(return_value=MagicMock(modified_count=1))
@@ -551,7 +551,7 @@ class TestProcessIshdSync:
             team_alias="hawks-u16",
             team_ishd_id="T001",
             pass_no="BER123",
-            source=SourceEnum.ISHD,
+            source=Source.ISHD,
         )
         assigned_club = self.create_assigned_club(
             club_id=club_id,
@@ -576,7 +576,7 @@ class TestProcessIshdSync:
         mock_db["teams"].find_one = AsyncMock(
             return_value={
                 "_id": team_id,
-                "teamType": TeamTypeEnum.COMPETITIVE,
+                "teamType": TeamType.COMPETITIVE,
             }
         )
 
@@ -636,7 +636,7 @@ class TestProcessIshdSync:
         mock_db["teams"].find_one = AsyncMock(
             return_value={
                 "_id": team_id,
-                "teamType": TeamTypeEnum.COMPETITIVE,
+                "teamType": TeamType.COMPETITIVE,
             }
         )
         mock_db["players"].insert_one = AsyncMock(
@@ -689,7 +689,7 @@ class TestProcessIshdSync:
         mock_db["teams"].find_one = AsyncMock(
             return_value={
                 "_id": team_id,
-                "teamType": TeamTypeEnum.COMPETITIVE,
+                "teamType": TeamType.COMPETITIVE,
             }
         )
         mock_db["players"].insert_one = AsyncMock(
@@ -797,7 +797,7 @@ class TestProcessIshdSync:
         mock_db["teams"].find_one = AsyncMock(
             return_value={
                 "_id": team_id,
-                "teamType": TeamTypeEnum.COMPETITIVE,
+                "teamType": TeamType.COMPETITIVE,
             }
         )
         mock_db["players"].insert_one = AsyncMock(

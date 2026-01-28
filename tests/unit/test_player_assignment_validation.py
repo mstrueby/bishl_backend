@@ -10,12 +10,12 @@ from models.players import (
     AssignedClubs,
     AssignedTeams,
     LicenseInvalidReasonCode,
-    LicenseStatusEnum,
-    LicenseTypeEnum,
+    LicenseStatus,
+    LicenseType,
     PlayerDB,
-    PositionEnum,
-    SexEnum,
-    SourceEnum,
+    Position,
+    Sex,
+    Source,
 )
 from services.player_assignment_service import PlayerAssignmentService
 
@@ -39,7 +39,7 @@ class TestPlayerAssignmentServiceValidation:
         self,
         player_id: str = None,
         age_group: str = "U16",
-        sex: SexEnum = SexEnum.MALE,
+        sex: Sex = Sex.MALE,
         assigned_teams: list = None,
     ) -> PlayerDB:
         """Helper to create test player"""
@@ -67,7 +67,7 @@ class TestPlayerAssignmentServiceValidation:
             displayFirstName="Test",
             displayLastName="Player",
             sex=sex,
-            position=PositionEnum.SKATER,
+            position=Position.SKATER,
             assignedTeams=assigned_teams or [],
             managedByISHD=False,
         )
@@ -77,8 +77,8 @@ class TestPlayerAssignmentServiceValidation:
         team_id: str = "team1",
         team_name: str = "Team 1",
         team_age_group: str = "U16",
-        license_type: LicenseTypeEnum = LicenseTypeEnum.PRIMARY,
-        source: SourceEnum = SourceEnum.BISHL,
+        license_type: LicenseType = LicenseType.PRIMARY,
+        source: Source = Source.BISHL,
     ) -> AssignedTeams:
         """Helper to create assigned team"""
         return AssignedTeams(
@@ -90,7 +90,7 @@ class TestPlayerAssignmentServiceValidation:
             passNo="12345",
             licenseType=license_type,
             source=source,
-            status=LicenseStatusEnum.VALID,
+            status=LicenseStatus.VALID,
             invalidReasonCodes=[],
         )
 
@@ -98,7 +98,7 @@ class TestPlayerAssignmentServiceValidation:
     async def test_reset_license_validation_states(self, assignment_service):
         """Test that all licenses are reset to VALID"""
         team = self.create_assigned_team()
-        team.status = LicenseStatusEnum.INVALID
+        team.status = LicenseStatus.INVALID
         team.invalidReasonCodes = [LicenseInvalidReasonCode.MULTIPLE_PRIMARY]
 
         club = AssignedClubs(
@@ -114,7 +114,7 @@ class TestPlayerAssignmentServiceValidation:
 
         assignment_service._reset_license_validation_states(player_dict)
 
-        assert player_dict["assignedTeams"][0]["teams"][0]["status"] == LicenseStatusEnum.VALID
+        assert player_dict["assignedTeams"][0]["teams"][0]["status"] == LicenseStatus.VALID
         assert player_dict["assignedTeams"][0]["teams"][0]["invalidReasonCodes"] == []
 
     @pytest.mark.asyncio
@@ -124,14 +124,14 @@ class TestPlayerAssignmentServiceValidation:
             clubId="club1",
             clubName="Club 1",
             clubAlias="club1",
-            teams=[self.create_assigned_team("team1", "Team 1", "U16", LicenseTypeEnum.PRIMARY)],
+            teams=[self.create_assigned_team("team1", "Team 1", "U16", LicenseType.PRIMARY)],
         )
 
         club2 = AssignedClubs(
             clubId="club2",
             clubName="Club 2",
             clubAlias="club2",
-            teams=[self.create_assigned_team("team2", "Team 2", "U16", LicenseTypeEnum.PRIMARY)],
+            teams=[self.create_assigned_team("team2", "Team 2", "U16", LicenseType.PRIMARY)],
         )
 
         player = self.create_test_player(age_group="U16", assigned_teams=[club1, club2])
@@ -149,7 +149,7 @@ class TestPlayerAssignmentServiceValidation:
 
         # At least one must be invalid for MULTIPLE_PRIMARY
         assert (
-            t1["status"] == LicenseStatusEnum.INVALID or t2["status"] == LicenseStatusEnum.INVALID
+            t1["status"] == LicenseStatus.INVALID or t2["status"] == LicenseStatus.INVALID
         )
 
         all_codes = t1["invalidReasonCodes"] + t2["invalidReasonCodes"]
@@ -162,14 +162,14 @@ class TestPlayerAssignmentServiceValidation:
             clubId="club1",
             clubName="Club 1",
             clubAlias="club1",
-            teams=[self.create_assigned_team("team1", "Team 1", "U16", LicenseTypeEnum.PRIMARY)],
+            teams=[self.create_assigned_team("team1", "Team 1", "U16", LicenseType.PRIMARY)],
         )
 
         club2 = AssignedClubs(
             clubId="club2",
             clubName="Club 2",
             clubAlias="club2",
-            teams=[self.create_assigned_team("team2", "Team 2", "U19", LicenseTypeEnum.SECONDARY)],
+            teams=[self.create_assigned_team("team2", "Team 2", "U19", LicenseType.SECONDARY)],
         )
 
         player = self.create_test_player(age_group="U16", assigned_teams=[club1, club2])
@@ -179,7 +179,7 @@ class TestPlayerAssignmentServiceValidation:
         validated_player = await assignment_service.validate_licenses_for_player(player_dict)
 
         assert (
-            validated_player["assignedTeams"][1]["teams"][0]["status"] == LicenseStatusEnum.INVALID
+            validated_player["assignedTeams"][1]["teams"][0]["status"] == LicenseStatus.INVALID
         )
         assert (
             LicenseInvalidReasonCode.CONFLICTING_CLUB
@@ -195,10 +195,10 @@ class TestPlayerAssignmentServiceValidation:
             clubAlias="club1",
             teams=[
                 self.create_assigned_team(
-                    "team1", "Team 1", "U16", LicenseTypeEnum.PRIMARY, SourceEnum.BISHL
+                    "team1", "Team 1", "U16", LicenseType.PRIMARY, Source.BISHL
                 ),
                 self.create_assigned_team(
-                    "team2", "Team 2", "U16", LicenseTypeEnum.PRIMARY, SourceEnum.ISHD
+                    "team2", "Team 2", "U16", LicenseType.PRIMARY, Source.ISHD
                 ),
             ],
         )
@@ -210,5 +210,5 @@ class TestPlayerAssignmentServiceValidation:
         validated_player = await assignment_service.validate_licenses_for_player(player_dict)
 
         ishd_team = validated_player["assignedTeams"][0]["teams"][1]
-        assert ishd_team["status"] == LicenseStatusEnum.INVALID
+        assert ishd_team["status"] == LicenseStatus.INVALID
         assert LicenseInvalidReasonCode.IMPORT_CONFLICT in ishd_team["invalidReasonCodes"]

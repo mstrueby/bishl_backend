@@ -16,7 +16,10 @@ class TestPenaltiesAPI:
         match = create_test_match(status="INPROGRESS")
         player = create_test_roster_player("player-1")
         player["penaltyMinutes"] = 0
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         await mongodb["matches"].insert_one(match)
 
         # Execute - PenaltyService handles incremental penalty minute updates
@@ -54,7 +57,7 @@ class TestPenaltiesAPI:
         assert len(updated["home"]["penalties"]) == 1
 
         # Verify roster penalty minutes incremented
-        roster_player = updated["home"]["roster"][0]
+        roster_player = updated["home"]["roster"]["players"][0]
         assert roster_player["penaltyMinutes"] == 2
 
     async def test_create_game_misconduct_penalty(self, client: AsyncClient, mongodb, admin_token):
@@ -64,7 +67,10 @@ class TestPenaltiesAPI:
         # Setup
         match = create_test_match(status="INPROGRESS")
         player = create_test_roster_player("player-1")
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         await mongodb["matches"].insert_one(match)
 
         # Execute
@@ -163,7 +169,10 @@ class TestPenaltiesAPI:
         match = create_test_match(status="INPROGRESS")
         penalty_id = str(ObjectId())
         player = create_test_roster_player("player-1")
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         match["home"]["penalties"] = [
             {
                 "_id": penalty_id,
@@ -207,7 +216,10 @@ class TestPenaltiesAPI:
         penalty_id = str(ObjectId())
         player = create_test_roster_player("player-1")
         player["penaltyMinutes"] = 2
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         match["home"]["penalties"] = [
             {
                 "_id": penalty_id,
@@ -241,7 +253,7 @@ class TestPenaltiesAPI:
         assert len(updated["home"]["penalties"]) == 0
 
         # Verify roster penalty minutes decremented
-        roster_player = updated["home"]["roster"][0]
+        roster_player = updated["home"]["roster"]["players"][0]
         assert roster_player["penaltyMinutes"] == 0
 
     async def test_get_penalty_sheet(self, client: AsyncClient, mongodb):
@@ -343,7 +355,10 @@ class TestPenaltiesAPI:
         # Setup - FINISHED match
         match = create_test_match(status="FINISHED")
         player = create_test_roster_player("player-1")
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         await mongodb["matches"].insert_one(match)
 
         # Execute

@@ -13,7 +13,7 @@ from models.players import (
     AssignedClubs,
     AssignedTeams,
     PlayerDB,
-    SourceEnum,
+    Source,
 )
 
 # Set up argument parser
@@ -148,7 +148,7 @@ try:
                 teamId=str(team_db.id),
                 passNo=row.get("passNo", ""),
                 active=False,
-                source=SourceEnum.BISHL,
+                source=Source.BISHL,
                 modifyDate=modify_date,
                 teamName=team_db.name,  # Assuming team_db has an attribute `name`
                 teamAlias=team_db.alias,  # Using the `team_alias` from the CSV row
@@ -187,7 +187,7 @@ try:
                     # Update team properties if needed (e.g., passNo, active status)
                     existing_team.passNo = row.get("passNo", "")
                     existing_team.active = True
-                    existing_team.source = SourceEnum.BISHL
+                    existing_team.source = Source.BISHL
                     existing_team.modifyDate = modify_date
                 else:
                     # Team doesn't exist in this club, add new team to existing club's teams

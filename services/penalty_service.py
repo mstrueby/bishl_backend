@@ -49,8 +49,13 @@ class PenaltyService:
         self, match: dict, team_flag: str, penalty_data: dict
     ) -> None:
         """Validate that penalty player is in the roster"""
-        roster = match.get(team_flag, {}).get("roster") or []
-        roster_player_ids = {player["player"]["playerId"] for player in roster}
+        roster_data = match.get(team_flag, {}).get("roster") or {}
+        if isinstance(roster_data, list):
+            players = roster_data
+        else:
+            players = roster_data.get("players") or []
+            
+        roster_player_ids = {player["player"]["playerId"] for player in players}
 
         penalty_player = penalty_data.get("penaltyPlayer")
         if penalty_player and penalty_player.get("playerId"):
@@ -188,7 +193,7 @@ class PenaltyService:
         # Build incremental update operations
         update_operations = {
             "$push": {f"{team_flag}.penalties": penalty_data},
-            "$inc": {f"{team_flag}.roster.$[penaltyPlayer].penaltyMinutes": penalty.penaltyMinutes},
+            "$inc": {f"{team_flag}.roster.players.$[penaltyPlayer].penaltyMinutes": penalty.penaltyMinutes},
         }
 
         array_filters = [{"penaltyPlayer.player.playerId": penalty_player_id}]
@@ -305,7 +310,8 @@ class PenaltyService:
 
         # Find the penalty to delete
         current_penalty = None
-        for penalty_entry in match.get(team_flag, {}).get("penalties", []):
+        team_data = match.get(team_flag, {})
+        for penalty_entry in team_data.get("penalties", []):
             if penalty_entry["_id"] == penalty_id:
                 current_penalty = penalty_entry
                 break
@@ -323,7 +329,7 @@ class PenaltyService:
         # Build decremental update operations
         update_operations = {
             "$pull": {f"{team_flag}.penalties": {"_id": penalty_id}},
-            "$inc": {f"{team_flag}.roster.$[penaltyPlayer].penaltyMinutes": -penalty_minutes},
+            "$inc": {f"{team_flag}.roster.players.$[penaltyPlayer].penaltyMinutes": -penalty_minutes},
         }
 
         array_filters = [{"penaltyPlayer.player.playerId": penalty_player_id}]

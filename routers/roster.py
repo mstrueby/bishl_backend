@@ -7,7 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
 from logging_config import logger
-from models.matches import LicenseStatusEnum, Roster, RosterPlayer, RosterStatus, RosterUpdate
+from models.matches import LicenseStatus, Roster, RosterPlayer, RosterStatus, RosterUpdate
 from models.responses import StandardResponse
 from services.player_assignment_service import PlayerAssignmentService
 from services.roster_service import RosterService
@@ -265,12 +265,12 @@ async def validate_roster(
 
         if not validated_player:
             logger.warning(f"Player {player_id} not found during roster validation")
-            roster_player.eligibilityStatus = LicenseStatusEnum.INVALID
+            roster_player.eligibilityStatus = LicenseStatus.INVALID
             all_valid = False
             updated_players.append(roster_player)
             continue
 
-        player_status = LicenseStatusEnum.INVALID
+        player_status = LicenseStatus.INVALID
         team_found = False
         assigned_teams = validated_player.get("assignedTeams", [])
 
@@ -282,9 +282,9 @@ async def validate_roster(
                         status_value = team.get("status", "UNKNOWN")
                         if isinstance(status_value, str):
                             try:
-                                player_status = LicenseStatusEnum(status_value)
+                                player_status = LicenseStatus(status_value)
                             except ValueError:
-                                player_status = LicenseStatusEnum.UNKNOWN
+                                player_status = LicenseStatus.UNKNOWN
                         else:
                             player_status = status_value
                         break
@@ -296,10 +296,10 @@ async def validate_roster(
                 f"Player {player_id} not assigned to team {team_id}, "
                 f"marking as INVALID"
             )
-            player_status = LicenseStatusEnum.INVALID
+            player_status = LicenseStatus.INVALID
 
         roster_player.eligibilityStatus = player_status
-        if player_status != LicenseStatusEnum.VALID:
+        if player_status != LicenseStatus.VALID:
             all_valid = False
 
         updated_players.append(roster_player)
@@ -326,7 +326,7 @@ async def validate_roster(
     )
 
     valid_count = sum(
-        1 for p in updated_players if p.eligibilityStatus == LicenseStatusEnum.VALID
+        1 for p in updated_players if p.eligibilityStatus == LicenseStatus.VALID
     )
     invalid_count = len(updated_players) - valid_count
 

@@ -9,7 +9,7 @@ from models.assignments import Referee
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 
 
-class LicenseStatusEnum(str, Enum):
+class LicenseStatus(str, Enum):
     UNKNOWN = "UNKNOWN"
     VALID = "VALID"
     INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
@@ -94,7 +94,7 @@ class RosterPlayer(BaseModel):
     points: int = 0
     penaltyMinutes: int = 0
     called: bool = False
-    eligibilityStatus: LicenseStatusEnum = LicenseStatusEnum.UNKNOWN  # Snapshot bei Aufstellung
+    eligibilityStatus: LicenseStatus = LicenseStatus.UNKNOWN  # Snapshot bei Aufstellung
 
 
 class ScoresBase(MongoBaseModel):

@@ -18,7 +18,10 @@ class TestScoresAPI:
         player["goals"] = 0
         player["assists"] = 0
         player["points"] = 0
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         match["home"]["stats"] = {"goalsFor": 0, "goalsAgainst": 0}
         await mongodb["matches"].insert_one(match)
 
@@ -52,7 +55,7 @@ class TestScoresAPI:
         assert updated["home"]["stats"]["goalsFor"] == 1
 
         # Verify roster stats incremented
-        roster_player = updated["home"]["roster"][0]
+        roster_player = updated["home"]["roster"]["players"][0]
         assert roster_player["goals"] == 1
         assert roster_player["points"] == 1
 
@@ -64,7 +67,10 @@ class TestScoresAPI:
         match = create_test_match(status="INPROGRESS")
         player1 = create_test_roster_player("player-1")
         player2 = create_test_roster_player("player-2")
-        match["home"]["roster"] = [player1, player2]
+        match["home"]["roster"] = {
+            "players": [player1, player2],
+            "status": "SUBMITTED"
+        }
         await mongodb["matches"].insert_one(match)
 
         # Execute
@@ -158,7 +164,10 @@ class TestScoresAPI:
         match = create_test_match(status="INPROGRESS")
         score_id = str(ObjectId())
         player = create_test_roster_player("player-1")
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         match["home"]["scores"] = [
             {
                 "_id": score_id,
@@ -203,7 +212,10 @@ class TestScoresAPI:
         player["goals"] = 1
         player["assists"] = 0
         player["points"] = 1
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         match["home"]["scores"] = [
             {
                 "_id": score_id,
@@ -238,7 +250,7 @@ class TestScoresAPI:
         assert updated["home"]["stats"]["goalsFor"] == 0
 
         # Verify roster stats decremented
-        roster_player = updated["home"]["roster"][0]
+        roster_player = updated["home"]["roster"]["players"][0]
         assert roster_player["goals"] == 0
         assert roster_player["points"] == 0
 
@@ -264,7 +276,10 @@ class TestScoresAPI:
         # Setup - SCHEDULED match
         match = create_test_match(status="SCHEDULED")
         player = create_test_roster_player("player-1")
-        match["home"]["roster"] = [player]
+        match["home"]["roster"] = {
+            "players": [player],
+            "status": "SUBMITTED"
+        }
         await mongodb["matches"].insert_one(match)
 
         # Execute

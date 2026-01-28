@@ -6,7 +6,7 @@ import certifi
 import requests
 from pymongo import MongoClient
 
-from models.players import SexEnum
+from models.players import Sex
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description="Update player sex based on first names.")
@@ -33,10 +33,10 @@ def get_gender_from_api(name):
         response = requests.get(f"https://api.genderize.io/?name={name}&apikey={api_key}")
         data = response.json()
         if data["probability"] > 0.8:  # Only use predictions with high confidence
-            return SexEnum.FEMALE if data["gender"] == "female" else SexEnum.MALE
-        return SexEnum.MALE  # Default to MAN if unsure
+            return Sex.FEMALE if data["gender"] == "female" else Sex.MALE
+        return Sex.MALE  # Default to MAN if unsure
     except Exception:
-        return SexEnum.MALE  # Default to MAN on API failure
+        return Sex.MALE  # Default to MAN on API failure
 
 
 # Process all players
@@ -50,7 +50,7 @@ for player in players:
 
     if first_name:
         predicted_sex = get_gender_from_api(first_name)
-        current_sex = player.get("sex", SexEnum.MALE)
+        current_sex = player.get("sex", Sex.MALE)
 
         if current_sex != predicted_sex:
             update_result = db["players"].update_one(

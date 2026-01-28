@@ -23,25 +23,25 @@ from fastapi.encoders import jsonable_encoder
 from config import settings
 from exceptions import DatabaseOperationException, ExternalServiceException
 from logging_config import logger
-from models.clubs import TeamTypeEnum
+from models.clubs import TeamType
 from models.players import (
     AssignedClubs,
     AssignedTeams,
-    ClubTypeEnum,
-    IshdActionEnum,
+    ClubType,
+    IshdAction,
     IshdLogBase,
     IshdLogClub,
     IshdLogPlayer,
     IshdLogTeam,
     LicenseInvalidReasonCode,
-    LicenseStatusEnum,
-    LicenseTypeEnum,
+    LicenseStatus,
+    LicenseType,
     OverAgeRule,
     PlayerBase,
     PlayerDB,
     SecondaryRule,
-    SexEnum,
-    SourceEnum,
+    Sex,
+    Source,
     WkoRule,
 )
 
@@ -56,19 +56,19 @@ class PlayerAssignmentService:
             label="Herren",
             sortOrder=1,
             altKey="Herren",
-            sex=[SexEnum.MALE, SexEnum.FEMALE],
-            maxTotalAgeClasses={SexEnum.MALE: 2, SexEnum.FEMALE: 2},
+            sex=[Sex.MALE, Sex.FEMALE],
+            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 2},
         ),
         WkoRule(
             ageGroup="DAMEN",
             label="Damen",
             sortOrder=2,
             altKey="Damen",
-            sex=[SexEnum.FEMALE],
+            sex=[Sex.FEMALE],
             secondaryRules=[
                 SecondaryRule(
                     targetAgeGroup="HERREN",
-                    sex=[SexEnum.FEMALE],
+                    sex=[Sex.FEMALE],
                     maxLicenses=1,
                     requiresAdmin=False,
                 )
@@ -76,26 +76,26 @@ class PlayerAssignmentService:
             overAgeRules=[
                 OverAgeRule(
                     targetAgeGroup="U19",
-                    sex=[SexEnum.FEMALE],
+                    sex=[Sex.FEMALE],
                     maxLicenses=1,
                     maxOverAgePlayersPerTeam=3,
                 )
             ],
-            maxTotalAgeClasses={SexEnum.MALE: 2, SexEnum.FEMALE: 2},
+            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 2},
         ),
         WkoRule(
             ageGroup="U19",
             label="U19",
             sortOrder=3,
             altKey="Junioren",
-            sex=[SexEnum.MALE, SexEnum.FEMALE],
+            sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
                 SecondaryRule(
-                    targetAgeGroup="HERREN", sex=[SexEnum.MALE], maxLicenses=99, requiresAdmin=False
+                    targetAgeGroup="HERREN", sex=[Sex.MALE], maxLicenses=99, requiresAdmin=False
                 ),
                 SecondaryRule(
                     targetAgeGroup="DAMEN",
-                    sex=[SexEnum.FEMALE],
+                    sex=[Sex.FEMALE],
                     maxLicenses=99,
                     requiresAdmin=False,
                 ),
@@ -103,131 +103,131 @@ class PlayerAssignmentService:
             overAgeRules=[
                 OverAgeRule(
                     targetAgeGroup="U16",
-                    sex=[SexEnum.MALE, SexEnum.FEMALE],
+                    sex=[Sex.MALE, Sex.FEMALE],
                     maxLicenses=1,
                     maxOverAgePlayersPerTeam=3,
                 )
             ],
-            maxTotalAgeClasses={SexEnum.MALE: 2, SexEnum.FEMALE: 3},
+            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
         ),
         WkoRule(
             ageGroup="U16",
             label="U16",
             sortOrder=4,
             altKey="Jugend",
-            sex=[SexEnum.MALE, SexEnum.FEMALE],
+            sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
                 SecondaryRule(
                     targetAgeGroup="U19",
-                    sex=[SexEnum.MALE, SexEnum.FEMALE],
+                    sex=[Sex.MALE, Sex.FEMALE],
                     maxLicenses=1,
                     requiresAdmin=False,
                 ),
                 SecondaryRule(
-                    targetAgeGroup="HERREN", sex=[SexEnum.MALE], maxLicenses=1, requiresAdmin=False
+                    targetAgeGroup="HERREN", sex=[Sex.MALE], maxLicenses=1, requiresAdmin=False
                 ),
                 SecondaryRule(
-                    targetAgeGroup="DAMEN", sex=[SexEnum.FEMALE], maxLicenses=1, requiresAdmin=True
+                    targetAgeGroup="DAMEN", sex=[Sex.FEMALE], maxLicenses=1, requiresAdmin=True
                 ),
             ],
             overAgeRules=[
                 OverAgeRule(
                     targetAgeGroup="U13",
-                    sex=[SexEnum.MALE, SexEnum.FEMALE],
+                    sex=[Sex.MALE, Sex.FEMALE],
                     maxLicenses=1,
                     maxOverAgePlayersPerTeam=3,
                 )
             ],
-            maxTotalAgeClasses={SexEnum.MALE: 2, SexEnum.FEMALE: 3},
+            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
         ),
         WkoRule(
             ageGroup="U13",
             label="U13",
             sortOrder=5,
             altKey="Schüler",
-            sex=[SexEnum.MALE, SexEnum.FEMALE],
+            sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
                 SecondaryRule(
                     targetAgeGroup="U16",
-                    sex=[SexEnum.MALE, SexEnum.FEMALE],
+                    sex=[Sex.MALE, Sex.FEMALE],
                     maxLicenses=1,
                     requiresAdmin=False,
                 ),
                 SecondaryRule(
-                    targetAgeGroup="DAMEN", sex=[SexEnum.FEMALE], maxLicenses=1, requiresAdmin=True
+                    targetAgeGroup="DAMEN", sex=[Sex.FEMALE], maxLicenses=1, requiresAdmin=True
                 ),
             ],
             overAgeRules=[
                 OverAgeRule(
                     targetAgeGroup="U10",
-                    sex=[SexEnum.MALE, SexEnum.FEMALE],
+                    sex=[Sex.MALE, Sex.FEMALE],
                     maxLicenses=1,
                     maxOverAgePlayersPerTeam=3,
                 )
             ],
-            maxTotalAgeClasses={SexEnum.MALE: 2, SexEnum.FEMALE: 3},
+            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
         ),
         WkoRule(
             ageGroup="U10",
             label="U10",
             sortOrder=6,
             altKey="Bambini",
-            sex=[SexEnum.MALE, SexEnum.FEMALE],
+            sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
                 SecondaryRule(
                     targetAgeGroup="U13",
-                    sex=[SexEnum.MALE, SexEnum.FEMALE],
+                    sex=[Sex.MALE, Sex.FEMALE],
                     maxLicenses=1,
                     requiresAdmin=False,
                 ),
                 SecondaryRule(
-                    targetAgeGroup="DAMEN", sex=[SexEnum.FEMALE], maxLicenses=1, requiresAdmin=True
+                    targetAgeGroup="DAMEN", sex=[Sex.FEMALE], maxLicenses=1, requiresAdmin=True
                 ),
             ],
             overAgeRules=[
                 OverAgeRule(
                     targetAgeGroup="U8",
-                    sex=[SexEnum.MALE, SexEnum.FEMALE],
+                    sex=[Sex.MALE, Sex.FEMALE],
                     maxLicenses=1,
                     maxOverAgePlayersPerTeam=2,
                 ),
             ],
-            maxTotalAgeClasses={SexEnum.MALE: 2, SexEnum.FEMALE: 3},
+            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
         ),
         WkoRule(
             ageGroup="U8",
             label="U8",
             sortOrder=7,
             altKey="Mini",
-            sex=[SexEnum.MALE, SexEnum.FEMALE],
+            sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
                 SecondaryRule(
                     targetAgeGroup="U10",
-                    sex=[SexEnum.MALE, SexEnum.FEMALE],
+                    sex=[Sex.MALE, Sex.FEMALE],
                     maxLicenses=1,
                     requiresAdmin=False,
                 ),
                 SecondaryRule(
-                    targetAgeGroup="DAMEN", sex=[SexEnum.FEMALE], maxLicenses=1, requiresAdmin=True
+                    targetAgeGroup="DAMEN", sex=[Sex.FEMALE], maxLicenses=1, requiresAdmin=True
                 ),
             ],
-            maxTotalAgeClasses={SexEnum.MALE: 2, SexEnum.FEMALE: 3},
+            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
         ),
     ]
 
     # DEFAULT Maximum number of active age class participations allowed by WKO
     MAX_AGE_CLASS_PARTICIPATIONS = 2
 
-    def _is_primary_like(self, license_type: LicenseTypeEnum) -> bool:
+    def _is_primary_like(self, license_type: LicenseType) -> bool:
         """PRIMARY acts as primary-like for anchor/quotas/consistency."""
-        return license_type == LicenseTypeEnum.PRIMARY
+        return license_type == LicenseType.PRIMARY
 
     def __init__(self, db):
         self.db = db
         # Build age group map from WKO_RULES, keeping as Pydantic model objects
         self._wko_rules = {rule.ageGroup: rule for rule in self.WKO_RULES}
         # License types that count as "primary-like" for WKO participation limits
-        self.PRIMARY_LIKE_TYPES = {LicenseTypeEnum.PRIMARY}
+        self.PRIMARY_LIKE_TYPES = {LicenseType.PRIMARY}
 
     def _prepare_player_for_validation(self, player: dict) -> dict:
         """
@@ -242,7 +242,7 @@ class PlayerAssignmentService:
         return player_copy
 
     def _is_team_allowed(
-        self, player_age: str, team_age: str, sex: SexEnum, over_age_flag: bool = False
+        self, player_age: str, team_age: str, sex: Sex, over_age_flag: bool = False
     ):
         """
         Checks if a player of a given age and sex is allowed to play in a team of a given age
@@ -308,7 +308,7 @@ class PlayerAssignmentService:
             club, team = all_licenses[0]
 
             # PROTECT LOAN and SPECIAL licenses from being changed
-            if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+            if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                 return player
 
             team_age_group = team.get("teamAgeGroup")
@@ -334,25 +334,25 @@ class PlayerAssignmentService:
         # Step 2: Apply suffix-based classification
         for club, team in all_licenses:
             # PROTECT LOAN and SPECIAL licenses from being changed
-            if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+            if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                 continue
 
             # Only classify if licenseType is UNKNOWN or not set
-            if team.get("licenseType") == LicenseTypeEnum.UNKNOWN or not team.get("licenseType"):
+            if team.get("licenseType") == LicenseType.UNKNOWN or not team.get("licenseType"):
                 license_type = self._classify_by_pass_suffix(team.get("passNo", ""))
                 team["licenseType"] = license_type
 
                 # New rule: if "F" suffix was used, it returned PRIMARY, but mark club as DEVELOPMENT
                 pass_no = team.get("passNo") or ""
                 if pass_no.strip().upper().endswith("F"):
-                    club["clubType"] = ClubTypeEnum.DEVELOPMENT
+                    club["clubType"] = ClubType.DEVELOPMENT
 
         # Step 2b: Detect DEVELOPMENT clubs - check ALL teams (not just newly classified)
         # A club is DEVELOPMENT if passNo ends with 'F'
         for club, team in all_licenses:
             pass_no = team.get("passNo") or ""
             if pass_no.strip().upper().endswith("F"):
-                club["clubType"] = ClubTypeEnum.DEVELOPMENT
+                club["clubType"] = ClubType.DEVELOPMENT
 
         # Step 2c: Detect LOAN clubs - check ALL teams (not just newly classified)
         # A club is LOAN if passNo ends with 'L' OR licenseType is LOAN
@@ -360,9 +360,9 @@ class PlayerAssignmentService:
             pass_no = team.get("passNo") or ""
             if (
                 pass_no.strip().upper().endswith("L")
-                or team.get("licenseType") == LicenseTypeEnum.LOAN
+                or team.get("licenseType") == LicenseType.LOAN
             ):
-                club["clubType"] = ClubTypeEnum.LOAN
+                club["clubType"] = ClubType.LOAN
 
         # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
         # We need to determine player's age group first
@@ -372,14 +372,14 @@ class PlayerAssignmentService:
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
                 # PROTECT LOAN and SPECIAL licenses from being changed
-                if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+                if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                     continue
 
-                if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
+                if team.get("licenseType") == LicenseType.UNKNOWN:
                     team_age_group = team.get("teamAgeGroup")
                     # If team age group matches player age group, set as PRIMARY
                     if team_age_group and team_age_group == player_age_group:
-                        team["licenseType"] = LicenseTypeEnum.PRIMARY
+                        team["licenseType"] = LicenseType.PRIMARY
                         if settings.DEBUG_LEVEL > 0:
                             logger.debug(
                                 f"Set license to PRIMARY based on age group match ({player_age_group}) "
@@ -395,11 +395,11 @@ class PlayerAssignmentService:
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
                     # PROTECT LOAN and SPECIAL licenses from being changed
-                    if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+                    if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                         continue
 
                     # Only check UNKNOWN licenses
-                    if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
+                    if team.get("licenseType") == LicenseType.UNKNOWN:
                         team_age_group = team.get("teamAgeGroup")
                         if not team_age_group or team_age_group not in self._wko_rules:
                             continue
@@ -410,7 +410,7 @@ class PlayerAssignmentService:
                         # OVERAGE: team is exactly one age group below player
                         # (higher sortOrder means younger age group)
                         if team_sort_order == player_sort_order + 1:
-                            team["licenseType"] = LicenseTypeEnum.OVERAGE
+                            team["licenseType"] = LicenseType.OVERAGE
                             if settings.DEBUG_LEVEL > 0:
                                 logger.debug(
                                     f"Set license to OVERAGE for team {team.get('teamName')} "
@@ -423,7 +423,7 @@ class PlayerAssignmentService:
         clubs_with_primary = set()
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
-                if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
+                if team.get("licenseType") == LicenseType.PRIMARY:
                     clubs_with_primary.add(club.get("clubId"))
                     break
 
@@ -438,13 +438,13 @@ class PlayerAssignmentService:
                 ishd_unknown_licenses = [
                     team
                     for team in club.get("teams", [])
-                    if team.get("licenseType") == LicenseTypeEnum.UNKNOWN
-                    and team.get("source") == SourceEnum.ISHD
+                    if team.get("licenseType") == LicenseType.UNKNOWN
+                    and team.get("source") == Source.ISHD
                 ]
 
                 # Set first ISHD UNKNOWN to PRIMARY
                 if ishd_unknown_licenses:
-                    ishd_unknown_licenses[0]["licenseType"] = LicenseTypeEnum.PRIMARY
+                    ishd_unknown_licenses[0]["licenseType"] = LicenseType.PRIMARY
                     clubs_with_primary.add(club_id)
                     if settings.DEBUG_LEVEL > 0:
                         logger.debug(
@@ -457,8 +457,8 @@ class PlayerAssignmentService:
         for club in player.get("assignedTeams", []):
             if club.get("clubId") in clubs_with_primary:
                 for team in club.get("teams", []):
-                    if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
-                        team["licenseType"] = LicenseTypeEnum.SECONDARY
+                    if team.get("licenseType") == LicenseType.UNKNOWN:
+                        team["licenseType"] = LicenseType.SECONDARY
                         if settings.DEBUG_LEVEL > 0:
                             logger.debug(
                                 f"Set UNKNOWN license to SECONDARY in club with PRIMARY for player "
@@ -471,16 +471,16 @@ class PlayerAssignmentService:
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
                 # PROTECT LOAN and SPECIAL licenses from being changed
-                if team.get("licenseType") in [LicenseTypeEnum.LOAN, LicenseTypeEnum.SPECIAL]:
+                if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                     continue
 
-                if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
+                if team.get("licenseType") == LicenseType.UNKNOWN:
                     unknown_licenses.append((club, team))
 
         # If exactly one UNKNOWN license remains, make it PRIMARY
         if len(unknown_licenses) == 1:
             club, team = unknown_licenses[0]
-            team["licenseType"] = LicenseTypeEnum.PRIMARY
+            team["licenseType"] = LicenseType.PRIMARY
             if settings.DEBUG_LEVEL > 0:
                 logger.debug(
                     f"Set single UNKNOWN license to PRIMARY for player {player.get('firstName')} {player.get('lastName')}"
@@ -490,7 +490,7 @@ class PlayerAssignmentService:
 
     def _classify_single_license_by_age_group(
         self, player_age_group: str, team_age_group: str, player_is_overage: bool
-    ) -> LicenseTypeEnum:
+    ) -> LicenseType:
         """
         Classify a single license based on age group comparison.
 
@@ -506,42 +506,42 @@ class PlayerAssignmentService:
           player_is_overage: Whether player has overAge flag
 
         Returns:
-          LicenseTypeEnum (PRIMARY, OVERAGE, or SECONDARY)
+          LicenseType (PRIMARY, OVERAGE, or SECONDARY)
         """
         if not player_age_group or not team_age_group:
-            return LicenseTypeEnum.PRIMARY
+            return LicenseType.PRIMARY
 
         # Same age group -> PRIMARY
         if player_age_group == team_age_group:
-            return LicenseTypeEnum.PRIMARY
+            return LicenseType.PRIMARY
 
         # Check WKO rules for age group relationship
         if player_age_group not in self._wko_rules:
-            return LicenseTypeEnum.PRIMARY
+            return LicenseType.PRIMARY
 
         player_rule = self._wko_rules[player_age_group]
 
         # Check if this is an OVERAGE scenario (playing in younger age group)
         for overage_rule in player_rule.overAgeRules:
             if overage_rule.targetAgeGroup == team_age_group:
-                return LicenseTypeEnum.OVERAGE
+                return LicenseType.OVERAGE
 
         # Check if this is a SECONDARY scenario (playing in older age group)
         for secondary_rule in player_rule.secondaryRules:
             if secondary_rule.targetAgeGroup == team_age_group:
-                return LicenseTypeEnum.SECONDARY
+                return LicenseType.SECONDARY
 
         # Fallback to PRIMARY if no rule matches
         # Validation step will catch any age group violations
-        return LicenseTypeEnum.PRIMARY
+        return LicenseType.PRIMARY
 
     def _get_recommended_license_type(
         self,
         player_age_group: str,
         team_age_group: str,
-        player_sex: SexEnum,
+        player_sex: Sex,
         player_is_overage: bool,
-    ) -> LicenseTypeEnum:
+    ) -> LicenseType:
         """
         Determine the recommended license type for a team based on WKO rules.
 
@@ -561,18 +561,18 @@ class PlayerAssignmentService:
             player_is_overage: Whether player has overAge flag
 
         Returns:
-            LicenseTypeEnum recommendation
+            LicenseType recommendation
         """
         if not player_age_group or not team_age_group:
-            return LicenseTypeEnum.PRIMARY
+            return LicenseType.PRIMARY
 
         # Same age group → PRIMARY
         if player_age_group == team_age_group:
-            return LicenseTypeEnum.PRIMARY
+            return LicenseType.PRIMARY
 
         # Check WKO rules
         if player_age_group not in self._wko_rules:
-            return LicenseTypeEnum.PRIMARY
+            return LicenseType.PRIMARY
 
         player_rule = self._wko_rules[player_age_group]
 
@@ -581,17 +581,17 @@ class PlayerAssignmentService:
             if sec_rule.targetAgeGroup == team_age_group:
                 # Check sex restriction if defined
                 if not sec_rule.sex or player_sex in sec_rule.sex:
-                    return LicenseTypeEnum.SECONDARY
+                    return LicenseType.SECONDARY
 
         # Check OVERAGE rules (playing in younger age groups)
         for over_rule in player_rule.overAgeRules:
             if over_rule.targetAgeGroup == team_age_group:
                 # Check sex restriction if defined
                 if not over_rule.sex or player_sex in over_rule.sex:
-                    return LicenseTypeEnum.OVERAGE
+                    return LicenseType.OVERAGE
 
         # Fallback to PRIMARY (will likely be INVALID status)
-        return LicenseTypeEnum.PRIMARY
+        return LicenseType.PRIMARY
 
     def _classify_by_pass_suffix(self, pass_no: str) -> str:
         """
@@ -601,10 +601,10 @@ class PlayerAssignmentService:
           pass_no: The license/pass number
 
         Returns:
-          LicenseTypeEnum value
+          LicenseType value
         """
         if not pass_no:
-            return LicenseTypeEnum.UNKNOWN
+            return LicenseType.UNKNOWN
 
         # Normalize: strip whitespace and convert to uppercase
         pass_no_normalized = pass_no.strip().upper()
@@ -614,19 +614,19 @@ class PlayerAssignmentService:
             if settings.DEBUG_LEVEL > 0:
                 logger.debug(f"Classified license {pass_no} as PRIMARY (F-suffix)")
             # Concept change: "F" is now PRIMARY, but the club will be marked DEVELOPMENT later
-            return LicenseTypeEnum.PRIMARY
+            return LicenseType.PRIMARY
         elif pass_no_normalized.endswith("A"):
             if settings.DEBUG_LEVEL > 0:
                 logger.debug(f"Classified license {pass_no} as SECONDARY")
-            return LicenseTypeEnum.SECONDARY
+            return LicenseType.SECONDARY
         elif pass_no_normalized.endswith("L"):
             if settings.DEBUG_LEVEL > 0:
                 logger.debug(f"Classified license {pass_no} as LOAN")
-            return LicenseTypeEnum.LOAN
+            return LicenseType.LOAN
         else:
             # No recognized suffix - leave as UNKNOWN
             # PRIMARY heuristic will handle single-license case
-            return LicenseTypeEnum.UNKNOWN
+            return LicenseType.UNKNOWN
 
     async def bootstrap_classification_for_all_players(
         self, reset: bool = False, batch_size: int = 1000
@@ -710,8 +710,8 @@ class PlayerAssignmentService:
         if reset:
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
-                    team["licenseType"] = LicenseTypeEnum.UNKNOWN
-                    team["status"] = LicenseStatusEnum.UNKNOWN
+                    team["licenseType"] = LicenseType.UNKNOWN
+                    team["status"] = LicenseStatus.UNKNOWN
                     team["invalidReasonCodes"] = []
 
         # Apply classification
@@ -818,7 +818,7 @@ class PlayerAssignmentService:
                 # Skip licenses with adminOverride=True
                 if team.get("adminOverride"):
                     continue
-                team["status"] = LicenseStatusEnum.VALID
+                team["status"] = LicenseStatus.VALID
                 team["invalidReasonCodes"] = []
 
     def _validate_unknown_license_types(self, player: dict) -> None:
@@ -830,8 +830,8 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
-                    team["status"] = LicenseStatusEnum.INVALID
+                if team.get("licenseType") == LicenseType.UNKNOWN:
+                    team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get(
                         "invalidReasonCodes", []
                     ):
@@ -852,21 +852,21 @@ class PlayerAssignmentService:
             return
 
         # Group PRIMARY licenses by clubType
-        primary_by_type: dict[ClubTypeEnum, list[dict]] = {
-            ClubTypeEnum.MAIN: [],
-            ClubTypeEnum.DEVELOPMENT: [],
+        primary_by_type: dict[ClubType, list[dict]] = {
+            ClubType.MAIN: [],
+            ClubType.DEVELOPMENT: [],
         }
 
         for club in player["assignedTeams"]:
-            club_type = club.get("clubType", ClubTypeEnum.MAIN)
+            club_type = club.get("clubType", ClubType.MAIN)
             # Handle missing/invalid clubType
-            if club_type not in [ClubTypeEnum.MAIN, ClubTypeEnum.DEVELOPMENT]:
-                club_type = ClubTypeEnum.MAIN
+            if club_type not in [ClubType.MAIN, ClubType.DEVELOPMENT]:
+                club_type = ClubType.MAIN
 
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
+                if team.get("licenseType") == LicenseType.PRIMARY:
                     # Keep track of parent club for validation
                     primary_by_type[club_type].append({"club": club, "team": team})
 
@@ -875,7 +875,7 @@ class PlayerAssignmentService:
                 # Sort licenses to pick the "best" one to keep valid
                 def sort_key(item):
                     team = item["team"]
-                    source_pref = 0 if team.get("source") == SourceEnum.BISHL else 1
+                    source_pref = 0 if team.get("source") == Source.BISHL else 1
                     modify_date = team.get("modifyDate") or datetime.max
                     # Handle case where modifyDate might be a string (from jsonable_encoder)
                     if isinstance(modify_date, str):
@@ -890,7 +890,7 @@ class PlayerAssignmentService:
                 # Mark all but the first one as INVALID
                 for item in licenses[1:]:
                     team = item["team"]
-                    team["status"] = LicenseStatusEnum.INVALID
+                    team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.get(
                         "invalidReasonCodes", []
                     ):
@@ -917,7 +917,7 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("licenseType") == LicenseTypeEnum.LOAN:
+                if team.get("licenseType") == LicenseType.LOAN:
                     loan_licenses.append(
                         {
                             "club": club,
@@ -934,7 +934,7 @@ class PlayerAssignmentService:
         if len(loan_licenses) > 1:
             for loan_info in loan_licenses:
                 team = loan_info["team"]
-                team["status"] = LicenseStatusEnum.INVALID
+                team["status"] = LicenseStatus.INVALID
                 if LicenseInvalidReasonCode.TOO_MANY_LOAN not in team.get("invalidReasonCodes", []):
                     team.setdefault("invalidReasonCodes", []).append(
                         LicenseInvalidReasonCode.TOO_MANY_LOAN
@@ -951,10 +951,10 @@ class PlayerAssignmentService:
             if club.get("clubId") != loan_club_id:
                 continue
             for team in club.get("teams", []):
-                if team.get("licenseType") == LicenseTypeEnum.LOAN:
+                if team.get("licenseType") == LicenseType.LOAN:
                     continue
                 # Any other license in the same club as LOAN is invalid
-                team["status"] = LicenseStatusEnum.INVALID
+                team["status"] = LicenseStatus.INVALID
                 if LicenseInvalidReasonCode.LOAN_CLUB_CONFLICT not in team.get(
                     "invalidReasonCodes", []
                 ):
@@ -973,7 +973,7 @@ class PlayerAssignmentService:
                     continue
                 if team.get("teamAgeGroup") == loan_age_group:
                     # Conflict found - invalidate the LOAN license, not this one
-                    loan_team["status"] = LicenseStatusEnum.INVALID
+                    loan_team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.LOAN_AGE_GROUP_CONFLICT not in loan_team.get(
                         "invalidReasonCodes", []
                     ):
@@ -994,19 +994,19 @@ class PlayerAssignmentService:
 
         # Collect BISHL licenses by (clubType, licenseType) tuple
         # This ensures MAIN and DEVELOPMENT pools are separate
-        bishl_licenses_by_pool: dict[tuple[ClubTypeEnum, LicenseTypeEnum], set] = {}
+        bishl_licenses_by_pool: dict[tuple[ClubType, LicenseType], set] = {}
 
         for club in player["assignedTeams"]:
-            club_type = club.get("clubType", ClubTypeEnum.MAIN)
-            if club_type not in [ClubTypeEnum.MAIN, ClubTypeEnum.DEVELOPMENT]:
-                club_type = ClubTypeEnum.MAIN
+            club_type = club.get("clubType", ClubType.MAIN)
+            if club_type not in [ClubType.MAIN, ClubType.DEVELOPMENT]:
+                club_type = ClubType.MAIN
 
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
                 if (
-                    team.get("source") == SourceEnum.BISHL
-                    and team.get("status") == LicenseStatusEnum.VALID
+                    team.get("source") == Source.BISHL
+                    and team.get("status") == LicenseStatus.VALID
                 ):
                     license_type = team.get("licenseType")
                     pool_key = (club_type, license_type)
@@ -1016,22 +1016,22 @@ class PlayerAssignmentService:
 
         # Check ISHD licenses for conflicts within the SAME clubType pool
         for club in player["assignedTeams"]:
-            club_type = club.get("clubType", ClubTypeEnum.MAIN)
-            if club_type not in [ClubTypeEnum.MAIN, ClubTypeEnum.DEVELOPMENT]:
-                club_type = ClubTypeEnum.MAIN
+            club_type = club.get("clubType", ClubType.MAIN)
+            if club_type not in [ClubType.MAIN, ClubType.DEVELOPMENT]:
+                club_type = ClubType.MAIN
 
             for team in club.get("teams", []):
                 if (
-                    team.get("source") == SourceEnum.ISHD
-                    and team.get("status") == LicenseStatusEnum.VALID
+                    team.get("source") == Source.ISHD
+                    and team.get("status") == LicenseStatus.VALID
                 ):
                     license_type = team.get("licenseType")
                     pool_key = (club_type, license_type)
 
                     # Only conflict if BISHL license exists in the SAME clubType pool
                     if pool_key in bishl_licenses_by_pool:
-                        if license_type == LicenseTypeEnum.PRIMARY:
-                            team["status"] = LicenseStatusEnum.INVALID
+                        if license_type == LicenseType.PRIMARY:
+                            team["status"] = LicenseStatus.INVALID
                             if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
                                 "invalidReasonCodes", []
                             ):
@@ -1052,8 +1052,8 @@ class PlayerAssignmentService:
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
                 if (
-                    team.get("status") == LicenseStatusEnum.VALID
-                    and team.get("licenseType") == LicenseTypeEnum.PRIMARY
+                    team.get("status") == LicenseStatus.VALID
+                    and team.get("licenseType") == LicenseType.PRIMARY
                 ):
                     return club, team
 
@@ -1061,7 +1061,7 @@ class PlayerAssignmentService:
         valid_licenses = []
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if team.get("status") == LicenseStatusEnum.VALID:
+                if team.get("status") == LicenseStatus.VALID:
                     valid_licenses.append((club, team))
 
         if len(valid_licenses) == 1:
@@ -1081,7 +1081,7 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("licenseType") == LicenseTypeEnum.PRIMARY:
+                if team.get("licenseType") == LicenseType.PRIMARY:
                     club_id = club.get("clubId")
                     if club_id:
                         primary_club_ids.add(club_id)
@@ -1111,9 +1111,9 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("licenseType") in [LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE]:
+                if team.get("licenseType") in [LicenseType.SECONDARY, LicenseType.OVERAGE]:
                     if club_id not in primary_club_ids:
-                        team["status"] = LicenseStatusEnum.INVALID
+                        team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.CONFLICTING_CLUB not in team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1152,7 +1152,7 @@ class PlayerAssignmentService:
         is_anchor_only = (
             anchor_team is not None
             and anchor_team.get("clubId") in primary_club_ids
-            and anchor_team.get("licenseType") != LicenseTypeEnum.PRIMARY
+            and anchor_team.get("licenseType") != LicenseType.PRIMARY
         )
 
         # PASS 1: Validate PRIMARY licenses first
@@ -1160,16 +1160,16 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("status") != LicenseStatusEnum.VALID:
+                if team.get("status") != LicenseStatus.VALID:
                     continue
 
                 license_type = team.get("licenseType")
-                if license_type != LicenseTypeEnum.PRIMARY:
+                if license_type != LicenseType.PRIMARY:
                     continue
 
                 team_age_group = team.get("teamAgeGroup")
                 if not self._is_age_group_compatible(player_age_group, team_age_group):
-                    team["status"] = LicenseStatusEnum.INVALID
+                    team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
                         "invalidReasonCodes", []
                     ):
@@ -1182,7 +1182,7 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("status") != LicenseStatusEnum.VALID:
+                if team.get("status") != LicenseStatus.VALID:
                     continue
 
                 team_age_group = team.get("teamAgeGroup")
@@ -1192,14 +1192,14 @@ class PlayerAssignmentService:
                 is_this_anchor = is_anchor_only and team is anchor_team
 
                 # Handle OVERAGE licenses
-                if license_type == LicenseTypeEnum.OVERAGE:
+                if license_type == LicenseType.OVERAGE:
                     if not self._is_overage_allowed(
                         player_age_group,
                         team_age_group,
                         player_is_overage,
                         is_anchor_license=is_this_anchor,
                     ):
-                        team["status"] = LicenseStatusEnum.INVALID
+                        team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED not in team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1208,9 +1208,9 @@ class PlayerAssignmentService:
                             )
 
                 # Handle SECONDARY licenses
-                elif license_type == LicenseTypeEnum.SECONDARY:
+                elif license_type == LicenseType.SECONDARY:
                     if not self._is_secondary_allowed(player_age_group, team_age_group):
-                        team["status"] = LicenseStatusEnum.INVALID
+                        team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1219,9 +1219,9 @@ class PlayerAssignmentService:
                             )
 
                 # Handle LOAN licenses (similar to SECONDARY rules)
-                elif license_type == LicenseTypeEnum.LOAN:
+                elif license_type == LicenseType.LOAN:
                     if not self._is_secondary_allowed(player_age_group, team_age_group):
-                        team["status"] = LicenseStatusEnum.INVALID
+                        team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1319,7 +1319,7 @@ class PlayerAssignmentService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if team.get("status") == LicenseStatusEnum.VALID:
+                if team.get("status") == LicenseStatus.VALID:
                     target_age_group = team.get("teamAgeGroup")
                     if target_age_group not in result:
                         result[target_age_group] = []
@@ -1328,7 +1328,7 @@ class PlayerAssignmentService:
         return result
 
     def _get_max_licenses_for_age_group(
-        self, player_age_group: str, target_age_group: str, player_sex: SexEnum
+        self, player_age_group: str, target_age_group: str, player_sex: Sex
     ) -> int | None:
         """
         Get the maximum licenses allowed for a target age group by merging
@@ -1406,7 +1406,7 @@ class PlayerAssignmentService:
                 # Mark excess licenses as invalid (keep first max_licenses)
                 for entry in licenses[max_licenses:]:
                     team = entry["team"]
-                    team["status"] = LicenseStatusEnum.INVALID
+                    team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get(
                         "invalidReasonCodes", []
                     ):
@@ -1458,8 +1458,8 @@ class PlayerAssignmentService:
                     continue
 
                 reason_codes = team.get("invalidReasonCodes", [])
-                is_structurally_valid = team.get("status") == LicenseStatusEnum.VALID or (
-                    team.get("status") == LicenseStatusEnum.INVALID
+                is_structurally_valid = team.get("status") == LicenseStatus.VALID or (
+                    team.get("status") == LicenseStatus.INVALID
                     and LicenseInvalidReasonCode.MULTIPLE_PRIMARY in reason_codes
                     and len(reason_codes) == 1
                 )
@@ -1477,7 +1477,7 @@ class PlayerAssignmentService:
             # Sort groups to prioritize: PRIMARY-first, then wko sortOrder (older first)
             def group_priority(group_name):
                 teams = licenses_by_group[group_name]
-                has_primary = any(t.get("licenseType") == LicenseTypeEnum.PRIMARY for t in teams)
+                has_primary = any(t.get("licenseType") == LicenseType.PRIMARY for t in teams)
                 # Use simple fallback if rule missing
                 sort_order = (
                     self._wko_rules[group_name].sortOrder if group_name in self._wko_rules else 99
@@ -1491,8 +1491,8 @@ class PlayerAssignmentService:
             for group_name in excess_groups:
                 for team in licenses_by_group[group_name]:
                     # Don't overwrite existing MULTIPLE_PRIMARY if it's already there
-                    if team.get("status") == LicenseStatusEnum.VALID:
-                        team["status"] = LicenseStatusEnum.INVALID
+                    if team.get("status") == LicenseStatus.VALID:
+                        team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1515,7 +1515,7 @@ class PlayerAssignmentService:
                 valid_to = team.get("validTo")
                 if valid_from and valid_to:
                     if valid_from > valid_to:
-                        team["status"] = LicenseStatusEnum.INVALID
+                        team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1557,7 +1557,7 @@ class PlayerAssignmentService:
 
                 # If this is a COMPETITIVE team, mark both HOBBY and COMPETITIVE as invalid
                 if team_type == "COMPETITIVE":
-                    team["status"] = LicenseStatusEnum.INVALID
+                    team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT not in team.get(
                         "invalidReasonCodes", []
                     ):
@@ -1567,7 +1567,7 @@ class PlayerAssignmentService:
 
                     # Also mark all HOBBY teams as invalid
                     for _, hobby_team in hobby_teams:
-                        hobby_team["status"] = LicenseStatusEnum.INVALID
+                        hobby_team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT not in hobby_team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1645,7 +1645,7 @@ class PlayerAssignmentService:
                         is_suspended = True
 
                     if is_suspended:
-                        team["status"] = LicenseStatusEnum.INVALID
+                        team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.SUSPENDED not in team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1672,10 +1672,10 @@ class PlayerAssignmentService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if team.get("status") == LicenseStatusEnum.UNKNOWN:
-                    if team.get("licenseType") == LicenseTypeEnum.UNKNOWN:
+                if team.get("status") == LicenseStatus.UNKNOWN:
+                    if team.get("licenseType") == LicenseType.UNKNOWN:
                         # Cannot classify license type, mark as invalid
-                        team["status"] = LicenseStatusEnum.INVALID
+                        team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get(
                             "invalidReasonCodes", []
                         ):
@@ -1684,7 +1684,7 @@ class PlayerAssignmentService:
                             )
                     else:
                         # License type is known and no structural issues found
-                        team["status"] = LicenseStatusEnum.VALID
+                        team["status"] = LicenseStatus.VALID
 
     async def bootstrap_validation_for_all_players(
         self, reset: bool = False, batch_size: int = 1000
@@ -1764,7 +1764,7 @@ class PlayerAssignmentService:
         if reset:
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
-                    team["status"] = LicenseStatusEnum.UNKNOWN
+                    team["status"] = LicenseStatus.UNKNOWN
                     team["invalidReasonCodes"] = []
 
         # Apply validation
@@ -1881,17 +1881,17 @@ class PlayerAssignmentService:
         stats = {
             "total_licenses": 0,
             "by_type": {
-                LicenseTypeEnum.PRIMARY: 0,
-                LicenseTypeEnum.SECONDARY: 0,
-                LicenseTypeEnum.OVERAGE: 0,
-                LicenseTypeEnum.LOAN: 0,
-                LicenseTypeEnum.SPECIAL: 0,
-                LicenseTypeEnum.UNKNOWN: 0,
+                LicenseType.PRIMARY: 0,
+                LicenseType.SECONDARY: 0,
+                LicenseType.OVERAGE: 0,
+                LicenseType.LOAN: 0,
+                LicenseType.SPECIAL: 0,
+                LicenseType.UNKNOWN: 0,
             },
             "by_status": {
-                LicenseStatusEnum.VALID: 0,
-                LicenseStatusEnum.INVALID: 0,
-                LicenseStatusEnum.UNKNOWN: 0,
+                LicenseStatus.VALID: 0,
+                LicenseStatus.INVALID: 0,
+                LicenseStatus.UNKNOWN: 0,
             },
         }
 
@@ -1900,10 +1900,10 @@ class PlayerAssignmentService:
                 for team in club.get("teams", []):
                     stats["total_licenses"] += 1
 
-                    license_type = team.get("licenseType", LicenseTypeEnum.UNKNOWN)
+                    license_type = team.get("licenseType", LicenseType.UNKNOWN)
                     stats["by_type"][license_type] = stats["by_type"].get(license_type, 0) + 1
 
-                    status = team.get("status", LicenseStatusEnum.UNKNOWN)
+                    status = team.get("status", LicenseStatus.UNKNOWN)
                     stats["by_status"][status] = stats["by_status"].get(status, 0) + 1
 
         return stats
@@ -1919,8 +1919,8 @@ class PlayerAssignmentService:
         stats = {
             "total_licenses": 0,
             "by_status": {
-                LicenseStatusEnum.VALID: 0,
-                LicenseStatusEnum.INVALID: 0,
+                LicenseStatus.VALID: 0,
+                LicenseStatus.INVALID: 0,
             },
             "by_invalidReasonCodes": {},
         }
@@ -1931,14 +1931,14 @@ class PlayerAssignmentService:
                     stats["total_licenses"] += 1
 
                     # Count by status
-                    status = team.get("status", LicenseStatusEnum.VALID)
+                    status = team.get("status", LicenseStatus.VALID)
                     if status in stats["by_status"]:
                         stats["by_status"][status] += 1
                     else:
                         stats["by_status"][status] = 1
 
                     # Count by invalid reason codes
-                    if status == LicenseStatusEnum.INVALID:
+                    if status == LicenseStatus.INVALID:
                         reason_codes = team.get("invalidReasonCodes", [])
                         for code in reason_codes:
                             stats["by_invalidReasonCodes"][code] = (
@@ -2252,9 +2252,9 @@ class PlayerAssignmentService:
                             # NEW: Get teamType from database team document
                             team_doc = await self.db["teams"].find_one({"_id": team["_id"]})
                             team_type = (
-                                team_doc.get("teamType", TeamTypeEnum.COMPETITIVE)
+                                team_doc.get("teamType", TeamType.COMPETITIVE)
                                 if team_doc
-                                else TeamTypeEnum.COMPETITIVE
+                                else TeamType.COMPETITIVE
                             )
 
                             # Build assigned team object with source=ISHD
@@ -2266,7 +2266,7 @@ class PlayerAssignmentService:
                                 teamAgeGroup=team["ageGroup"],
                                 teamIshdId=team["ishdId"],
                                 passNo=player["license_number"],
-                                source=SourceEnum.ISHD,
+                                source=Source.ISHD,
                                 modifyDate=datetime.strptime(
                                     player["last_modification"], "%Y-%m-%d %H:%M:%S"
                                 ),
@@ -2348,7 +2348,7 @@ class PlayerAssignmentService:
                                                 log_line = f"[DRY] Would update team assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']}"
                                                 logger.info(log_line)
                                                 log_lines.append(log_line)
-                                                ishd_log_player.action = IshdActionEnum.ADD_TEAM
+                                                ishd_log_player.action = IshdAction.ADD_TEAM
                                                 stats["updated_teams"] += 1
                                             else:
                                                 result = await self.db["players"].update_one(
@@ -2371,7 +2371,7 @@ class PlayerAssignmentService:
                                                     log_line = f"Updated team assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']}"
                                                     logger.info(log_line)
                                                     log_lines.append(log_line)
-                                                    ishd_log_player.action = IshdActionEnum.ADD_TEAM
+                                                    ishd_log_player.action = IshdAction.ADD_TEAM
                                                     stats["updated_teams"] += 1
                                                 else:
                                                     raise DatabaseOperationException(
@@ -2409,14 +2409,14 @@ class PlayerAssignmentService:
                                         log_line = f"[DRY] Would add club assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
                                         logger.info(log_line)
                                         log_lines.append(log_line)
-                                        ishd_log_player.action = IshdActionEnum.ADD_CLUB
+                                        ishd_log_player.action = IshdAction.ADD_CLUB
                                         stats["updated_teams"] += 1
                                     else:
                                         result = await self.db["players"].update_one(
                                             {"_id": existing_player["_id"]},
                                             {
                                                 "$set": {
-                                                    "source": SourceEnum.ISHD,
+                                                    "source": Source.ISHD,
                                                     "assignedTeams": jsonable_encoder(
                                                         existing_player["assignedTeams"]
                                                     ),
@@ -2433,7 +2433,7 @@ class PlayerAssignmentService:
                                             log_line = f"New club assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
                                             logger.info(log_line)
                                             log_lines.append(log_line)
-                                            ishd_log_player.action = IshdActionEnum.ADD_CLUB
+                                            ishd_log_player.action = IshdAction.ADD_CLUB
                                             stats["updated_teams"] += 1
                                         else:
                                             raise DatabaseOperationException(
@@ -2462,7 +2462,7 @@ class PlayerAssignmentService:
                                     fullFaceReq=(
                                         True if player.get("full_face_req") == "true" else False
                                     ),
-                                    source=SourceEnum.ISHD,
+                                    source=Source.ISHD,
                                 )
                                 new_player_dict = jsonable_encoder(new_player)
                                 new_player_dict["birthdate"] = datetime.strptime(
@@ -2481,7 +2481,7 @@ class PlayerAssignmentService:
                                 # Check if any license is INVALID (for stats)
                                 for club_assign in new_player_dict.get("assignedTeams", []):
                                     for team_assign in club_assign.get("teams", []):
-                                        if team_assign.get("status") == LicenseStatusEnum.INVALID:
+                                        if team_assign.get("status") == LicenseStatus.INVALID:
                                             stats["invalid_new"] += 1
 
                                 # Add to existing players array
@@ -2498,7 +2498,7 @@ class PlayerAssignmentService:
                                     log_line = f"[DRY] Would insert player: {new_player_dict.get('firstName')} {new_player_dict.get('lastName')} {birthdate_str} -> {assigned_club.clubName} / {assigned_team.teamName}"
                                     logger.info(log_line)
                                     log_lines.append(log_line)
-                                    ishd_log_player.action = IshdActionEnum.ADD_PLAYER
+                                    ishd_log_player.action = IshdAction.ADD_PLAYER
                                     stats["added_players"] += 1
                                 else:
                                     result = await self.db["players"].insert_one(new_player_dict)
@@ -2512,7 +2512,7 @@ class PlayerAssignmentService:
                                         log_line = f"Inserted player: {new_player_dict.get('firstName')} {new_player_dict.get('lastName')} {birthdate_str} -> {assigned_club.clubName} / {assigned_team.teamName}"
                                         logger.info(log_line)
                                         log_lines.append(log_line)
-                                        ishd_log_player.action = IshdActionEnum.ADD_PLAYER
+                                        ishd_log_player.action = IshdAction.ADD_PLAYER
                                         stats["added_players"] += 1
                                     else:
                                         raise DatabaseOperationException(
@@ -2602,7 +2602,7 @@ class PlayerAssignmentService:
                                         log_line = f"[DRY] Would remove player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {del_birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
                                         logger.info(log_line)
                                         log_lines.append(log_line)
-                                        ishd_log_player_remove.action = IshdActionEnum.DEL_TEAM
+                                        ishd_log_player_remove.action = IshdAction.DEL_TEAM
                                         stats["deleted"] += 1
                                     else:
                                         query_update = {
@@ -2659,7 +2659,7 @@ class PlayerAssignmentService:
                                             log_line = f"Removed player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {del_birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
                                             logger.info(log_line)
                                             log_lines.append(log_line)
-                                            ishd_log_player_remove.action = IshdActionEnum.DEL_TEAM
+                                            ishd_log_player_remove.action = IshdAction.DEL_TEAM
                                             stats["deleted"] += 1
 
                                             # Remove club assignment if teams array is empty
@@ -2699,7 +2699,7 @@ class PlayerAssignmentService:
                                                 logger.info(log_line)
                                                 log_lines.append(log_line)
                                                 ishd_log_player_remove.action = (
-                                                    IshdActionEnum.DEL_CLUB
+                                                    IshdAction.DEL_CLUB
                                                 )
                                             else:
                                                 logger.debug(

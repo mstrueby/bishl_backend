@@ -50,7 +50,7 @@ class TeamPartnerships(BaseModel):
     teamName: str = Field(...)
 
 
-class TeamTypeEnum(str, Enum):
+class TeamType(str, Enum):
     COMPETITIVE = "COMPETITIVE"  # normaler ISHD/BISHL-Spielbetrieb
     HOBBY = "HOBBY"
 
@@ -62,7 +62,7 @@ class TeamBase(MongoBaseModel):
     fullName: str = Field(...)
     shortName: str = Field(...)
     tinyName: str = Field(...)
-    teamType: TeamTypeEnum = Field(default=TeamTypeEnum.COMPETITIVE)
+    teamType: TeamType = Field(default=TeamType.COMPETITIVE)
     ageGroup: str = Field(...)
     teamNumber: int = Field(...)
     teamPartnership: list[TeamPartnerships] = Field(default_factory=list)
@@ -110,7 +110,7 @@ class TeamUpdate(MongoBaseModel):
     fullName: str | None = None
     shortName: str | None = None
     tinyName: str | None = None
-    teamType: TeamTypeEnum | None = None
+    teamType: TeamType | None = None
     ageGroup: str | None = None
     teamNumber: int | None = None
     teamPartnership: list[TeamPartnerships] | None = None

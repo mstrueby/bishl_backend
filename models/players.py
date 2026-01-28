@@ -5,7 +5,7 @@ from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from pydantic_core import core_schema
 
-from models.clubs import TeamTypeEnum
+from models.clubs import TeamType
 
 
 class MatchTournament(BaseModel):
@@ -59,18 +59,18 @@ class MongoBaseModel(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
-class PositionEnum(str, Enum):
+class Position(str, Enum):
     SKATER = "Skater"
     GOALIE = "Goalie"
 
 
-class SourceEnum(str, Enum):
+class Source(str, Enum):
     ISHD = "ISHD"
     BISHL = "BISHL"
     CALLED = "CALLED"
 
 
-class SexEnum(str, Enum):
+class Sex(str, Enum):
     MALE = "männlich"
     FEMALE = "weiblich"
 
@@ -123,13 +123,13 @@ class Suspension(BaseModel):
         return result
 
 
-class ClubTypeEnum(str, Enum):
+class ClubType(str, Enum):
     MAIN = "MAIN"
     LOAN = "LOAN"
     DEVELOPMENT = "DEVELOPMENT"
 
 
-class LicenseTypeEnum(str, Enum):
+class LicenseType(str, Enum):
     UNKNOWN = "UNKNOWN"
     PRIMARY = "PRIMARY"  # Stammverein/-team
     SECONDARY = "SECONDARY"  # A-Pass, Zweitspielrecht im Sinne WKO
@@ -139,7 +139,7 @@ class LicenseTypeEnum(str, Enum):
     SPECIAL = "SPECIAL"  # Sondergenehmigung etc.
 
 
-class LicenseStatusEnum(str, Enum):
+class LicenseStatus(str, Enum):
     UNKNOWN = "UNKNOWN"
     VALID = "VALID"
     INVALID = "INVALID"  # strukturell / regeltechnisch unzulässig
@@ -185,12 +185,12 @@ class AssignedTeams(BaseModel):
     teamId: str = Field(...)
     teamName: str = Field(...)
     teamAlias: str = Field(...)
-    teamType: TeamTypeEnum = Field(default=TeamTypeEnum.COMPETITIVE)
+    teamType: TeamType = Field(default=TeamType.COMPETITIVE)
     teamAgeGroup: str = Field(...)
     teamIshdId: str | None = None
     passNo: str | None = Field(default=None)
-    licenseType: LicenseTypeEnum = Field(default=LicenseTypeEnum.UNKNOWN)
-    status: LicenseStatusEnum = Field(default=LicenseStatusEnum.UNKNOWN)
+    licenseType: LicenseType = Field(default=LicenseType.UNKNOWN)
+    status: LicenseStatus = Field(default=LicenseStatus.UNKNOWN)
     invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(
         default_factory=list)
     adminOverride: bool = Field(default=False,
@@ -199,7 +199,7 @@ class AssignedTeams(BaseModel):
     overrideDate: datetime | None = None
     validFrom: datetime | None = None
     validTo: datetime | None = None
-    source: SourceEnum = Field(default=SourceEnum.BISHL)
+    source: Source = Field(default=Source.BISHL)
     modifyDate: datetime | None = None
     active: bool = False
     jerseyNo: int | None = None
@@ -210,7 +210,7 @@ class AssignedClubs(BaseModel):
     clubName: str = Field(...)
     clubAlias: str = Field(...)
     clubIshdId: int | None = None
-    clubType: ClubTypeEnum = Field(default=ClubTypeEnum.MAIN)
+    clubType: ClubType = Field(default=ClubType.MAIN)
     teams: list[AssignedTeams] = Field(...)
 
 
@@ -219,7 +219,7 @@ class TeamInput(BaseModel):
     passNo: str = Field(...)
     jerseyNo: int | None = None
     active: bool | None = False
-    source: SourceEnum | None = Field(default=SourceEnum.BISHL)
+    source: Source | None = Field(default=Source.BISHL)
     modifyDate: datetime | None = None
 
 
@@ -257,9 +257,9 @@ class PlayerBase(MongoBaseModel):
     displayFirstName: str = Field(...)
     displayLastName: str = Field(...)
     nationality: str | None = None
-    position: PositionEnum = Field(default=PositionEnum.SKATER)
-    source: SourceEnum = Field(default=SourceEnum.BISHL)
-    sex: SexEnum = Field(default=SexEnum.MALE)
+    position: Position = Field(default=Position.SKATER)
+    source: Source = Field(default=Source.BISHL)
+    sex: Sex = Field(default=Sex.MALE)
     assignedTeams: list[AssignedClubs] | None = Field(default_factory=list)
     playUpTrackings: list[PlayUpTracking] | None = Field(
         default_factory=list,
@@ -312,7 +312,7 @@ class PlayerDB(PlayerBase):
         elif birth_year >= current_year - 18:  # for year 2025: from 2007 to 2009
             return "U19"
         else:
-            return "HERREN" if self.sex == SexEnum.MALE else "DAMEN"
+            return "HERREN" if self.sex == Sex.MALE else "DAMEN"
 
     @property
     def overAge(self) -> bool:
@@ -323,26 +323,26 @@ class PlayerDB(PlayerBase):
         current_year = datetime.now().year
 
         if self.ageGroup == "U13":
-            if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 10:
+            if self.sex == Sex.FEMALE and self.birthdate.year == current_year - 10:
                 return True
-            elif (self.sex == SexEnum.MALE
+            elif (self.sex == Sex.MALE
                   and self.birthdate > datetime(current_year - 10, 8, 31)
                   and self.birthdate < datetime(current_year - 9, 1, 1)):
                 return True
             else:
                 return False
         elif self.ageGroup == "U16":
-            if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 13:
+            if self.sex == Sex.FEMALE and self.birthdate.year == current_year - 13:
                 return True
             else:
                 return False
         elif self.ageGroup == "U19":
-            if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 16:
+            if self.sex == Sex.FEMALE and self.birthdate.year == current_year - 16:
                 return True
             else:
                 return False
         elif self.ageGroup == "DAMEN":
-            if self.sex == SexEnum.FEMALE and self.birthdate.year == current_year - 19:
+            if self.sex == Sex.FEMALE and self.birthdate.year == current_year - 19:
                 return True
             else:
                 return False
@@ -391,9 +391,9 @@ class PlayerUpdate(MongoBaseModel):
     displayFirstName: str | None = None
     displayLastName: str | None = None
     nationality: str | None = None
-    position: PositionEnum | None = None
-    source: SourceEnum | None = None
-    sex: SexEnum | None = None
+    position: Position | None = None
+    source: Source | None = None
+    sex: Sex | None = None
     assignedTeams: list[AssignedClubs] | None = None
     playUpTrackings: list[PlayUpTracking] | None = None
     suspensions: list[Suspension] | None = None
@@ -415,7 +415,7 @@ class PlayerUpdate(MongoBaseModel):
 # ---- ISHD Log Model
 
 
-class IshdActionEnum(str, Enum):
+class IshdAction(str, Enum):
     ADD_PLAYER = "Add new Player"
     ADD_CLUB = "Add club/team assignment"
     ADD_TEAM = "Add team assigment"
@@ -424,7 +424,7 @@ class IshdActionEnum(str, Enum):
 
 
 class IshdLogPlayer(BaseModel):
-    action: IshdActionEnum | None = None
+    action: IshdAction | None = None
     firstName: str = Field(...)
     lastName: str = Field(...)
     birthdate: datetime = Field(...)
@@ -453,7 +453,7 @@ class IshdLogBase(MongoBaseModel):
 
 class SecondaryRule(BaseModel):
     targetAgeGroup: str = Field(..., description="e.g. HERREN, U19")
-    sex: list[SexEnum] = Field(default_factory=list,
+    sex: list[Sex] = Field(default_factory=list,
                                description="Allowed sexes")
     maxLicenses: int | None = Field(
         default=None,
@@ -466,7 +466,7 @@ class SecondaryRule(BaseModel):
 
 class OverAgeRule(BaseModel):
     targetAgeGroup: str = Field(..., description="e.g. U16, U13")
-    sex: list[SexEnum] = Field(default_factory=list,
+    sex: list[Sex] = Field(default_factory=list,
                                description="Allowed sexes")
     maxLicenses: int | None = Field(
         default=None,
@@ -486,15 +486,15 @@ class WkoRule(BaseModel):
 
     altKey: str | None = Field(default=None,
                                description="Alternative name from WKO")
-    sex: list[SexEnum] = Field(default_factory=list,
+    sex: list[Sex] = Field(default_factory=list,
                                description="Allowed sexes")
 
     secondaryRules: list[SecondaryRule] = Field(default_factory=list)
     overAgeRules: list[OverAgeRule] = Field(default_factory=list)
-    maxTotalAgeClasses: dict[SexEnum, int | None] = Field(
+    maxTotalAgeClasses: dict[Sex, int | None] = Field(
         default_factory=lambda: {
-            SexEnum.MALE: 2,
-            SexEnum.FEMALE: 2
+            Sex.MALE: 2,
+            Sex.FEMALE: 2
         },
         description="Max number of age classes player can participate in",
     )

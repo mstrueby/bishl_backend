@@ -16,10 +16,10 @@ from models.players import (
     AssignedClubs,
     AssignedTeams,
     LicenseInvalidReasonCode,
-    LicenseStatusEnum,
-    LicenseTypeEnum,
+    LicenseStatus,
+    LicenseType,
     PlayerDB,
-    SourceEnum,
+    Source,
 )
 
 
@@ -206,7 +206,7 @@ class LicenseValidationService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                team["status"] = LicenseStatusEnum.UNKNOWN
+                team["status"] = LicenseStatus.UNKNOWN
                 team["invalidReasonCodes"] = []
 
         await self.db["players"].update_one(
@@ -294,7 +294,7 @@ class LicenseValidationService:
 
         for club in player.assignedTeams:
             for team in club.teams:
-                team.status = LicenseStatusEnum.VALID
+                team.status = LicenseStatus.VALID
                 team.invalidReasonCodes = []
 
     def _validate_unknown_license_types(self, player: PlayerDB) -> None:
@@ -304,8 +304,8 @@ class LicenseValidationService:
 
         for club in player.assignedTeams:
             for team in club.teams:
-                if team.licenseType == LicenseTypeEnum.UNKNOWN:
-                    team.status = LicenseStatusEnum.INVALID
+                if team.licenseType == LicenseType.UNKNOWN:
+                    team.status = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.invalidReasonCodes:
                         team.invalidReasonCodes.append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
@@ -317,13 +317,13 @@ class LicenseValidationService:
         primary_licenses = []
         for club in player.assignedTeams:
             for team in club.teams:
-                if team.licenseType == LicenseTypeEnum.PRIMARY:
+                if team.licenseType == LicenseType.PRIMARY:
                     primary_licenses.append((club, team))
 
         if len(primary_licenses) > 1:
             # Mark all PRIMARY licenses as invalid
             for club, team in primary_licenses:
-                team.status = LicenseStatusEnum.INVALID
+                team.status = LicenseStatus.INVALID
                 if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.invalidReasonCodes:
                     team.invalidReasonCodes.append(LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
 
@@ -335,13 +335,13 @@ class LicenseValidationService:
         loan_licenses = []
         for club in player.assignedTeams:
             for team in club.teams:
-                if team.licenseType == LicenseTypeEnum.LOAN and team.status == LicenseStatusEnum.VALID:
+                if team.licenseType == LicenseType.LOAN and team.status == LicenseStatus.VALID:
                     loan_licenses.append((club, team))
 
         if len(loan_licenses) > 1:
             # Mark all LOAN licenses as invalid
             for club, team in loan_licenses:
-                team.status = LicenseStatusEnum.INVALID
+                team.status = LicenseStatus.INVALID
                 if LicenseInvalidReasonCode.TOO_MANY_LOAN not in team.invalidReasonCodes:
                     team.invalidReasonCodes.append(LicenseInvalidReasonCode.TOO_MANY_LOAN)
 
@@ -351,11 +351,11 @@ class LicenseValidationService:
             return
 
         # Collect BISHL licenses by type
-        bishl_licenses: dict[LicenseTypeEnum, set[str]] = {}
+        bishl_licenses: dict[LicenseType, set[str]] = {}
 
         for club in player.assignedTeams:
             for team in club.teams:
-                if team.source == SourceEnum.BISHL and team.status == LicenseStatusEnum.VALID:
+                if team.source == Source.BISHL and team.status == LicenseStatus.VALID:
                     if team.licenseType not in bishl_licenses:
                         bishl_licenses[team.licenseType] = set()
                     bishl_licenses[team.licenseType].add(team.teamId)
@@ -363,12 +363,12 @@ class LicenseValidationService:
         # Check ISHD licenses for conflicts
         for club in player.assignedTeams:
             for team in club.teams:
-                if team.source == SourceEnum.ISHD and team.status == LicenseStatusEnum.VALID:
+                if team.source == Source.ISHD and team.status == LicenseStatus.VALID:
                     # If there's a BISHL license of the same type, mark ISHD as conflict
                     if team.licenseType in bishl_licenses:
                         # For PRIMARY, any BISHL PRIMARY conflicts
-                        if team.licenseType == LicenseTypeEnum.PRIMARY:
-                            team.status = LicenseStatusEnum.INVALID
+                        if team.licenseType == LicenseType.PRIMARY:
+                            team.status = LicenseStatus.INVALID
                             if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.invalidReasonCodes:
                                 team.invalidReasonCodes.append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
@@ -379,8 +379,8 @@ class LicenseValidationService:
 
         for club in player.assignedTeams:
             for team in club.teams:
-                if (team.licenseType == LicenseTypeEnum.PRIMARY 
-                    and team.status == LicenseStatusEnum.VALID):
+                if (team.licenseType == LicenseType.PRIMARY 
+                    and team.status == LicenseStatus.VALID):
                     return club.clubId
 
         return None
@@ -392,9 +392,9 @@ class LicenseValidationService:
 
         for club in player.assignedTeams:
             for team in club.teams:
-                if team.licenseType in [LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE]:
+                if team.licenseType in [LicenseType.SECONDARY, LicenseType.OVERAGE]:
                     if club.clubId != primary_club_id:
-                        team.status = LicenseStatusEnum.INVALID
+                        team.status = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.CONFLICTING_CLUB not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.CONFLICTING_CLUB)
 
@@ -408,29 +408,29 @@ class LicenseValidationService:
 
         for club in player.assignedTeams:
             for team in club.teams:
-                if team.status != LicenseStatusEnum.VALID:
+                if team.status != LicenseStatus.VALID:
                     continue
 
                 team_age_group = team.teamAgeGroup
 
                 # Handle OVERAGE licenses
-                if team.licenseType == LicenseTypeEnum.OVERAGE:
+                if team.licenseType == LicenseType.OVERAGE:
                     if not self._is_overage_allowed(player_age_group, team_age_group, player_is_overage):
-                        team.status = LicenseStatusEnum.INVALID
+                        team.status = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED)
 
                 # Handle SECONDARY licenses - check if allowed to play in this age group
-                elif team.licenseType == LicenseTypeEnum.SECONDARY:
+                elif team.licenseType == LicenseType.SECONDARY:
                     if not self._is_secondary_allowed(player_age_group, team_age_group):
-                        team.status = LicenseStatusEnum.INVALID
+                        team.status = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
                 # Handle PRIMARY licenses - basic age group check
-                elif team.licenseType == LicenseTypeEnum.PRIMARY:
+                elif team.licenseType == LicenseType.PRIMARY:
                     if not self._is_age_group_compatible(player_age_group, team_age_group):
-                        team.status = LicenseStatusEnum.INVALID
+                        team.status = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
@@ -489,8 +489,8 @@ class LicenseValidationService:
 
         for club in player.assignedTeams:
             for team in club.teams:
-                if (team.status == LicenseStatusEnum.VALID 
-                    and team.licenseType in [LicenseTypeEnum.PRIMARY, LicenseTypeEnum.SECONDARY, LicenseTypeEnum.OVERAGE]):
+                if (team.status == LicenseStatus.VALID 
+                    and team.licenseType in [LicenseType.PRIMARY, LicenseType.SECONDARY, LicenseType.OVERAGE]):
                     participations.append((club, team, team.teamAgeGroup))
 
         # If exceeds WKO limit, mark excess as invalid
@@ -498,7 +498,7 @@ class LicenseValidationService:
             # Keep PRIMARY first, then sort by age group order
             def sort_key(item):
                 club, team, age_group = item
-                priority = 0 if team.licenseType == LicenseTypeEnum.PRIMARY else 1
+                priority = 0 if team.licenseType == LicenseType.PRIMARY else 1
                 age_order = self._age_group_map.get(age_group, AgeGroupRule(key="", value="", sortOrder=999, altKey="")).sortOrder
                 return (priority, age_order)
 
@@ -506,7 +506,7 @@ class LicenseValidationService:
 
             # Mark excess as invalid
             for club, team, _ in participations[self.MAX_AGE_CLASS_PARTICIPATIONS:]:
-                team.status = LicenseStatusEnum.INVALID
+                team.status = LicenseStatus.INVALID
                 if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.invalidReasonCodes:
                     team.invalidReasonCodes.append(LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
 
@@ -519,7 +519,7 @@ class LicenseValidationService:
             for team in club.teams:
                 if team.validFrom and team.validTo:
                     if team.validFrom > team.validTo:
-                        team.status = LicenseStatusEnum.INVALID
+                        team.status = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
@@ -538,15 +538,15 @@ class LicenseValidationService:
 
         for club in player.assignedTeams:
             for team in club.teams:
-                if team.status == LicenseStatusEnum.UNKNOWN:
-                    if team.licenseType == LicenseTypeEnum.UNKNOWN:
+                if team.status == LicenseStatus.UNKNOWN:
+                    if team.licenseType == LicenseType.UNKNOWN:
                         # Cannot classify license type, mark as invalid
-                        team.status = LicenseStatusEnum.INVALID
+                        team.status = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.invalidReasonCodes:
                             team.invalidReasonCodes.append(LicenseInvalidReasonCode.IMPORT_CONFLICT)
                     else:
                         # License type is known and no structural issues found
-                        team.status = LicenseStatusEnum.VALID
+                        team.status = LicenseStatus.VALID
 
     def _capture_license_state(self, player: PlayerDB) -> dict:
         """Capture current state of all licenses for comparison"""
@@ -609,7 +609,7 @@ class LicenseValidationService:
         if player.assignedTeams:
             for club in player.assignedTeams:
                 for team in club.teams:
-                    if team.status == LicenseStatusEnum.VALID:
+                    if team.status == LicenseStatus.VALID:
                         valid_count += 1
                     else:
                         invalid_count += 1
