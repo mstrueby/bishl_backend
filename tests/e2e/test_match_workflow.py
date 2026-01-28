@@ -216,7 +216,7 @@ class TestMatchWorkflow:
 
         response = await client.put(
             f"/matches/{match_id}/home/roster",
-            json=home_roster,
+            json={"players": home_roster},
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert response.status_code == 200
@@ -238,7 +238,7 @@ class TestMatchWorkflow:
 
         response = await client.put(
             f"/matches/{match_id}/away/roster",
-            json=away_roster,
+            json={"players": away_roster},
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert response.status_code == 200
@@ -407,7 +407,7 @@ class TestMatchWorkflow:
         assert match_doc["away"]["stats"]["gamePlayed"] == 1
 
         # Verify roster stats
-        home_roster_map = {r["player"]["playerId"]: r for r in match_doc["home"]["roster"]}
+        home_roster_map = {r["player"]["playerId"]: r for r in match_doc["home"]["roster"]["players"]}
 
         # John Scorer: 2 goals, 1 assist = 3 points
         assert home_roster_map[player1_id]["goals"] == 2
