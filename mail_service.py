@@ -20,18 +20,26 @@ conf = ConnectionConfig(
 fastmail = FastMail(conf)
 
 
-async def send_email(subject: str, recipients: list, body: str, cc: list | None = None, reply_to: list | None = None):
-    """Send email"""
-    # Force sending in development for testing if needed, or check environment
+async def send_email(
+    subject: str, recipients: list, body: str, cc: list | None = None, reply_to: list | None = None
+):
+    """Send email.
+    
+    Emails can be disabled in development by setting MAIL_ENABLED=False.
+    When disabled, emails are logged but not sent.
+    """
     logger.info(f"Sending email '{subject}' to {recipients}. Environment: {settings.ENVIRONMENT}")
 
-    # Explicitly removed the production check to allow emails in dev if secrets are present
+    if not settings.MAIL_ENABLED:
+        logger.info(f"Email sending disabled (MAIL_ENABLED=False). Skipping email to {recipients}")
+        return
+
     message = MessageSchema(
         subject=subject,
         recipients=recipients,
         cc=cc or [],
         body=body,
         subtype=MessageType.html,
-        reply_to=reply_to
+        reply_to=reply_to,
     )
     await fastmail.send_message(message)

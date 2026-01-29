@@ -148,9 +148,7 @@ class TestPlayerAssignmentServiceValidation:
         t2 = validated_player["assignedTeams"][1]["teams"][0]
 
         # At least one must be invalid for MULTIPLE_PRIMARY
-        assert (
-            t1["status"] == LicenseStatus.INVALID or t2["status"] == LicenseStatus.INVALID
-        )
+        assert t1["status"] == LicenseStatus.INVALID or t2["status"] == LicenseStatus.INVALID
 
         all_codes = t1["invalidReasonCodes"] + t2["invalidReasonCodes"]
         assert LicenseInvalidReasonCode.MULTIPLE_PRIMARY in all_codes
@@ -178,9 +176,7 @@ class TestPlayerAssignmentServiceValidation:
 
         validated_player = await assignment_service.validate_licenses_for_player(player_dict)
 
-        assert (
-            validated_player["assignedTeams"][1]["teams"][0]["status"] == LicenseStatus.INVALID
-        )
+        assert validated_player["assignedTeams"][1]["teams"][0]["status"] == LicenseStatus.INVALID
         assert (
             LicenseInvalidReasonCode.CONFLICTING_CLUB
             in validated_player["assignedTeams"][1]["teams"][0]["invalidReasonCodes"]

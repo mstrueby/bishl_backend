@@ -47,10 +47,7 @@ class TestStatsServiceIntegration:
         match = create_test_match(status="FINISHED")
         player1 = create_test_roster_player("player-1")
         player2 = create_test_roster_player("player-2")
-        match["home"]["roster"] = {
-            "players": [player1, player2],
-            "status": "SUBMITTED"
-        }
+        match["home"]["roster"] = {"players": [player1, player2], "status": "SUBMITTED"}
         match["home"]["scores"] = [
             {
                 "_id": str(ObjectId()),
@@ -319,10 +316,7 @@ class TestStatsServiceIntegration:
         roster_player["points"] = 3
         roster_player["penaltyMinutes"] = 4
         roster_player["called"] = False
-        match["home"]["roster"] = {
-            "players": [roster_player],
-            "status": "SUBMITTED"
-        }
+        match["home"]["roster"] = {"players": [roster_player], "status": "SUBMITTED"}
         await mongodb["matches"].insert_one(match)
 
         # Execute
@@ -424,10 +418,7 @@ class TestStatsServiceIntegration:
             roster_player = create_test_roster_player("player-called-1")
             roster_player["called"] = True
             roster_player["goals"] = 1
-            match["home"]["roster"] = {
-                "players": [roster_player],
-                "status": "SUBMITTED"
-            }
+            match["home"]["roster"] = {"players": [roster_player], "status": "SUBMITTED"}
             await mongodb["matches"].insert_one(match)
 
         # Create a mock token payload

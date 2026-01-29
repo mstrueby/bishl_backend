@@ -407,7 +407,9 @@ class TestMatchWorkflow:
         assert match_doc["away"]["stats"]["gamePlayed"] == 1
 
         # Verify roster stats
-        home_roster_map = {r["player"]["playerId"]: r for r in match_doc["home"]["roster"]["players"]}
+        home_roster_map = {
+            r["player"]["playerId"]: r for r in match_doc["home"]["roster"]["players"]
+        }
 
         # John Scorer: 2 goals, 1 assist = 3 points
         assert home_roster_map[player1_id]["goals"] == 2

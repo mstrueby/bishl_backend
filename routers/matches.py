@@ -108,7 +108,14 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
                 "staff": team.get("staff", []),
             }
             # Remove old flat fields
-            for old_field in ["rosterStatus", "rosterPublished", "eligibilityTimestamp", "eligibilityValidator", "coach", "staff"]:
+            for old_field in [
+                "rosterStatus",
+                "rosterPublished",
+                "eligibilityTimestamp",
+                "eligibilityValidator",
+                "coach",
+                "staff",
+            ]:
                 team.pop(old_field, None)
         # Handle missing roster (initialize empty)
         elif roster_data is None:
@@ -1087,14 +1094,18 @@ async def update_match(
         and md_alias
     ):
         home_roster = existing_match.get("home", {}).get("roster", {})
-        home_roster_players = home_roster.get("players", []) if isinstance(home_roster, dict) else home_roster
+        home_roster_players = (
+            home_roster.get("players", []) if isinstance(home_roster, dict) else home_roster
+        )
         home_players = [
             player.get("player", {}).get("playerId")
             for player in home_roster_players
             if player.get("player", {}).get("playerId")
         ]
         away_roster = existing_match.get("away", {}).get("roster", {})
-        away_roster_players = away_roster.get("players", []) if isinstance(away_roster, dict) else away_roster
+        away_roster_players = (
+            away_roster.get("players", []) if isinstance(away_roster, dict) else away_roster
+        )
         away_players = [
             player.get("player", {}).get("playerId")
             for player in away_roster_players
@@ -1165,15 +1176,15 @@ async def delete_match(
         md_alias = matchday.get("alias", None)
 
         home_roster = match.get("home", {}).get("roster", {})
-        home_roster_players = home_roster.get("players", []) if isinstance(home_roster, dict) else (home_roster or [])
-        home_players = [
-            player["player"]["playerId"] for player in home_roster_players
-        ]
+        home_roster_players = (
+            home_roster.get("players", []) if isinstance(home_roster, dict) else (home_roster or [])
+        )
+        home_players = [player["player"]["playerId"] for player in home_roster_players]
         away_roster = match.get("away", {}).get("roster", {})
-        away_roster_players = away_roster.get("players", []) if isinstance(away_roster, dict) else (away_roster or [])
-        away_players = [
-            player["player"]["playerId"] for player in away_roster_players
-        ]
+        away_roster_players = (
+            away_roster.get("players", []) if isinstance(away_roster, dict) else (away_roster or [])
+        )
+        away_players = [player["player"]["playerId"] for player in away_roster_players]
         if DEBUG_LEVEL > 0:
             logger.debug(f"### home_players: {home_players}")
             logger.debug(f"### away_players: {away_players}")

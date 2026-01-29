@@ -358,10 +358,7 @@ class PlayerAssignmentService:
         # A club is LOAN if passNo ends with 'L' OR licenseType is LOAN
         for club, team in all_licenses:
             pass_no = team.get("passNo") or ""
-            if (
-                pass_no.strip().upper().endswith("L")
-                or team.get("licenseType") == LicenseType.LOAN
-            ):
+            if pass_no.strip().upper().endswith("L") or team.get("licenseType") == LicenseType.LOAN:
                 club["clubType"] = ClubType.LOAN
 
         # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
@@ -1004,10 +1001,7 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if (
-                    team.get("source") == Source.BISHL
-                    and team.get("status") == LicenseStatus.VALID
-                ):
+                if team.get("source") == Source.BISHL and team.get("status") == LicenseStatus.VALID:
                     license_type = team.get("licenseType")
                     pool_key = (club_type, license_type)
                     if pool_key not in bishl_licenses_by_pool:
@@ -1021,10 +1015,7 @@ class PlayerAssignmentService:
                 club_type = ClubType.MAIN
 
             for team in club.get("teams", []):
-                if (
-                    team.get("source") == Source.ISHD
-                    and team.get("status") == LicenseStatus.VALID
-                ):
+                if team.get("source") == Source.ISHD and team.get("status") == LicenseStatus.VALID:
                     license_type = team.get("licenseType")
                     pool_key = (club_type, license_type)
 
@@ -1786,7 +1777,9 @@ class PlayerAssignmentService:
         )
         return True
 
-    async def update_player_validation_in_db(self, player_id: str, reset: bool = False) -> dict | None:
+    async def update_player_validation_in_db(
+        self, player_id: str, reset: bool = False
+    ) -> dict | None:
         """
         Public method to update player validation in database.
 
@@ -2698,9 +2691,7 @@ class PlayerAssignmentService:
                                                 log_line = f"Removed club assignment for player: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {birthdate_str} -> {club.club_name}"
                                                 logger.info(log_line)
                                                 log_lines.append(log_line)
-                                                ishd_log_player_remove.action = (
-                                                    IshdAction.DEL_CLUB
-                                                )
+                                                ishd_log_player_remove.action = IshdAction.DEL_CLUB
                                             else:
                                                 logger.debug(
                                                     f"--- No club assignment removed for {player_to_check.get('firstName')} {player_to_check.get('lastName')}"

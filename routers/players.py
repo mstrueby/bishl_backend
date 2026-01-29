@@ -40,7 +40,6 @@ from models.responses import LicenceStats, PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
 from services.performance_monitor import monitor_query
 from services.player_assignment_service import PlayerAssignmentService
-from services.stats_service import StatsService
 from utils import DEBUG_LEVEL, configure_cloudinary, my_jsonable_encoder
 
 router = APIRouter()
@@ -124,7 +123,7 @@ async def pass_check_request(
             subject=subject,
             recipients=[admin["email"]],
             body=email_body,
-            reply_to=[body.from_email]
+            reply_to=[body.from_email],
         )
 
     return StandardResponse(
@@ -247,7 +246,10 @@ async def delete_from_cloudinary(image_url: str):
             raise ExternalServiceException(
                 service_name="Cloudinary",
                 message="Failed to delete image",
-                details={"public_id": f"players/{public_id}" if public_id else "unknown", "error": str(e)},
+                details={
+                    "public_id": f"players/{public_id}" if public_id else "unknown",
+                    "error": str(e),
+                },
             ) from e
 
 
@@ -1563,7 +1565,9 @@ async def get_players_for_club(
     for player_data in result["results"]:
         player_id = player_data.get("_id")
         if player_id:
-            fresh_player = await assignment_service.update_player_validation_in_db(player_id, reset=True)
+            fresh_player = await assignment_service.update_player_validation_in_db(
+                player_id, reset=True
+            )
             if fresh_player:
                 validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
             else:
@@ -1632,7 +1636,9 @@ async def get_players_for_team(
     for player_data in result["results"]:
         player_id = player_data.get("_id")
         if player_id:
-            fresh_player = await assignment_service.update_player_validation_in_db(player_id, reset=True)
+            fresh_player = await assignment_service.update_player_validation_in_db(
+                player_id, reset=True
+            )
             if fresh_player:
                 validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
             else:
@@ -1662,7 +1668,10 @@ async def get_players(
     sortby: str = "firstName",
     all: bool = False,
     active: bool | None = None,
-    validate: bool = Query(False, description="Trigger fresh license validation for each player (can be slow for large pages)"),
+    validate: bool = Query(
+        False,
+        description="Trigger fresh license validation for each player (can be slow for large pages)",
+    ),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -1727,7 +1736,9 @@ async def get_players(
             player_id = item.get("_id")
             if player_id:
                 # reset=True ensures we start from clean state and properly detect expired suspensions
-                fresh_player = await assignment_service.update_player_validation_in_db(player_id, reset=True)
+                fresh_player = await assignment_service.update_player_validation_in_db(
+                    player_id, reset=True
+                )
                 if fresh_player:
                     validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
                 else:
@@ -1894,7 +1905,9 @@ async def create_player(
         # Revalidate licenses after creation to ensure current license status
         assignment_service = PlayerAssignmentService(mongodb)
         await assignment_service._update_player_classification_in_db(player_id, reset=True)
-        fresh_player = await assignment_service.update_player_validation_in_db(player_id, reset=True)
+        fresh_player = await assignment_service.update_player_validation_in_db(
+            player_id, reset=True
+        )
 
         if fresh_player:
             logger.info(f"Player created successfully: {player_id}")
@@ -2118,14 +2131,14 @@ async def update_player(
 
             # Always revalidate licenses after update to ensure current status
             assignment_service = PlayerAssignmentService(mongodb)
-            
+
             if assigned_teams_changed:
                 # Run classification when team assignments changed
                 await assignment_service._update_player_classification_in_db(id, reset=True)
-            
+
             # Always run validation with reset=True to get current license status
             fresh_player = await assignment_service.update_player_validation_in_db(id, reset=True)
-            
+
             if assigned_teams_changed or suspensions_changed:
                 message = "Player updated and licenses revalidated"
 

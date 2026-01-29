@@ -2,7 +2,6 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Body, Depends, Path, Request
-from fastapi.encoders import jsonable_encoder
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
@@ -293,8 +292,7 @@ async def validate_roster(
 
         if not team_found:
             logger.warning(
-                f"Player {player_id} not assigned to team {team_id}, "
-                f"marking as INVALID"
+                f"Player {player_id} not assigned to team {team_id}, " f"marking as INVALID"
             )
             player_status = LicenseStatus.INVALID
 
@@ -303,9 +301,7 @@ async def validate_roster(
             all_valid = False
 
         updated_players.append(roster_player)
-        logger.info(
-            f"Validated player {player_id} for team {team_id}: {player_status.value}"
-        )
+        logger.info(f"Validated player {player_id} for team {team_id}: {player_status.value}")
 
     new_status = RosterStatus.APPROVED if all_valid else RosterStatus.INVALID
 
@@ -325,9 +321,7 @@ async def validate_roster(
         skip_status_validation=True,
     )
 
-    valid_count = sum(
-        1 for p in updated_players if p.eligibilityStatus == LicenseStatus.VALID
-    )
+    valid_count = sum(1 for p in updated_players if p.eligibilityStatus == LicenseStatus.VALID)
     invalid_count = len(updated_players) - valid_count
 
     logger.info(

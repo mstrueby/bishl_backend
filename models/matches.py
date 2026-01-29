@@ -30,7 +30,8 @@ class PyObjectId(ObjectId):
         return core_schema.with_info_plain_validator_function(
             validate_object_id,
             serialization=core_schema.plain_serializer_function_ser_schema(
-                lambda x: str(x), return_schema=core_schema.str_schema()),
+                lambda x: str(x), return_schema=core_schema.str_schema()
+            ),
         )
 
     @classmethod
@@ -39,9 +40,9 @@ class PyObjectId(ObjectId):
 
 
 class MongoBaseModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True,
-                              arbitrary_types_allowed=True,
-                              json_encoders={ObjectId: str})
+    model_config = ConfigDict(
+        populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str}
+    )
 
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
@@ -216,6 +217,7 @@ class RosterStatus(str, Enum):
 
 class Roster(BaseModel):
     """Consolidated roster object containing all roster-related data for a team."""
+
     players: list[RosterPlayer] = Field(default_factory=list)
     status: RosterStatus = Field(default=RosterStatus.DRAFT)
     published: bool = False
@@ -239,6 +241,7 @@ class Roster(BaseModel):
 
 class RosterUpdate(BaseModel):
     """Update model for roster - all fields optional for partial updates."""
+
     players: list[RosterPlayer] | None = None
     status: RosterStatus | None = None
     published: bool | None = None
@@ -250,6 +253,7 @@ class RosterUpdate(BaseModel):
 
 class RosterSummary(BaseModel):
     """Lightweight roster summary for list views (no player details)."""
+
     status: RosterStatus = Field(default=RosterStatus.DRAFT)
     published: bool = False
     playerCount: int = 0
@@ -271,12 +275,7 @@ class MatchTeam(BaseModel):
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = Field(default_factory=MatchStats)
 
-    @field_validator("teamAlias",
-                     "name",
-                     "fullName",
-                     "shortName",
-                     "tinyName",
-                     mode="before")
+    @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
     def validate_null_strings(cls, v, info):
         return prevent_empty_str(v, info.field_name)
@@ -298,12 +297,7 @@ class MatchTeamUpdate(BaseModel):
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = None
 
-    @field_validator("teamAlias",
-                     "name",
-                     "fullName",
-                     "shortName",
-                     "tinyName",
-                     mode="before")
+    @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
     def validate_null_strings(cls, v, info):
         return prevent_empty_str(v, info.field_name)
@@ -322,10 +316,8 @@ class RefereePaymentDetails(BaseModel):
 
 
 class RefereePayment(BaseModel):
-    referee1: RefereePaymentDetails | None = Field(
-        default_factory=RefereePaymentDetails)
-    referee2: RefereePaymentDetails | None = Field(
-        default_factory=RefereePaymentDetails)
+    referee1: RefereePaymentDetails | None = Field(default_factory=RefereePaymentDetails)
+    referee2: RefereePaymentDetails | None = Field(default_factory=RefereePaymentDetails)
 
 
 class Official(BaseModel):
@@ -363,8 +355,7 @@ class SupplementarySheet(BaseModel):
     awayPlayerPasses: bool | None = False
     awayUniformPlayerClothing: bool | None = False
     awaySecondJerseySet: bool | None = False
-    refereePayment: RefereePayment | None = Field(
-        default_factory=RefereePayment)
+    refereePayment: RefereePayment | None = Field(default_factory=RefereePayment)
     specialEvents: bool | None = False
     refereeComments: str | None = None
     crowd: int | None = 0
@@ -385,15 +376,14 @@ class MatchBase(MongoBaseModel):
     referee1: Referee | None = None
     referee2: Referee | None = None
     matchStatus: KeyValue = Field(
-        default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
-    finishType: KeyValue = Field(
-        default_factory=lambda: KeyValue(key="REGULAR", value="Regulär"))
+        default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt")
+    )
+    finishType: KeyValue = Field(default_factory=lambda: KeyValue(key="REGULAR", value="Regulär"))
     venue: MatchVenue | None = None
     startDate: datetime | None = None
     published: bool = False
     matchSheetComplete: bool = False
-    supplementarySheet: SupplementarySheet | None = Field(
-        default_factory=SupplementarySheet)
+    supplementarySheet: SupplementarySheet | None = Field(default_factory=SupplementarySheet)
 
 
 class MatchDB(MatchBase):
@@ -414,12 +404,7 @@ class MatchListTeam(BaseModel):
     roster: RosterSummary = Field(default_factory=RosterSummary)
     stats: MatchStats | None = Field(default_factory=MatchStats)
 
-    @field_validator("teamAlias",
-                     "name",
-                     "fullName",
-                     "shortName",
-                     "tinyName",
-                     mode="before")
+    @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
     def validate_null_strings(cls, v, info):
         return prevent_empty_str(v, info.field_name)
@@ -436,9 +421,9 @@ class MatchListBase(MongoBaseModel):
     referee1: Referee | None = None
     referee2: Referee | None = None
     matchStatus: KeyValue = Field(
-        default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt"))
-    finishType: KeyValue = Field(
-        default_factory=lambda: KeyValue(key="REGULAR", value="Regulär"))
+        default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt")
+    )
+    finishType: KeyValue = Field(default_factory=lambda: KeyValue(key="REGULAR", value="Regulär"))
     venue: MatchVenue | None = None
     startDate: datetime | None = None
     published: bool = False
@@ -461,5 +446,4 @@ class MatchUpdate(MongoBaseModel):
     startDate: datetime | None = None
     published: bool | None = False
     matchSheetComplete: bool | None = False
-    supplementarySheet: SupplementarySheet | None = Field(
-        default_factory=SupplementarySheet)
+    supplementarySheet: SupplementarySheet | None = Field(default_factory=SupplementarySheet)

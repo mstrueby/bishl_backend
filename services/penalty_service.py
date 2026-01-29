@@ -54,7 +54,7 @@ class PenaltyService:
             players = roster_data
         else:
             players = roster_data.get("players") or []
-            
+
         roster_player_ids = {player["player"]["playerId"] for player in players}
 
         penalty_player = penalty_data.get("penaltyPlayer")
@@ -193,7 +193,9 @@ class PenaltyService:
         # Build incremental update operations
         update_operations = {
             "$push": {f"{team_flag}.penalties": penalty_data},
-            "$inc": {f"{team_flag}.roster.players.$[penaltyPlayer].penaltyMinutes": penalty.penaltyMinutes},
+            "$inc": {
+                f"{team_flag}.roster.players.$[penaltyPlayer].penaltyMinutes": penalty.penaltyMinutes
+            },
         }
 
         array_filters = [{"penaltyPlayer.player.playerId": penalty_player_id}]
@@ -329,7 +331,9 @@ class PenaltyService:
         # Build decremental update operations
         update_operations = {
             "$pull": {f"{team_flag}.penalties": {"_id": penalty_id}},
-            "$inc": {f"{team_flag}.roster.players.$[penaltyPlayer].penaltyMinutes": -penalty_minutes},
+            "$inc": {
+                f"{team_flag}.roster.players.$[penaltyPlayer].penaltyMinutes": -penalty_minutes
+            },
         }
 
         array_filters = [{"penaltyPlayer.player.playerId": penalty_player_id}]

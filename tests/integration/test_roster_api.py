@@ -154,7 +154,10 @@ class TestRosterAPI:
 
         assert response.status_code == 400
         data = response.json()
-        assert "transition" in data["error"]["message"].lower() or "cannot" in data["error"]["message"].lower()
+        assert (
+            "transition" in data["error"]["message"].lower()
+            or "cannot" in data["error"]["message"].lower()
+        )
 
     async def test_put_roster_with_duplicate_player_fails(
         self, client: AsyncClient, mongodb, admin_token

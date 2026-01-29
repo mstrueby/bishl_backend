@@ -197,7 +197,11 @@ class RosterService:
         """
         valid_transitions = {
             RosterStatus.DRAFT: {RosterStatus.SUBMITTED, RosterStatus.INVALID},
-            RosterStatus.SUBMITTED: {RosterStatus.APPROVED, RosterStatus.INVALID, RosterStatus.DRAFT},
+            RosterStatus.SUBMITTED: {
+                RosterStatus.APPROVED,
+                RosterStatus.INVALID,
+                RosterStatus.DRAFT,
+            },
             RosterStatus.APPROVED: {RosterStatus.INVALID, RosterStatus.DRAFT},
             RosterStatus.INVALID: {RosterStatus.DRAFT},
         }
@@ -301,13 +305,13 @@ class RosterService:
         # Handle players update
         if roster_update.players is not None:
             await self.validate_roster_players(match, team_flag, roster_update.players)
-            
+
             # Populate display fields before saving
             players_json = jsonable_encoder(roster_update.players)
             for roster_entry in players_json:
                 if roster_entry.get("player"):
                     await populate_event_player_fields(self.db, roster_entry["player"])
-            
+
             update_dict["players"] = players_json
 
             # Track jersey number updates for syncing
@@ -352,15 +356,14 @@ class RosterService:
                 update_dict["eligibilityValidator"] = user_id
 
         if not update_dict:
-            logger.info("No roster changes to apply", extra={"match_id": match_id, "team": team_flag})
+            logger.info(
+                "No roster changes to apply", extra={"match_id": match_id, "team": team_flag}
+            )
             return current_roster, False
 
         # Apply update atomically
         mongo_update = {f"{team_flag}.roster.{k}": v for k, v in update_dict.items()}
-        result = await self.db["matches"].update_one(
-            {"_id": match_id},
-            {"$set": mongo_update}
-        )
+        result = await self.db["matches"].update_one({"_id": match_id}, {"$set": mongo_update})
 
         was_modified = result.modified_count > 0
 
@@ -371,7 +374,7 @@ class RosterService:
                     "match_id": match_id,
                     "team": team_flag,
                     "updated_fields": list(update_dict.keys()),
-                }
+                },
             )
             # Sync jersey numbers to scores/penalties
             if jersey_updates:

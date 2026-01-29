@@ -18,10 +18,7 @@ class TestScoresAPI:
         player["goals"] = 0
         player["assists"] = 0
         player["points"] = 0
-        match["home"]["roster"] = {
-            "players": [player],
-            "status": "SUBMITTED"
-        }
+        match["home"]["roster"] = {"players": [player], "status": "SUBMITTED"}
         match["home"]["stats"] = {"goalsFor": 0, "goalsAgainst": 0}
         await mongodb["matches"].insert_one(match)
 
@@ -67,10 +64,7 @@ class TestScoresAPI:
         match = create_test_match(status="INPROGRESS")
         player1 = create_test_roster_player("player-1")
         player2 = create_test_roster_player("player-2")
-        match["home"]["roster"] = {
-            "players": [player1, player2],
-            "status": "SUBMITTED"
-        }
+        match["home"]["roster"] = {"players": [player1, player2], "status": "SUBMITTED"}
         await mongodb["matches"].insert_one(match)
 
         # Execute
@@ -164,10 +158,7 @@ class TestScoresAPI:
         match = create_test_match(status="INPROGRESS")
         score_id = str(ObjectId())
         player = create_test_roster_player("player-1")
-        match["home"]["roster"] = {
-            "players": [player],
-            "status": "SUBMITTED"
-        }
+        match["home"]["roster"] = {"players": [player], "status": "SUBMITTED"}
         match["home"]["scores"] = [
             {
                 "_id": score_id,
@@ -212,10 +203,7 @@ class TestScoresAPI:
         player["goals"] = 1
         player["assists"] = 0
         player["points"] = 1
-        match["home"]["roster"] = {
-            "players": [player],
-            "status": "SUBMITTED"
-        }
+        match["home"]["roster"] = {"players": [player], "status": "SUBMITTED"}
         match["home"]["scores"] = [
             {
                 "_id": score_id,
@@ -276,10 +264,7 @@ class TestScoresAPI:
         # Setup - SCHEDULED match
         match = create_test_match(status="SCHEDULED")
         player = create_test_roster_player("player-1")
-        match["home"]["roster"] = {
-            "players": [player],
-            "status": "SUBMITTED"
-        }
+        match["home"]["roster"] = {"players": [player], "status": "SUBMITTED"}
         await mongodb["matches"].insert_one(match)
 
         # Execute
