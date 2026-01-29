@@ -102,16 +102,16 @@ async def pass_check_request(
         from_user_club_name = from_user["club"]["clubName"]
 
     # Build email content
-    subject = f"[bishl.de] Bitte die Lizenzen von {player.firstName} {player.lastName} überprüfen"
+    subject = f"[bishl.de] Bitte die Pässe von {player.firstName} {player.lastName} überprüfen"
 
     # Send email to each PLAYER_ADMIN
     for admin in player_admins:
-        admin_name = f"{admin.get('firstName', '')} {admin.get('lastName', '')}".strip() or "Admin"
+        admin_name = f"{admin.get('firstName', '')}".strip() or "Admin"
         email_body = f"""
         <html>
         <body>
         <p>Hallo {admin_name},</p>
-        <p>{from_user.get('firstName', '')} {from_user.get('lastName', '')} von den {from_user_club_name} bittet um Überprüfung der Spielerpässe von {player.firstName} {player.lastName}.</p>
+        <p>{from_user.get('firstName', '')} {from_user.get('lastName', '')} bittet um Überprüfung der Spielerpässe von {player.firstName} {player.lastName}. Du kannst direkt auf diese Mail antworten</p>
         <p>E-Mail: {body.from_email}</p>
         <p>Nachricht:</p>
         <p>{body.message}</p>
