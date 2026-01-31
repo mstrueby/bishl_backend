@@ -417,6 +417,11 @@ class TestStatsServiceIntegration:
 
             roster_player = create_test_roster_player("player-called-1")
             roster_player["called"] = True
+            roster_player["calledFromTeam"] = {
+                "teamId": "origin-team-id",
+                "teamName": "Origin Team",
+                "teamAlias": "origin-team",
+            }
             roster_player["goals"] = 1
             match["home"]["roster"] = {"players": [roster_player], "status": "SUBMITTED"}
             await mongodb["matches"].insert_one(match)
@@ -501,22 +506,46 @@ class TestStatsServiceIntegration:
                 token_payload=token_payload,
             )
 
-            # Assert - Verify PATCH was called to add team assignment
+            # Assert - Verify PATCH was called to add team assignment and playUpTrackings
             # The player should have 5 called matches, triggering the assignment logic
             assert (
                 mock_client_instance.patch.called
             ), f"PATCH should have been called to update player assignments. Call count: {mock_client_instance.patch.call_count}"
 
-            # Verify the call was made with correct data
-            patch_call_args = mock_client_instance.patch.call_args
-            assert patch_call_args is not None, "PATCH was called but call_args is None"
+            # Verify PATCH was called at least twice (assignedTeams and playUpTrackings)
+            assert mock_client_instance.patch.call_count >= 2, (
+                f"PATCH should be called at least twice (assignedTeams + playUpTrackings). "
+                f"Actual: {mock_client_instance.patch.call_count}"
+            )
 
-            # Check the JSON payload contains assignedTeams
-            call_kwargs = patch_call_args[1]  # kwargs from the call
-            assert "json" in call_kwargs, f"No 'json' key in PATCH call. Keys: {call_kwargs.keys()}"
-            assert (
-                "assignedTeams" in call_kwargs["json"]
-            ), f"No 'assignedTeams' in JSON payload. Keys: {call_kwargs['json'].keys()}"
+            # Check all PATCH calls
+            patch_calls = mock_client_instance.patch.call_args_list
+            json_payloads = [call[1].get("json", {}) for call in patch_calls if call[1].get("json")]
+
+            # Verify assignedTeams was updated
+            assigned_teams_updated = any("assignedTeams" in payload for payload in json_payloads)
+            assert assigned_teams_updated, (
+                f"No 'assignedTeams' in any PATCH payload. "
+                f"Payloads: {[list(p.keys()) for p in json_payloads]}"
+            )
+
+            # Verify playUpTrackings was updated
+            playup_updated = any("playUpTrackings" in payload for payload in json_payloads)
+            assert playup_updated, (
+                f"No 'playUpTrackings' in any PATCH payload. "
+                f"Payloads: {[list(p.keys()) for p in json_payloads]}"
+            )
+
+            # Verify playUpTrackings structure
+            for payload in json_payloads:
+                if "playUpTrackings" in payload:
+                    trackings = payload["playUpTrackings"]
+                    assert len(trackings) >= 1, "playUpTrackings should have at least one entry"
+                    tracking = trackings[0]
+                    assert tracking["fromTeamId"] == "origin-team-id", "fromTeamId should match calledFromTeam"
+                    assert tracking["toTeamId"] == "test-team-id", "toTeamId should match match team"
+                    assert "occurrences" in tracking, "tracking should have occurrences"
+                    assert len(tracking["occurrences"]) >= 1, "Should have at least one occurrence"
 
 
 @pytest.mark.asyncio

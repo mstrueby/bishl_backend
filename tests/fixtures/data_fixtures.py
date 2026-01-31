@@ -304,6 +304,17 @@ def create_test_club(test_id: str = None, **overrides) -> dict[str, Any]:
     return club
 
 
+def create_test_called_from_team(
+    team_id: str = None, team_name: str = "Origin Team", team_alias: str = "origin-team"
+) -> dict[str, Any]:
+    """Create a calledFromTeam structure for roster players"""
+    return {
+        "teamId": team_id or str(ObjectId()),
+        "teamName": team_name,
+        "teamAlias": team_alias,
+    }
+
+
 def create_test_roster_player(
     player_id: str, jersey_number: int = 10, **overrides
 ) -> dict[str, Any]:
@@ -326,6 +337,7 @@ def create_test_roster_player(
         "points": 0,
         "penaltyMinutes": 0,
         "called": False,
+        "calledFromTeam": None,
     }
     roster_player.update(overrides)
     return roster_player

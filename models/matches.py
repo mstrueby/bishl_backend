@@ -86,6 +86,12 @@ class EventPlayer(BaseModel):
     imageVisible: bool | None = False
 
 
+class CalledFromTeam(BaseModel):
+    teamId: str = Field(..., description="ID of the team player was called from")
+    teamName: str = Field(..., description="Name of the team player was called from")
+    teamAlias: str = Field(..., description="Alias of the team player was called from")
+
+
 class RosterPlayer(BaseModel):
     player: EventPlayer = Field(...)
     playerPosition: dict[str, str] = Field(...)
@@ -95,6 +101,9 @@ class RosterPlayer(BaseModel):
     points: int = 0
     penaltyMinutes: int = 0
     called: bool = False
+    calledFromTeam: CalledFromTeam | None = Field(
+        default=None, description="Team info player was called from (only set if called=True)"
+    )
     eligibilityStatus: LicenseStatus = LicenseStatus.UNKNOWN  # Snapshot bei Aufstellung
 
 

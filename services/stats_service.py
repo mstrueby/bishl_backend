@@ -1258,6 +1258,18 @@ class StatsService:
                         headers,
                     )
 
+                    playup_occurrences = self._find_playup_occurrences(
+                        player_id, matches, t_alias, s_alias
+                    )
+                    await self._update_player_playup_trackings(
+                        client,
+                        player_id,
+                        player_data,
+                        playup_occurrences,
+                        base_url,
+                        headers,
+                    )
+
             except Exception as e:
                 logger.exception(
                     f"Error processing called matches for player {player_id}",
@@ -1299,6 +1311,116 @@ class StatsService:
                             )
 
         return teams_to_check
+
+    def _find_playup_occurrences(
+        self, player_id: str, matches: list[dict], t_alias: str, s_alias: str
+    ) -> list[dict]:
+        """
+        Find all play-up occurrences for a player across matches.
+        Returns a list of dicts with fromTeamId, toTeamId, matchId, matchStartDate.
+        """
+        occurrences = []
+
+        for match in matches:
+            match_id = str(match.get("_id", ""))
+            match_start_date = match.get("startDate")
+
+            for team_flag in ["home", "away"]:
+                roster_data = match.get(team_flag, {}).get("roster", {})
+                if isinstance(roster_data, dict):
+                    roster = roster_data.get("players", [])
+                else:
+                    roster = roster_data if roster_data else []
+
+                for roster_player in roster:
+                    if roster_player.get("player", {}).get("playerId") == player_id and roster_player.get("called", False):
+                        called_from_team = roster_player.get("calledFromTeam")
+                        if called_from_team:
+                            to_team = match.get(team_flag, {}).get("team", {})
+                            from_team_id = called_from_team.get("teamId")
+                            to_team_id = to_team.get("teamId")
+                            if from_team_id and to_team_id:
+                                occurrences.append({
+                                    "tournamentAlias": t_alias,
+                                    "seasonAlias": s_alias,
+                                    "fromTeamId": from_team_id,
+                                    "toTeamId": to_team_id,
+                                    "matchId": match_id,
+                                    "matchStartDate": match_start_date,
+                                })
+
+        return occurrences
+
+    async def _update_player_playup_trackings(
+        self,
+        client,
+        player_id: str,
+        player_data: dict,
+        playup_occurrences: list[dict],
+        base_url: str,
+        headers: dict,
+    ) -> None:
+        """Update player's playUpTrackings with new occurrences from finished matches."""
+        if not playup_occurrences:
+            return
+
+        existing_trackings = player_data.get("playUpTrackings", []) or []
+
+        for occurrence in playup_occurrences:
+            t_alias = occurrence["tournamentAlias"]
+            s_alias = occurrence["seasonAlias"]
+            from_team_id = occurrence["fromTeamId"]
+            to_team_id = occurrence["toTeamId"]
+            match_id = occurrence["matchId"]
+            match_start_date = occurrence["matchStartDate"]
+
+            tracking_found = False
+            for tracking in existing_trackings:
+                if (
+                    tracking.get("tournamentAlias") == t_alias
+                    and tracking.get("seasonAlias") == s_alias
+                    and tracking.get("fromTeamId") == from_team_id
+                    and tracking.get("toTeamId") == to_team_id
+                ):
+                    tracking_found = True
+                    existing_match_ids = [occ.get("matchId") for occ in tracking.get("occurrences", [])]
+                    if match_id not in existing_match_ids:
+                        tracking.setdefault("occurrences", []).append({
+                            "matchId": match_id,
+                            "matchStartDate": match_start_date,
+                            "counted": True,
+                        })
+                    break
+
+            if not tracking_found:
+                existing_trackings.append({
+                    "tournamentAlias": t_alias,
+                    "seasonAlias": s_alias,
+                    "fromTeamId": from_team_id,
+                    "toTeamId": to_team_id,
+                    "occurrences": [{
+                        "matchId": match_id,
+                        "matchStartDate": match_start_date,
+                        "counted": True,
+                    }],
+                })
+
+        try:
+            update_response = await client.patch(
+                f"{base_url}/players/{player_id}",
+                json={"playUpTrackings": existing_trackings},
+                headers=headers,
+            )
+            update_response.raise_for_status()
+            logger.info(
+                f"Updated playUpTrackings for player {player_id}",
+                extra={"player_id": player_id, "occurrences_added": len(playup_occurrences)},
+            )
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Failed to update playUpTrackings for player {player_id} (HTTP {e.response.status_code})",
+                extra={"player_id": player_id, "error": str(e)},
+            )
 
     async def _update_assigned_teams_for_called_matches(
         self,

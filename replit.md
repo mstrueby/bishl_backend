@@ -79,6 +79,22 @@ Preferred communication style: Simple, everyday language.
   - GET `/players` has optional `validate` query parameter (default: false) for opt-in validation
   - Roster reads do NOT trigger validation (as required)
 
+### Play-Up Tracking System (Added January 2026)
+- **CalledFromTeam Field**: `RosterPlayer` now has optional `calledFromTeam` with teamId, teamName, teamAlias
+  - Set during roster creation when a player is called up from a lower team
+  - Must be set alongside `called: true` for play-up tracking to work
+- **PlayUpTrackings Population**: When a match finishes:
+  - StatsService extracts play-up occurrences from roster data
+  - Updates player's `playUpTrackings` array with fromTeamId, toTeamId, and occurrence details
+  - Duplicate matchId entries are prevented
+  - Validates fromTeamId and toTeamId presence before storing
+- **PlayUpTracking Structure**: 
+  - `tournamentAlias`, `seasonAlias`: Context for the play-up
+  - `fromTeamId`: Player's original/lower team
+  - `toTeamId`: Team player played up to
+  - `occurrences`: List of `{ matchId, matchStartDate, counted }`
+- **5 Called Matches Rule**: After 5 called matches (hardcoded), player gets auto-assigned to higher team with `source: CALLED`
+
 ## External Dependencies
 
 ### Database
