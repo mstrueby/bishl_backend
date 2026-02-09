@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
 
 from models.assignments import Referee
+from models.players import LicenseInvalidReasonCode
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 
 
@@ -104,7 +105,10 @@ class RosterPlayer(BaseModel):
     calledFromTeam: CalledFromTeam | None = Field(
         default=None, description="Team info player was called from (only set if called=True)"
     )
-    eligibilityStatus: LicenseStatus = LicenseStatus.UNKNOWN  # Snapshot bei Aufstellung
+    eligibilityStatus: LicenseStatus = LicenseStatus.UNKNOWN
+    invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(
+        default_factory=list, description="Reason codes when eligibilityStatus is INVALID"
+    )
 
 
 class ScoresBase(MongoBaseModel):

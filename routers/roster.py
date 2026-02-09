@@ -7,9 +7,12 @@ from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
 from logging_config import logger
 from models.matches import LicenseStatus, Roster, RosterPlayer, RosterStatus, RosterUpdate
+from models.players import LicenseInvalidReasonCode
 from models.responses import StandardResponse
 from services.player_assignment_service import PlayerAssignmentService
 from services.roster_service import RosterService
+
+CALLED_MATCH_LIMIT = 5
 
 router = APIRouter()
 auth = AuthHandler()
@@ -201,6 +204,124 @@ async def update_roster(
     return StandardResponse(success=True, data=updated_roster, message=message)
 
 
+def _find_team_in_assigned_teams(
+    assigned_teams: list[dict], target_team_id: str
+) -> dict | None:
+    for club in assigned_teams:
+        for team in club.get("teams", []):
+            if team.get("teamId") == target_team_id:
+                return team
+    return None
+
+
+def _extract_status_and_reasons(
+    team_data: dict,
+) -> tuple[LicenseStatus, list[LicenseInvalidReasonCode]]:
+    status_value = team_data.get("status", "UNKNOWN")
+    if isinstance(status_value, str):
+        try:
+            status = LicenseStatus(status_value)
+        except ValueError:
+            status = LicenseStatus.UNKNOWN
+    else:
+        status = status_value
+
+    raw_codes = team_data.get("invalidReasonCodes", [])
+    reason_codes = []
+    for code in raw_codes:
+        if isinstance(code, str):
+            try:
+                reason_codes.append(LicenseInvalidReasonCode(code))
+            except ValueError:
+                pass
+        else:
+            reason_codes.append(code)
+
+    return status, reason_codes
+
+
+def _count_called_matches(player: dict, to_team_id: str) -> int:
+    trackings = player.get("playUpTrackings", []) or []
+    total = 0
+    for tracking in trackings:
+        if tracking.get("toTeamId") == to_team_id:
+            for occ in tracking.get("occurrences", []):
+                if occ.get("counted", True):
+                    total += 1
+    return total
+
+
+def _validate_called_player(
+    validated_player: dict,
+    roster_player: "RosterPlayer",
+    match_team_id: str,
+    match: dict,
+) -> tuple[LicenseStatus, list[LicenseInvalidReasonCode]]:
+    player_id = roster_player.player.playerId
+    assigned_teams = validated_player.get("assignedTeams", [])
+    reason_codes: list[LicenseInvalidReasonCode] = []
+
+    origin_team_id = None
+    if roster_player.calledFromTeam:
+        origin_team_id = roster_player.calledFromTeam.teamId
+
+    if not origin_team_id:
+        logger.warning(
+            f"Called player {player_id} has no calledFromTeam, "
+            f"cannot validate origin license"
+        )
+        return LicenseStatus.INVALID, reason_codes
+
+    origin_team = _find_team_in_assigned_teams(assigned_teams, origin_team_id)
+    if not origin_team:
+        logger.warning(
+            f"Called player {player_id} origin team {origin_team_id} "
+            f"not found in assignedTeams"
+        )
+        return LicenseStatus.INVALID, reason_codes
+
+    origin_status, origin_reasons = _extract_status_and_reasons(origin_team)
+    if origin_status != LicenseStatus.VALID:
+        logger.info(
+            f"Called player {player_id} origin license is {origin_status.value}"
+        )
+        return LicenseStatus.INVALID, origin_reasons
+
+    called_count = _count_called_matches(validated_player, match_team_id)
+    if called_count >= CALLED_MATCH_LIMIT:
+        logger.info(
+            f"Called player {player_id} has {called_count} called matches "
+            f"(limit: {CALLED_MATCH_LIMIT}), marking INVALID"
+        )
+        return LicenseStatus.INVALID, [LicenseInvalidReasonCode.CALLED_LIMIT_EXCEEDED]
+
+    logger.info(
+        f"Called player {player_id} validated via origin team {origin_team_id}: "
+        f"VALID ({called_count}/{CALLED_MATCH_LIMIT} called matches)"
+    )
+    return LicenseStatus.VALID, []
+
+
+def _validate_regular_player(
+    validated_player: dict,
+    player_id: str,
+    team_id: str,
+) -> tuple[LicenseStatus, list[LicenseInvalidReasonCode]]:
+    assigned_teams = validated_player.get("assignedTeams", [])
+
+    if not team_id:
+        return LicenseStatus.INVALID, []
+
+    team = _find_team_in_assigned_teams(assigned_teams, team_id)
+    if not team:
+        logger.warning(
+            f"Player {player_id} not assigned to team {team_id}, marking as INVALID"
+        )
+        return LicenseStatus.INVALID, []
+
+    return _extract_status_and_reasons(team)
+
+
 @router.post(
     "/validate",
     response_description="Validate roster player eligibility",
@@ -265,38 +386,22 @@ async def validate_roster(
         if not validated_player:
             logger.warning(f"Player {player_id} not found during roster validation")
             roster_player.eligibilityStatus = LicenseStatus.INVALID
+            roster_player.invalidReasonCodes = []
             all_valid = False
             updated_players.append(roster_player)
             continue
 
-        player_status = LicenseStatus.INVALID
-        team_found = False
-        assigned_teams = validated_player.get("assignedTeams", [])
-
-        if team_id:
-            for club in assigned_teams:
-                for team in club.get("teams", []):
-                    if team.get("teamId") == team_id:
-                        team_found = True
-                        status_value = team.get("status", "UNKNOWN")
-                        if isinstance(status_value, str):
-                            try:
-                                player_status = LicenseStatus(status_value)
-                            except ValueError:
-                                player_status = LicenseStatus.UNKNOWN
-                        else:
-                            player_status = status_value
-                        break
-                if team_found:
-                    break
-
-        if not team_found:
-            logger.warning(
-                f"Player {player_id} not assigned to team {team_id}, " f"marking as INVALID"
+        if roster_player.called:
+            player_status, reason_codes = _validate_called_player(
+                validated_player, roster_player, team_id, match
             )
-            player_status = LicenseStatus.INVALID
+        else:
+            player_status, reason_codes = _validate_regular_player(
+                validated_player, player_id, team_id
+            )
 
         roster_player.eligibilityStatus = player_status
+        roster_player.invalidReasonCodes = reason_codes
         if player_status != LicenseStatus.VALID:
             all_valid = False
 
