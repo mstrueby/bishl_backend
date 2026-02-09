@@ -72,7 +72,9 @@ Preferred communication style: Simple, everyday language.
   - `globalLock=false` with `teamIds`: Only invalidates specified teams
   - `globalLock=null/missing`: Defaults to invalidating all teams (safe default)
 - **CLUB_ADMIN Authorization**: PUT roster endpoint validates CLUB_ADMIN can only edit their own team; SUBMITTED rosters only editable by home team
-- **Validate Endpoint**: POST `/matches/{id}/{team}/roster/validate` validates all roster players, updates eligibilityStatus per player, sets roster status to APPROVED (all valid) or INVALID
+- **Validate Endpoint**: POST `/matches/{id}/{team}/roster/validate` validates all roster players, updates eligibilityStatus and invalidReasonCodes per player, sets roster status to APPROVED (all valid) or INVALID
+  - **Called Players**: Validates against origin team license (calledFromTeam), counts playUpTrackings occurrences (<=4 VALID, >=5 INVALID with CALLED_LIMIT_EXCEEDED), never modifies player DB data for called-count invalidity
+  - **Regular Players**: Validates against match team assignment, propagates invalidReasonCodes from player license data
 - **Auto-Reset**: When roster.players is updated, status resets to DRAFT and eligibility metadata is cleared
 - **Auto-Validation on Player Read**: 
   - GET `/players/{id}` always triggers fresh license validation before returning
