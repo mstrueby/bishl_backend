@@ -202,8 +202,8 @@ class RosterService:
                 RosterStatus.INVALID,
                 RosterStatus.DRAFT,
             },
-            RosterStatus.APPROVED: {RosterStatus.INVALID, RosterStatus.DRAFT},
-            RosterStatus.INVALID: {RosterStatus.DRAFT},
+            RosterStatus.APPROVED: {RosterStatus.INVALID, RosterStatus.DRAFT, RosterStatus.SUBMITTED},
+            RosterStatus.INVALID: {RosterStatus.DRAFT, RosterStatus.SUBMITTED, RosterStatus.APPROVED},
         }
 
         allowed = valid_transitions.get(current_status, set())
