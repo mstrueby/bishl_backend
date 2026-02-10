@@ -16,8 +16,10 @@ from exceptions import (
     ValidationException,
 )
 from logging_config import logger
-from models.matches import Roster, RosterPlayer, RosterStatus, RosterUpdate
+from models.matches import LicenseStatus, Roster, RosterPlayer, RosterStatus, RosterUpdate
 from utils import populate_event_player_fields
+
+TRANSIENT_PLAYER_FIELDS = ["displayFirstName", "displayLastName", "imageUrl", "imageVisible"]
 
 
 class RosterService:
@@ -306,11 +308,11 @@ class RosterService:
         if roster_update.players is not None:
             await self.validate_roster_players(match, team_flag, roster_update.players)
 
-            # Populate display fields before saving
             players_json = jsonable_encoder(roster_update.players)
             for roster_entry in players_json:
                 if roster_entry.get("player"):
-                    await populate_event_player_fields(self.db, roster_entry["player"])
+                    for field in TRANSIENT_PLAYER_FIELDS:
+                        roster_entry["player"].pop(field, None)
 
             update_dict["players"] = players_json
 
@@ -347,6 +349,24 @@ class RosterService:
             update_dict["eligibilityTimestamp"] = roster_update.eligibilityTimestamp
         if roster_update.eligibilityValidator is not None:
             update_dict["eligibilityValidator"] = roster_update.eligibilityValidator
+
+        # Reset eligibility data when status changes to DRAFT or SUBMITTED
+        if roster_update.status in (RosterStatus.DRAFT, RosterStatus.SUBMITTED):
+            update_dict["eligibilityTimestamp"] = None
+            update_dict["eligibilityValidator"] = None
+            if "players" in update_dict:
+                for roster_entry in update_dict["players"]:
+                    roster_entry["eligibilityStatus"] = LicenseStatus.UNKNOWN.value
+                    roster_entry["invalidReasonCodes"] = []
+            else:
+                existing_players = jsonable_encoder(current_roster.players)
+                for roster_entry in existing_players:
+                    roster_entry["eligibilityStatus"] = LicenseStatus.UNKNOWN.value
+                    roster_entry["invalidReasonCodes"] = []
+                    if roster_entry.get("player"):
+                        for field in TRANSIENT_PLAYER_FIELDS:
+                            roster_entry["player"].pop(field, None)
+                update_dict["players"] = existing_players
 
         # Auto-update eligibility timestamp/validator on status change to APPROVED
         if roster_update.status == RosterStatus.APPROVED:

@@ -57,13 +57,15 @@ Preferred communication style: Simple, everyday language.
 - Support for both development and production database targets
 - Migration scripts for data updates and password upgrades
 
-### Roster Management (Updated January 2026)
+### Roster Management (Updated February 2026)
 - **Consolidated Roster Object**: All roster-related data is now nested at `match.team.roster` instead of flat fields
 - **Roster Structure**: `{ players: [], status, published, eligibilityTimestamp, eligibilityValidator, coach, staff }`
 - **Status Workflow**: DRAFT → SUBMITTED → APPROVED (with INVALID for reset)
 - **Atomic Updates**: Single PUT endpoint updates all roster fields atomically via `RosterUpdate` model
 - **Backward Compatibility**: Legacy flat structure (roster as list + rosterStatus field) is auto-converted on read
 - **Migration Script**: `scripts/migrate_roster_structure.py` transforms existing documents to new structure
+- **Transient Fields**: `displayFirstName`, `displayLastName`, `imageUrl`, `imageVisible` on EventPlayer are NOT persisted in roster data — they are populated from player master data on read only
+- **Eligibility Reset**: When roster status changes to DRAFT or SUBMITTED, all players' `eligibilityStatus` resets to UNKNOWN, `invalidReasonCodes` clears, and roster-level `eligibilityTimestamp`/`eligibilityValidator` are set to None
 
 ### License Validation & Suspension Checking (Added January 2026)
 - **Suspension Validation**: PlayerAssignmentService checks player.suspensions for active suspensions during license validation

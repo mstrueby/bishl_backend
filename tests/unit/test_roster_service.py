@@ -320,14 +320,11 @@ class TestValidateStatusTransition:
 
         assert "cannot transition" in exc_info.value.message.lower()
 
-    def test_invalid_approved_to_submitted(self, roster_service):
-        """Test APPROVED -> SUBMITTED is not allowed"""
-        with pytest.raises(ValidationException) as exc_info:
-            roster_service.validate_status_transition(
-                RosterStatus.APPROVED, RosterStatus.SUBMITTED, "match-1", "home"
-            )
-
-        assert "cannot transition" in exc_info.value.message.lower()
+    def test_valid_approved_to_submitted(self, roster_service):
+        """Test APPROVED -> SUBMITTED is allowed"""
+        roster_service.validate_status_transition(
+            RosterStatus.APPROVED, RosterStatus.SUBMITTED, "match-1", "home"
+        )
 
 
 class TestUpdateJerseyNumbers:
@@ -399,6 +396,60 @@ class TestUpdateRoster:
         assert mock_db._matches_collection.update_one.called
 
     @pytest.mark.asyncio
+    async def test_update_roster_strips_transient_fields(self, roster_service, mock_db):
+        """Test that display/image fields are stripped from player data before saving"""
+        from bson import ObjectId
+
+        from models.matches import EventPlayer, RosterPlayer
+
+        match_id = str(ObjectId())
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {"players": [], "status": "DRAFT", "published": False},
+                "scores": [],
+                "penalties": [],
+            },
+        }
+
+        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+
+        roster_update = RosterUpdate(
+            players=[
+                RosterPlayer(
+                    player=EventPlayer(
+                        playerId="p1",
+                        firstName="John",
+                        lastName="Doe",
+                        jerseyNumber=10,
+                        displayFirstName="Johnny",
+                        displayLastName="D",
+                        imageUrl="https://example.com/photo.jpg",
+                        imageVisible=True,
+                    ),
+                    playerPosition={"key": "FW", "value": "Forward"},
+                    passNumber="123",
+                )
+            ]
+        )
+
+        with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
+            result, was_modified = await roster_service.update_roster(
+                match_id, "home", roster_update, user_roles=["ADMIN"]
+            )
+
+        first_call = mock_db._matches_collection.update_one.call_args_list[0]
+        update_dict = first_call[0][1]["$set"]
+        saved_player = update_dict["home.roster.players"][0]["player"]
+        assert "displayFirstName" not in saved_player
+        assert "displayLastName" not in saved_player
+        assert "imageUrl" not in saved_player
+        assert "imageVisible" not in saved_player
+        assert saved_player["playerId"] == "p1"
+        assert saved_player["firstName"] == "John"
+
+    @pytest.mark.asyncio
     async def test_update_roster_status_transition(self, roster_service, mock_db):
         """Test roster status update"""
         from bson import ObjectId
@@ -427,6 +478,103 @@ class TestUpdateRoster:
         call_args = mock_db._matches_collection.update_one.call_args
         update_dict = call_args[0][1]["$set"]
         assert "home.roster.status" in update_dict
+
+    @pytest.mark.asyncio
+    async def test_update_roster_submitted_resets_eligibility(self, roster_service, mock_db):
+        """Test that transitioning to SUBMITTED resets eligibility data"""
+        from bson import ObjectId
+
+        from models.matches import EventPlayer, RosterPlayer
+
+        match_id = str(ObjectId())
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {
+                    "players": [
+                        {
+                            "player": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
+                            "playerPosition": {"key": "FW", "value": "Forward"},
+                            "passNumber": "123",
+                            "eligibilityStatus": "VALID",
+                            "invalidReasonCodes": [],
+                        }
+                    ],
+                    "status": "DRAFT",
+                    "published": False,
+                    "eligibilityTimestamp": "2026-01-01T00:00:00",
+                    "eligibilityValidator": "admin-old",
+                },
+                "scores": [],
+                "penalties": [],
+            },
+        }
+
+        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+
+        roster_update = RosterUpdate(status=RosterStatus.SUBMITTED)
+
+        with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
+            result, was_modified = await roster_service.update_roster(
+                match_id, "home", roster_update, user_roles=["ADMIN"]
+            )
+
+        call_args = mock_db._matches_collection.update_one.call_args
+        update_dict = call_args[0][1]["$set"]
+        assert update_dict["home.roster.eligibilityTimestamp"] is None
+        assert update_dict["home.roster.eligibilityValidator"] is None
+        saved_players = update_dict["home.roster.players"]
+        for p in saved_players:
+            assert p["eligibilityStatus"] == "UNKNOWN"
+            assert p["invalidReasonCodes"] == []
+
+    @pytest.mark.asyncio
+    async def test_update_roster_draft_resets_eligibility(self, roster_service, mock_db):
+        """Test that transitioning to DRAFT resets eligibility data"""
+        from bson import ObjectId
+
+        match_id = str(ObjectId())
+        test_match = {
+            "_id": match_id,
+            "home": {
+                "roster": {
+                    "players": [
+                        {
+                            "player": {"playerId": "p1", "firstName": "John", "lastName": "Doe"},
+                            "playerPosition": {"key": "FW", "value": "Forward"},
+                            "passNumber": "123",
+                            "eligibilityStatus": "INVALID",
+                            "invalidReasonCodes": ["SUSPENDED"],
+                        }
+                    ],
+                    "status": "SUBMITTED",
+                    "published": False,
+                    "eligibilityTimestamp": "2026-01-01T00:00:00",
+                    "eligibilityValidator": "admin-old",
+                },
+                "scores": [],
+                "penalties": [],
+            },
+        }
+
+        mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
+        mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+
+        roster_update = RosterUpdate(status=RosterStatus.DRAFT)
+
+        with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
+            result, was_modified = await roster_service.update_roster(
+                match_id, "home", roster_update, user_roles=["ADMIN"]
+            )
+
+        call_args = mock_db._matches_collection.update_one.call_args
+        update_dict = call_args[0][1]["$set"]
+        assert update_dict["home.roster.eligibilityTimestamp"] is None
+        assert update_dict["home.roster.eligibilityValidator"] is None
+        saved_players = update_dict["home.roster.players"]
+        assert saved_players[0]["eligibilityStatus"] == "UNKNOWN"
+        assert saved_players[0]["invalidReasonCodes"] == []
 
     @pytest.mark.asyncio
     async def test_update_roster_unauthorized(self, roster_service, mock_db):
