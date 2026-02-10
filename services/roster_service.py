@@ -19,7 +19,7 @@ from logging_config import logger
 from models.matches import LicenseStatus, Roster, RosterPlayer, RosterStatus, RosterUpdate
 from utils import populate_event_player_fields
 
-TRANSIENT_PLAYER_FIELDS = ["displayFirstName", "displayLastName", "imageUrl", "imageVisible"]
+TRANSIENT_PLAYER_FIELDS = ["displayFirstName", "displayLastName", "imageUrl", "imageVisible", "birthdate"]
 
 
 class RosterService:

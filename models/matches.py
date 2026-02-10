@@ -85,6 +85,7 @@ class EventPlayer(BaseModel):
     displayLastName: str | None = None
     imageUrl: HttpUrl | None = None
     imageVisible: bool | None = False
+    birthdate: str | None = None
 
 
 class CalledFromTeam(BaseModel):
