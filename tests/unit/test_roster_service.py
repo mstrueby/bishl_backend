@@ -427,7 +427,6 @@ class TestUpdateRoster:
                         displayLastName="D",
                         imageUrl="https://example.com/photo.jpg",
                         imageVisible=True,
-                        birthdate="1990-01-15",
                     ),
                     playerPosition={"key": "FW", "value": "Forward"},
                     passNumber="123",
@@ -447,7 +446,6 @@ class TestUpdateRoster:
         assert "displayLastName" not in saved_player
         assert "imageUrl" not in saved_player
         assert "imageVisible" not in saved_player
-        assert "birthdate" not in saved_player
         assert saved_player["playerId"] == "p1"
         assert saved_player["firstName"] == "John"
 

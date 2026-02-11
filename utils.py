@@ -20,7 +20,6 @@ async def populate_event_player_fields(mongodb, event_player_dict):
             event_player_dict["displayLastName"] = player_doc.get("displayLastName")
             event_player_dict["imageUrl"] = player_doc.get("imageUrl")
             event_player_dict["imageVisible"] = bool(player_doc.get("imageVisible", False))
-            event_player_dict["birthdate"] = player_doc.get("birthdate")
     return event_player_dict
 
 
