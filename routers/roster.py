@@ -9,6 +9,7 @@ from logging_config import logger
 from models.matches import LicenseStatus, Roster, RosterPlayer, RosterStatus, RosterUpdate
 from models.players import LicenseInvalidReasonCode
 from models.responses import StandardResponse
+from services.match_permission_service import MatchPermissionService
 from services.player_assignment_service import PlayerAssignmentService
 from services.roster_service import RosterService
 
@@ -19,57 +20,8 @@ auth = AuthHandler()
 
 
 def _get_team_club_id(match: dict, team_flag: str) -> str | None:
-    """Get the clubId for a team in a match."""
     team = match.get(team_flag, {})
     return team.get("clubId")
-
-
-def _check_club_admin_authorization(
-    token_payload: TokenPayload,
-    match: dict,
-    team_flag: str,
-    current_roster_status: RosterStatus,
-) -> None:
-    """
-    Check CLUB_ADMIN authorization for roster updates.
-
-    Rules:
-    - ADMIN/LEAGUE_ADMIN can always update
-    - CLUB_ADMIN can update only their own team's roster
-    - If roster status is SUBMITTED, only home team CLUB_ADMIN can update (not away)
-    """
-    user_roles = token_payload.roles
-
-    if "ADMIN" in user_roles or "LEAGUE_ADMIN" in user_roles:
-        return
-
-    if "CLUB_ADMIN" not in user_roles:
-        raise AuthorizationException(
-            message="Admin, League Admin, or Club Admin role required",
-            details={"user_roles": user_roles},
-        )
-
-    user_club_id = token_payload.clubId
-    team_club_id = _get_team_club_id(match, team_flag)
-
-    if not user_club_id or user_club_id != team_club_id:
-        raise AuthorizationException(
-            message="CLUB_ADMIN can only update their own team's roster",
-            details={
-                "user_club_id": user_club_id,
-                "team_club_id": team_club_id,
-                "team_flag": team_flag,
-            },
-        )
-
-    if current_roster_status == RosterStatus.SUBMITTED and team_flag != "home":
-        raise AuthorizationException(
-            message="Cannot modify SUBMITTED roster for away team. Only home team admin can modify.",
-            details={
-                "roster_status": current_roster_status.value,
-                "team_flag": team_flag,
-            },
-        )
 
 
 @router.get(
@@ -92,6 +44,7 @@ async def get_roster(
     service = RosterService(mongodb)
 
     roster = await service.get_roster(match_id, team_flag)
+
     player_count = len(roster.players)
 
     return StandardResponse(
@@ -145,7 +98,7 @@ async def update_roster(
 
     This endpoint handles roster updates with proper authorization:
     - ADMIN/LEAGUE_ADMIN: Full access
-    - CLUB_ADMIN: Can only update their own team's roster
+    - CLUB_ADMIN: Permissions based on team ownership, match timing, and matchday owner rules
 
     On save, roster status is explicitly set to DRAFT and eligibility metadata is reset.
     Jersey numbers are automatically synced to scores/penalties.
@@ -163,14 +116,10 @@ async def update_roster(
     if not match:
         raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
 
-    current_roster = await service.get_roster(match_id, team_flag)
-
-    _check_club_admin_authorization(
-        token_payload=token_payload,
-        match=match,
-        team_flag=team_flag,
-        current_roster_status=current_roster.status,
-    )
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_roster_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
 
     force_draft_reset = False
     if roster_update.players is not None and roster_update.status != RosterStatus.SUBMITTED:
@@ -362,12 +311,10 @@ async def validate_roster(
 
     current_roster = await roster_service.get_roster(match_id, team_flag)
 
-    _check_club_admin_authorization(
-        token_payload=token_payload,
-        match=match,
-        team_flag=team_flag,
-        current_roster_status=current_roster.status,
-    )
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_roster_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
 
     team_data = match.get(team_flag, {})
     team_id = team_data.get("teamId")

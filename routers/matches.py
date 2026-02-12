@@ -27,6 +27,7 @@ from models.matches import (
 )
 from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
+from services.match_permission_service import MatchAction, MatchPermissionService
 from services.stats_service import StatsService
 from services.tournament_service import TournamentService
 from utils import (
@@ -854,6 +855,37 @@ async def update_match(
             },
         )
 
+    existing_match_for_perms = await mongodb["matches"].find_one({"_id": match_id})
+    if existing_match_for_perms is None:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    if "CLUB_ADMIN" in token_payload.roles and not any(
+        r in token_payload.roles for r in ["ADMIN", "LEAGUE_ADMIN"]
+    ):
+        perm_service = MatchPermissionService(mongodb)
+        matchday_owner = await perm_service.get_matchday_owner(existing_match_for_perms)
+        match_data_provided = match.model_dump(exclude_unset=True)
+
+        if "matchStatus" in match_data_provided:
+            perm_service.check_permission(
+                token_payload, existing_match_for_perms,
+                MatchAction.CHANGE_STATUS, matchday_owner,
+            )
+        if "supplementarySheet" in match_data_provided:
+            perm_service.check_permission(
+                token_payload, existing_match_for_perms,
+                MatchAction.EDIT_SUPPLEMENTARY, matchday_owner,
+            )
+        if any(k in match_data_provided for k in [
+            "tournament", "season", "round", "matchday", "venue",
+            "startDate", "published", "matchSheetComplete",
+            "referee1", "referee2", "matchId",
+        ]):
+            perm_service.check_permission(
+                token_payload, existing_match_for_perms,
+                MatchAction.EDIT_MATCH, matchday_owner,
+            )
+
     # Helper function to add _id to new nested documents and clean up ObjectId id fields
     def add_id_to_scores_and_penalties(items):
         for item in items:
@@ -863,10 +895,7 @@ async def update_match(
             if "id" in item and isinstance(item["id"], ObjectId):
                 item.pop("id")
 
-    # Get existing match
-    existing_match = await mongodb["matches"].find_one({"_id": match_id})
-    if existing_match is None:
-        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+    existing_match = existing_match_for_perms
 
     # Extract tournament info for potential use
     t_alias = getattr(

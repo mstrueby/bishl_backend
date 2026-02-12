@@ -3,8 +3,10 @@ from fastapi import APIRouter, Body, Depends, Path, Request, status
 from fastapi.responses import Response
 
 from authentication import AuthHandler, TokenPayload
+from exceptions import ResourceNotFoundException
 from models.matches import ScoresBase, ScoresDB, ScoresUpdate
 from models.responses import StandardResponse
+from services.match_permission_service import MatchPermissionService
 from services.score_service import ScoreService
 
 router = APIRouter()
@@ -46,8 +48,17 @@ async def create_score(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> StandardResponse[ScoresDB]:
     mongodb = request.app.state.mongodb
-    service = ScoreService(mongodb)
 
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_scores_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
+
+    service = ScoreService(mongodb)
     new_score = await service.create_score(match_id, team_flag, score)
     return StandardResponse(success=True, data=new_score, message="Score created successfully")
 
@@ -82,8 +93,17 @@ async def patch_one_score(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> StandardResponse[ScoresDB]:
     mongodb = request.app.state.mongodb
-    service = ScoreService(mongodb)
 
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_scores_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
+
+    service = ScoreService(mongodb)
     updated_score = await service.update_score(match_id, team_flag, score_id, score)
     return StandardResponse(success=True, data=updated_score, message="Score updated successfully")
 
@@ -100,7 +120,16 @@ async def delete_one_score(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
-    service = ScoreService(mongodb)
 
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_scores_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
+
+    service = ScoreService(mongodb)
     await service.delete_score(match_id, team_flag, score_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -3,8 +3,10 @@ from fastapi import APIRouter, Body, Depends, Path, Request, status
 from fastapi.responses import Response
 
 from authentication import AuthHandler, TokenPayload
+from exceptions import ResourceNotFoundException
 from models.matches import PenaltiesBase, PenaltiesDB, PenaltiesUpdate
 from models.responses import StandardResponse
+from services.match_permission_service import MatchPermissionService
 from services.penalty_service import PenaltyService
 
 router = APIRouter()
@@ -44,8 +46,17 @@ async def create_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> StandardResponse[PenaltiesDB]:
     mongodb = request.app.state.mongodb
-    service = PenaltyService(mongodb)
 
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_penalties_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
+
+    service = PenaltyService(mongodb)
     new_penalty = await service.create_penalty(match_id, team_flag, penalty)
     return StandardResponse(success=True, data=new_penalty, message="Penalty created successfully")
 
@@ -86,8 +97,17 @@ async def patch_one_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> StandardResponse[PenaltiesDB]:
     mongodb = request.app.state.mongodb
-    service = PenaltyService(mongodb)
 
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_penalties_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
+
+    service = PenaltyService(mongodb)
     updated_penalty = await service.update_penalty(match_id, team_flag, penalty_id, penalty)
     return StandardResponse(
         success=True, data=updated_penalty, message="Penalty updated successfully"
@@ -104,7 +124,16 @@ async def delete_one_penalty(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> Response:
     mongodb = request.app.state.mongodb
-    service = PenaltyService(mongodb)
 
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_penalties_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
+
+    service = PenaltyService(mongodb)
     await service.delete_penalty(match_id, team_flag, penalty_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
