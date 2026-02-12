@@ -180,7 +180,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
     error_response = {
         "error": {
-            "message": exc.detail,
+            "message": str(exc.detail),
             "status_code": exc.status_code,
             "correlation_id": correlation_id,
             "timestamp": datetime.utcnow().isoformat(),
@@ -189,7 +189,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     }
 
     logger.error(
-        f"[{correlation_id}] HTTPException: {exc.detail}",
+        "[{correlation_id}] HTTPException: {detail}",
+        correlation_id=correlation_id,
+        detail=str(exc.detail),
         extra={
             "correlation_id": correlation_id,
             "status_code": exc.status_code,
