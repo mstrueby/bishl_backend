@@ -139,6 +139,11 @@ class MatchPermissionService:
             if is_away_admin:
                 if is_in_progress:
                     return False
+                if starts_within_window:
+                    roster = (match.get("away") or {}).get("roster") or {}
+                    roster_status = roster.get("status", "DRAFT")
+                    if roster_status not in ["DRAFT", "SUBMITTED"]:
+                        return False
                 if not is_finished:
                     return True
                 if is_match_day:
