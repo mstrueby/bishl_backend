@@ -991,7 +991,9 @@ async def update_match(
         for key, value in data.items():
             full_key = f"{path}.{key}" if path else key
 
-            if existing is None or key not in existing:
+            if existing is None or key not in existing or existing.get(key) is None:
+                # Parent is null or missing in DB, must set the whole object
+                # to avoid WriteError: Cannot create field 'X' in element {Y: null}
                 match_to_update[full_key] = value
             elif isinstance(value, dict):
                 check_nested_fields(value, existing.get(key, {}), full_key)

@@ -198,14 +198,13 @@ class RosterService:
             ValidationException: If the status transition is not allowed
         """
         valid_transitions = {
-            RosterStatus.DRAFT: {RosterStatus.SUBMITTED, RosterStatus.INVALID},
+            RosterStatus.DRAFT: {RosterStatus.SUBMITTED},
             RosterStatus.SUBMITTED: {
                 RosterStatus.APPROVED,
-                RosterStatus.INVALID,
-                RosterStatus.DRAFT,
+                RosterStatus.INVALID
             },
-            RosterStatus.APPROVED: {RosterStatus.INVALID, RosterStatus.DRAFT, RosterStatus.SUBMITTED},
-            RosterStatus.INVALID: {RosterStatus.DRAFT, RosterStatus.SUBMITTED, RosterStatus.APPROVED},
+            RosterStatus.APPROVED: {RosterStatus.INVALID, RosterStatus.SUBMITTED},
+            RosterStatus.INVALID: {RosterStatus.SUBMITTED, RosterStatus.APPROVED},
         }
 
         allowed = valid_transitions.get(current_status, set())

@@ -64,6 +64,13 @@ def flatten_dict(d, parent_key="", sep="."):
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
+            # If the dictionary is empty or has only None values, 
+            # and we want to avoid creating nested paths on null parents,
+            # we might need to handle it. 
+            # But the specific error is about {timekeeper1: null} in DB.
+            # If we send {"supplementarySheet": {"timekeeper1": {"firstName": "..."}}}
+            # and DB has supplementarySheet.timekeeper1 = null, 
+            # MongoDB fails to create the nested field.
             items.extend(flatten_dict(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
