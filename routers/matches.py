@@ -1019,7 +1019,7 @@ async def update_match(
     date_change_detected = any(field in match_to_update for field in date_affecting_fields)
 
     try:
-        set_data = {"$set": flatten_dict(match_to_update)}
+        set_data = {"$set": match_to_update}
         update_result = await mongodb["matches"].update_one({"_id": match_id}, set_data)
 
         if update_result.modified_count == 0:
