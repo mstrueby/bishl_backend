@@ -998,9 +998,13 @@ async def update_match(
                 t_alias, s_alias, r_alias, md_alias
             )
             ref_points = matchday_info.get("refPoints", 0)
-            if existing_match["referee1"] is not None:
+            if existing_match.get("referee1") is not None:
+                if "referee1" not in match_data:
+                    match_data["referee1"] = {}
                 match_data["referee1"]["points"] = ref_points
-            if existing_match["referee2"] is not None:
+            if existing_match.get("referee2") is not None:
+                if "referee2" not in match_data:
+                    match_data["referee2"] = {}
                 match_data["referee2"]["points"] = ref_points
 
     if DEBUG_LEVEL > 10:
