@@ -98,9 +98,9 @@ class MatchPermissionService:
         is_match_day = match_date is not None and match_date == today
 
         match_status = (match.get("matchStatus") or {}).get("key", "SCHEDULED")
-        is_live = match_status in ["INPROGRESS", "LIVE"]
+        is_in_progress = match_status == "INPROGRESS"
         is_scheduled = match_status == "SCHEDULED"
-        is_finished = match_status in ["FINISHED", "CANCELLED", "FORFEITED"] or (not is_live and not is_scheduled)
+        is_finished = match_status in ["FINISHED", "CANCELLED", "FORFEITED"] or (not is_in_progress and not is_scheduled)
 
         if is_match_in_past and not is_match_day:
             return False
@@ -137,7 +137,7 @@ class MatchPermissionService:
 
         if action == MatchAction.EDIT_ROSTER_AWAY:
             if is_away_admin:
-                if is_live:
+                if is_in_progress:
                     return False
                 if not is_finished:
                     return True
