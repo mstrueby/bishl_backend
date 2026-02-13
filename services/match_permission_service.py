@@ -139,8 +139,6 @@ class MatchPermissionService:
         logger.debug(f"is_away_admin: {is_away_admin}")
         logger.debug(f"is_valid_matchday_owner: {is_valid_matchday_owner}")
         logger.debug(f"is_matchday_owner_admin: {is_matchday_owner_admin}")
-        
-        
 
         if action == MatchAction.EDIT_ROSTER_HOME:
             if is_home_admin:
