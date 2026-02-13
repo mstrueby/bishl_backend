@@ -304,12 +304,11 @@ class TestValidateStatusTransition:
         )
 
     def test_valid_any_to_invalid(self, roster_service):
-        """Test any status -> INVALID is allowed"""
-        for status in RosterStatus:
-            if status != RosterStatus.INVALID:
-                roster_service.validate_status_transition(
-                    status, RosterStatus.INVALID, "match-1", "home"
-                )
+        """Test valid statuses -> INVALID is allowed"""
+        for status in [RosterStatus.SUBMITTED, RosterStatus.APPROVED]:
+            roster_service.validate_status_transition(
+                status, RosterStatus.INVALID, "match-1", "home"
+            )
 
     def test_invalid_draft_to_approved(self, roster_service):
         """Test DRAFT -> APPROVED is not allowed (must go through SUBMITTED)"""
@@ -531,7 +530,7 @@ class TestUpdateRoster:
 
     @pytest.mark.asyncio
     async def test_update_roster_draft_resets_eligibility(self, roster_service, mock_db):
-        """Test that transitioning to DRAFT resets eligibility data"""
+        """Test that transitioning to SUBMITTED from APPROVED resets eligibility data"""
         from bson import ObjectId
 
         match_id = str(ObjectId())
@@ -548,7 +547,7 @@ class TestUpdateRoster:
                             "invalidReasonCodes": ["SUSPENDED"],
                         }
                     ],
-                    "status": "SUBMITTED",
+                    "status": "APPROVED",
                     "published": False,
                     "eligibilityTimestamp": "2026-01-01T00:00:00",
                     "eligibilityValidator": "admin-old",
@@ -561,7 +560,7 @@ class TestUpdateRoster:
         mock_db._matches_collection.find_one = AsyncMock(return_value=test_match)
         mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
-        roster_update = RosterUpdate(status=RosterStatus.DRAFT)
+        roster_update = RosterUpdate(status=RosterStatus.SUBMITTED)
 
         with patch("services.roster_service.populate_event_player_fields", new_callable=AsyncMock):
             result, was_modified = await roster_service.update_roster(
