@@ -866,24 +866,29 @@ async def update_match(
         matchday_owner = await perm_service.get_matchday_owner(existing_match_for_perms)
         match_data_provided = match.model_dump(exclude_unset=True)
 
-        if "matchStatus" in match_data_provided:
-            perm_service.check_permission(
-                token_payload, existing_match_for_perms,
-                MatchAction.CHANGE_STATUS, matchday_owner,
+        admin_only_fields = ["tournament", "season", "round", "matchday", "published", "matchId"]
+        if any(k in match_data_provided for k in admin_only_fields):
+            raise AuthorizationException(
+                message="You do not have permission to modify these fields",
+                details={"fields": [k for k in admin_only_fields if k in match_data_provided]},
             )
-        if "supplementarySheet" in match_data_provided:
+
+        if any(k in match_data_provided for k in ["startDate", "venue"]):
             perm_service.check_permission(
                 token_payload, existing_match_for_perms,
-                MatchAction.EDIT_SUPPLEMENTARY, matchday_owner,
+                MatchAction.EDIT_SCHEDULING, matchday_owner,
+            )
+        if any(k in match_data_provided for k in ["matchStatus", "finishType"]):
+            perm_service.check_permission(
+                token_payload, existing_match_for_perms,
+                MatchAction.EDIT_STATUS_RESULT, matchday_owner,
             )
         if any(k in match_data_provided for k in [
-            "tournament", "season", "round", "matchday", "venue",
-            "startDate", "published", "matchSheetComplete",
-            "referee1", "referee2", "matchId",
+            "supplementarySheet", "referee1", "referee2", "matchSheetComplete",
         ]):
             perm_service.check_permission(
                 token_payload, existing_match_for_perms,
-                MatchAction.EDIT_MATCH, matchday_owner,
+                MatchAction.EDIT_MATCH_DATA, matchday_owner,
             )
 
     # Helper function to add _id to new nested documents and clean up ObjectId id fields

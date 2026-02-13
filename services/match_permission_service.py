@@ -10,15 +10,15 @@ MATCH_WINDOW_MINUTES = 30
 
 
 class MatchAction(str, Enum):
-    EDIT_MATCH = "EDIT_MATCH"
-    CHANGE_STATUS = "CHANGE_STATUS"
+    EDIT_SCHEDULING = "EDIT_SCHEDULING"
+    EDIT_STATUS_RESULT = "EDIT_STATUS_RESULT"
+    EDIT_MATCH_DATA = "EDIT_MATCH_DATA"
     EDIT_ROSTER_HOME = "EDIT_ROSTER_HOME"
     EDIT_ROSTER_AWAY = "EDIT_ROSTER_AWAY"
     EDIT_SCORES_HOME = "EDIT_SCORES_HOME"
     EDIT_SCORES_AWAY = "EDIT_SCORES_AWAY"
     EDIT_PENALTIES_HOME = "EDIT_PENALTIES_HOME"
     EDIT_PENALTIES_AWAY = "EDIT_PENALTIES_AWAY"
-    EDIT_SUPPLEMENTARY = "EDIT_SUPPLEMENTARY"
 
 
 class MatchPermissionService:
@@ -179,21 +179,11 @@ class MatchPermissionService:
                     return True
             return False
 
-        if action == MatchAction.CHANGE_STATUS:
+        if action in (MatchAction.EDIT_SCHEDULING, MatchAction.EDIT_STATUS_RESULT, MatchAction.EDIT_MATCH_DATA):
             if is_home_admin and starts_within_window and not is_valid_matchday_owner:
                 return True
             if is_matchday_owner_admin:
                 return True
-            return False
-
-        if action == MatchAction.EDIT_SUPPLEMENTARY:
-            if is_home_admin and starts_within_window and not is_valid_matchday_owner:
-                return True
-            if is_matchday_owner_admin:
-                return True
-            return False
-
-        if action == MatchAction.EDIT_MATCH:
             return False
 
         return False
