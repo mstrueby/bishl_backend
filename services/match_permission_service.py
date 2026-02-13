@@ -128,6 +128,20 @@ class MatchPermissionService:
             and is_match_day
         )
 
+        # debug log all variables
+        logger.debug(f"is_match_in_past: {is_match_in_past}")
+        logger.debug(f"is_match_day: {is_match_day}")
+        logger.debug(f"is_in_progress: {is_in_progress}")
+        logger.debug(f"is_scheduled: {is_scheduled}")
+        logger.debug(f"is_finished: {is_finished}")
+        logger.debug(f"starts_within_window: {starts_within_window}")
+        logger.debug(f"is_home_admin: {is_home_admin}")
+        logger.debug(f"is_away_admin: {is_away_admin}")
+        logger.debug(f"is_valid_matchday_owner: {is_valid_matchday_owner}")
+        logger.debug(f"is_matchday_owner_admin: {is_matchday_owner_admin}")
+        
+        
+
         if action == MatchAction.EDIT_ROSTER_HOME:
             if is_home_admin:
                 return True
