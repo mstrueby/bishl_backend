@@ -369,7 +369,9 @@ async def get_all_referees(
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
-    if not any(role in ["ADMIN", "REFEREE", "REF_ADMIN", "CLUB_ADMIN"] for role in token_payload.roles):
+    if not any(
+        role in ["ADMIN", "REFEREE", "REF_ADMIN", "CLUB_ADMIN"] for role in token_payload.roles
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     # Use pagination helper

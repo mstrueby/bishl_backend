@@ -36,15 +36,21 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256", description="Algorithm for JWT encoding")
 
     # Mail Configuration
-    MAIL_ENABLED: bool = Field(default=True, description="Enable/disable email sending (useful for dev)")
+    MAIL_ENABLED: bool = Field(
+        default=True, description="Enable/disable email sending (useful for dev)"
+    )
     MAIL_USERNAME: str = Field(default="", description="SMTP username")
     MAIL_PASSWORD: str = Field(default="", description="SMTP password")
     MAIL_FROM: str = Field(default="noreply@example.com", description="Default sender email")
     MAIL_PORT: int = Field(default=465, description="SMTP port (465 for SSL/TLS, 587 for STARTTLS)")
     MAIL_SERVER: str = Field(default="smtp.strato.de", description="SMTP server")
     MAIL_FROM_NAME: str = Field(default="App", description="Default sender name")
-    MAIL_STARTTLS: bool = Field(default=False, description="Use STARTTLS (port 587, upgrades to TLS)")
-    MAIL_SSL_TLS: bool = Field(default=True, description="Use implicit SSL/TLS (port 465, Strato default)")
+    MAIL_STARTTLS: bool = Field(
+        default=False, description="Use STARTTLS (port 587, upgrades to TLS)"
+    )
+    MAIL_SSL_TLS: bool = Field(
+        default=True, description="Use implicit SSL/TLS (port 465, Strato default)"
+    )
     USE_CREDENTIALS: bool = Field(default=True, description="Use SMTP credentials")
     VALIDATE_CERTS: bool = Field(default=True, description="Validate SSL certificates")
 

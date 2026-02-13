@@ -483,8 +483,6 @@ class TestUpdateRoster:
         """Test that transitioning to SUBMITTED resets eligibility data"""
         from bson import ObjectId
 
-        from models.matches import EventPlayer, RosterPlayer
-
         match_id = str(ObjectId())
         test_match = {
             "_id": match_id,

@@ -542,8 +542,12 @@ class TestStatsServiceIntegration:
                     trackings = payload["playUpTrackings"]
                     assert len(trackings) >= 1, "playUpTrackings should have at least one entry"
                     tracking = trackings[0]
-                    assert tracking["fromTeamId"] == "origin-team-id", "fromTeamId should match calledFromTeam"
-                    assert tracking["toTeamId"] == "test-team-id", "toTeamId should match match team"
+                    assert (
+                        tracking["fromTeamId"] == "origin-team-id"
+                    ), "fromTeamId should match calledFromTeam"
+                    assert (
+                        tracking["toTeamId"] == "test-team-id"
+                    ), "toTeamId should match match team"
                     assert "occurrences" in tracking, "tracking should have occurrences"
                     assert len(tracking["occurrences"]) >= 1, "Should have at least one occurrence"
 

@@ -1,10 +1,5 @@
 """Unit tests for roster validation helper functions and called player logic"""
 
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-
 from models.matches import CalledFromTeam, EventPlayer, LicenseStatus, RosterPlayer
 from models.players import LicenseInvalidReasonCode
 from routers.roster import (
@@ -49,18 +44,22 @@ def _make_assigned_teams(teams_data):
 class TestFindTeamInAssignedTeams:
 
     def test_finds_matching_team(self):
-        assigned = _make_assigned_teams([
-            {"teamId": "team-a", "status": "VALID"},
-            {"teamId": "team-b", "status": "INVALID"},
-        ])
+        assigned = _make_assigned_teams(
+            [
+                {"teamId": "team-a", "status": "VALID"},
+                {"teamId": "team-b", "status": "INVALID"},
+            ]
+        )
         result = _find_team_in_assigned_teams(assigned, "team-a")
         assert result is not None
         assert result["teamId"] == "team-a"
 
     def test_returns_none_when_not_found(self):
-        assigned = _make_assigned_teams([
-            {"teamId": "team-a", "status": "VALID"},
-        ])
+        assigned = _make_assigned_teams(
+            [
+                {"teamId": "team-a", "status": "VALID"},
+            ]
+        )
         result = _find_team_in_assigned_teams(assigned, "team-x")
         assert result is None
 
@@ -201,8 +200,7 @@ class TestCountCalledMatches:
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
                     "occurrences": [
-                        {"matchId": f"m{i}", "counted": True}
-                        for i in range(CALLED_MATCH_LIMIT)
+                        {"matchId": f"m{i}", "counted": True} for i in range(CALLED_MATCH_LIMIT)
                     ],
                 }
             ]
@@ -222,19 +220,19 @@ class TestValidateCalledPlayer:
         )
         validated_player = {
             "_id": "p1",
-            "assignedTeams": _make_assigned_teams([
-                {
-                    "teamId": "team-lower",
-                    "status": "VALID",
-                    "invalidReasonCodes": [],
-                }
-            ]),
+            "assignedTeams": _make_assigned_teams(
+                [
+                    {
+                        "teamId": "team-lower",
+                        "status": "VALID",
+                        "invalidReasonCodes": [],
+                    }
+                ]
+            ),
             "playUpTrackings": [],
         }
 
-        status, codes = _validate_called_player(
-            validated_player, roster_player, "team-higher", {}
-        )
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
         assert status == LicenseStatus.VALID
         assert codes == []
 
@@ -248,28 +246,25 @@ class TestValidateCalledPlayer:
         )
         validated_player = {
             "_id": "p1",
-            "assignedTeams": _make_assigned_teams([
-                {
-                    "teamId": "team-lower",
-                    "status": "VALID",
-                    "invalidReasonCodes": [],
-                }
-            ]),
+            "assignedTeams": _make_assigned_teams(
+                [
+                    {
+                        "teamId": "team-lower",
+                        "status": "VALID",
+                        "invalidReasonCodes": [],
+                    }
+                ]
+            ),
             "playUpTrackings": [
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
-                    "occurrences": [
-                        {"matchId": f"m{i}", "counted": True}
-                        for i in range(4)
-                    ],
+                    "occurrences": [{"matchId": f"m{i}", "counted": True} for i in range(4)],
                 }
             ],
         }
 
-        status, codes = _validate_called_player(
-            validated_player, roster_player, "team-higher", {}
-        )
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
         assert status == LicenseStatus.VALID
         assert codes == []
 
@@ -283,28 +278,25 @@ class TestValidateCalledPlayer:
         )
         validated_player = {
             "_id": "p1",
-            "assignedTeams": _make_assigned_teams([
-                {
-                    "teamId": "team-lower",
-                    "status": "VALID",
-                    "invalidReasonCodes": [],
-                }
-            ]),
+            "assignedTeams": _make_assigned_teams(
+                [
+                    {
+                        "teamId": "team-lower",
+                        "status": "VALID",
+                        "invalidReasonCodes": [],
+                    }
+                ]
+            ),
             "playUpTrackings": [
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
-                    "occurrences": [
-                        {"matchId": f"m{i}", "counted": True}
-                        for i in range(5)
-                    ],
+                    "occurrences": [{"matchId": f"m{i}", "counted": True} for i in range(5)],
                 }
             ],
         }
 
-        status, codes = _validate_called_player(
-            validated_player, roster_player, "team-higher", {}
-        )
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
         assert status == LicenseStatus.INVALID
         assert codes == [LicenseInvalidReasonCode.CALLED_LIMIT_EXCEEDED]
 
@@ -318,28 +310,25 @@ class TestValidateCalledPlayer:
         )
         validated_player = {
             "_id": "p1",
-            "assignedTeams": _make_assigned_teams([
-                {
-                    "teamId": "team-lower",
-                    "status": "VALID",
-                    "invalidReasonCodes": [],
-                }
-            ]),
+            "assignedTeams": _make_assigned_teams(
+                [
+                    {
+                        "teamId": "team-lower",
+                        "status": "VALID",
+                        "invalidReasonCodes": [],
+                    }
+                ]
+            ),
             "playUpTrackings": [
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
-                    "occurrences": [
-                        {"matchId": f"m{i}", "counted": True}
-                        for i in range(6)
-                    ],
+                    "occurrences": [{"matchId": f"m{i}", "counted": True} for i in range(6)],
                 }
             ],
         }
 
-        status, codes = _validate_called_player(
-            validated_player, roster_player, "team-higher", {}
-        )
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
         assert status == LicenseStatus.INVALID
         assert codes == [LicenseInvalidReasonCode.CALLED_LIMIT_EXCEEDED]
 
@@ -353,19 +342,19 @@ class TestValidateCalledPlayer:
         )
         validated_player = {
             "_id": "p1",
-            "assignedTeams": _make_assigned_teams([
-                {
-                    "teamId": "team-lower",
-                    "status": "INVALID",
-                    "invalidReasonCodes": ["SUSPENDED"],
-                }
-            ]),
+            "assignedTeams": _make_assigned_teams(
+                [
+                    {
+                        "teamId": "team-lower",
+                        "status": "INVALID",
+                        "invalidReasonCodes": ["SUSPENDED"],
+                    }
+                ]
+            ),
             "playUpTrackings": [],
         }
 
-        status, codes = _validate_called_player(
-            validated_player, roster_player, "team-higher", {}
-        )
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
         assert status == LicenseStatus.INVALID
         assert LicenseInvalidReasonCode.SUSPENDED in codes
 
@@ -377,14 +366,12 @@ class TestValidateCalledPlayer:
         )
         validated_player = {
             "_id": "p1",
-            "assignedTeams": _make_assigned_teams([
-                {"teamId": "team-lower", "status": "VALID", "invalidReasonCodes": []}
-            ]),
+            "assignedTeams": _make_assigned_teams(
+                [{"teamId": "team-lower", "status": "VALID", "invalidReasonCodes": []}]
+            ),
         }
 
-        status, codes = _validate_called_player(
-            validated_player, roster_player, "team-higher", {}
-        )
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
         assert status == LicenseStatus.INVALID
         assert codes == []
 
@@ -398,14 +385,12 @@ class TestValidateCalledPlayer:
         )
         validated_player = {
             "_id": "p1",
-            "assignedTeams": _make_assigned_teams([
-                {"teamId": "team-lower", "status": "VALID", "invalidReasonCodes": []}
-            ]),
+            "assignedTeams": _make_assigned_teams(
+                [{"teamId": "team-lower", "status": "VALID", "invalidReasonCodes": []}]
+            ),
         }
 
-        status, codes = _validate_called_player(
-            validated_player, roster_player, "team-higher", {}
-        )
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
         assert status == LicenseStatus.INVALID
         assert codes == []
 
@@ -419,13 +404,15 @@ class TestValidateCalledPlayer:
         )
         validated_player = {
             "_id": "p1",
-            "assignedTeams": _make_assigned_teams([
-                {
-                    "teamId": "team-lower",
-                    "status": "VALID",
-                    "invalidReasonCodes": [],
-                }
-            ]),
+            "assignedTeams": _make_assigned_teams(
+                [
+                    {
+                        "teamId": "team-lower",
+                        "status": "VALID",
+                        "invalidReasonCodes": [],
+                    }
+                ]
+            ),
             "playUpTrackings": [
                 {
                     "toTeamId": "team-higher",
@@ -442,9 +429,7 @@ class TestValidateCalledPlayer:
             ],
         }
 
-        status, codes = _validate_called_player(
-            validated_player, roster_player, "team-higher", {}
-        )
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
         assert status == LicenseStatus.VALID
         assert codes == []
 
@@ -453,9 +438,9 @@ class TestValidateRegularPlayer:
 
     def test_valid_player(self):
         validated_player = {
-            "assignedTeams": _make_assigned_teams([
-                {"teamId": "team-a", "status": "VALID", "invalidReasonCodes": []}
-            ])
+            "assignedTeams": _make_assigned_teams(
+                [{"teamId": "team-a", "status": "VALID", "invalidReasonCodes": []}]
+            )
         }
         status, codes = _validate_regular_player(validated_player, "p1", "team-a")
         assert status == LicenseStatus.VALID
@@ -463,13 +448,15 @@ class TestValidateRegularPlayer:
 
     def test_invalid_player_with_reasons(self):
         validated_player = {
-            "assignedTeams": _make_assigned_teams([
-                {
-                    "teamId": "team-a",
-                    "status": "INVALID",
-                    "invalidReasonCodes": ["SUSPENDED"],
-                }
-            ])
+            "assignedTeams": _make_assigned_teams(
+                [
+                    {
+                        "teamId": "team-a",
+                        "status": "INVALID",
+                        "invalidReasonCodes": ["SUSPENDED"],
+                    }
+                ]
+            )
         }
         status, codes = _validate_regular_player(validated_player, "p1", "team-a")
         assert status == LicenseStatus.INVALID
@@ -477,9 +464,9 @@ class TestValidateRegularPlayer:
 
     def test_player_not_assigned_to_team(self):
         validated_player = {
-            "assignedTeams": _make_assigned_teams([
-                {"teamId": "team-other", "status": "VALID", "invalidReasonCodes": []}
-            ])
+            "assignedTeams": _make_assigned_teams(
+                [{"teamId": "team-other", "status": "VALID", "invalidReasonCodes": []}]
+            )
         }
         status, codes = _validate_regular_player(validated_player, "p1", "team-a")
         assert status == LicenseStatus.INVALID

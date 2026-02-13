@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Body, Depends, Path, Request
 
 from authentication import AuthHandler, TokenPayload
-from exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
+from exceptions import ResourceNotFoundException, ValidationException
 from logging_config import logger
 from models.matches import LicenseStatus, Roster, RosterPlayer, RosterStatus, RosterUpdate
 from models.players import LicenseInvalidReasonCode
@@ -153,9 +153,7 @@ async def update_roster(
     return StandardResponse(success=True, data=updated_roster, message=message)
 
 
-def _find_team_in_assigned_teams(
-    assigned_teams: list[dict], target_team_id: str
-) -> dict | None:
+def _find_team_in_assigned_teams(assigned_teams: list[dict], target_team_id: str) -> dict | None:
     for club in assigned_teams:
         for team in club.get("teams", []):
             if team.get("teamId") == target_team_id:
@@ -216,24 +214,20 @@ def _validate_called_player(
 
     if not origin_team_id:
         logger.warning(
-            f"Called player {player_id} has no calledFromTeam, "
-            f"cannot validate origin license"
+            f"Called player {player_id} has no calledFromTeam, " f"cannot validate origin license"
         )
         return LicenseStatus.INVALID, reason_codes
 
     origin_team = _find_team_in_assigned_teams(assigned_teams, origin_team_id)
     if not origin_team:
         logger.warning(
-            f"Called player {player_id} origin team {origin_team_id} "
-            f"not found in assignedTeams"
+            f"Called player {player_id} origin team {origin_team_id} " f"not found in assignedTeams"
         )
         return LicenseStatus.INVALID, reason_codes
 
     origin_status, origin_reasons = _extract_status_and_reasons(origin_team)
     if origin_status != LicenseStatus.VALID:
-        logger.info(
-            f"Called player {player_id} origin license is {origin_status.value}"
-        )
+        logger.info(f"Called player {player_id} origin license is {origin_status.value}")
         return LicenseStatus.INVALID, origin_reasons
 
     called_count = _count_called_matches(validated_player, match_team_id)
@@ -263,9 +257,7 @@ def _validate_regular_player(
 
     team = _find_team_in_assigned_teams(assigned_teams, team_id)
     if not team:
-        logger.warning(
-            f"Player {player_id} not assigned to team {team_id}, marking as INVALID"
-        )
+        logger.warning(f"Player {player_id} not assigned to team {team_id}, marking as INVALID")
         return LicenseStatus.INVALID, []
 
     return _extract_status_and_reasons(team)

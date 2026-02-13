@@ -24,7 +24,7 @@ async def send_email(
     subject: str, recipients: list, body: str, cc: list | None = None, reply_to: list | None = None
 ):
     """Send email.
-    
+
     Emails can be disabled in development by setting MAIL_ENABLED=False.
     When disabled, emails are logged but not sent.
     """

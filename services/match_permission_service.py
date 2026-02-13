@@ -26,9 +26,7 @@ class MatchPermissionService:
     def __init__(self, mongodb=None):
         self.mongodb = mongodb
 
-    async def get_matchday_owner(
-        self, match: dict
-    ) -> dict | None:
+    async def get_matchday_owner(self, match: dict) -> dict | None:
         if self.mongodb is None:
             return None
         t_alias = (match.get("tournament") or {}).get("alias")
@@ -100,7 +98,9 @@ class MatchPermissionService:
         match_status = (match.get("matchStatus") or {}).get("key", "SCHEDULED")
         is_in_progress = match_status == "INPROGRESS"
         is_scheduled = match_status == "SCHEDULED"
-        is_finished = match_status in ["FINISHED", "CANCELLED", "FORFEITED"] or (not is_in_progress and not is_scheduled)
+        is_finished = match_status in ["FINISHED", "CANCELLED", "FORFEITED"] or (
+            not is_in_progress and not is_scheduled
+        )
 
         if is_match_in_past and not is_match_day:
             return False
@@ -118,8 +118,7 @@ class MatchPermissionService:
         is_away_admin = user_club_id and user_club_id == away_club_id
 
         is_valid_matchday_owner = (
-            matchday_owner is not None
-            and matchday_owner.get("clubId") is not None
+            matchday_owner is not None and matchday_owner.get("clubId") is not None
         )
         is_matchday_owner_admin = (
             is_valid_matchday_owner
@@ -167,8 +166,12 @@ class MatchPermissionService:
                 return True
             return False
 
-        if action in (MatchAction.EDIT_SCORES_HOME, MatchAction.EDIT_SCORES_AWAY,
-                       MatchAction.EDIT_PENALTIES_HOME, MatchAction.EDIT_PENALTIES_AWAY):
+        if action in (
+            MatchAction.EDIT_SCORES_HOME,
+            MatchAction.EDIT_SCORES_AWAY,
+            MatchAction.EDIT_PENALTIES_HOME,
+            MatchAction.EDIT_PENALTIES_AWAY,
+        ):
             if is_finished and is_match_day:
                 if is_home_admin or is_matchday_owner_admin:
                     return True
@@ -179,7 +182,11 @@ class MatchPermissionService:
                     return True
             return False
 
-        if action in (MatchAction.EDIT_SCHEDULING, MatchAction.EDIT_STATUS_RESULT, MatchAction.EDIT_MATCH_DATA):
+        if action in (
+            MatchAction.EDIT_SCHEDULING,
+            MatchAction.EDIT_STATUS_RESULT,
+            MatchAction.EDIT_MATCH_DATA,
+        ):
             if is_home_admin and starts_within_window and not is_valid_matchday_owner:
                 return True
             if is_matchday_owner_admin:

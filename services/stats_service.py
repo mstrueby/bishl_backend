@@ -1333,21 +1333,25 @@ class StatsService:
                     roster = roster_data if roster_data else []
 
                 for roster_player in roster:
-                    if roster_player.get("player", {}).get("playerId") == player_id and roster_player.get("called", False):
+                    if roster_player.get("player", {}).get(
+                        "playerId"
+                    ) == player_id and roster_player.get("called", False):
                         called_from_team = roster_player.get("calledFromTeam")
                         if called_from_team:
                             to_team = match.get(team_flag, {}).get("team", {})
                             from_team_id = called_from_team.get("teamId")
                             to_team_id = to_team.get("teamId")
                             if from_team_id and to_team_id:
-                                occurrences.append({
-                                    "tournamentAlias": t_alias,
-                                    "seasonAlias": s_alias,
-                                    "fromTeamId": from_team_id,
-                                    "toTeamId": to_team_id,
-                                    "matchId": match_id,
-                                    "matchStartDate": match_start_date,
-                                })
+                                occurrences.append(
+                                    {
+                                        "tournamentAlias": t_alias,
+                                        "seasonAlias": s_alias,
+                                        "fromTeamId": from_team_id,
+                                        "toTeamId": to_team_id,
+                                        "matchId": match_id,
+                                        "matchStartDate": match_start_date,
+                                    }
+                                )
 
         return occurrences
 
@@ -1383,27 +1387,35 @@ class StatsService:
                     and tracking.get("toTeamId") == to_team_id
                 ):
                     tracking_found = True
-                    existing_match_ids = [occ.get("matchId") for occ in tracking.get("occurrences", [])]
+                    existing_match_ids = [
+                        occ.get("matchId") for occ in tracking.get("occurrences", [])
+                    ]
                     if match_id not in existing_match_ids:
-                        tracking.setdefault("occurrences", []).append({
-                            "matchId": match_id,
-                            "matchStartDate": match_start_date,
-                            "counted": True,
-                        })
+                        tracking.setdefault("occurrences", []).append(
+                            {
+                                "matchId": match_id,
+                                "matchStartDate": match_start_date,
+                                "counted": True,
+                            }
+                        )
                     break
 
             if not tracking_found:
-                existing_trackings.append({
-                    "tournamentAlias": t_alias,
-                    "seasonAlias": s_alias,
-                    "fromTeamId": from_team_id,
-                    "toTeamId": to_team_id,
-                    "occurrences": [{
-                        "matchId": match_id,
-                        "matchStartDate": match_start_date,
-                        "counted": True,
-                    }],
-                })
+                existing_trackings.append(
+                    {
+                        "tournamentAlias": t_alias,
+                        "seasonAlias": s_alias,
+                        "fromTeamId": from_team_id,
+                        "toTeamId": to_team_id,
+                        "occurrences": [
+                            {
+                                "matchId": match_id,
+                                "matchStartDate": match_start_date,
+                                "counted": True,
+                            }
+                        ],
+                    }
+                )
 
         try:
             update_response = await client.patch(

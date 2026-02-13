@@ -199,10 +199,7 @@ class RosterService:
         """
         valid_transitions = {
             RosterStatus.DRAFT: {RosterStatus.SUBMITTED},
-            RosterStatus.SUBMITTED: {
-                RosterStatus.APPROVED,
-                RosterStatus.INVALID
-            },
+            RosterStatus.SUBMITTED: {RosterStatus.APPROVED, RosterStatus.INVALID},
             RosterStatus.APPROVED: {RosterStatus.INVALID, RosterStatus.SUBMITTED},
             RosterStatus.INVALID: {RosterStatus.SUBMITTED, RosterStatus.APPROVED},
         }

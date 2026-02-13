@@ -96,10 +96,10 @@ async def pass_check_request(
 
     admin_emails = [admin["email"] for admin in player_admins if "email" in admin]
 
-    # Get club name of from_user
-    from_user_club_name = "unbekanntem Verein"
-    if from_user.get("club") and from_user["club"].get("clubName"):
-        from_user_club_name = from_user["club"]["clubName"]
+    # Get club name of from_user - not used right now
+    # from_user_club_name = "unbekanntem Verein"
+    # if from_user.get("club") and from_user["club"].get("clubName"):
+    #    from_user_club_name = from_user["club"]["clubName"]
 
     # Build email content
     subject = f"[bishl.de] Bitte die Pässe von {player.firstName} {player.lastName} überprüfen"

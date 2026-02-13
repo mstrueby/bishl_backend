@@ -26,12 +26,11 @@ from models.matches import (
     RosterStatus,
 )
 from models.responses import PaginatedResponse, StandardResponse
-from services.pagination import PaginationHelper
 from services.match_permission_service import MatchAction, MatchPermissionService
+from services.pagination import PaginationHelper
 from services.stats_service import StatsService
 from services.tournament_service import TournamentService
 from utils import (
-    flatten_dict,
     my_jsonable_encoder,
     parse_time_from_seconds,
     parse_time_to_seconds,
@@ -875,20 +874,32 @@ async def update_match(
 
         if any(k in match_data_provided for k in ["startDate", "venue"]):
             perm_service.check_permission(
-                token_payload, existing_match_for_perms,
-                MatchAction.EDIT_SCHEDULING, matchday_owner,
+                token_payload,
+                existing_match_for_perms,
+                MatchAction.EDIT_SCHEDULING,
+                matchday_owner,
             )
         if any(k in match_data_provided for k in ["matchStatus", "finishType"]):
             perm_service.check_permission(
-                token_payload, existing_match_for_perms,
-                MatchAction.EDIT_STATUS_RESULT, matchday_owner,
+                token_payload,
+                existing_match_for_perms,
+                MatchAction.EDIT_STATUS_RESULT,
+                matchday_owner,
             )
-        if any(k in match_data_provided for k in [
-            "supplementarySheet", "referee1", "referee2", "matchSheetComplete",
-        ]):
+        if any(
+            k in match_data_provided
+            for k in [
+                "supplementarySheet",
+                "referee1",
+                "referee2",
+                "matchSheetComplete",
+            ]
+        ):
             perm_service.check_permission(
-                token_payload, existing_match_for_perms,
-                MatchAction.EDIT_MATCH_DATA, matchday_owner,
+                token_payload,
+                existing_match_for_perms,
+                MatchAction.EDIT_MATCH_DATA,
+                matchday_owner,
             )
 
     # Helper function to add _id to new nested documents and clean up ObjectId id fields
