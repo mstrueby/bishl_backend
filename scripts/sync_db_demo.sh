@@ -3,7 +3,7 @@
 # Configuration
 # DB_URL_PROD and DB_URL (demo) should be set in environment variables/secrets
 SOURCE_URI="${DB_URL_PROD}"
-TARGET_URI="${DB_URL}"
+TARGET_URI="${DB_URL_DEMO}"
 DB_NAME="bishl"
 DEMO_DB_NAME="bishl_demo"
 
@@ -26,7 +26,7 @@ mongodump --uri="$SOURCE_URI" --db="$DB_NAME" --out="$DUMP_DIR"
 # We need to drop all collections except 'users'
 echo "Cleaning up target database collections (except users)..."
 # Get all collection names except 'users' and drop them
-mongo "$TARGET_URI/$DEMO_DB_NAME" --eval "db.getCollectionNames().filter(c => c !== 'users' && !c.startsWith('system.')).forEach(c => db.getCollection(c).drop())"
+mongosh "$TARGET_URI/$DEMO_DB_NAME" --eval "db.getCollectionNames().filter(c => c !== 'users' && !c.startsWith('system.')).forEach(c => db.getCollection(c).drop())"
 
 # 4. Restore to bishl_demo, excluding the 'users' collection from the dump
 echo "Restoring collections (excluding users)..."
