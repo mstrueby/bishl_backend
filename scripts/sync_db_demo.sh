@@ -30,7 +30,7 @@ mongosh "$TARGET_URI/$DEMO_DB_NAME" --eval "db.getCollectionNames().filter(c => 
 
 # 4. Restore to bishl_demo, excluding the 'users' collection from the dump
 echo "Restoring collections (excluding users)..."
-mongorestore --uri="$TARGET_URI" --nsInclude="$DB_NAME.*" --nsFrom="$DB_NAME.*" --nsTo="$DEMO_DB_NAME.*" --nsExclude="$DB_NAME.users" "$DUMP_DIR/$DB_NAME"
+mongorestore --uri="$TARGET_URI" --nsInclude="$DEMO_DB_NAME.*" --nsFrom="$DB_NAME.*" --nsTo="$DEMO_DB_NAME.*" --nsExclude="$DEMO_DB_NAME.users" "$DUMP_DIR/$DB_NAME"
 
 # 5. Cleanup
 rm -rf "$DUMP_DIR"
