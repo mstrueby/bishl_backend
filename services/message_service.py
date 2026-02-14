@@ -150,8 +150,7 @@ class MessageService:
         try:
             if settings.ENVIRONMENT == "production":
                 email_subject = "BISHL - Schiedsrichter-Information"
-                newline = "\n"
-                email_content = f"<p>{content.replace(newline, '<br>')}</p>"
+                email_content = f"<p>{content.replace('\n', '<br>')}</p>"
 
                 await send_email(
                     subject=email_subject, recipients=[referee_email], body=email_content
