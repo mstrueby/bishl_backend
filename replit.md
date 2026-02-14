@@ -119,4 +119,9 @@ Required environment variables:
 - `CLDY_*`: Cloudinary credentials
 
 ### Python Dependencies
-Key packages: FastAPI, Motor, Pydantic, PyJWT, Argon2-cffi, Passlib, FastAPI-Mail, Cloudinary, Loguru
+Key packages: FastAPI, Motor, Pydantic (v2), pydantic-settings, PyJWT, Argon2-cffi, Passlib, FastAPI-Mail, Cloudinary, Loguru, httpx, aiohttp, isodate, python-multipart
+
+### Render.com Deployment (Updated February 2026)
+- `.python-version` file pins Python to 3.11.11 (Render defaults to Python 3.14 which is incompatible with some dependencies)
+- Start command: `uvicorn main:app --host 0.0.0.0 --port 5000`
+- All dependencies must be listed in `requirements.txt` with upper-bound version constraints to prevent breaking changes
