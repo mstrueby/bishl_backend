@@ -23,7 +23,7 @@ pytest_plugins = ("pytest_asyncio",)
 os.environ["ENV_FILE"] = ".env.test"
 os.environ["DB_NAME"] = "bishl_test"
 os.environ["DB_URL"] = (
-    "mongodb+srv://test_user:YmIjOnKWuHcsvVbI@mflix.fmroc7j.mongodb.net/?retryWrites=true&w=majority&appName=mflix"
+    "mongodb+srv://test_user:CkSGeL4C4bkxkt3z@mflix.fmroc7j.mongodb.net/?retryWrites=true&w=majority&appName=mflix"
 )
 os.environ["ENVIRONMENT"] = "test"
 
