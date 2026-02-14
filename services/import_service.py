@@ -8,7 +8,6 @@ Provides common functionality for all data import operations:
 - Progress tracking and logging
 """
 
-import os
 from collections.abc import Callable
 from typing import Any
 
@@ -39,13 +38,13 @@ class ImportService:
 
         # Set environment-specific URLs
         if use_production:
-            self.db_url = os.environ["DB_URL_PROD"]
+            self.db_url = settings.DB_URL_PROD
             self.db_name = "bishl"
-            self.base_url = os.environ.get("BE_API_URL_PROD", settings.BE_API_URL)
+            self.base_url = settings.BE_API_URL_PROD or settings.BE_API_URL
         else:
-            self.db_url = os.environ["DB_URL"]
+            self.db_url = settings.DB_URL
             self.db_name = "bishl_dev"
-            self.base_url = os.environ.get("BE_API_URL", settings.BE_API_URL)
+            self.base_url = settings.BE_API_URL
 
         logger.info(
             f"Import Service initialized for {'PRODUCTION' if use_production else 'DEVELOPMENT'}"
@@ -72,8 +71,8 @@ class ImportService:
         """
         login_url = f"{self.base_url}/users/login"
         login_data = {
-            "email": os.environ["SYS_ADMIN_EMAIL"],
-            "password": os.environ["SYS_ADMIN_PASSWORD"],
+            "email": settings.SYS_ADMIN_EMAIL,
+            "password": settings.SYS_ADMIN_PASSWORD,
         }
 
         try:

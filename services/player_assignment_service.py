@@ -2039,9 +2039,9 @@ class PlayerAssignmentService:
         }
 
         # Get ISHD API credentials from environment
-        ISHD_API_URL = os.environ.get("ISHD_API_URL")
-        ISHD_API_USER = os.environ.get("ISHD_API_USER")
-        ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
+        ISHD_API_URL = settings.ISHD_API_URL
+        ISHD_API_USER = settings.ISHD_API_USER
+        ISHD_API_PASS = settings.ISHD_API_PASS
 
         # Helper class to store club/team info for processing
         class IshdTeams:

@@ -1,4 +1,3 @@
-import os
 import time
 from functools import wraps
 from typing import Any
@@ -11,6 +10,7 @@ from exceptions.custom_exceptions import (
     StatsCalculationException,
     ValidationException,
 )
+from config import settings
 from logging_config import logger
 from services.performance_monitor import monitor_query
 from services.tournament_service import TournamentService
@@ -1199,7 +1199,7 @@ class StatsService:
         self, player_ids: list[str], matches: list[dict], t_alias: str, s_alias: str, token_payload
     ) -> None:
         """Check calledMatches for affected players and update assignedTeams if needed."""
-        base_url = os.environ.get("BE_API_URL", "")
+        base_url = settings.BE_API_URL
         if not base_url or not token_payload:
             logger.debug("Skipping called teams processing (no base_url or token)")
             return

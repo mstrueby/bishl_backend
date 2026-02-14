@@ -1,5 +1,4 @@
 import json
-import os
 from datetime import datetime
 
 import cloudinary
@@ -28,13 +27,14 @@ from logging_config import logger
 from models.posts import PostBase, PostDB, PostUpdate, Revision, User
 from models.responses import PaginatedResponse, StandardResponse
 from services.pagination import PaginationHelper
+from config import settings
 from utils import configure_cloudinary, my_jsonable_encoder
 
 router = APIRouter()
 auth = AuthHandler()
 configure_cloudinary()
 
-DEBUG_LEVEL = int(os.environ["DEBUG_LEVEL"])
+DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 
 async def handle_image_upload(image: UploadFile, public_id: str):

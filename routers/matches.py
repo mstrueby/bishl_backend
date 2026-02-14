@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -30,6 +29,7 @@ from services.match_permission_service import MatchAction, MatchPermissionServic
 from services.pagination import PaginationHelper
 from services.stats_service import StatsService
 from services.tournament_service import TournamentService
+from config import settings
 from utils import (
     my_jsonable_encoder,
     parse_time_from_seconds,
@@ -40,7 +40,7 @@ from utils import (
 router = APIRouter()
 auth_handler = AuthHandler()
 stats_service = None  # Will be initialized with MongoDB instance
-DEBUG_LEVEL = int(os.environ.get("DEBUG_LEVEL", 0))
+DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 
 # Prepare to convert matchSeconds to seconds for accurate comparison
@@ -178,7 +178,7 @@ async def get_matches_calendar(
     """
     mongodb = request.app.state.mongodb
 
-    query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
+    query: dict[str, Any] = {"season.alias": season if season else settings.CURRENT_SEASON}
 
     if tournament:
         query["tournament.alias"] = tournament
@@ -257,7 +257,7 @@ async def get_todays_matches(
     end_of_day = datetime.combine(today, datetime.max.time())
 
     query: dict[str, Any] = {
-        "season.alias": season if season else os.environ["CURRENT_SEASON"],
+        "season.alias": season if season else settings.CURRENT_SEASON,
         "startDate": {"$gte": start_of_day, "$lte": end_of_day},
     }
 
@@ -338,7 +338,7 @@ async def get_upcoming_matches(
 
     # Build base query to find minimum start date
     base_query: dict[str, Any] = {
-        "season.alias": season if season else os.environ["CURRENT_SEASON"],
+        "season.alias": season if season else settings.CURRENT_SEASON,
         "startDate": {"$gte": tomorrow_start},
     }
 
@@ -450,7 +450,7 @@ async def get_rest_of_week_matches(
 
     # Build base query
     base_query: dict[str, Any] = {
-        "season.alias": season if season else os.environ["CURRENT_SEASON"]
+        "season.alias": season if season else settings.CURRENT_SEASON
     }
 
     if tournament:
@@ -553,7 +553,7 @@ async def get_matches(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(100, ge=1, le=500, description="Items per page"),
 ) -> JSONResponse:
-    query: dict[str, Any] = {"season.alias": season if season else os.environ["CURRENT_SEASON"]}
+    query: dict[str, Any] = {"season.alias": season if season else settings.CURRENT_SEASON}
     if tournament:
         query["tournament.alias"] = tournament
     if round:

@@ -1,6 +1,5 @@
 # filename routers/users.py
 import json
-import os
 from datetime import date
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, status
@@ -28,7 +27,7 @@ async def calculate_referee_points(mongodb, user_id):
     """
     Calculate referee points for a user based on matches in current season
     """
-    current_season = os.environ["CURRENT_SEASON"]
+    current_season = settings.CURRENT_SEASON
     matches = (
         await mongodb["matches"]
         .find(
@@ -454,7 +453,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     reset_token = auth.encode_reset_token(user)
 
     # Send password reset email (skip in test and development environments)
-    reset_url = f"{os.environ.get('FRONTEND_URL', '')}/password-reset-form?token={reset_token}"
+    reset_url = f"{settings.FRONTEND_URL}/password-reset-form?token={reset_token}"
 
     # Only send email in production environment
     if settings.ENVIRONMENT == "production":

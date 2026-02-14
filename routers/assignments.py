@@ -1,5 +1,4 @@
 # filename: routers/assignments.py
-import os
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -18,14 +17,15 @@ from logging_config import logger
 from mail_service import send_email
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status
 from models.responses import StandardResponse
+from config import settings
 from services.assignment_service import AssignmentService
 from services.message_service import MessageService
 
-DEBUG_LEVEL = int(os.environ.get("DEBUG_LEVEL", 0))
+DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = os.environ["BE_API_URL"]
+BASE_URL = settings.BE_API_URL
 
 
 class AllStatuses(Enum):
@@ -640,7 +640,7 @@ async def get_unassigned_matches_in_14_days(
     from datetime import timedelta
 
     target_date = datetime.now() + timedelta(
-        days=14 if os.environ.get("ENV") == "production" else 14
+        days=14 if settings.ENVIRONMENT == "production" else 14
     )
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
@@ -849,9 +849,9 @@ async def get_unassigned_matches_in_14_days(
 
                 # Send email to all club admins
                 admin_emails = [admin.get("email") for admin in club_admins if admin.get("email")]
-                ligenleitung_email = os.environ.get("LIGENLEITUNG_EMAIL")
+                ligenleitung_email = settings.LIGENLEITUNG_EMAIL
 
-                if admin_emails and os.environ.get("ENV") == "production":
+                if admin_emails and settings.ENVIRONMENT == "production":
                     # Add LIGENLEITUNG_EMAIL to CC when club admin emails are available
                     cc_emails = [ligenleitung_email] if ligenleitung_email else []
                     await send_email(
@@ -864,9 +864,9 @@ async def get_unassigned_matches_in_14_days(
                     print(
                         f"Email sent to {len(admin_emails)} club admins for {club_name} with CC to {cc_emails}"
                     )
-                elif admin_emails and os.environ.get("ENV") == "development":
+                elif admin_emails and settings.ENVIRONMENT == "development":
                     # In development, send to admin user instead
-                    admin_user_email = os.environ.get("ADMIN_USER")
+                    admin_user_email = settings.ADMIN_USER
                     if admin_user_email:
                         cc_emails = []
                         # Modify email content to indicate it's a test email
@@ -892,7 +892,7 @@ async def get_unassigned_matches_in_14_days(
                         print(f"ADMIN_USER not set in environment, email not sent for {club_name}")
                 elif ligenleitung_email:
                     # No club admin emails available, send only to LIGENLEITUNG_EMAIL
-                    if os.environ.get("ENV") == "production":
+                    if settings.ENVIRONMENT == "production":
                         await send_email(
                             subject=email_subject,
                             recipients=[ligenleitung_email],
@@ -904,7 +904,7 @@ async def get_unassigned_matches_in_14_days(
                         )
                     else:
                         # In development, send to admin user instead
-                        admin_user_email = os.environ.get("ADMIN_USER")
+                        admin_user_email = settings.ADMIN_USER
                         if admin_user_email:
                             test_email_content = f"""
                             <h2>BISHL - Schiedsrichter-Einteilung erforderlich (TEST EMAIL)</h2>

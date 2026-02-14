@@ -862,9 +862,9 @@ async def verify_ishd_data(
     # if "ADMIN" not in token_payload.roles:
     #    raise AuthorizationException("Admin role required for ISHD verification")
 
-    ISHD_API_URL = os.environ.get("ISHD_API_URL")
-    ISHD_API_USER = os.environ.get("ISHD_API_USER")
-    ISHD_API_PASS = os.environ.get("ISHD_API_PASS")
+    ISHD_API_URL = settings.ISHD_API_URL
+    ISHD_API_USER = settings.ISHD_API_USER
+    ISHD_API_PASS = settings.ISHD_API_PASS
 
     verification_results: dict[str, list[Any]] = {
         "missing_in_ishd": [],

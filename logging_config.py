@@ -12,7 +12,9 @@ import sys
 
 from loguru import logger
 
-DEBUG_LEVEL = int(os.environ.get("DEBUG_LEVEL", 0))
+from config import settings
+
+DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 # Remove default handler
 logger.remove()

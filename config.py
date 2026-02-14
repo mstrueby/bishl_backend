@@ -11,12 +11,16 @@ class Settings(BaseSettings):
 
     # API
     BE_API_URL: str = Field(default="", description="Backend API base URL")
+    BE_API_URL_PROD: str = Field(default="", description="Production backend API base URL")
+    DB_URL_PROD: str = Field(default="", description="Production MongoDB connection URL")
+    FRONTEND_URL: str = Field(default="", description="Frontend application URL for links in emails")
 
     # Application Settings
     DEBUG_LEVEL: int = Field(default=0, description="Debug verbosity level (0-2)")
     ENVIRONMENT: str = Field(
         default="development", description="Environment: development, staging, production"
     )
+    CURRENT_SEASON: str = Field(default="", description="Current active season alias")
     RESULTS_PER_PAGE: int = Field(
         default=20, description="Default number of results per page for pagination"
     )
@@ -58,6 +62,18 @@ class Settings(BaseSettings):
     CLDY_CLOUD_NAME: str = Field(default="", description="Cloudinary cloud name")
     CLDY_API_KEY: str = Field(default="", description="Cloudinary API key")
     CLDY_API_SECRET: str = Field(default="", description="Cloudinary API secret")
+
+    # ISHD API Configuration
+    ISHD_API_URL: str = Field(default="", description="ISHD federation API URL")
+    ISHD_API_USER: str = Field(default="", description="ISHD API username")
+    ISHD_API_PASS: str = Field(default="", description="ISHD API password")
+
+    # Admin & Notification
+    LIGENLEITUNG_EMAIL: str = Field(default="", description="Liga management email address")
+    ADMIN_USER: str = Field(default="", description="Admin user email for dev notifications")
+    MAIL_TEST_RECEIPIENT: str = Field(default="", description="Test email recipient")
+    SYS_ADMIN_EMAIL: str = Field(default="", description="System admin email for import scripts")
+    SYS_ADMIN_PASSWORD: str = Field(default="", description="System admin password for import scripts")
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

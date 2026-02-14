@@ -1,7 +1,6 @@
-import os
-
 from fastapi import APIRouter
 
+from config import settings
 from mail_service import send_email
 
 router = APIRouter()
@@ -21,7 +20,7 @@ async def get_root():
 async def test_email():
     await send_email(
         subject="Test Email",
-        recipients=[os.environ["MAIL_TEST_RECEIPIENT"]],
+        recipients=[settings.MAIL_TEST_RECEIPIENT],
         body="<h1>Test Email</h1><p>This is a test email from FastAPI</p>",
     )
     return {"message": "Test email sent"}

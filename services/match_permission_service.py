@@ -1,8 +1,8 @@
-import os
 from datetime import datetime
 from enum import Enum
 
 from authentication import TokenPayload
+from config import settings
 from exceptions import AuthorizationException
 from logging_config import logger
 
@@ -81,7 +81,7 @@ class MatchPermissionService:
         if "CLUB_ADMIN" not in user_roles:
             return False
 
-        current_season = os.environ.get("CURRENT_SEASON", "")
+        current_season = settings.CURRENT_SEASON
         match_season = (match.get("season") or {}).get("alias", "")
         if current_season and match_season and match_season != current_season:
             return False
