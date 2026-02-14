@@ -5,7 +5,7 @@ Provides consistent response wrappers for all API endpoints.
 Includes pagination support and metadata.
 """
 
-from typing import TypeVar
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -50,7 +50,7 @@ class PaginationMetadata(BaseModel):
         )
 
 
-class StandardResponse[T](BaseModel):
+class StandardResponse(BaseModel, Generic[T]):
     """Standard response wrapper for single resource"""
 
     success: bool = Field(default=True, description="Whether the operation was successful")
@@ -68,7 +68,7 @@ class StandardResponse[T](BaseModel):
     )
 
 
-class PaginatedResponse[T](BaseModel):
+class PaginatedResponse(BaseModel, Generic[T]):
     """Standard response wrapper for paginated lists"""
 
     success: bool = Field(default=True, description="Whether the operation was successful")
