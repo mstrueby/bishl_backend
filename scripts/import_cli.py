@@ -106,9 +106,9 @@ class ImportCLI:
         file_map = {
             "players": "data_players.csv",
             "tournaments": "data_tournaments.csv",
-            "schedule": "data_schedule_2025.csv",
-            "teams": "data_new_teams.csv",
-            "team-assignments": "data_new_team_assignments.csv",
+            "schedule": "data_schedule.csv",
+            "teams": "data_teams.csv",
+            "team-assignments": "data_team_assignments.csv",
             "hobby-players": "data_hobby_players.csv",
             "referees": "data_referees.csv",
         }
@@ -182,7 +182,7 @@ class ImportCLI:
         """Import match schedule"""
         logger.info("Starting schedule import...")
 
-        csv_path = "data/data_schedule_2025.csv"
+        csv_path = self.get_csv_path("schedule")
         if not os.path.exists(csv_path):
             return False, f"Schedule CSV file not found: {csv_path}"
 

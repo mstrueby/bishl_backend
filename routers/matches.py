@@ -1035,6 +1035,25 @@ async def update_match(
     match_data.pop("id", None)
     match_data.pop("matchSettingsSource", None)
 
+    if "startDate" in match_data and match_data["startDate"] is not None:
+        start_date_str = match_data["startDate"]
+        try:
+            start_date_parts = datetime.fromisoformat(str(start_date_str))
+            match_data["startDate"] = datetime(
+                start_date_parts.year,
+                start_date_parts.month,
+                start_date_parts.day,
+                start_date_parts.hour,
+                start_date_parts.minute,
+                start_date_parts.second,
+                start_date_parts.microsecond,
+                tzinfo=start_date_parts.tzinfo,
+            )
+        except ValueError as e:
+            raise ValidationException(
+                field="startDate", message=str(e), details={"value": start_date_str}
+            ) from e
+
     # Only update referee points if match status changed to FINISHED/FORFEITED
     if new_match_status in ["FINISHED", "FORFEITED"] and current_match_status != new_match_status:
         if t_alias and s_alias and r_alias and md_alias:
