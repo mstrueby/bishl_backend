@@ -9,6 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 
 from authentication import AuthHandler, TokenPayload
+from config import settings
 from exceptions import (
     AuthorizationException,
     ResourceNotFoundException,
@@ -17,7 +18,6 @@ from logging_config import logger
 from mail_service import send_email
 from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status
 from models.responses import StandardResponse
-from config import settings
 from services.assignment_service import AssignmentService
 from services.message_service import MessageService
 

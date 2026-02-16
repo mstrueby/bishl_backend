@@ -4,13 +4,13 @@ from typing import Any
 
 import httpx
 
+from config import settings
 from exceptions.custom_exceptions import (
     DatabaseOperationException,
     ResourceNotFoundException,
     StatsCalculationException,
     ValidationException,
 )
-from config import settings
 from logging_config import logger
 from services.performance_monitor import monitor_query
 from services.tournament_service import TournamentService

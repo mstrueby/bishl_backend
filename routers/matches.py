@@ -8,6 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 
 from authentication import AuthHandler, TokenPayload
+from config import settings
 from exceptions import (
     AuthorizationException,
     DatabaseOperationException,
@@ -29,7 +30,6 @@ from services.match_permission_service import MatchAction, MatchPermissionServic
 from services.pagination import PaginationHelper
 from services.stats_service import StatsService
 from services.tournament_service import TournamentService
-from config import settings
 from utils import (
     my_jsonable_encoder,
     parse_time_from_seconds,
@@ -449,9 +449,7 @@ async def get_rest_of_week_matches(
     end_of_week = today + timedelta(days=days_until_sunday)
 
     # Build base query
-    base_query: dict[str, Any] = {
-        "season.alias": season if season else settings.CURRENT_SEASON
-    }
+    base_query: dict[str, Any] = {"season.alias": season if season else settings.CURRENT_SEASON}
 
     if tournament:
         base_query["tournament.alias"] = tournament
