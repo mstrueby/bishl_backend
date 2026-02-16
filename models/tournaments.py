@@ -235,6 +235,7 @@ class SeasonBase(MongoBaseModel):
     name: str = Field(...)
     alias: str = Field(...)
     standingsSettings: StandingsSettings | None = None
+    matchSettings: MatchSettings | None = None
     published: bool = False
     rounds: list[RoundBase] | None = Field(default_factory=list)
 
@@ -252,6 +253,7 @@ class SeasonUpdate(MongoBaseModel):
     name: str | None = "DEFAULT"
     alias: str | None = "DEFAULT"
     standingsSettings: StandingsSettings | None = None
+    matchSettings: MatchSettings | None = None
     published: bool | None = False
     rounds: list[RoundBase] | None = Field(default_factory=list)
 

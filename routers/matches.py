@@ -26,6 +26,7 @@ from models.matches import (
 )
 from models.responses import PaginatedResponse, StandardResponse
 from services.match_permission_service import MatchAction, MatchPermissionService
+from services.match_settings_service import resolve_match_settings, resolve_match_settings_batch
 from services.pagination import PaginationHelper
 from services.stats_service import StatsService
 from services.tournament_service import TournamentService
@@ -159,7 +160,21 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
 
     # parse scores.matchSeconds to a string format
     match = convert_seconds_to_times(match)
-    return MatchDB(**match)
+    match_obj = MatchDB(**match)
+
+    t_alias = match_obj.tournament.alias if match_obj.tournament else None
+    s_alias = match_obj.season.alias if match_obj.season else None
+    r_alias = match_obj.round.alias if match_obj.round else None
+    md_alias = match_obj.matchday.alias if match_obj.matchday else None
+
+    resolved_settings, source = await resolve_match_settings(
+        mongodb, t_alias, s_alias, r_alias, md_alias,
+        match.get("matchSettings"),
+    )
+    match_obj.matchSettings = resolved_settings
+    match_obj.matchSettingsSource = source
+
+    return match_obj
 
 
 # get matches for calendar view (no pagination, lightweight response)
@@ -215,6 +230,9 @@ async def get_matches_calendar(
 
     # Fetch all matches (no pagination) - typically a season has 100-300 matches
     matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+
+    # Resolve match settings from hierarchy
+    matches = await resolve_match_settings_batch(mongodb, matches)
 
     # Convert to lightweight format
     results = []
@@ -303,6 +321,8 @@ async def get_todays_matches(
     }
 
     matches = await mongodb["matches"].find(query, projection).sort("startDate", 1).to_list(None)
+
+    matches = await resolve_match_settings_batch(mongodb, matches)
 
     # Convert to MatchListBase objects and parse time fields
     results = []
@@ -410,6 +430,8 @@ async def get_upcoming_matches(
         await mongodb["matches"].find(final_query, projection).sort("startDate", 1).to_list(None)
     )
 
+    matches = await resolve_match_settings_batch(mongodb, matches)
+
     # Convert to MatchListBase objects and parse time fields
     results = []
     for match in matches:
@@ -514,6 +536,8 @@ async def get_rest_of_week_matches(
             await mongodb["matches"].find(day_query, projection).sort("startDate", 1).to_list(None)
         )
 
+        matches = await resolve_match_settings_batch(mongodb, matches)
+
         # Convert to MatchListBase objects and parse time fields
         day_matches = []
         for match in matches:
@@ -611,6 +635,8 @@ async def get_matches(
         page_size=page_size,
         sort=[("startDate", 1)],
     )
+
+    items = await resolve_match_settings_batch(request.app.state.mongodb, items)
 
     # Convert to MatchListBase objects and parse time fields
     results = []
@@ -760,6 +786,8 @@ async def create_match(
                 raise ValidationException(
                     field="startDate", message=str(e), details={"value": start_date_str}
                 ) from e
+
+        match_data.pop("matchSettingsSource", None)
 
         if DEBUG_LEVEL > 10:
             logger.debug(f"match_data: {match_data}")
@@ -1005,6 +1033,7 @@ async def update_match(
 
     match_data = match.model_dump(exclude_unset=True, mode="json")
     match_data.pop("id", None)
+    match_data.pop("matchSettingsSource", None)
 
     # Only update referee points if match status changed to FINISHED/FORFEITED
     if new_match_status in ["FINISHED", "FORFEITED"] and current_match_status != new_match_status:

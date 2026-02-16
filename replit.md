@@ -83,6 +83,19 @@ Preferred communication style: Simple, everyday language.
   - GET `/players` has optional `validate` query parameter (default: false) for opt-in validation
   - Roster reads do NOT trigger validation (as required)
 
+### MatchSettings Hierarchy Inheritance (Added February 2026)
+- **MatchSettings Model**: `{ numOfPeriods, periodLengthMin, overtime, numOfPeriodsOvertime, periodLengthMinOvertime, shootout, refereePoints }`
+- **Hierarchy Levels**: tournament → season → round → matchday → match
+- **Season-Level Default**: `matchSettings` added to `SeasonBase`/`SeasonUpdate` as the baseline default for all matches in a season
+- **Match-Level Override**: `matchSettings` added to `MatchBase`/`MatchDB`/`MatchUpdate`/`MatchListBase` for per-match overrides
+- **Inheritance Resolution**: On read, if a level has no `matchSettings`, it inherits from the nearest parent: match → matchday → round → season
+- **matchSettingsSource Field**: Every response includes `matchSettingsSource` (string: "season", "round", "matchday", "match", or null) indicating where the settings came from
+- **Full Replace**: Match-level overrides replace the entire MatchSettings object (no field-by-field merging)
+- **No Database Migration**: All fields remain Optional. Null means "inherit from parent." Past seasons are untouched.
+- **Batch Resolution**: List endpoints use `resolve_match_settings_batch()` in `services/match_settings_service.py` to batch tournament lookups and avoid N+1 queries
+- **Affected Endpoints**: All GET match endpoints (single, list, calendar, today, upcoming, rest-of-week), GET rounds, GET matchdays, GET seasons
+- **Service File**: `services/match_settings_service.py` contains `resolve_match_settings()` (single match) and `resolve_match_settings_batch()` (list of matches)
+
 ### Play-Up Tracking System (Added January 2026)
 - **CalledFromTeam Field**: `RosterPlayer` now has optional `calledFromTeam` with teamId, teamName, teamAlias
   - Set during roster creation when a player is called up from a lower team

@@ -37,11 +37,14 @@ async def get_seasons_for_tournament(
     ) is not None:
         seasons = []
         for season in tournament.get("seasons") or []:
+            ms = season.get("matchSettings")
             season_response = SeasonResponse(
                 _id=season["_id"],
                 name=season["name"],
                 alias=season["alias"],
                 standingsSettings=season.get("standingsSettings"),
+                matchSettings=ms,
+                matchSettingsSource="season" if ms else None,
                 published=season.get("published", False),
                 links=SeasonLinks(
                     self=f"/tournaments/{tournament_alias}/seasons/{season['alias']}",
@@ -83,11 +86,14 @@ async def get_season(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
+                ms = season.get("matchSettings")
                 season_response = SeasonResponse(
                     _id=season["_id"],
                     name=season["name"],
                     alias=season["alias"],
                     standingsSettings=season.get("standingsSettings"),
+                    matchSettings=ms,
+                    matchSettingsSource="season" if ms else None,
                     published=season.get("published", False),
                     links=SeasonLinks(
                         self=f"/tournaments/{tournament_alias}/seasons/{season_alias}",

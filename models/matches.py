@@ -7,6 +7,7 @@ from pydantic_core import core_schema
 
 from models.assignments import Referee
 from models.players import LicenseInvalidReasonCode, LicenseType, Source
+from models.tournaments import MatchSettings
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 
 
@@ -398,6 +399,8 @@ class MatchBase(MongoBaseModel):
     startDate: datetime | None = None
     published: bool = False
     matchSheetComplete: bool = False
+    matchSettings: MatchSettings | None = None
+    matchSettingsSource: str | None = None
     supplementarySheet: SupplementarySheet | None = Field(default_factory=SupplementarySheet)
 
 
@@ -443,6 +446,8 @@ class MatchListBase(MongoBaseModel):
     startDate: datetime | None = None
     published: bool = False
     matchSheetComplete: bool = False
+    matchSettings: MatchSettings | None = None
+    matchSettingsSource: str | None = None
 
 
 class MatchUpdate(MongoBaseModel):
@@ -461,4 +466,5 @@ class MatchUpdate(MongoBaseModel):
     startDate: datetime | None = None
     published: bool | None = False
     matchSheetComplete: bool | None = False
+    matchSettings: MatchSettings | None = None
     supplementarySheet: SupplementarySheet | None = Field(default_factory=SupplementarySheet)

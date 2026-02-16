@@ -29,6 +29,7 @@ class MatchdayResponse(MongoBaseModel):
     createStandings: bool
     createStats: bool
     matchSettings: MatchSettings | None = None
+    matchSettingsSource: str | None = None
     published: bool
     standings: dict[str, Standings] | None = None
     owner: MatchdayOwner | None = None
