@@ -231,8 +231,6 @@ async def update_user(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can update roles"
         )
 
-    logger.debug(f"existing_user: {existing_user}")
-
     try:
         user_data = UserUpdate(
             email=email,
@@ -453,7 +451,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     reset_token = auth.encode_reset_token(user)
 
     # Send password reset email (skip in test and development environments)
-    reset_url = f"{settings.FRONTEND_URL}/password-reset-form?token={reset_token}"
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
 
     # Only send email in production environment
     if settings.ENVIRONMENT == "production":
