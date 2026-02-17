@@ -124,8 +124,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Environment Configuration
 Required environment variables:
-- `DB_URL` / `DB_URL_PROD`: MongoDB connection strings
-- `DB_NAME`: Database name (bishl_dev / bishl)
+- `DB_URL` / `DB_URL_PROD` / `DB_URL_DEMO`: MongoDB connection strings (dev / prod / demo)
+- `DB_NAME`: Database name (bishl_dev / bishl / bishl_demo)
 - `SECRET_KEY`: JWT signing key
 - `BE_API_URL`: Backend API base URL for internal calls
 - `MAIL_*`: SMTP configuration for email service

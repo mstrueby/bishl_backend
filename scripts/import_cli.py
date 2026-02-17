@@ -17,7 +17,9 @@ Entities:
     referees          Import referees
 
 Options:
-    --prod            Use production database
+    --env ENV         Target environment: dev (default), demo, or prod
+    --prod            Use production database (shortcut for --env prod)
+    --demo            Use demo database (shortcut for --env demo)
     --file PATH       Path to CSV file (default: data/data_<entity>.csv)
     --delete-all      Delete all existing records before import
     --import-all      Import all records (bypass confirmations)
@@ -25,7 +27,8 @@ Options:
 
 Examples:
     python scripts/import_cli.py players --prod --import-all
-    python scripts/import_cli.py schedule --file data/schedule_2025.csv
+    python scripts/import_cli.py schedule --demo --file data/schedule_2025.csv
+    python scripts/import_cli.py schedule --env demo
     python scripts/import_cli.py tournaments --dry-run
 """
 
@@ -75,7 +78,16 @@ class ImportCLI:
             "entity", choices=list(self.handlers.keys()), help="Entity type to import"
         )
 
-        parser.add_argument("--prod", action="store_true", help="Use production database and API")
+        env_group = parser.add_mutually_exclusive_group()
+        env_group.add_argument(
+            "--env",
+            type=str,
+            choices=["dev", "demo", "prod"],
+            default="dev",
+            help="Target environment: dev (default), demo, or prod",
+        )
+        env_group.add_argument("--prod", action="store_true", help="Use production database (shortcut for --env prod)")
+        env_group.add_argument("--demo", action="store_true", help="Use demo database (shortcut for --env demo)")
 
         parser.add_argument(
             "--file", type=str, help="Path to CSV file (default: data/data_<entity>.csv)"
@@ -212,25 +224,36 @@ class ImportCLI:
         # TODO: Implement from import_referees.py
         return True, "Referees import not yet implemented"
 
+    def _resolve_environment(self) -> str:
+        """Resolve target environment from CLI flags"""
+        if self.args.prod:
+            return "prod"
+        if self.args.demo:
+            return "demo"
+        return self.args.env
+
     def run(self):
         """Main execution flow"""
         parser = self.setup_parser()
         self.args = parser.parse_args()
 
+        environment = self._resolve_environment()
+        env_labels = {"dev": "DEVELOPMENT", "demo": "DEMO", "prod": "PRODUCTION"}
+        env_label = env_labels[environment]
+
         logger.info("=== BISHL Import CLI ===")
         logger.info(f"Entity: {self.args.entity}")
-        logger.info(f"Environment: {'PRODUCTION' if self.args.prod else 'DEVELOPMENT'}")
+        logger.info(f"Environment: {env_label}")
         logger.info(f"Mode: {'DRY RUN' if self.args.dry_run else 'LIVE'}")
 
-        # Confirm production imports
-        if self.args.prod and not self.args.dry_run:
-            if not self.confirm_action("⚠️  This will modify PRODUCTION data. Continue?"):
+        if environment in ("prod", "demo") and not self.args.dry_run:
+            if not self.confirm_action(f"This will modify {env_label} data. Continue?"):
                 logger.info("Import cancelled by user")
                 return
 
         try:
             # Initialize service
-            with ImportService(use_production=self.args.prod) as service:
+            with ImportService(environment=environment) as service:
                 self.service = service
 
                 # Authenticate
