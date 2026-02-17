@@ -32,6 +32,7 @@ class RoundResponse(MongoBaseModel):
     startDate: datetime | None = None
     endDate: datetime | None = None
     matchSettings: MatchSettings | None = None
+    matchSettingsSource: str | None = None
     published: bool
     standings: dict[str, Standings] | None = None
     links: RoundLinks | None = None

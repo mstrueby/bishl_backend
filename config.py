@@ -13,9 +13,9 @@ class Settings(BaseSettings):
     BE_API_URL: str = Field(default="", description="Backend API base URL")
     BE_API_URL_PROD: str = Field(default="", description="Production backend API base URL")
     DB_URL_PROD: str = Field(default="", description="Production MongoDB connection URL")
-    FRONTEND_URL: str = Field(
-        default="", description="Frontend application URL for links in emails"
-    )
+    DB_URL_DEMO: str = Field(default="", description="Demo MongoDB connection URL")
+    BE_API_URL_DEMO: str = Field(default="", description="Demo backend API base URL")
+    FRONTEND_URL: str = Field(default="", description="Frontend application URL for links in emails")
 
     # Application Settings
     DEBUG_LEVEL: int = Field(default=0, description="Debug verbosity level (0-2)")

@@ -44,10 +44,22 @@ async def get_rounds_for_season(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
+                season_match_settings = season.get("matchSettings")
                 rounds = []
                 for round_data in sorted(
                     (season.get("rounds") or []), key=lambda r: r.get("sortOrder", 0)
                 ):
+                    round_settings = round_data.get("matchSettings")
+                    if round_settings:
+                        resolved_settings = round_settings
+                        settings_source = "round"
+                    elif season_match_settings:
+                        resolved_settings = season_match_settings
+                        settings_source = "season"
+                    else:
+                        resolved_settings = None
+                        settings_source = None
+
                     round_response = RoundResponse(
                         _id=round_data["_id"],
                         name=round_data["name"],
@@ -59,7 +71,8 @@ async def get_rounds_for_season(
                         matchdaysSortedBy=round_data["matchdaysSortedBy"],
                         startDate=round_data.get("startDate"),
                         endDate=round_data.get("endDate"),
-                        matchSettings=round_data.get("matchSettings"),
+                        matchSettings=resolved_settings,
+                        matchSettingsSource=settings_source,
                         published=round_data.get("published", False),
                         standings=round_data.get("standings"),
                         links=RoundLinks(
@@ -108,8 +121,20 @@ async def get_round(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
+                season_match_settings = season.get("matchSettings")
                 for round_data in season.get("rounds", []):
                     if round_data.get("alias") == round_alias:
+                        round_settings = round_data.get("matchSettings")
+                        if round_settings:
+                            resolved_settings = round_settings
+                            settings_source = "round"
+                        elif season_match_settings:
+                            resolved_settings = season_match_settings
+                            settings_source = "season"
+                        else:
+                            resolved_settings = None
+                            settings_source = None
+
                         round_response = RoundResponse(
                             _id=round_data["_id"],
                             name=round_data["name"],
@@ -121,7 +146,8 @@ async def get_round(
                             matchdaysSortedBy=round_data["matchdaysSortedBy"],
                             startDate=round_data.get("startDate"),
                             endDate=round_data.get("endDate"),
-                            matchSettings=round_data.get("matchSettings"),
+                            matchSettings=resolved_settings,
+                            matchSettingsSource=settings_source,
                             published=round_data.get("published", False),
                             standings=round_data.get("standings"),
                             links=RoundLinks(

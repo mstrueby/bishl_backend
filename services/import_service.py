@@ -23,32 +23,46 @@ from logging_config import logger
 class ImportService:
     """Unified service for data import operations"""
 
-    def __init__(self, use_production: bool = False):
+    VALID_ENVIRONMENTS = ("dev", "demo", "prod")
+
+    def __init__(self, environment: str = "dev", use_production: bool = False):
         """
         Initialize import service
 
         Args:
-            use_production: If True, use production database and API
+            environment: Target environment - "dev" (default), "demo", or "prod"
+            use_production: Deprecated. If True, treated as environment="prod" for backward compatibility.
         """
-        self.use_production = use_production
+        if use_production:
+            environment = "prod"
+
+        if environment not in self.VALID_ENVIRONMENTS:
+            raise ValueError(
+                f"Invalid environment '{environment}'. Must be one of: {', '.join(self.VALID_ENVIRONMENTS)}"
+            )
+
+        self.environment = environment
         self.client: MongoClient | None = None
         self.db: Database[Any] | None = None
         self.token: str | None = None
         self.headers: dict[str, str] | None = None
 
-        # Set environment-specific URLs
-        if use_production:
+        if environment == "prod":
             self.db_url = settings.DB_URL_PROD
             self.db_name = "bishl"
             self.base_url = settings.BE_API_URL_PROD or settings.BE_API_URL
+        elif environment == "demo":
+            self.db_url = settings.DB_URL_DEMO
+            self.db_name = "bishl_demo"
+            self.base_url = settings.BE_API_URL_DEMO or settings.BE_API_URL
         else:
             self.db_url = settings.DB_URL
             self.db_name = "bishl_dev"
             self.base_url = settings.BE_API_URL
 
-        logger.info(
-            f"Import Service initialized for {'PRODUCTION' if use_production else 'DEVELOPMENT'}"
-        )
+        self.environment_label = environment.upper()
+
+        logger.info(f"Import Service initialized for {self.environment_label}")
         logger.info(f"Database: {self.db_name}")
         logger.info(f"API URL: {self.base_url}")
 

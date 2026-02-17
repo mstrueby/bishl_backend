@@ -6,7 +6,7 @@ They exclude nested rounds array to avoid confusion with HATEOAS links.
 
 from pydantic import BaseModel
 
-from models.tournaments import MongoBaseModel, StandingsSettings
+from models.tournaments import MatchSettings, MongoBaseModel, StandingsSettings
 
 
 class SeasonLinks(BaseModel):
@@ -23,6 +23,8 @@ class SeasonResponse(MongoBaseModel):
     name: str
     alias: str
     standingsSettings: StandingsSettings | None = None
+    matchSettings: MatchSettings | None = None
+    matchSettingsSource: str | None = None
     published: bool
     links: SeasonLinks | None = None
 

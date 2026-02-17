@@ -40,10 +40,26 @@ async def get_matchdays_for_round(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
+                season_match_settings = season.get("matchSettings")
                 for round_data in season.get("rounds", []):
                     if round_data.get("alias") == round_alias:
+                        round_match_settings = round_data.get("matchSettings")
                         matchdays = []
                         for matchday in round_data.get("matchdays", []):
+                            md_settings = matchday.get("matchSettings")
+                            if md_settings:
+                                resolved_settings = md_settings
+                                settings_source = "matchday"
+                            elif round_match_settings:
+                                resolved_settings = round_match_settings
+                                settings_source = "round"
+                            elif season_match_settings:
+                                resolved_settings = season_match_settings
+                                settings_source = "season"
+                            else:
+                                resolved_settings = None
+                                settings_source = None
+
                             matchday_response = MatchdayResponse(
                                 _id=matchday["_id"],
                                 name=matchday["name"],
@@ -53,7 +69,8 @@ async def get_matchdays_for_round(
                                 endDate=matchday.get("endDate"),
                                 createStandings=matchday.get("createStandings", False),
                                 createStats=matchday.get("createStats", False),
-                                matchSettings=matchday.get("matchSettings"),
+                                matchSettings=resolved_settings,
+                                matchSettingsSource=settings_source,
                                 published=matchday.get("published", False),
                                 standings=matchday.get("standings"),
                                 owner=matchday.get("owner"),
@@ -111,10 +128,26 @@ async def get_matchday(
     ) is not None:
         for season in tournament.get("seasons", []):
             if season.get("alias") == season_alias:
+                season_match_settings = season.get("matchSettings")
                 for round_data in season.get("rounds", []):
                     if round_data.get("alias") == round_alias:
+                        round_match_settings = round_data.get("matchSettings")
                         for matchday in round_data.get("matchdays", []):
                             if matchday.get("alias") == matchday_alias:
+                                md_settings = matchday.get("matchSettings")
+                                if md_settings:
+                                    resolved_settings = md_settings
+                                    settings_source = "matchday"
+                                elif round_match_settings:
+                                    resolved_settings = round_match_settings
+                                    settings_source = "round"
+                                elif season_match_settings:
+                                    resolved_settings = season_match_settings
+                                    settings_source = "season"
+                                else:
+                                    resolved_settings = None
+                                    settings_source = None
+
                                 matchday_response = MatchdayResponse(
                                     _id=matchday["_id"],
                                     name=matchday["name"],
@@ -124,7 +157,8 @@ async def get_matchday(
                                     endDate=matchday.get("endDate"),
                                     createStandings=matchday.get("createStandings", False),
                                     createStats=matchday.get("createStats", False),
-                                    matchSettings=matchday.get("matchSettings"),
+                                    matchSettings=resolved_settings,
+                                    matchSettingsSource=settings_source,
                                     published=matchday.get("published", False),
                                     standings=matchday.get("standings"),
                                     owner=matchday.get("owner"),
