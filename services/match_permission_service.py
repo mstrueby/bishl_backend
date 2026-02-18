@@ -106,9 +106,17 @@ class MatchPermissionService:
             return False
 
         if match_start:
-            match_start_ts = match_start.timestamp()
-            now_ts = now.timestamp()
+            # Match startDate is stored as CET/CEST time but with +00:00 offset.
+            # We need to treat it as a naive datetime and compare it to the current local time.
+            match_start_naive = match_start.replace(tzinfo=None)
+            now_naive = datetime.now()
+            
+            match_start_ts = match_start_naive.timestamp()
+            now_ts = now_naive.timestamp()
+            
+            logger.debug(f"match_start_naive: {match_start_naive}, now_naive: {now_naive}")
             starts_within_window = match_start_ts < (now_ts + MATCH_WINDOW_MINUTES * 60)
+            logger.debug(f"starts_within_window: {starts_within_window}")
         else:
             starts_within_window = False
 
@@ -127,18 +135,6 @@ class MatchPermissionService:
             and is_match_day
         )
 
-        # debug log all variables
-        logger.debug(f"is_match_in_past: {is_match_in_past}")
-        logger.debug(f"is_match_day: {is_match_day}")
-        logger.debug(f"is_in_progress: {is_in_progress}")
-        logger.debug(f"is_scheduled: {is_scheduled}")
-        logger.debug(f"is_finished: {is_finished}")
-        logger.debug(f"starts_within_window: {starts_within_window}")
-        logger.debug(f"is_home_admin: {is_home_admin}")
-        logger.debug(f"is_away_admin: {is_away_admin}")
-        logger.debug(f"is_valid_matchday_owner: {is_valid_matchday_owner}")
-        logger.debug(f"is_matchday_owner_admin: {is_matchday_owner_admin}")
-
         if action == MatchAction.EDIT_ROSTER_HOME:
             if is_home_admin:
                 return True
@@ -153,14 +149,16 @@ class MatchPermissionService:
                 if starts_within_window:
                     roster = (match.get("away") or {}).get("roster") or {}
                     roster_status = roster.get("status", "DRAFT")
-                    if roster_status not in ["DRAFT", "SUBMITTED"]:
+                    if roster_status != "DRAFT":
                         return False
                 if not is_finished:
                     return True
                 if is_match_day:
                     return True
                 return False
+            logger.debug(f"is_home_admin: {is_home_admin}")
             if is_home_admin and starts_within_window and not is_valid_matchday_owner:
+                logger.debug(f"is_home_admin: {is_home_admin}")
                 return True
             if is_matchday_owner_admin:
                 return True
