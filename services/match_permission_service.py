@@ -109,7 +109,7 @@ class MatchPermissionService:
             # Match startDate is stored as CET/CEST time but with +00:00 offset.
             # We treat it as a naive datetime and compare it to the current time in Europe/Berlin.
             match_start_naive = match_start.replace(tzinfo=None)
-            
+
             try:
                 import zoneinfo
                 # Get current time in Berlin (handles CET/CEST automatically)
@@ -119,10 +119,10 @@ class MatchPermissionService:
                 # they might be in a different environment or testing CEST.
                 from datetime import timedelta
                 berlin_now = datetime.utcnow() + timedelta(hours=2)
-            
+
             match_start_ts = match_start_naive.timestamp()
             now_ts = berlin_now.timestamp()
-            
+
             logger.debug(f"match_start_naive: {match_start_naive}, berlin_now: {berlin_now}")
             starts_within_window = match_start_ts < (now_ts + MATCH_WINDOW_MINUTES * 60)
             logger.debug(f"starts_within_window: {starts_within_window}")
