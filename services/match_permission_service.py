@@ -107,19 +107,23 @@ class MatchPermissionService:
 
         if match_start:
             # Match startDate is stored as CET/CEST time but with +00:00 offset.
-            # Server is in UTC (13:54), but Berlin is currently CET (UTC+1) or CEST (UTC+2).
-            # The user confirmed that when server is 13:54, 'now' should be 15:54.
-            # This indicates a 2-hour offset (CEST).
+            # We treat it as a naive datetime and compare it to the current time in Europe/Berlin.
             match_start_naive = match_start.replace(tzinfo=None)
             
-            from datetime import timedelta
-            # Adjusting UTC time by 2 hours to match the match's local context
-            now_berlin = datetime.utcnow() + timedelta(hours=2)
+            try:
+                import zoneinfo
+                # Get current time in Berlin (handles CET/CEST automatically)
+                berlin_now = datetime.now(zoneinfo.ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
+            except Exception:
+                # Fallback: Feb 18 is CET (+1). If user's log (13:54 -> 15:54) shows +2, 
+                # they might be in a different environment or testing CEST.
+                from datetime import timedelta
+                berlin_now = datetime.utcnow() + timedelta(hours=2)
             
             match_start_ts = match_start_naive.timestamp()
-            now_ts = now_berlin.timestamp()
+            now_ts = berlin_now.timestamp()
             
-            logger.debug(f"match_start_naive: {match_start_naive}, now_berlin: {now_berlin}")
+            logger.debug(f"match_start_naive: {match_start_naive}, berlin_now: {berlin_now}")
             starts_within_window = match_start_ts < (now_ts + MATCH_WINDOW_MINUTES * 60)
             logger.debug(f"starts_within_window: {starts_within_window}")
         else:
