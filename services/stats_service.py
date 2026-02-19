@@ -1268,38 +1268,31 @@ class StatsService:
         teams_to_check = set()
 
         for match in matches:
-            match_id = str(match.get("_id", ""))
-            if match_id != '69938953b3a25ecd9a7aa3f3':
-                continue
             for team_flag in ["home", "away"]:
                 roster_data = match.get(team_flag, {}).get("roster", {})
-                # Handle both new nested structure and legacy flat structure
                 if isinstance(roster_data, dict):
                     roster = roster_data.get("players", [])
                 else:
                     roster = roster_data if roster_data else []
                 for roster_player in roster:
-                    logger.debug(f"player_id: {player_id}, ROSTER_PLAYER: {roster_player.get("player", {}).get(
-                        "playerId"
-                    )}, called: {roster_player.get("called", False)}")
                     if roster_player.get("player", {}).get(
                         "playerId"
                     ) == player_id and roster_player.get("called", False):
-                        logger.debug(f"Found called player in match {match_id}")
-                        current_team = match.get(team_flag, {}).get("team", {})
-                        current_club = match.get(team_flag, {}).get("club", {})
-                        if current_team and current_club:
+                        team_data = match.get(team_flag, {})
+                        team_id = team_data.get("teamId")
+                        club_id = team_data.get("clubId")
+                        if team_id and club_id:
                             teams_to_check.add(
                                 (
-                                    current_team.get("teamId"),
-                                    current_team.get("name"),
-                                    current_team.get("alias"),
-                                    current_team.get("ageGroup", ""),
-                                    current_team.get("ishdId"),
-                                    current_club.get("clubId"),
-                                    current_club.get("name"),
-                                    current_club.get("alias"),
-                                    current_club.get("ishdId"),
+                                    team_id,
+                                    team_data.get("name"),
+                                    team_data.get("teamAlias"),
+                                    team_data.get("ageGroup", ""),
+                                    team_data.get("ishdId"),
+                                    club_id,
+                                    team_data.get("clubName"),
+                                    team_data.get("clubAlias"),
+                                    team_data.get("clubIshdId"),
                                 )
                             )
 
@@ -1331,9 +1324,9 @@ class StatsService:
                     ) == player_id and roster_player.get("called", False):
                         called_from_team = roster_player.get("calledFromTeam")
                         if called_from_team:
-                            to_team = match.get(team_flag, {}).get("team", {})
+                            team_data = match.get(team_flag, {})
                             from_team_id = called_from_team.get("teamId")
-                            to_team_id = to_team.get("teamId")
+                            to_team_id = team_data.get("teamId")
                             if from_team_id and to_team_id:
                                 occurrences.append(
                                     {
