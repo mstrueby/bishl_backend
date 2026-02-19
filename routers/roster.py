@@ -187,11 +187,17 @@ def _extract_status_and_reasons(
     return status, reason_codes
 
 
-def _count_called_matches(player: dict, to_team_id: str) -> int:
+def _count_called_matches(
+    player: dict, to_team_id: str, tournament_alias: str, season_alias: str
+) -> int:
     trackings = player.get("playUpTrackings", []) or []
     total = 0
     for tracking in trackings:
-        if tracking.get("toTeamId") == to_team_id:
+        if (
+            tracking.get("toTeamId") == to_team_id
+            and tracking.get("tournamentAlias") == tournament_alias
+            and tracking.get("seasonAlias") == season_alias
+        ):
             for occ in tracking.get("occurrences", []):
                 if occ.get("counted", True):
                     total += 1
@@ -230,7 +236,9 @@ def _validate_called_player(
         logger.info(f"Called player {player_id} origin license is {origin_status.value}")
         return LicenseStatus.INVALID, origin_reasons
 
-    called_count = _count_called_matches(validated_player, match_team_id)
+    t_alias = (match.get("tournament") or {}).get("alias", "")
+    s_alias = (match.get("season") or {}).get("alias", "")
+    called_count = _count_called_matches(validated_player, match_team_id, t_alias, s_alias)
     if called_count >= CALLED_MATCH_LIMIT:
         logger.info(
             f"Called player {player_id} has {called_count} called matches "

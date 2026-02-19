@@ -165,9 +165,7 @@ class MatchPermissionService:
                 if is_match_day:
                     return True
                 return False
-            logger.debug(f"is_home_admin: {is_home_admin}")
             if is_home_admin and starts_within_window and not is_valid_matchday_owner:
-                logger.debug(f"is_home_admin: {is_home_admin}")
                 return True
             if is_matchday_owner_admin:
                 return True
