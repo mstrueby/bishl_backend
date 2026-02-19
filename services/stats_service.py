@@ -1228,7 +1228,12 @@ class StatsService:
                     )
                     continue
 
+                logger.debug(f"Processing called matches for player {player_id} in {len(matches)} matches")
                 teams_to_check = self._find_called_teams(player_id, matches)
+
+                logger.debug(
+                    f"Found {len(teams_to_check)} teams to check for player {player_id}", extra=
+                    {"player_id": player_id, "teams_count": len(teams_to_check)})
 
                 await self._update_assigned_teams_for_called_matches(
                     player_id,
@@ -1263,6 +1268,9 @@ class StatsService:
         teams_to_check = set()
 
         for match in matches:
+            match_id = str(match.get("_id", ""))
+            if match_id != '69938953b3a25ecd9a7aa3f3':
+                continue
             for team_flag in ["home", "away"]:
                 roster_data = match.get(team_flag, {}).get("roster", {})
                 # Handle both new nested structure and legacy flat structure
@@ -1271,9 +1279,13 @@ class StatsService:
                 else:
                     roster = roster_data if roster_data else []
                 for roster_player in roster:
+                    logger.debug(f"player_id: {player_id}, ROSTER_PLAYER: {roster_player.get("player", {}).get(
+                        "playerId"
+                    )}, called: {roster_player.get("called", False)}")
                     if roster_player.get("player", {}).get(
                         "playerId"
                     ) == player_id and roster_player.get("called", False):
+                        logger.debug(f"Found called player in match {match_id}")
                         current_team = match.get(team_flag, {}).get("team", {})
                         current_club = match.get(team_flag, {}).get("club", {})
                         if current_team and current_club:
