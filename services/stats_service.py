@@ -1419,8 +1419,16 @@ class StatsService:
 
         try:
             import json as json_module
+            from datetime import datetime
 
-            form_data = {"playUpTrackings": json_module.dumps(existing_trackings)}
+            def _default_serializer(obj):
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+            form_data = {
+                "playUpTrackings": json_module.dumps(existing_trackings, default=_default_serializer)
+            }
             form_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
             update_response = await client.patch(
                 f"{base_url}/players/{player_id}",
