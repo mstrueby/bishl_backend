@@ -1418,10 +1418,14 @@ class StatsService:
                 )
 
         try:
+            import json as json_module
+
+            form_data = {"playUpTrackings": json_module.dumps(existing_trackings)}
+            form_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
             update_response = await client.patch(
                 f"{base_url}/players/{player_id}",
-                json={"playUpTrackings": existing_trackings},
-                headers=headers,
+                data=form_data,
+                headers=form_headers,
             )
             update_response.raise_for_status()
             logger.info(
@@ -1537,12 +1541,16 @@ class StatsService:
 
         # Update player in database
         try:
+            import json as json_module
+
+            form_data = {"assignedTeams": json_module.dumps(assigned_teams)}
+            form_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
             update_response = await client.patch(
                 f"{base_url}/players/{player_id}",
-                json={"assignedTeams": assigned_teams},
-                headers=headers,
+                data=form_data,
+                headers=form_headers,
             )
-            update_response.raise_for_status()  # Raise HTTPStatusError for bad responses
+            update_response.raise_for_status()
             logger.info(f"Added CALLED assignment: Player {player_id} → Team {team_name}")
 
         except httpx.HTTPStatusError as e:

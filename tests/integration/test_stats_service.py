@@ -518,28 +518,30 @@ class TestStatsServiceIntegration:
                 f"Actual: {mock_client_instance.patch.call_count}"
             )
 
-            # Check all PATCH calls
+            # Check all PATCH calls - data is sent as form data (not JSON)
+            import json
+
             patch_calls = mock_client_instance.patch.call_args_list
-            json_payloads = [call[1].get("json", {}) for call in patch_calls if call[1].get("json")]
+            form_payloads = [call[1].get("data", {}) for call in patch_calls if call[1].get("data")]
 
-            # Verify assignedTeams was updated
-            assigned_teams_updated = any("assignedTeams" in payload for payload in json_payloads)
+            # Verify assignedTeams was updated via form data
+            assigned_teams_updated = any("assignedTeams" in payload for payload in form_payloads)
             assert assigned_teams_updated, (
-                f"No 'assignedTeams' in any PATCH payload. "
-                f"Payloads: {[list(p.keys()) for p in json_payloads]}"
+                f"No 'assignedTeams' in any PATCH form data. "
+                f"Payloads: {[list(p.keys()) for p in form_payloads]}"
             )
 
-            # Verify playUpTrackings was updated
-            playup_updated = any("playUpTrackings" in payload for payload in json_payloads)
+            # Verify playUpTrackings was updated via form data
+            playup_updated = any("playUpTrackings" in payload for payload in form_payloads)
             assert playup_updated, (
-                f"No 'playUpTrackings' in any PATCH payload. "
-                f"Payloads: {[list(p.keys()) for p in json_payloads]}"
+                f"No 'playUpTrackings' in any PATCH form data. "
+                f"Payloads: {[list(p.keys()) for p in form_payloads]}"
             )
 
-            # Verify playUpTrackings structure
-            for payload in json_payloads:
+            # Verify playUpTrackings structure (form data contains JSON string)
+            for payload in form_payloads:
                 if "playUpTrackings" in payload:
-                    trackings = payload["playUpTrackings"]
+                    trackings = json.loads(payload["playUpTrackings"])
                     assert len(trackings) >= 1, "playUpTrackings should have at least one entry"
                     tracking = trackings[0]
                     assert (
