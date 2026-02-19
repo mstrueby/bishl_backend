@@ -968,7 +968,20 @@ class StatsService:
                     f"Matchday '{matchday.get('alias')}' statistics not enabled or not the target matchday, skipping."
                 )
 
-        # Process called teams assignments
+        # Process called teams assignments and playUpTrackings
+        # Always fetch matches for playup tracking, even if createStats is disabled
+        if not matches:
+            matches = (
+                await self.db["matches"]
+                .find(
+                    {
+                        "tournament.alias": t_alias,
+                        "season.alias": s_alias,
+                        "round.alias": r_alias,
+                    }
+                )
+                .to_list(length=None)
+            )
         if matches:
             await self._process_called_teams_assignments(
                 player_ids, matches, t_alias, s_alias, token_payload
@@ -1198,77 +1211,45 @@ class StatsService:
     async def _process_called_teams_assignments(
         self, player_ids: list[str], matches: list[dict], t_alias: str, s_alias: str, token_payload
     ) -> None:
-        """Check calledMatches for affected players and update assignedTeams if needed."""
-        base_url = settings.BE_API_URL
-        if not base_url or not token_payload:
-            logger.debug("Skipping called teams processing (no base_url or token)")
+        """Check calledMatches for affected players and update assignedTeams/playUpTrackings directly in DB."""
+        if not token_payload:
+            logger.debug("Skipping called teams processing (no token)")
             return
 
         logger.info(f"Checking {len(player_ids)} players for called team assignments...")
 
-        # Prepare authentication headers
-        from authentication import AuthHandler
-
-        auth_handler = AuthHandler()
-        try:
-            auth_token = auth_handler.encode_token(
-                {
-                    "_id": token_payload.sub,
-                    "roles": token_payload.roles,
-                    "firstName": token_payload.firstName,
-                    "lastName": token_payload.lastName,
-                    "club": (
-                        {"clubId": token_payload.clubId, "clubName": token_payload.clubName}
-                        if token_payload.clubId
-                        else None
-                    ),
-                }
-            )
-            headers = {"Authorization": f"Bearer {auth_token}"}
-        except Exception as e:
-            logger.error(f"Failed to encode authentication token: {str(e)}")
-            raise DatabaseOperationException(
-                operation="encode_auth_token", message=f"Failed to encode auth token: {str(e)}"
-            ) from e
-
         for player_id in player_ids:
             try:
-                async with httpx.AsyncClient() as client:
-                    player_response = await client.get(
-                        f"{base_url}/players/{player_id}", headers=headers
+                player_data = await self.db["players"].find_one({"_id": player_id})
+                if not player_data:
+                    logger.warning(
+                        f"Player {player_id} not found in database. Skipping.",
+                        extra={"player_id": player_id},
                     )
-                    if player_response.status_code != 200:
-                        logger.warning(
-                            f"Could not fetch player {player_id} data (Status: {player_response.status_code}). Skipping.",
-                            extra={"player_id": player_id},
-                        )
-                        continue
+                    continue
 
-                    player_data = player_response.json()
-                    teams_to_check = self._find_called_teams(player_id, matches)
+                teams_to_check = self._find_called_teams(player_id, matches)
 
-                    await self._update_assigned_teams_for_called_matches(
-                        client,
-                        player_id,
-                        player_data,
-                        teams_to_check,
-                        t_alias,
-                        s_alias,
-                        base_url,
-                        headers,
-                    )
+                await self._update_assigned_teams_for_called_matches(
+                    player_id,
+                    player_data,
+                    teams_to_check,
+                    t_alias,
+                    s_alias,
+                )
 
-                    playup_occurrences = self._find_playup_occurrences(
-                        player_id, matches, t_alias, s_alias
-                    )
-                    await self._update_player_playup_trackings(
-                        client,
-                        player_id,
-                        player_data,
-                        playup_occurrences,
-                        base_url,
-                        headers,
-                    )
+                playup_occurrences = self._find_playup_occurrences(
+                    player_id, matches, t_alias, s_alias
+                )
+                if playup_occurrences:
+                    fresh_player = await self.db["players"].find_one({"_id": player_id})
+                    if fresh_player:
+                        player_data = fresh_player
+                await self._update_player_playup_trackings(
+                    player_id,
+                    player_data,
+                    playup_occurrences,
+                )
 
             except Exception as e:
                 logger.exception(
@@ -1357,14 +1338,11 @@ class StatsService:
 
     async def _update_player_playup_trackings(
         self,
-        client,
         player_id: str,
         player_data: dict,
         playup_occurrences: list[dict],
-        base_url: str,
-        headers: dict,
     ) -> None:
-        """Update player's playUpTrackings with new occurrences from finished matches."""
+        """Update player's playUpTrackings with new occurrences from finished matches via direct DB update."""
         if not playup_occurrences:
             return
 
@@ -1418,44 +1396,33 @@ class StatsService:
                 )
 
         try:
-            import json as json_module
-            from datetime import datetime
-
-            def _default_serializer(obj):
-                if isinstance(obj, datetime):
-                    return obj.isoformat()
-                raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-            form_data = {
-                "playUpTrackings": json_module.dumps(existing_trackings, default=_default_serializer)
-            }
-            form_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
-            update_response = await client.patch(
-                f"{base_url}/players/{player_id}",
-                data=form_data,
-                headers=form_headers,
+            result = await self.db["players"].update_one(
+                {"_id": player_id},
+                {"$set": {"playUpTrackings": existing_trackings}},
             )
-            update_response.raise_for_status()
-            logger.info(
-                f"Updated playUpTrackings for player {player_id}",
-                extra={"player_id": player_id, "occurrences_added": len(playup_occurrences)},
-            )
-        except httpx.HTTPStatusError as e:
+            if result.modified_count == 1:
+                logger.info(
+                    f"Updated playUpTrackings for player {player_id}",
+                    extra={"player_id": player_id, "occurrences_added": len(playup_occurrences)},
+                )
+            else:
+                logger.warning(
+                    f"playUpTrackings update had no effect for player {player_id}",
+                    extra={"player_id": player_id, "modified_count": result.modified_count},
+                )
+        except Exception as e:
             logger.error(
-                f"Failed to update playUpTrackings for player {player_id} (HTTP {e.response.status_code})",
+                f"Failed to update playUpTrackings for player {player_id}: {str(e)}",
                 extra={"player_id": player_id, "error": str(e)},
             )
 
     async def _update_assigned_teams_for_called_matches(
         self,
-        client,
         player_id: str,
         player_data: dict,
         teams_to_check: set,
         t_alias: str,
         s_alias: str,
-        base_url: str,
-        headers: dict,
     ) -> None:
         """Update assignedTeams for players with 5+ called matches."""
         for team_info in teams_to_check:
@@ -1471,7 +1438,6 @@ class StatsService:
                 club_ishd_id,
             ) = team_info
 
-            # Check if player has 5+ called matches for this team
             player_stats = player_data.get("stats", [])
             for stat in player_stats:
                 if self._has_enough_called_matches(
@@ -1479,9 +1445,12 @@ class StatsService:
                 ) and not self._team_already_assigned(player_data, team_id):
 
                     await self._add_called_team_assignment(
-                        client, player_id, player_data, team_info, base_url, headers
+                        player_id, player_data, team_info
                     )
-                    break  # Move to the next team if an assignment was made
+                    fresh_player = await self.db["players"].find_one({"_id": player_id})
+                    if fresh_player:
+                        player_data = fresh_player
+                    break
 
     def _has_enough_called_matches(
         self, stat: dict, t_alias: str, s_alias: str, team_name: str
@@ -1514,14 +1483,11 @@ class StatsService:
 
     async def _add_called_team_assignment(
         self,
-        client,
         player_id: str,
         player_data: dict,
         team_info: tuple,
-        base_url: str,
-        headers: dict,
     ) -> None:
-        """Add a new team assignment with CALLED source."""
+        """Add a new team assignment with CALLED source via direct DB update."""
         (
             team_id,
             team_name,
@@ -1536,7 +1502,6 @@ class StatsService:
 
         assigned_teams = player_data.get("assignedTeams", [])
 
-        # Try to add to existing club or create new club
         club_found = False
         for club in assigned_teams:
             if club.get("clubId") == club_id:
@@ -1544,49 +1509,29 @@ class StatsService:
                 club_found = True
                 break
 
-        if not club_found and club_id:  # Ensure club_id exists before creating a new club entry
+        if not club_found and club_id:
             assigned_teams.append(self._create_club_assignment(team_info))
 
-        # Update player in database
         try:
-            import json as json_module
-
-            form_data = {"assignedTeams": json_module.dumps(assigned_teams)}
-            form_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
-            update_response = await client.patch(
-                f"{base_url}/players/{player_id}",
-                data=form_data,
-                headers=form_headers,
+            result = await self.db["players"].update_one(
+                {"_id": player_id},
+                {"$set": {"assignedTeams": assigned_teams}},
             )
-            update_response.raise_for_status()
-            logger.info(f"Added CALLED assignment: Player {player_id} → Team {team_name}")
-
-        except httpx.HTTPStatusError as e:
+            if result.modified_count == 1:
+                logger.info(f"Added CALLED assignment: Player {player_id} → Team {team_name}")
+            else:
+                logger.warning(
+                    f"CALLED assignment update had no effect for player {player_id}",
+                    extra={"player_id": player_id, "team_name": team_name},
+                )
+        except Exception as e:
             logger.error(
-                f"Failed to update assignments for player {player_id} (HTTP {e.response.status_code})",
-                extra={
-                    "player_id": player_id,
-                    "team_name": team_name,
-                    "http_status_code": e.response.status_code,
-                },
-            )
-            raise DatabaseOperationException(
-                operation="update_player_assignments",
-                message=f"HTTP error updating assignments for player {player_id}: {str(e)}",
-                details={
-                    "player_id": player_id,
-                    "team_name": team_name,
-                    "http_status_code": e.response.status_code,
-                },
-            ) from e
-        except httpx.RequestError as e:
-            logger.error(
-                f"Network error updating assignments for player {player_id}: {str(e)}",
+                f"Failed to update assignments for player {player_id}: {str(e)}",
                 extra={"player_id": player_id, "team_name": team_name, "error": str(e)},
             )
             raise DatabaseOperationException(
                 operation="update_player_assignments",
-                message=f"Network error updating assignments for player {player_id}: {str(e)}",
+                message=f"DB error updating assignments for player {player_id}: {str(e)}",
                 details={"player_id": player_id, "team_name": team_name},
             ) from e
 

@@ -353,10 +353,7 @@ class TestStatsServiceIntegration:
         assert round_stat["penaltyMinutes"] == 4
 
     async def test_called_teams_assignment_logic(self, mongodb, client: AsyncClient, admin_token):
-        """Test that players with 5+ called matches get team assignments"""
-        import os
-        from unittest.mock import AsyncMock, patch
-
+        """Test that players with 5+ called matches get team assignments and playUpTrackings persisted in DB"""
         from tests.fixtures.data_fixtures import (
             create_test_match,
             create_test_player,
@@ -364,27 +361,43 @@ class TestStatsServiceIntegration:
             create_test_tournament,
         )
 
-        # This test requires mocking the HTTP calls but validates DB logic
-        # Skip if no API URL configured
-        if not os.environ.get("BE_API_URL"):
-            pytest.skip("BE_API_URL not configured")
-
-        # Clean up any existing player data from previous tests
         await mongodb["players"].delete_many({"_id": "player-called-1"})
 
-        # Setup
         tournament = create_test_tournament()
         tournament["seasons"][0]["rounds"][0]["createStats"] = True
         await mongodb["tournaments"].insert_one(tournament)
 
-        # Create player with unique _id for this test
         player = create_test_player("player-called-1")
-        player["_id"] = "player-called-1"  # Override _id to match roster player ID
-        player["stats"] = []
+        player["_id"] = "player-called-1"
+        player["stats"] = [
+            {
+                "tournament": {"alias": tournament["alias"], "name": tournament["name"]},
+                "season": {
+                    "alias": tournament["seasons"][0]["alias"],
+                    "name": tournament["seasons"][0]["name"],
+                },
+                "round": {
+                    "alias": tournament["seasons"][0]["rounds"][0]["alias"],
+                    "name": tournament["seasons"][0]["rounds"][0]["name"],
+                },
+                "team": {
+                    "name": "Test Team",
+                    "fullName": "Test Team",
+                    "shortName": "TT",
+                    "tinyName": "TT",
+                },
+                "gamesPlayed": 5,
+                "goals": 5,
+                "assists": 0,
+                "points": 5,
+                "penaltyMinutes": 0,
+                "calledMatches": 5,
+            }
+        ]
         player["assignedTeams"] = []
+        player["playUpTrackings"] = []
         await mongodb["players"].insert_one(player)
 
-        # Create 5 matches where player was called
         for _i in range(5):
             match = create_test_match(status="FINISHED")
             match["tournament"] = {"alias": tournament["alias"], "name": tournament["name"]}
@@ -426,7 +439,6 @@ class TestStatsServiceIntegration:
             match["home"]["roster"] = {"players": [roster_player], "status": "SUBMITTED"}
             await mongodb["matches"].insert_one(match)
 
-        # Create a mock token payload
         from types import SimpleNamespace
 
         token_payload = SimpleNamespace(
@@ -438,120 +450,40 @@ class TestStatsServiceIntegration:
             clubName=None,
         )
 
-        # Mock HTTP calls for player data fetch and update
-        # Patch httpx.AsyncClient in the stats_service module where it's actually used
-        with patch("services.stats_service.httpx.AsyncClient") as mock_client_class:
-            # Create the mock instance that will be returned by __aenter__
-            mock_client_instance = AsyncMock()
+        stats_service = StatsService(mongodb)
+        await stats_service.calculate_player_card_stats(
+            ["player-called-1"],
+            tournament["alias"],
+            tournament["seasons"][0]["alias"],
+            tournament["seasons"][0]["rounds"][0]["alias"],
+            tournament["seasons"][0]["rounds"][0]["matchdays"][0]["alias"],
+            token_payload=token_payload,
+        )
 
-            # Set up the context manager to return our mock instance
-            mock_context_manager = AsyncMock()
-            mock_context_manager.__aenter__.return_value = mock_client_instance
-            mock_client_class.return_value = mock_context_manager
+        updated_player = await mongodb["players"].find_one({"_id": "player-called-1"})
 
-            # Create a side effect that returns player data with stats showing 5 called matches
-            async def get_player_data(*args, **kwargs):
-                actual_player = await mongodb["players"].find_one({"_id": "player-called-1"})
+        playup_trackings = updated_player.get("playUpTrackings", [])
+        assert len(playup_trackings) >= 1, (
+            f"playUpTrackings should have at least one entry. Got: {playup_trackings}"
+        )
+        tracking = playup_trackings[0]
+        assert tracking["fromTeamId"] == "origin-team-id", "fromTeamId should match calledFromTeam"
+        assert tracking["toTeamId"] == "test-team-id", "toTeamId should match match team"
+        assert "occurrences" in tracking, "tracking should have occurrences"
+        assert len(tracking["occurrences"]) == 5, (
+            f"Should have 5 occurrences (one per match). Got: {len(tracking['occurrences'])}"
+        )
 
-                # Add stats that show 5 called matches for the test team
-                actual_player["stats"] = [
-                    {
-                        "tournament": {"alias": tournament["alias"], "name": tournament["name"]},
-                        "season": {
-                            "alias": tournament["seasons"][0]["alias"],
-                            "name": tournament["seasons"][0]["name"],
-                        },
-                        "round": {
-                            "alias": tournament["seasons"][0]["rounds"][0]["alias"],
-                            "name": tournament["seasons"][0]["rounds"][0]["name"],
-                        },
-                        "team": {
-                            "name": "Test Team",
-                            "fullName": "Test Team",
-                            "shortName": "TT",
-                            "tinyName": "TT",
-                        },
-                        "gamesPlayed": 5,
-                        "goals": 5,
-                        "assists": 0,
-                        "points": 5,
-                        "penaltyMinutes": 0,
-                        "calledMatches": 5,  # This triggers the assignment logic
-                    }
-                ]
-
-                # Create response mock - note: json() is synchronous in httpx
-                response = AsyncMock()
-                response.status_code = 200
-                response.json = lambda: actual_player
-                return response
-
-            # Set up GET to use our side effect
-            mock_client_instance.get = AsyncMock(side_effect=get_player_data)
-
-            # Mock PATCH update response
-            mock_patch_response = AsyncMock()
-            mock_patch_response.status_code = 200
-            mock_patch_response.raise_for_status = AsyncMock()
-            mock_client_instance.patch = AsyncMock(return_value=mock_patch_response)
-
-            # Execute
-            stats_service = StatsService(mongodb)
-            await stats_service.calculate_player_card_stats(
-                ["player-called-1"],
-                tournament["alias"],
-                tournament["seasons"][0]["alias"],
-                tournament["seasons"][0]["rounds"][0]["alias"],
-                tournament["seasons"][0]["rounds"][0]["matchdays"][0]["alias"],
-                token_payload=token_payload,
-            )
-
-            # Assert - Verify PATCH was called to add team assignment and playUpTrackings
-            # The player should have 5 called matches, triggering the assignment logic
-            assert (
-                mock_client_instance.patch.called
-            ), f"PATCH should have been called to update player assignments. Call count: {mock_client_instance.patch.call_count}"
-
-            # Verify PATCH was called at least twice (assignedTeams and playUpTrackings)
-            assert mock_client_instance.patch.call_count >= 2, (
-                f"PATCH should be called at least twice (assignedTeams + playUpTrackings). "
-                f"Actual: {mock_client_instance.patch.call_count}"
-            )
-
-            # Check all PATCH calls - data is sent as form data (not JSON)
-            import json
-
-            patch_calls = mock_client_instance.patch.call_args_list
-            form_payloads = [call[1].get("data", {}) for call in patch_calls if call[1].get("data")]
-
-            # Verify assignedTeams was updated via form data
-            assigned_teams_updated = any("assignedTeams" in payload for payload in form_payloads)
-            assert assigned_teams_updated, (
-                f"No 'assignedTeams' in any PATCH form data. "
-                f"Payloads: {[list(p.keys()) for p in form_payloads]}"
-            )
-
-            # Verify playUpTrackings was updated via form data
-            playup_updated = any("playUpTrackings" in payload for payload in form_payloads)
-            assert playup_updated, (
-                f"No 'playUpTrackings' in any PATCH form data. "
-                f"Payloads: {[list(p.keys()) for p in form_payloads]}"
-            )
-
-            # Verify playUpTrackings structure (form data contains JSON string)
-            for payload in form_payloads:
-                if "playUpTrackings" in payload:
-                    trackings = json.loads(payload["playUpTrackings"])
-                    assert len(trackings) >= 1, "playUpTrackings should have at least one entry"
-                    tracking = trackings[0]
-                    assert (
-                        tracking["fromTeamId"] == "origin-team-id"
-                    ), "fromTeamId should match calledFromTeam"
-                    assert (
-                        tracking["toTeamId"] == "test-team-id"
-                    ), "toTeamId should match match team"
-                    assert "occurrences" in tracking, "tracking should have occurrences"
-                    assert len(tracking["occurrences"]) >= 1, "Should have at least one occurrence"
+        assigned_teams = updated_player.get("assignedTeams", [])
+        team_found = False
+        for club in assigned_teams:
+            for team in club.get("teams", []):
+                if team.get("teamId") == "test-team-id":
+                    team_found = True
+                    assert team.get("source") == "CALLED", "source should be CALLED"
+        assert team_found, (
+            f"Team 'test-team-id' should be in assignedTeams. Got: {assigned_teams}"
+        )
 
 
 @pytest.mark.asyncio

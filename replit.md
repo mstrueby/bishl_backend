@@ -96,15 +96,17 @@ Preferred communication style: Simple, everyday language.
 - **Affected Endpoints**: All GET match endpoints (single, list, calendar, today, upcoming, rest-of-week), GET rounds, GET matchdays, GET seasons
 - **Service File**: `services/match_settings_service.py` contains `resolve_match_settings()` (single match) and `resolve_match_settings_batch()` (list of matches)
 
-### Play-Up Tracking System (Added January 2026)
+### Play-Up Tracking System (Added January 2026, Updated February 2026)
 - **CalledFromTeam Field**: `RosterPlayer` now has optional `calledFromTeam` with teamId, teamName, teamAlias
   - Set during roster creation when a player is called up from a lower team
   - Must be set alongside `called: true` for play-up tracking to work
 - **PlayUpTrackings Population**: When a match finishes:
   - StatsService extracts play-up occurrences from roster data
-  - Updates player's `playUpTrackings` array with fromTeamId, toTeamId, and occurrence details
+  - Updates player's `playUpTrackings` array directly in MongoDB (no HTTP self-calls)
   - Duplicate matchId entries are prevented
   - Validates fromTeamId and toTeamId presence before storing
+  - Runs independently of `createStats` flag — matches are always fetched for playup tracking
+- **Direct DB Updates (February 2026)**: Both `playUpTrackings` and `assignedTeams` updates use direct MongoDB writes (`self.db["players"].update_one()`) instead of HTTP PATCH self-calls. Player data is re-read from DB between updates to prevent stale data overwrites.
 - **PlayUpTracking Structure**: 
   - `tournamentAlias`, `seasonAlias`: Context for the play-up
   - `fromTeamId`: Player's original/lower team
