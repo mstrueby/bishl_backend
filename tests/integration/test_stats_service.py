@@ -414,19 +414,15 @@ class TestStatsServiceIntegration:
                 "name": tournament["seasons"][0]["rounds"][0]["matchdays"][0]["name"],
             }
             match["matchStatus"] = {"key": "FINISHED", "value": "Beendet"}
-            match["home"]["team"] = {
-                "teamId": "test-team-id",
-                "name": "Test Team",
-                "alias": "test-team",
-                "ageGroup": "U20",
-                "ishdId": "123",
-            }
-            match["home"]["club"] = {
-                "clubId": "test-club-id",
-                "name": "Test Club",
-                "alias": "test-club",
-                "ishdId": "456",
-            }
+            match["home"]["teamId"] = "test-team-id"
+            match["home"]["name"] = "Test Team"
+            match["home"]["teamAlias"] = "test-team"
+            match["home"]["ageGroup"] = "U20"
+            match["home"]["ishdId"] = "123"
+            match["home"]["clubId"] = "test-club-id"
+            match["home"]["clubName"] = "Test Club"
+            match["home"]["clubAlias"] = "test-club"
+            match["home"]["clubIshdId"] = "456"
 
             roster_player = create_test_roster_player("player-called-1")
             roster_player["called"] = True
