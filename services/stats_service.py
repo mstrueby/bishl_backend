@@ -1241,7 +1241,7 @@ class StatsService:
                 playup_occurrences = self._find_playup_occurrences(
                     player_id, matches, t_alias, s_alias
                 )
-                if playup_occurrences:
+                if playup_occurrences and self.db is not None:
                     fresh_player = await self.db["players"].find_one({"_id": player_id})
                     if fresh_player:
                         player_data = fresh_player
@@ -1447,9 +1447,10 @@ class StatsService:
                     await self._add_called_team_assignment(
                         player_id, player_data, team_info
                     )
-                    fresh_player = await self.db["players"].find_one({"_id": player_id})
-                    if fresh_player:
-                        player_data = fresh_player
+                    if self.db is not None:
+                        fresh_player = await self.db["players"].find_one({"_id": player_id})
+                        if fresh_player:
+                            player_data = fresh_player
                     break
 
     def _has_enough_called_matches(
