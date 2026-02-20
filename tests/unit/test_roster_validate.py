@@ -117,15 +117,15 @@ class TestCountCalledMatches:
 
     def test_no_trackings(self):
         player = {"playUpTrackings": []}
-        assert _count_called_matches(player, "team-higher") == 0
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 0
 
     def test_none_trackings(self):
         player = {"playUpTrackings": None}
-        assert _count_called_matches(player, "team-higher") == 0
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 0
 
     def test_missing_trackings(self):
         player = {}
-        assert _count_called_matches(player, "team-higher") == 0
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 0
 
     def test_counts_matching_team_occurrences(self):
         player = {
@@ -133,6 +133,8 @@ class TestCountCalledMatches:
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
+                    "tournamentAlias": "test-tournament",
+                    "seasonAlias": "test-season",
                     "occurrences": [
                         {"matchId": "m1", "counted": True},
                         {"matchId": "m2", "counted": True},
@@ -141,7 +143,7 @@ class TestCountCalledMatches:
                 }
             ]
         }
-        assert _count_called_matches(player, "team-higher") == 3
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 3
 
     def test_ignores_different_team(self):
         player = {
@@ -149,13 +151,15 @@ class TestCountCalledMatches:
                 {
                     "toTeamId": "team-other",
                     "fromTeamId": "team-lower",
+                    "tournamentAlias": "test-tournament",
+                    "seasonAlias": "test-season",
                     "occurrences": [
                         {"matchId": "m1", "counted": True},
                     ],
                 }
             ]
         }
-        assert _count_called_matches(player, "team-higher") == 0
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 0
 
     def test_skips_uncounted_occurrences(self):
         player = {
@@ -163,6 +167,8 @@ class TestCountCalledMatches:
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
+                    "tournamentAlias": "test-tournament",
+                    "seasonAlias": "test-season",
                     "occurrences": [
                         {"matchId": "m1", "counted": True},
                         {"matchId": "m2", "counted": False},
@@ -171,7 +177,7 @@ class TestCountCalledMatches:
                 }
             ]
         }
-        assert _count_called_matches(player, "team-higher") == 2
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 2
 
     def test_sums_across_multiple_trackings(self):
         player = {
@@ -179,11 +185,15 @@ class TestCountCalledMatches:
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower-a",
+                    "tournamentAlias": "test-tournament",
+                    "seasonAlias": "test-season",
                     "occurrences": [{"matchId": "m1", "counted": True}],
                 },
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower-b",
+                    "tournamentAlias": "test-tournament",
+                    "seasonAlias": "test-season",
                     "occurrences": [
                         {"matchId": "m2", "counted": True},
                         {"matchId": "m3", "counted": True},
@@ -191,7 +201,7 @@ class TestCountCalledMatches:
                 },
             ]
         }
-        assert _count_called_matches(player, "team-higher") == 3
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 3
 
     def test_exactly_at_limit(self):
         player = {
@@ -199,13 +209,15 @@ class TestCountCalledMatches:
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
+                    "tournamentAlias": "test-tournament",
+                    "seasonAlias": "test-season",
                     "occurrences": [
                         {"matchId": f"m{i}", "counted": True} for i in range(CALLED_MATCH_LIMIT)
                     ],
                 }
             ]
         }
-        assert _count_called_matches(player, "team-higher") == CALLED_MATCH_LIMIT
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == CALLED_MATCH_LIMIT
 
 
 class TestValidateCalledPlayer:
