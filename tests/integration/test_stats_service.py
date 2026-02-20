@@ -482,6 +482,85 @@ class TestStatsServiceIntegration:
         )
 
 
+    async def test_standings_recalculated_on_match_finished(
+        self, mongodb, client: AsyncClient, admin_token
+    ):
+        """Test that round and matchday standings are recalculated when match status changes to FINISHED via update_match"""
+        from tests.fixtures.data_fixtures import create_test_match, create_test_tournament
+
+        tournament = create_test_tournament()
+        tournament["seasons"][0]["rounds"][0]["createStandings"] = True
+        tournament["seasons"][0]["rounds"][0]["matchdays"][0]["createStandings"] = True
+        await mongodb["tournaments"].insert_one(tournament)
+
+        t_alias = tournament["alias"]
+        s_alias = tournament["seasons"][0]["alias"]
+        r_alias = tournament["seasons"][0]["rounds"][0]["alias"]
+        md_alias = tournament["seasons"][0]["rounds"][0]["matchdays"][0]["alias"]
+
+        match = create_test_match(status="INPROGRESS")
+        match["tournament"] = {"alias": t_alias, "name": tournament["name"]}
+        match["season"] = {"alias": s_alias, "name": tournament["seasons"][0]["name"]}
+        match["round"] = {"alias": r_alias, "name": tournament["seasons"][0]["rounds"][0]["name"]}
+        match["matchday"] = {
+            "alias": md_alias,
+            "name": tournament["seasons"][0]["rounds"][0]["matchdays"][0]["name"],
+        }
+        match["finishType"] = {"key": "REGULAR", "value": "Regulär"}
+        match["home"]["stats"] = {
+            "gamePlayed": 1,
+            "goalsFor": 3,
+            "goalsAgainst": 1,
+            "points": 3,
+            "win": 1,
+            "loss": 0,
+            "draw": 0,
+            "otWin": 0,
+            "otLoss": 0,
+            "soWin": 0,
+            "soLoss": 0,
+        }
+        match["away"]["stats"] = {
+            "gamePlayed": 1,
+            "goalsFor": 1,
+            "goalsAgainst": 3,
+            "points": 0,
+            "win": 0,
+            "loss": 1,
+            "draw": 0,
+            "otWin": 0,
+            "otLoss": 0,
+            "soWin": 0,
+            "soLoss": 0,
+        }
+        await mongodb["matches"].insert_one(match)
+
+        response = await client.patch(
+            f"/matches/{match['_id']}",
+            json={
+                "matchStatus": {"key": "FINISHED", "value": "Beendet"},
+            },
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 200
+
+        updated_tournament = await mongodb["tournaments"].find_one({"_id": tournament["_id"]})
+
+        round_standings = updated_tournament["seasons"][0]["rounds"][0]["standings"]
+        assert len(round_standings) == 2
+        teams = list(round_standings.keys())
+        assert round_standings[teams[0]]["points"] == 3
+        assert round_standings[teams[0]]["wins"] == 1
+        assert round_standings[teams[1]]["points"] == 0
+        assert round_standings[teams[1]]["losses"] == 1
+
+        md_standings = updated_tournament["seasons"][0]["rounds"][0]["matchdays"][0]["standings"]
+        assert len(md_standings) == 2
+        md_teams = list(md_standings.keys())
+        assert md_standings[md_teams[0]]["points"] == 3
+        assert md_standings[md_teams[1]]["points"] == 0
+
+
 @pytest.mark.asyncio
 class TestStatsServiceEdgeCases:
     """Test edge cases and error handling"""

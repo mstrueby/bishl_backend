@@ -1190,6 +1190,10 @@ async def update_match(
         and r_alias
         and md_alias
     ):
+        stats_service = StatsService(mongodb)
+        await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
+        await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
+
         home_roster = existing_match.get("home", {}).get("roster", {})
         home_roster_players = (
             home_roster.get("players", []) if isinstance(home_roster, dict) else home_roster
@@ -1214,7 +1218,6 @@ async def update_match(
                 f"Stats change detected on finished match - calculating player card stats for {len(player_ids)} players..."
             )
         if player_ids:
-            stats_service = StatsService(mongodb)
             await stats_service.calculate_player_card_stats(
                 player_ids, t_alias, s_alias, r_alias, md_alias, token_payload
             )
