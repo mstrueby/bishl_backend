@@ -2,9 +2,6 @@ import time
 from functools import wraps
 from typing import Any
 
-import httpx
-
-from config import settings
 from exceptions.custom_exceptions import (
     DatabaseOperationException,
     ResourceNotFoundException,
@@ -1228,12 +1225,15 @@ class StatsService:
                     )
                     continue
 
-                logger.debug(f"Processing called matches for player {player_id} in {len(matches)} matches")
+                logger.debug(
+                    f"Processing called matches for player {player_id} in {len(matches)} matches"
+                )
                 teams_to_check = self._find_called_teams(player_id, matches)
 
                 logger.debug(
-                    f"Found {len(teams_to_check)} teams to check for player {player_id}", extra=
-                    {"player_id": player_id, "teams_count": len(teams_to_check)})
+                    f"Found {len(teams_to_check)} teams to check for player {player_id}",
+                    extra={"player_id": player_id, "teams_count": len(teams_to_check)},
+                )
 
                 await self._update_assigned_teams_for_called_matches(
                     player_id,
@@ -1449,9 +1449,7 @@ class StatsService:
                     stat, t_alias, s_alias, team_name
                 ) and not self._team_already_assigned(player_data, team_id):
 
-                    await self._add_called_team_assignment(
-                        player_id, player_data, team_info
-                    )
+                    await self._add_called_team_assignment(player_id, player_data, team_info)
                     if self.db is not None:
                         fresh_player = await self.db["players"].find_one({"_id": player_id})
                         if fresh_player:

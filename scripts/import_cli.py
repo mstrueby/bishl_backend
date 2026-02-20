@@ -86,8 +86,12 @@ class ImportCLI:
             default="dev",
             help="Target environment: dev (default), demo, or prod",
         )
-        env_group.add_argument("--prod", action="store_true", help="Use production database (shortcut for --env prod)")
-        env_group.add_argument("--demo", action="store_true", help="Use demo database (shortcut for --env demo)")
+        env_group.add_argument(
+            "--prod", action="store_true", help="Use production database (shortcut for --env prod)"
+        )
+        env_group.add_argument(
+            "--demo", action="store_true", help="Use demo database (shortcut for --env demo)"
+        )
 
         parser.add_argument(
             "--file", type=str, help="Path to CSV file (default: data/data_<entity>.csv)"

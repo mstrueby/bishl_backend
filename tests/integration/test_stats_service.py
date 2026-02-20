@@ -459,16 +459,16 @@ class TestStatsServiceIntegration:
         updated_player = await mongodb["players"].find_one({"_id": "player-called-1"})
 
         playup_trackings = updated_player.get("playUpTrackings", [])
-        assert len(playup_trackings) >= 1, (
-            f"playUpTrackings should have at least one entry. Got: {playup_trackings}"
-        )
+        assert (
+            len(playup_trackings) >= 1
+        ), f"playUpTrackings should have at least one entry. Got: {playup_trackings}"
         tracking = playup_trackings[0]
         assert tracking["fromTeamId"] == "origin-team-id", "fromTeamId should match calledFromTeam"
         assert tracking["toTeamId"] == "test-team-id", "toTeamId should match match team"
         assert "occurrences" in tracking, "tracking should have occurrences"
-        assert len(tracking["occurrences"]) == 5, (
-            f"Should have 5 occurrences (one per match). Got: {len(tracking['occurrences'])}"
-        )
+        assert (
+            len(tracking["occurrences"]) == 5
+        ), f"Should have 5 occurrences (one per match). Got: {len(tracking['occurrences'])}"
 
         assigned_teams = updated_player.get("assignedTeams", [])
         team_found = False
@@ -477,10 +477,7 @@ class TestStatsServiceIntegration:
                 if team.get("teamId") == "test-team-id":
                     team_found = True
                     assert team.get("source") == "CALLED", "source should be CALLED"
-        assert team_found, (
-            f"Team 'test-team-id' should be in assignedTeams. Got: {assigned_teams}"
-        )
-
+        assert team_found, f"Team 'test-team-id' should be in assignedTeams. Got: {assigned_teams}"
 
     async def test_standings_recalculated_on_match_finished(
         self, mongodb, client: AsyncClient, admin_token

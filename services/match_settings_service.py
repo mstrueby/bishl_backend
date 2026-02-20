@@ -55,7 +55,11 @@ async def resolve_match_settings_batch(
             )
             if round_data and md_alias:
                 matchday = next(
-                    (md_d for md_d in round_data.get("matchdays", []) if md_d.get("alias") == md_alias),
+                    (
+                        md_d
+                        for md_d in round_data.get("matchdays", [])
+                        if md_d.get("alias") == md_alias
+                    ),
                     None,
                 )
                 if matchday and matchday.get("matchSettings"):

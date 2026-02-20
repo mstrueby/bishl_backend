@@ -168,7 +168,11 @@ async def get_match_object(mongodb, match_id: str) -> MatchDB:
     md_alias = match_obj.matchday.alias if match_obj.matchday else None
 
     resolved_settings, source = await resolve_match_settings(
-        mongodb, t_alias, s_alias, r_alias, md_alias,
+        mongodb,
+        t_alias,
+        s_alias,
+        r_alias,
+        md_alias,
         match.get("matchSettings"),
     )
     match_obj.matchSettings = resolved_settings

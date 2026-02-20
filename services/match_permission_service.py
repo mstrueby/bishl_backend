@@ -112,12 +112,14 @@ class MatchPermissionService:
 
             try:
                 import zoneinfo
+
                 # Get current time in Berlin (handles CET/CEST automatically)
                 berlin_now = datetime.now(zoneinfo.ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
             except Exception:
-                # Fallback: Feb 18 is CET (+1). If user's log (13:54 -> 15:54) shows +2, 
+                # Fallback: Feb 18 is CET (+1). If user's log (13:54 -> 15:54) shows +2,
                 # they might be in a different environment or testing CEST.
                 from datetime import timedelta
+
                 berlin_now = datetime.utcnow() + timedelta(hours=2)
 
             match_start_ts = match_start_naive.timestamp()
