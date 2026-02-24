@@ -73,14 +73,6 @@ class PlayerAssignmentService:
                     requiresAdmin=False,
                 )
             ],
-            overAgeRules=[
-                OverAgeRule(
-                    targetAgeGroup="U19",
-                    sex=[Sex.FEMALE],
-                    maxLicenses=1,
-                    maxOverAgePlayersPerTeam=3,
-                )
-            ],
             maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 2},
         ),
         WkoRule(
