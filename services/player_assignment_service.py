@@ -2302,20 +2302,22 @@ class PlayerAssignmentService:
                                                 ishd_pass_no = player["license_number"]
                                                 current_pass_no = team_assignment.get("passNo")
                                                 if (
-                                                    existing_player.get("managedByISHD", True) is not False
+                                                    existing_player.get("managedByISHD", True)
+                                                    is not False
                                                     and team_assignment.get("source") == Source.ISHD
                                                     and current_pass_no != ishd_pass_no
                                                 ):
                                                     old_pass_no = current_pass_no
                                                     team_assignment["passNo"] = ishd_pass_no
-                                                    team_assignment["modifyDate"] = datetime.strptime(
-                                                        player["last_modification"], "%Y-%m-%d %H:%M:%S"
+                                                    team_assignment["modifyDate"] = (
+                                                        datetime.strptime(
+                                                            player["last_modification"],
+                                                            "%Y-%m-%d %H:%M:%S",
+                                                        )
                                                     )
 
-                                                    existing_player = (
-                                                        await self.classify_license_types_for_player(
-                                                            existing_player
-                                                        )
+                                                    existing_player = await self.classify_license_types_for_player(
+                                                        existing_player
                                                     )
                                                     existing_player = (
                                                         await self.validate_licenses_for_player(
@@ -2333,15 +2335,21 @@ class PlayerAssignmentService:
                                                         log_line = f"[DRY] Would update passNo for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']} (passNo: {old_pass_no} -> {ishd_pass_no})"
                                                         logger.info(log_line)
                                                         log_lines.append(log_line)
-                                                        ishd_log_player.action = IshdAction.UPDATE_TEAM
+                                                        ishd_log_player.action = (
+                                                            IshdAction.UPDATE_TEAM
+                                                        )
                                                         stats["updated_passno"] += 1
                                                     else:
-                                                        result = await self.db["players"].update_one(
+                                                        result = await self.db[
+                                                            "players"
+                                                        ].update_one(
                                                             {"_id": existing_player["_id"]},
                                                             {
                                                                 "$set": {
                                                                     "assignedTeams": jsonable_encoder(
-                                                                        existing_player["assignedTeams"]
+                                                                        existing_player[
+                                                                            "assignedTeams"
+                                                                        ]
                                                                     )
                                                                 }
                                                             },
@@ -2350,7 +2358,9 @@ class PlayerAssignmentService:
                                                             log_line = f"Updated passNo for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']} (passNo: {old_pass_no} -> {ishd_pass_no})"
                                                             logger.info(log_line)
                                                             log_lines.append(log_line)
-                                                            ishd_log_player.action = IshdAction.UPDATE_TEAM
+                                                            ishd_log_player.action = (
+                                                                IshdAction.UPDATE_TEAM
+                                                            )
                                                             stats["updated_passno"] += 1
                                                         else:
                                                             logger.debug(

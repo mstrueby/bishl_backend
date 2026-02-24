@@ -775,7 +775,7 @@ async def get_possible_teams(
     service = PlayerAssignmentService(mongodb)
 
     # Auth check
-    
+
     if "PLAYER_ADMIN" in token_payload.roles or "ADMIN" in token_payload.roles:
         if not club_id:
             raise AuthorizationException("Club ID required for PLAYER_ADMIN or ADMIN")

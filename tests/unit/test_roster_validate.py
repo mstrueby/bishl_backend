@@ -217,7 +217,10 @@ class TestCountCalledMatches:
                 }
             ]
         }
-        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == CALLED_MATCH_LIMIT
+        assert (
+            _count_called_matches(player, "team-higher", "test-tournament", "test-season")
+            == CALLED_MATCH_LIMIT
+        )
 
 
 class TestValidateCalledPlayer:
@@ -314,7 +317,9 @@ class TestValidateCalledPlayer:
             "season": {"alias": "test-season"},
         }
 
-        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", match)
+        status, codes = _validate_called_player(
+            validated_player, roster_player, "team-higher", match
+        )
         assert status == LicenseStatus.INVALID
         assert codes == [LicenseInvalidReasonCode.CALLED_LIMIT_EXCEEDED]
 
@@ -352,7 +357,9 @@ class TestValidateCalledPlayer:
             "season": {"alias": "test-season"},
         }
 
-        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", match)
+        status, codes = _validate_called_player(
+            validated_player, roster_player, "team-higher", match
+        )
         assert status == LicenseStatus.INVALID
         assert codes == [LicenseInvalidReasonCode.CALLED_LIMIT_EXCEEDED]
 
