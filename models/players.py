@@ -405,6 +405,7 @@ class IshdAction(str, Enum):
     ADD_PLAYER = "Add new Player"
     ADD_CLUB = "Add club/team assignment"
     ADD_TEAM = "Add team assigment"
+    UPDATE_TEAM = "Update team assignment"
     DEL_TEAM = "Remove team assigment"
     DEL_CLUB = "Remove club assignment"
 

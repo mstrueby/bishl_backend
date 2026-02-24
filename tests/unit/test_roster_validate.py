@@ -303,12 +303,18 @@ class TestValidateCalledPlayer:
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
+                    "tournamentAlias": "test-tournament",
+                    "seasonAlias": "test-season",
                     "occurrences": [{"matchId": f"m{i}", "counted": True} for i in range(5)],
                 }
             ],
         }
+        match = {
+            "tournament": {"alias": "test-tournament"},
+            "season": {"alias": "test-season"},
+        }
 
-        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", match)
         assert status == LicenseStatus.INVALID
         assert codes == [LicenseInvalidReasonCode.CALLED_LIMIT_EXCEEDED]
 
@@ -335,12 +341,18 @@ class TestValidateCalledPlayer:
                 {
                     "toTeamId": "team-higher",
                     "fromTeamId": "team-lower",
+                    "tournamentAlias": "test-tournament",
+                    "seasonAlias": "test-season",
                     "occurrences": [{"matchId": f"m{i}", "counted": True} for i in range(6)],
                 }
             ],
         }
+        match = {
+            "tournament": {"alias": "test-tournament"},
+            "season": {"alias": "test-season"},
+        }
 
-        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", {})
+        status, codes = _validate_called_player(validated_player, roster_player, "team-higher", match)
         assert status == LicenseStatus.INVALID
         assert codes == [LicenseInvalidReasonCode.CALLED_LIMIT_EXCEEDED]
 
