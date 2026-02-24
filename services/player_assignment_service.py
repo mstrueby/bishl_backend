@@ -2712,6 +2712,8 @@ class PlayerAssignmentService:
 
         # Persist ISHD log to database (skip in dry mode)
         ishd_log_base_enc = jsonable_encoder(ishd_log_base)
+        # Ensure processDate is stored as a datetime object in MongoDB, not a string
+        ishd_log_base_enc["processDate"] = ishd_log_base.processDate
         if mode != "dry":
             result = await self.db["ishdLogs"].insert_one(ishd_log_base_enc)
             if result.inserted_id:

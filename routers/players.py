@@ -775,17 +775,18 @@ async def get_possible_teams(
     service = PlayerAssignmentService(mongodb)
 
     # Auth check
-    if "CLUB_ADMIN" in token_payload.roles:
+    
+    if "PLAYER_ADMIN" in token_payload.roles or "ADMIN" in token_payload.roles:
+        if not club_id:
+            raise AuthorizationException("Club ID required for PLAYER_ADMIN or ADMIN")
+        else:
+            target_club_id = club_id
+    elif "CLUB_ADMIN" in token_payload.roles:
         target_club_id = token_payload.clubId
         if not target_club_id:
             raise AuthorizationException("Club ID required for CLUB_ADMIN")
         if club_id and club_id != target_club_id:
             raise AuthorizationException("Can only access own club teams")
-    elif "PLAYER_ADMIN" in token_payload.roles or "ADMIN" in token_payload.roles:
-        if not club_id:
-            raise AuthorizationException("Club ID required for PLAYER_ADMIN or ADMIN")
-        else:
-            target_club_id = club_id
     else:
         raise AuthorizationException("Unauthorized access to possible teams")
 
