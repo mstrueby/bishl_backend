@@ -213,6 +213,7 @@ class TeamInput(BaseModel):
     active: bool | None = False
     source: Source | None = Field(default=Source.BISHL)
     modifyDate: datetime | None = None
+    adminOverride: bool | None = False
 
 
 class AssignedTeamsInput(BaseModel):
