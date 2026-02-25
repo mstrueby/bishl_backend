@@ -299,7 +299,9 @@ class PlayerAssignmentService:
         if len(all_licenses) == 1:
             club, team = all_licenses[0]
 
-            # PROTECT LOAN and SPECIAL licenses from being changed
+            # PROTECT adminOverride, LOAN and SPECIAL licenses from being changed
+            if team.get("adminOverride"):
+                return player
             if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                 return player
 
@@ -325,7 +327,9 @@ class PlayerAssignmentService:
 
         # Step 2: Apply suffix-based classification
         for club, team in all_licenses:
-            # PROTECT LOAN and SPECIAL licenses from being changed
+            # PROTECT adminOverride, LOAN and SPECIAL licenses from being changed
+            if team.get("adminOverride"):
+                continue
             if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                 continue
 
@@ -342,6 +346,8 @@ class PlayerAssignmentService:
         # Step 2b: Detect DEVELOPMENT clubs - check ALL teams (not just newly classified)
         # A club is DEVELOPMENT if passNo ends with 'F'
         for club, team in all_licenses:
+            if team.get("adminOverride"):
+                continue
             pass_no = team.get("passNo") or ""
             if pass_no.strip().upper().endswith("F"):
                 club["clubType"] = ClubType.DEVELOPMENT
@@ -349,6 +355,8 @@ class PlayerAssignmentService:
         # Step 2c: Detect LOAN clubs - check ALL teams (not just newly classified)
         # A club is LOAN if passNo ends with 'L' OR licenseType is LOAN
         for club, team in all_licenses:
+            if team.get("adminOverride"):
+                continue
             pass_no = team.get("passNo") or ""
             if pass_no.strip().upper().endswith("L") or team.get("licenseType") == LicenseType.LOAN:
                 club["clubType"] = ClubType.LOAN
@@ -360,7 +368,9 @@ class PlayerAssignmentService:
 
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
-                # PROTECT LOAN and SPECIAL licenses from being changed
+                # PROTECT adminOverride, LOAN and SPECIAL licenses from being changed
+                if team.get("adminOverride"):
+                    continue
                 if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                     continue
 
@@ -383,7 +393,9 @@ class PlayerAssignmentService:
 
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
-                    # PROTECT LOAN and SPECIAL licenses from being changed
+                    # PROTECT adminOverride, LOAN and SPECIAL licenses from being changed
+                    if team.get("adminOverride"):
+                        continue
                     if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                         continue
 
@@ -408,10 +420,12 @@ class PlayerAssignmentService:
                                 )
 
         # Step 5: Set ISHD UNKNOWN licenses to PRIMARY in clubs without PRIMARY
-        # First, identify clubs with PRIMARY licenses
+        # First, identify clubs with PRIMARY licenses (skip adminOverride)
         clubs_with_primary = set()
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
                 if team.get("licenseType") == LicenseType.PRIMARY:
                     clubs_with_primary.add(club.get("clubId"))
                     break
@@ -421,13 +435,14 @@ class PlayerAssignmentService:
         for club in player.get("assignedTeams", []):
             club_id = club.get("clubId")
             if club_id not in clubs_with_primary:
-                # Find ISHD UNKNOWN licenses in this club
+                # Find ISHD UNKNOWN licenses in this club (skip adminOverride)
                 # (LOAN and SPECIAL are already protected by being skipped in previous steps,
                 # but we check licenseType == UNKNOWN here anyway)
                 ishd_unknown_licenses = [
                     team
                     for team in club.get("teams", [])
-                    if team.get("licenseType") == LicenseType.UNKNOWN
+                    if not team.get("adminOverride")
+                    and team.get("licenseType") == LicenseType.UNKNOWN
                     and team.get("source") == Source.ISHD
                 ]
 
@@ -446,6 +461,8 @@ class PlayerAssignmentService:
         for club in player.get("assignedTeams", []):
             if club.get("clubId") in clubs_with_primary:
                 for team in club.get("teams", []):
+                    if team.get("adminOverride"):
+                        continue
                     if team.get("licenseType") == LicenseType.UNKNOWN:
                         team["licenseType"] = LicenseType.SECONDARY
                         if settings.DEBUG_LEVEL > 0:
@@ -459,7 +476,9 @@ class PlayerAssignmentService:
         unknown_licenses = []
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
-                # PROTECT LOAN and SPECIAL licenses from being changed
+                # PROTECT adminOverride, LOAN and SPECIAL licenses from being changed
+                if team.get("adminOverride"):
+                    continue
                 if team.get("licenseType") in [LicenseType.LOAN, LicenseType.SPECIAL]:
                     continue
 
@@ -942,6 +961,8 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("licenseType") == LicenseType.LOAN:
                     continue
+                if team.get("adminOverride"):
+                    continue
                 # Any other license in the same club as LOAN is invalid
                 team["status"] = LicenseStatus.INVALID
                 if LicenseInvalidReasonCode.LOAN_CLUB_CONFLICT not in team.get(
@@ -1007,6 +1028,8 @@ class PlayerAssignmentService:
                 club_type = ClubType.MAIN
 
             for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
                 if team.get("source") == Source.ISHD and team.get("status") == LicenseStatus.VALID:
                     license_type = team.get("licenseType")
                     pool_key = (club_type, license_type)
@@ -1302,6 +1325,8 @@ class PlayerAssignmentService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
                 if team.get("status") == LicenseStatus.VALID:
                     target_age_group = team.get("teamAgeGroup")
                     if target_age_group not in result:
@@ -1494,6 +1519,8 @@ class PlayerAssignmentService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
                 valid_from = team.get("validFrom")
                 valid_to = team.get("validTo")
                 if valid_from and valid_to:
@@ -1655,6 +1682,8 @@ class PlayerAssignmentService:
 
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
                 if team.get("status") == LicenseStatus.UNKNOWN:
                     if team.get("licenseType") == LicenseType.UNKNOWN:
                         # Cannot classify license type, mark as invalid
