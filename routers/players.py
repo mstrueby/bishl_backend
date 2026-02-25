@@ -611,6 +611,9 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                         "licenseType": "UNKNOWN",
                         "modifyDate": team_to_assign.modifyDate,
                         "adminOverride": team_to_assign.adminOverride,
+                        "overrideReason": team_to_assign.overrideReason,
+                        "overrideDate": team_to_assign.overrideDate,
+                        "status": team_to_assign.status,
                     }
                 )
         assigned_teams_dict.append(
