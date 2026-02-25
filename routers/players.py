@@ -608,7 +608,7 @@ async def build_assigned_teams_dict(assignedTeams, source, request):
                         "jerseyNo": team_to_assign.jerseyNo,
                         "active": team_to_assign.active,
                         "source": team_to_assign.source,
-                        "licenseType": "UNKNOWN",
+                        "licenseType": team_to_assign.licenseType,
                         "modifyDate": team_to_assign.modifyDate,
                         "adminOverride": team_to_assign.adminOverride,
                         "overrideReason": team_to_assign.overrideReason,

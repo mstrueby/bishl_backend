@@ -225,6 +225,7 @@ class TeamInput(BaseModel):
     overrideReason: str | None = None
     overrideDate: datetime | None = None
     status: LicenseStatus | None = Field(default=LicenseStatus.UNKNOWN)
+    licenseType: LicenseType | None = Field(default=LicenseType.UNKNOWN)
 
     @field_validator("overrideDate", mode="before")
     @classmethod
