@@ -278,8 +278,9 @@ class TestAdminOverride:
     # ------------------------------------------------------------------ #
 
     @pytest.mark.asyncio
-    async def test_classification_skips_admin_override_single_license(self, service):
-        """Single-license path: adminOverride=True license keeps its licenseType unchanged."""
+    async def test_classification_preserves_explicit_license_type_single(self, service):
+        """Single-license path: any explicitly-stored non-UNKNOWN licenseType is preserved,
+        regardless of adminOverride flag."""
         player = self._make_player_dict(
             datetime(2011, 1, 1),  # U16
             [
@@ -293,8 +294,9 @@ class TestAdminOverride:
         assert result["assignedTeams"][0]["teams"][0]["licenseType"] == "SECONDARY"
 
     @pytest.mark.asyncio
-    async def test_classification_skips_admin_override_multi_license(self, service):
-        """Multi-license path: adminOverride=True license keeps its licenseType despite UNKNOWN passNo."""
+    async def test_classification_preserves_explicit_license_type_multi(self, service):
+        """Multi-license path: explicitly-stored non-UNKNOWN licenseType is preserved
+        even when passNo has no suffix."""
         player = self._make_player_dict(
             datetime(2011, 1, 1),  # U16
             [
@@ -311,11 +313,12 @@ class TestAdminOverride:
         )
         result = await service.classify_license_types_for_player(player)
         t1 = result["assignedTeams"][0]["teams"][0]
-        assert t1["licenseType"] == "SECONDARY", "adminOverride license must not be reclassified"
+        assert t1["licenseType"] == "SECONDARY", "Explicit licenseType must not be reclassified"
 
     @pytest.mark.asyncio
-    async def test_classification_does_not_promote_admin_override_unknown_to_primary(self, service):
-        """adminOverride=True on an UNKNOWN license: stays UNKNOWN, not promoted to PRIMARY."""
+    async def test_classification_classifies_admin_override_unknown_license(self, service):
+        """adminOverride=True on an UNKNOWN license: classification still runs.
+        U16 player in a U16 team with UNKNOWN type → gets promoted to PRIMARY."""
         player = self._make_player_dict(
             datetime(2011, 1, 1),  # U16
             [
@@ -330,7 +333,30 @@ class TestAdminOverride:
         )
         result = await service.classify_license_types_for_player(player)
         t1 = result["assignedTeams"][0]["teams"][0]
-        assert t1["licenseType"] == "UNKNOWN"
+        assert t1["licenseType"] == "PRIMARY", (
+            "adminOverride+UNKNOWN is still classified — UNKNOWN means 'auto-classify me'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_classification_preserves_explicit_loan_without_admin_override(self, service):
+        """Explicit LOAN licenseType is preserved even without adminOverride and without L-suffix passNo."""
+        player = self._make_player_dict(
+            datetime(2011, 1, 1),  # U16
+            [
+                self._make_club(
+                    "club1",
+                    [
+                        self._make_team("t1", "U16", "PRIMARY"),
+                        self._make_team("t2", "U16", "LOAN", admin_override=False, pass_no="99999"),
+                    ],
+                )
+            ],
+        )
+        result = await service.classify_license_types_for_player(player)
+        t2 = result["assignedTeams"][0]["teams"][1]
+        assert t2["licenseType"] == "LOAN", (
+            "Explicit LOAN must be preserved without passNo L-suffix or adminOverride"
+        )
 
     # ------------------------------------------------------------------ #
     # T002: Validation                                                      #
