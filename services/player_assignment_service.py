@@ -680,10 +680,13 @@ class PlayerAssignmentService:
         # Capture original state
         original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
 
-        # Reset if requested
+        # Reset if requested — skip adminOverride=True licenses so their
+        # admin-set licenseType and status are preserved throughout classification.
         if reset:
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
+                    if team.get("adminOverride"):
+                        continue
                     team["licenseType"] = LicenseType.UNKNOWN
                     team["status"] = LicenseStatus.UNKNOWN
                     team["invalidReasonCodes"] = []
@@ -1738,10 +1741,13 @@ class PlayerAssignmentService:
         # Capture original state
         original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
 
-        # Reset if requested
+        # Reset if requested — skip adminOverride=True licenses so their
+        # admin-set status and invalidReasonCodes are preserved through validation.
         if reset:
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
+                    if team.get("adminOverride"):
+                        continue
                     team["status"] = LicenseStatus.UNKNOWN
                     team["invalidReasonCodes"] = []
 
