@@ -6,8 +6,6 @@ from config import settings
 from exceptions import AuthorizationException
 from logging_config import logger
 
-MATCH_WINDOW_MINUTES = 30
-
 
 class MatchAction(str, Enum):
     EDIT_SCHEDULING = "EDIT_SCHEDULING"
@@ -105,32 +103,6 @@ class MatchPermissionService:
         if is_match_in_past and not is_match_day:
             return False
 
-        if match_start:
-            # Match startDate is stored as CET/CEST time but with +00:00 offset.
-            # We treat it as a naive datetime and compare it to the current time in Europe/Berlin.
-            match_start_naive = match_start.replace(tzinfo=None)
-
-            try:
-                import zoneinfo
-
-                # Get current time in Berlin (handles CET/CEST automatically)
-                berlin_now = datetime.now(zoneinfo.ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
-            except Exception:
-                # Fallback: Feb 18 is CET (+1). If user's log (13:54 -> 15:54) shows +2,
-                # they might be in a different environment or testing CEST.
-                from datetime import timedelta
-
-                berlin_now = datetime.utcnow() + timedelta(hours=2)
-
-            match_start_ts = match_start_naive.timestamp()
-            now_ts = berlin_now.timestamp()
-
-            logger.debug(f"match_start_naive: {match_start_naive}, berlin_now: {berlin_now}")
-            starts_within_window = match_start_ts < (now_ts + MATCH_WINDOW_MINUTES * 60)
-            logger.debug(f"starts_within_window: {starts_within_window}")
-        else:
-            starts_within_window = False
-
         home_club_id = (match.get("home") or {}).get("clubId")
         away_club_id = (match.get("away") or {}).get("clubId")
         is_home_admin = user_club_id and user_club_id == home_club_id
@@ -157,7 +129,7 @@ class MatchPermissionService:
             if is_away_admin:
                 if is_in_progress:
                     return False
-                if starts_within_window:
+                if is_match_day:
                     roster = (match.get("away") or {}).get("roster") or {}
                     roster_status = roster.get("status", "DRAFT")
                     if roster_status != "DRAFT":
@@ -167,7 +139,7 @@ class MatchPermissionService:
                 if is_match_day:
                     return True
                 return False
-            if is_home_admin and starts_within_window and not is_valid_matchday_owner:
+            if is_home_admin and is_match_day and not is_valid_matchday_owner:
                 return True
             if is_matchday_owner_admin:
                 return True
@@ -182,7 +154,7 @@ class MatchPermissionService:
             if is_finished and is_match_day:
                 if is_home_admin or is_matchday_owner_admin:
                     return True
-            if starts_within_window:
+            if is_match_day:
                 if is_home_admin and not is_valid_matchday_owner:
                     return True
                 if is_matchday_owner_admin:
@@ -194,7 +166,7 @@ class MatchPermissionService:
             MatchAction.EDIT_STATUS_RESULT,
             MatchAction.EDIT_MATCH_DATA,
         ):
-            if is_home_admin and starts_within_window and not is_valid_matchday_owner:
+            if is_home_admin and is_match_day and not is_valid_matchday_owner:
                 return True
             if is_matchday_owner_admin:
                 return True
@@ -216,3 +188,4 @@ class MatchPermissionService:
         if team_flag == "home":
             return MatchAction.EDIT_PENALTIES_HOME
         return MatchAction.EDIT_PENALTIES_AWAY
+
