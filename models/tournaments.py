@@ -92,11 +92,20 @@ class StandingsSettings(BaseModel):
 class MatchSettings(BaseModel):
     numOfPeriods: int | None = Field(default=0)
     periodLengthMin: int | None = Field(default=0)
+    breakLengthMin: int | None = Field(default=10)
     overtime: bool | None = Field(default=False)
     numOfPeriodsOvertime: int | None = Field(default=0)
     periodLengthMinOvertime: int | None = Field(default=0)
+    regularStrengthOvertime: int | None = Field(default=4)
+    suddenDeath: bool | None = Field(default=False)
     shootout: bool | None = Field(default=False)
     refereePoints: int | None = Field(default=0)
+    minorPenaltySec: int | None = Field(default=120)
+    majorPenaltySec: int | None = Field(default=300)
+    gameMisconductPenaltySec: int | None = Field(default=600)
+    regularStrength: int | None = Field(default=4)
+    minPenaltyKillStrength: int | None = Field(default=2)
+
 
 
 # ------------
