@@ -462,6 +462,7 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
             <p>Wenn Sie das Zurücksetzen des Passworts nicht beantragt haben, ignorieren Sie bitte diese E-Mail.</p>
         """
         await send_email(subject="Passwort zurücksetzen", recipients=[email], body=email_body)
+        logger.info(f"Password reset email sent to {email}")
     except Exception as e:
         logger.error(f"Error sending password reset email: {e}")
 

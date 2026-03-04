@@ -911,7 +911,8 @@ async def delete_assignment(
     id: str = Path(..., description="Assignment ID"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
     assignment_service: AssignmentService = Depends(get_assignment_service),
-):
+    message_service: MessageService = Depends(get_message_service),
+) -> Response:
     mongodb = request.app.state.mongodb
 
     if not any(role in ["ADMIN", "REF_ADMIN"] for role in token_payload.roles):
@@ -923,6 +924,9 @@ async def delete_assignment(
     assignment = await assignment_service.get_assignment_by_id(id)
     if not assignment:
         raise ResourceNotFoundException(resource_type="Assignment", resource_id=id)
+
+    # Check if match exists for notification
+    match = await assignment_service.get_match(assignment["matchId"])
 
     # Use transaction to ensure both assignment deletion and match update succeed together
     async with await request.app.state.mongodb.client.start_session() as session:
@@ -950,5 +954,15 @@ async def delete_assignment(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to delete assignment: {str(e)}",
                 ) from e
+
+    # Send notification after transaction commits
+    await send_message_to_referee(
+        message_service=message_service,
+        match=match,
+        receiver_id=assignment["referee"]["userId"],
+        content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
+        sender_id=token_payload.sub,
+        sender_name=f"{token_payload.firstName} {token_payload.lastName}",
+    )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

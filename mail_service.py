@@ -28,7 +28,7 @@ async def send_email(
     Emails can be disabled in development by setting MAIL_ENABLED=False.
     When disabled, emails are logged but not sent.
     """
-    logger.info(f"Sending email '{subject}' to {recipients}. Environment: {settings.ENVIRONMENT}")
+    logger.info(f"Sending email '{subject}' to {recipients}.")
 
     if not settings.MAIL_ENABLED:
         logger.info(f"Email sending disabled (MAIL_ENABLED=False). Skipping email to {recipients}")
