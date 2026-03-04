@@ -7,7 +7,6 @@ from datetime import datetime
 
 from bson import ObjectId
 
-from config import settings
 from exceptions import DatabaseOperationException, ResourceNotFoundException
 from logging_config import logger
 from mail_service import send_email
@@ -95,7 +94,21 @@ class MessageService:
             ) from e
 
         # Send email notification
-        await self._send_email_notification(referee, full_content)
+        if referee_email := referee.get("email"):
+            try:
+                await send_email(
+                    subject="BISHL - Schiedsrichter-Information",
+                    recipients=[referee_email],
+                    body=f"<p>{full_content.replace(chr(10), '<br>')}</p>",
+                )
+                logger.info("Email sent to referee", extra={"referee_id": referee_id, "email": referee_email})
+            except Exception as e:
+                logger.error(
+                    f"Failed to send email to referee {referee_id}: {e}",
+                    extra={"referee_id": referee_id, "email": referee_email},
+                )
+        else:
+            logger.warning("Referee has no email address", extra={"referee_id": referee_id})
 
         return message
 
@@ -133,39 +146,3 @@ class MessageService:
             f"{venue_name}"
         )
 
-    async def _send_email_notification(self, referee: dict, content: str) -> None:
-        """
-        Send email notification to referee.
-
-        Args:
-            referee: Referee user document
-            content: Email content
-        """
-        referee_email = referee.get("email")
-
-        if not referee_email:
-            logger.warning("Referee has no email address", extra={"referee_id": referee.get("_id")})
-            return
-
-        try:
-            if settings.ENVIRONMENT == "production":
-                email_subject = "BISHL - Schiedsrichter-Information"
-                email_content = f"<p>{content.replace('\n', '<br>')}</p>"
-
-                await send_email(
-                    subject=email_subject, recipients=[referee_email], body=email_content
-                )
-
-                logger.info(
-                    "Email sent to referee",
-                    extra={"referee_id": referee.get("_id"), "email": referee_email},
-                )
-            else:
-                logger.info(
-                    f"Non-production mode ({settings.ENVIRONMENT}): Skipping email to {referee_email}"
-                )
-        except Exception as e:
-            logger.error(
-                "Failed to send email to referee",
-                extra={"referee_id": referee.get("_id"), "error": str(e)},
-            )
