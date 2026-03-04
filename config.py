@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # Mail Configuration
     MAIL_ENABLED: bool = Field(
-        default=True, description="Enable/disable email sending (useful for dev)"
+        default=False, description="Enable/disable email sending (useful for dev)"
     )
     MAIL_USERNAME: str = Field(default="", description="SMTP username")
     MAIL_PASSWORD: str = Field(default="", description="SMTP password")
