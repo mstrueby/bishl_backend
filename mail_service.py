@@ -40,6 +40,6 @@ async def send_email(
         cc=cc or [],
         body=body,
         subtype=MessageType.html,
-        reply_to=reply_to,
+        reply_to=reply_to or [],
     )
     await fastmail.send_message(message)
