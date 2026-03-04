@@ -450,27 +450,20 @@ async def forgot_password(request: Request, payload: dict = Body(...)) -> JSONRe
     # Generate reset token
     reset_token = auth.encode_reset_token(user)
 
-    # Send password reset email (skip in test and development environments)
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
 
-    # Only send email in production environment
-    if settings.ENVIRONMENT == "production":
-        try:
-            email_body = f"""
-                <p>Hallo,</p>
-                <p>Klicke auf den folgenden Link, um ein neues Passwort zu setzen::</p>
-                <p><a href="{reset_url}">Neues Passwort erstellen</a></p>
-                <p>Dieser Link ist eine Stunde gültig.</p>
-                <p>Wenn Sie das Zurücksetzen des Passworts nicht beantragt haben, ignorieren Sie bitte diese E-Mail.</p>
-            """
-            await send_email(subject="Passwort zurücksetzen", recipients=[email], body=email_body)
-        except Exception as e:
-            logger.error(f"Error sending password reset email: {e}")
-    else:
-        logger.info(
-            f"Non-production mode ({settings.ENVIRONMENT}): Skipping password reset email to {email}. Reset URL: {reset_url}"
-        )
-        logger.info(f"Reset token: {reset_token}")
+    logger.info(f"Password reset requested for {email}. Reset URL: {reset_url}")
+    try:
+        email_body = f"""
+            <p>Hallo,</p>
+            <p>Klicke auf den folgenden Link, um ein neues Passwort zu setzen::</p>
+            <p><a href="{reset_url}">Neues Passwort erstellen</a></p>
+            <p>Dieser Link ist eine Stunde gültig.</p>
+            <p>Wenn Sie das Zurücksetzen des Passworts nicht beantragt haben, ignorieren Sie bitte diese E-Mail.</p>
+        """
+        await send_email(subject="Passwort zurücksetzen", recipients=[email], body=email_body)
+    except Exception as e:
+        logger.error(f"Error sending password reset email: {e}")
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,

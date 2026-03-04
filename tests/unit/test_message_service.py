@@ -62,9 +62,7 @@ class TestSendRefereeNotification:
 
         mock_db._users_collection.find_one = AsyncMock(return_value=test_referee)
 
-        with patch.object(
-            message_service, "_send_email_notification", new_callable=AsyncMock
-        ) as mock_email:
+        with patch("services.message_service.send_email", new_callable=AsyncMock) as mock_email:
             result = await message_service.send_referee_notification(
                 referee_id="referee-123",
                 match=test_match,
@@ -73,18 +71,17 @@ class TestSendRefereeNotification:
                 sender_name="Admin User",
             )
 
-        # Verify message was created
         assert result["receiver"]["userId"] == "referee-123"
         assert result["receiver"]["firstName"] == "John"
         assert result["sender"]["userId"] == "sender-123"
         assert "You have been assigned" in result["content"]
         assert result["read"] is False
 
-        # Verify insert was called
         mock_db._messages_collection.insert_one.assert_called_once()
-
-        # Verify email was attempted
         mock_email.assert_called_once()
+        call_args = mock_email.call_args[1]
+        assert call_args["recipients"] == ["john@example.com"]
+        assert "You have been assigned" in call_args["body"]
 
     @pytest.mark.asyncio
     async def test_send_notification_referee_not_found(self, message_service, mock_db):
@@ -100,7 +97,6 @@ class TestSendRefereeNotification:
                 sender_name="Admin",
             )
 
-        # Check the exception message contains the expected information
         assert "User" in str(exc_info.value)
         assert "invalid-id" in str(exc_info.value)
 
@@ -124,7 +120,7 @@ class TestSendRefereeNotification:
 
         mock_db._users_collection.find_one = AsyncMock(return_value=test_referee)
 
-        with patch.object(message_service, "_send_email_notification", new_callable=AsyncMock):
+        with patch("services.message_service.send_email", new_callable=AsyncMock):
             result = await message_service.send_referee_notification(
                 referee_id="referee-123",
                 match=test_match,
@@ -135,6 +131,28 @@ class TestSendRefereeNotification:
             )
 
         assert "Please confirm" in result["content"]
+
+    @pytest.mark.asyncio
+    async def test_send_notification_no_email_skips_send(self, message_service, mock_db):
+        """Test email is skipped when referee has no email address"""
+        test_referee = {
+            "_id": "referee-123",
+            "firstName": "John",
+            "lastName": "Doe",
+        }
+
+        mock_db._users_collection.find_one = AsyncMock(return_value=test_referee)
+
+        with patch("services.message_service.send_email", new_callable=AsyncMock) as mock_email:
+            await message_service.send_referee_notification(
+                referee_id="referee-123",
+                match={},
+                content="Test",
+                sender_id="sender-123",
+                sender_name="Admin",
+            )
+
+        mock_email.assert_not_called()
 
 
 class TestFormatMatchNotification:
@@ -174,52 +192,46 @@ class TestFormatMatchNotification:
 
 
 class TestEmailNotification:
-    """Test email notification helper"""
+    """Test email notification via send_referee_notification"""
 
     @pytest.mark.asyncio
-    async def test_email_sent_in_production(self, message_service):
-        """Test email is sent in production environment"""
-        referee = {"_id": "referee-123", "email": "john@example.com"}
-
-        with patch("services.message_service.settings") as mock_settings:
-            with patch(
-                "services.message_service.send_email", new_callable=AsyncMock
-            ) as mock_send_email:
-                mock_settings.ENVIRONMENT = "production"
-
-                await message_service._send_email_notification(referee, "Test content")
-
-                mock_send_email.assert_called_once()
-                call_args = mock_send_email.call_args[1]
-                assert call_args["recipients"] == ["john@example.com"]
-                assert "Test content" in call_args["body"]
-
-    @pytest.mark.asyncio
-    async def test_email_skipped_in_dev(self, message_service):
-        """Test email is skipped in development"""
-        referee = {"_id": "referee-123", "email": "john@example.com"}
-
-        with patch("services.message_service.settings") as mock_settings:
-            with patch(
-                "services.message_service.send_email", new_callable=AsyncMock
-            ) as mock_send_email:
-                mock_settings.ENVIRONMENT = "development"
-
-                await message_service._send_email_notification(referee, "Test content")
-
-                mock_send_email.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_email_skipped_when_no_email(self, message_service):
-        """Test handling when referee has no email"""
+    async def test_email_sent_when_mail_enabled(self, message_service, mock_db):
+        """Test email is sent when MAIL_ENABLED is True (default)"""
         referee = {
-            "_id": "referee-123"
-            # No email field
+            "_id": "referee-123",
+            "firstName": "John",
+            "lastName": "Doe",
+            "email": "john@example.com",
         }
+        mock_db._users_collection.find_one = AsyncMock(return_value=referee)
 
-        with patch(
-            "services.message_service.send_email", new_callable=AsyncMock
-        ) as mock_send_email:
-            await message_service._send_email_notification(referee, "Test content")
+        with patch("services.message_service.send_email", new_callable=AsyncMock) as mock_send_email:
+            await message_service.send_referee_notification(
+                referee_id="referee-123",
+                match={},
+                content="Test content",
+                sender_id="sender-123",
+                sender_name="Admin",
+            )
+
+            mock_send_email.assert_called_once()
+            call_args = mock_send_email.call_args[1]
+            assert call_args["recipients"] == ["john@example.com"]
+            assert "Test content" in call_args["body"]
+
+    @pytest.mark.asyncio
+    async def test_email_skipped_when_no_email(self, message_service, mock_db):
+        """Test email is skipped when referee has no email address"""
+        referee = {"_id": "referee-123", "firstName": "John", "lastName": "Doe"}
+        mock_db._users_collection.find_one = AsyncMock(return_value=referee)
+
+        with patch("services.message_service.send_email", new_callable=AsyncMock) as mock_send_email:
+            await message_service.send_referee_notification(
+                referee_id="referee-123",
+                match={},
+                content="Test content",
+                sender_id="sender-123",
+                sender_name="Admin",
+            )
 
             mock_send_email.assert_not_called()
