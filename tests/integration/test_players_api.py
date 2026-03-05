@@ -62,6 +62,37 @@ class TestPlayersAPI:
         assert player_in_db is not None
         assert player_in_db["firstName"] == "John"
 
+        # Birthdate must be stored as a native datetime (not a string) with no time/tz component
+        bd = player_in_db["birthdate"]
+        assert isinstance(bd, datetime), f"birthdate must be datetime, got {type(bd)}"
+        assert bd == datetime(2008, 5, 15, 0, 0, 0)
+        assert bd.tzinfo is None, "birthdate must be timezone-naive"
+
+    async def test_create_player_duplicate_rejected(self, client: AsyncClient, mongodb, admin_token):
+        """Test that creating a player with the same name and birthdate is rejected"""
+        player_data = {
+            "firstName": "Duplicate",
+            "lastName": "Player",
+            "birthdate": "2005-03-10",
+            "displayFirstName": "Duplicate",
+            "displayLastName": "Player",
+            "sex": "männlich",
+            "managedByISHD": "false",
+            "source": "BISHL",
+        }
+
+        # First creation should succeed
+        response = await client.post(
+            "/players", data=player_data, headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        assert response.status_code == 201
+
+        # Second creation with identical data should be rejected with 422
+        response = await client.post(
+            "/players", data=player_data, headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        assert response.status_code == 422
+
     async def test_get_player_by_id(self, client: AsyncClient, mongodb, admin_token):
         """Test retrieving a player by ID"""
         from tests.fixtures.data_fixtures import create_test_player
