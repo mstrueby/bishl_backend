@@ -1831,6 +1831,10 @@ async def create_player(
             details={"user_roles": token_payload.roles},
         )
 
+    # Convert birthdate to date (stored as datetime with zeroed time in MongoDB)
+    if isinstance(birthdate, datetime):
+        birthdate = birthdate.replace(hour=0, minute=0, second=0, microsecond=0)
+
     player_exists = await mongodb["players"].find_one(
         {"firstName": firstName, "lastName": lastName, "birthdate": birthdate}
     )
@@ -1876,6 +1880,10 @@ async def create_player(
 
     # Generate a new ID for the player
     player_id = str(ObjectId())
+
+    # Convert birthdate to date (stored as datetime with zeroed time in MongoDB)
+    if isinstance(birthdate, datetime):
+        birthdate = birthdate.replace(hour=0, minute=0, second=0, microsecond=0)
 
     player = PlayerBase(
         firstName=firstName,
@@ -1992,6 +2000,11 @@ async def update_player(
     current_first_name = firstName or existing_player.get("firstName")
     current_last_name = lastName or existing_player.get("lastName")
     current_birthdate = birthdate or existing_player.get("birthdate")
+
+    # Convert birthdate to date (stored as datetime with zeroed time in MongoDB)
+    if isinstance(current_birthdate, datetime):
+        current_birthdate = current_birthdate.replace(hour=0, minute=0, second=0, microsecond=0)
+
     player_exists = await mongodb["players"].find_one(
         {
             "firstName": current_first_name,
@@ -2090,6 +2103,19 @@ async def update_player(
         # Case 4: imageUrl not in FormData - don't include in update (keep existing)
         logger.debug("Image handling: imageUrl not provided, removing from update data")
         player_data.pop("imageUrl", None)
+
+    # Convert birthdate to date (stored as datetime with zeroed time in MongoDB)
+    if isinstance(birthdate, datetime):
+        birthdate = birthdate.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Convert to my_jsonable_encoder for DB
+    player_data = my_jsonable_encoder(player_data)
+
+    # Ensure birthdate is date-only in player_data
+    if "birthdate" in player_data and player_data["birthdate"]:
+        bd = birthdate or existing_player.get("birthdate")
+        if isinstance(bd, datetime):
+            player_data["birthdate"] = bd.replace(hour=0, minute=0, second=0, microsecond=0)
 
     logger.debug(f"player_data: {player_data}")
 
