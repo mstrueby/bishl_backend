@@ -258,7 +258,6 @@ class ImportService:
 
                         new_matchday = MatchdayBase(**new_matchday_data)
                         new_matchday.published = True
-                        new_matchday.matchSettings = round_db.matchSettings
 
                         create_md_response = requests.post(
                             f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays",
