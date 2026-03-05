@@ -1831,9 +1831,8 @@ async def create_player(
             details={"user_roles": token_payload.roles},
         )
 
-    # Convert birthdate to date (stored as datetime with zeroed time in MongoDB)
-    if isinstance(birthdate, datetime):
-        birthdate = birthdate.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Normalize birthdate: strip time and timezone so it is stored as a plain date in MongoDB
+    birthdate = birthdate.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
 
     player_exists = await mongodb["players"].find_one(
         {"firstName": firstName, "lastName": lastName, "birthdate": birthdate}
@@ -1878,73 +1877,72 @@ async def create_player(
                 details={"error": str(e)},
             ) from e
 
-    # Generate a new ID for the player
     player_id = str(ObjectId())
 
-    # Convert birthdate to date (stored as datetime with zeroed time in MongoDB)
-    if isinstance(birthdate, datetime):
-        birthdate = birthdate.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    player = PlayerBase(
-        firstName=firstName,
-        lastName=lastName,
-        birthdate=birthdate,
-        displayFirstName=displayFirstName,
-        displayLastName=displayLastName,
-        nationality=nationality,
-        position=position,
-        assignedTeams=assigned_teams_dict,
-        suspensions=suspensions_list,
-        playUpTrackings=play_up_trackings_list,
-        managedByISHD=managedByISHD,
-        source=Source[source],
-        sex=sex if isinstance(sex, Sex) else Sex(sex),
-        imageVisible=imageVisible,
-        legacyId=legacyId,
+    player = my_jsonable_encoder(
+        PlayerBase(
+            firstName=firstName,
+            lastName=lastName,
+            birthdate=birthdate,
+            displayFirstName=displayFirstName,
+            displayLastName=displayLastName,
+            nationality=nationality,
+            position=position,
+            assignedTeams=assigned_teams_dict,
+            suspensions=suspensions_list,
+            playUpTrackings=play_up_trackings_list,
+            managedByISHD=managedByISHD,
+            source=Source[source],
+            sex=sex if isinstance(sex, Sex) else Sex(sex),
+            imageVisible=imageVisible,
+            legacyId=legacyId,
+        )
     )
-    player = my_jsonable_encoder(player)
-    player["create_date"] = datetime.now().replace(microsecond=0)
+    # my_jsonable_encoder serializes datetime to string — restore birthdate as a native
+    # datetime so MongoDB stores it as a proper Date type, not a string
+    player["birthdate"] = birthdate
     player["_id"] = player_id
+    player["create_date"] = datetime.now().replace(microsecond=0)
 
     if image:
         player["imageUrl"] = await handle_image_upload(image, player_id)
 
-    try:
-        logger.info(
-            f"Creating new player: {firstName} {lastName} ({birthdate.strftime('%Y-%m-%d')})"
-        )
-        await mongodb["players"].insert_one(player)
+    logger.info(f"Creating new player: {firstName} {lastName} ({birthdate.strftime('%Y-%m-%d')})")
 
-        # Revalidate licenses after creation to ensure current license status
+    # Insert — separate try/except so validation errors below aren't confused with DB errors
+    try:
+        await mongodb["players"].insert_one(player)
+    except Exception as e:
+        logger.error(f"Error inserting player: {str(e)}")
+        raise DatabaseOperationException(
+            operation="insert_one", collection="players", details={"error": str(e)}
+        ) from e
+
+    # Post-creation license classification and validation
+    try:
         assignment_service = PlayerAssignmentService(mongodb)
         await assignment_service._update_player_classification_in_db(player_id, reset=True)
         fresh_player = await assignment_service.update_player_validation_in_db(
             player_id, reset=True
         )
-
-        if fresh_player:
-            logger.info(f"Player created successfully: {player_id}")
-            return JSONResponse(
-                status_code=status.HTTP_201_CREATED,
-                content=jsonable_encoder(
-                    StandardResponse(
-                        success=True,
-                        data=PlayerDB(**fresh_player).model_dump(by_alias=True),
-                        message="Player created successfully",
-                    )
-                ),
-            )
-        else:
-            raise DatabaseOperationException(
-                operation="insert_one",
-                collection="players",
-                details={"player_id": player_id, "reason": "Player not found after insertion"},
-            )
     except Exception as e:
-        logger.error(f"Error creating player: {str(e)}")
-        raise DatabaseOperationException(
-            operation="insert_one", collection="players", details={"error": str(e)}
-        ) from e
+        logger.warning(f"Post-creation validation failed for player {player_id}: {e}")
+        fresh_player = None
+
+    if not fresh_player:
+        fresh_player = await mongodb["players"].find_one({"_id": player_id})
+
+    logger.info(f"Player created successfully: {player_id}")
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=jsonable_encoder(
+            StandardResponse(
+                success=True,
+                data=PlayerDB(**fresh_player).model_dump(by_alias=True),
+                message="Player created successfully",
+            )
+        ),
+    )
 
 
 # UPDATE PLAYER
