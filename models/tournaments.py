@@ -105,7 +105,7 @@ class MatchSettings(BaseModel):
     gameMisconductPenaltySec: int | None = Field(default=600)
     regularStrength: int | None = Field(default=4)
     minPenaltyKillStrength: int | None = Field(default=2)
-
+    notes: str | None = Field(default=None)
 
 
 # ------------

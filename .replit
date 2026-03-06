@@ -13,6 +13,10 @@ modules = ["python-3.11", "python-3.12", "postgresql-16"]
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 5904
+externalPort = 3000
+
 # Specifies which nix channel to use when building the environment.
 [nix]
 channel = "stable-22_11"
