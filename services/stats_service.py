@@ -900,6 +900,9 @@ class StatsService:
             logger.error(f"Network error fetching round information: {str(e)}")
             raise
 
+        # Determine matchdays type for this round
+        matchdays_type_key = round_info.get("matchdaysType", {}).get("key", "REGULAR")
+
         # Process round statistics
         matches = []
         if round_info.get("createStats", False):
@@ -913,7 +916,8 @@ class StatsService:
 
             player_card_stats: dict[str, dict[str, Any]] = {}
             await self._update_player_card_stats(
-                "ROUND", matches, player_ids, player_card_stats, t_alias, s_alias, r_alias, md_alias
+                "ROUND", matches, player_ids, player_card_stats, t_alias, s_alias, r_alias, md_alias,
+                matchdays_type_key=matchdays_type_key,
             )
 
             logger.debug(
@@ -950,6 +954,7 @@ class StatsService:
                     s_alias,
                     r_alias,
                     md_alias,
+                    matchdays_type_key=matchdays_type_key,
                 )
 
                 logger.debug(
@@ -981,7 +986,9 @@ class StatsService:
             )
         if matches:
             await self._process_called_teams_assignments(
-                player_ids, matches, t_alias, s_alias, token_payload
+                player_ids, matches, t_alias, s_alias, token_payload,
+                matchdays_type_key=matchdays_type_key,
+                round_info=round_info,
             )
 
     async def _update_player_card_stats(
@@ -994,6 +1001,7 @@ class StatsService:
         s_alias: str,
         r_alias: str,
         md_alias: str,
+        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Main function to update player card statistics."""
         if flag not in ["ROUND", "MATCHDAY"]:
@@ -1002,8 +1010,8 @@ class StatsService:
         logger.debug(f"Processing roster for {flag}", extra={"num_matches": len(matches)})
 
         # Process rosters for both home and away teams
-        self._process_roster_for_team(matches, "home", player_ids, player_card_stats, flag)
-        self._process_roster_for_team(matches, "away", player_ids, player_card_stats, flag)
+        self._process_roster_for_team(matches, "home", player_ids, player_card_stats, flag, matchdays_type_key)
+        self._process_roster_for_team(matches, "away", player_ids, player_card_stats, flag, matchdays_type_key)
 
         logger.debug("Player card stats updated", extra={"player_card_stats": player_card_stats})
 
@@ -1019,6 +1027,7 @@ class StatsService:
         player_ids: list[str],
         player_card_stats: dict,
         flag: str,
+        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Process roster data for a specific team (home/away) across all matches."""
         for match in matches:
@@ -1045,7 +1054,8 @@ class StatsService:
                 if player_id and player_id in player_ids:
                     logger.debug(f"Updating stats for player {player_id} in {team_flag} team")
                     self._update_player_stats(
-                        player_id, team, roster_player, match_info, player_card_stats
+                        player_id, team, roster_player, match_info, player_card_stats,
+                        matchdays_type_key=matchdays_type_key,
                     )
 
     def _create_team_dict(self, match_team_data: dict) -> dict:
@@ -1077,6 +1087,7 @@ class StatsService:
                 "points": 0,
                 "penaltyMinutes": 0,
                 "calledMatches": 0,
+                "calledMatchdays": 0,
             }
 
     def _update_player_stats(
@@ -1086,6 +1097,7 @@ class StatsService:
         roster_player: dict,
         match_info: dict,
         player_card_stats: dict,
+        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Update individual player statistics from roster data."""
         team_key = team["fullName"]
@@ -1100,9 +1112,12 @@ class StatsService:
             stats["points"] += roster_player.get("points", 0)
             stats["penaltyMinutes"] += roster_player.get("penaltyMinutes", 0)
 
-            # Track called matches
+            # Track called matches or matchdays depending on round type
             if roster_player.get("called", False):
-                stats["calledMatches"] += 1
+                if matchdays_type_key == "TOURNAMENT":
+                    stats["calledMatchdays"] += 1
+                else:
+                    stats["calledMatches"] += 1
 
     @monitor_query("save_player_stats_to_db")
     async def _save_player_stats_to_db(
@@ -1206,7 +1221,14 @@ class StatsService:
         return existing_stat.get("matchday") is None
 
     async def _process_called_teams_assignments(
-        self, player_ids: list[str], matches: list[dict], t_alias: str, s_alias: str, token_payload
+        self,
+        player_ids: list[str],
+        matches: list[dict],
+        t_alias: str,
+        s_alias: str,
+        token_payload,
+        matchdays_type_key: str = "REGULAR",
+        round_info: dict | None = None,
     ) -> None:
         """Check calledMatches for affected players and update assignedTeams/playUpTrackings directly in DB."""
         if not token_payload:
@@ -1244,7 +1266,9 @@ class StatsService:
                 )
 
                 playup_occurrences = self._find_playup_occurrences(
-                    player_id, matches, t_alias, s_alias
+                    player_id, matches, t_alias, s_alias,
+                    matchdays_type_key=matchdays_type_key,
+                    round_info=round_info or {},
                 )
                 if playup_occurrences and self.db is not None:
                     fresh_player = await self.db["players"].find_one({"_id": player_id})
@@ -1299,14 +1323,27 @@ class StatsService:
         return teams_to_check
 
     def _find_playup_occurrences(
-        self, player_id: str, matches: list[dict], t_alias: str, s_alias: str
+        self,
+        player_id: str,
+        matches: list[dict],
+        t_alias: str,
+        s_alias: str,
+        matchdays_type_key: str = "REGULAR",
+        round_info: dict | None = None,
     ) -> list[dict]:
         """
         Find all play-up occurrences for a player across matches.
-        Returns a list of dicts with fromTeamId, toTeamId, matchId, matchStartDate.
-        """
-        occurrences = []
 
+        If matchdays_type_key == 'TOURNAMENT', occurrences are grouped per matchday
+        and returned with type=MATCHDAY, matchdayId, matchdayName, matchdayStartDate.
+        Otherwise returns one occurrence per match with type=MATCH, matchId, matchStartDate.
+        """
+        if matchdays_type_key == "TOURNAMENT":
+            return self._find_playup_occurrences_by_matchday(
+                player_id, matches, t_alias, s_alias, round_info or {}
+            )
+
+        occurrences = []
         for match in matches:
             match_id = str(match.get("_id", ""))
             match_start_date = match.get("startDate")
@@ -1330,6 +1367,7 @@ class StatsService:
                             if from_team_id and to_team_id:
                                 occurrences.append(
                                     {
+                                        "type": "MATCH",
                                         "tournamentAlias": t_alias,
                                         "seasonAlias": s_alias,
                                         "fromTeamId": from_team_id,
@@ -1338,6 +1376,87 @@ class StatsService:
                                         "matchStartDate": match_start_date,
                                     }
                                 )
+
+        return occurrences
+
+    def _find_playup_occurrences_by_matchday(
+        self,
+        player_id: str,
+        matches: list[dict],
+        t_alias: str,
+        s_alias: str,
+        round_info: dict,
+    ) -> list[dict]:
+        """
+        Find play-up occurrences grouped per matchday (for TOURNAMENT rounds).
+        Returns one occurrence per (fromTeamId, toTeamId, matchday) combination.
+        """
+        # Build a lookup of matchday data from round_info keyed by alias
+        matchday_lookup: dict[str, dict] = {}
+        for md in round_info.get("matchdays", []):
+            alias = md.get("alias")
+            if alias:
+                matchday_lookup[alias] = md
+
+        # Collect unique (fromTeamId, toTeamId, matchdayAlias) combinations
+        # Map to earliest match startDate per group as fallback
+        seen: dict[tuple, dict] = {}
+
+        for match in matches:
+            matchday_alias = match.get("matchday", {}).get("alias") if match.get("matchday") else None
+            match_start_date = match.get("startDate")
+
+            for team_flag in ["home", "away"]:
+                roster_data = match.get(team_flag, {}).get("roster", {})
+                if isinstance(roster_data, dict):
+                    roster = roster_data.get("players", [])
+                else:
+                    roster = roster_data if roster_data else []
+
+                for roster_player in roster:
+                    if roster_player.get("player", {}).get(
+                        "playerId"
+                    ) == player_id and roster_player.get("called", False):
+                        called_from_team = roster_player.get("calledFromTeam")
+                        if called_from_team:
+                            team_data = match.get(team_flag, {})
+                            from_team_id = called_from_team.get("teamId")
+                            to_team_id = team_data.get("teamId")
+                            if from_team_id and to_team_id and matchday_alias:
+                                key = (from_team_id, to_team_id, matchday_alias)
+                                if key not in seen:
+                                    seen[key] = {
+                                        "matchStartDate": match_start_date,
+                                    }
+                                else:
+                                    # Keep earliest date as fallback
+                                    existing_date = seen[key]["matchStartDate"]
+                                    if (
+                                        match_start_date
+                                        and existing_date
+                                        and match_start_date < existing_date
+                                    ):
+                                        seen[key]["matchStartDate"] = match_start_date
+
+        occurrences = []
+        for (from_team_id, to_team_id, matchday_alias), extra in seen.items():
+            matchday_data = matchday_lookup.get(matchday_alias, {})
+            matchday_id = str(matchday_data.get("_id", matchday_alias))
+            matchday_name = matchday_data.get("name", matchday_alias)
+            # Prefer the matchday's own startDate; fall back to earliest match startDate
+            matchday_start_date = matchday_data.get("startDate") or extra["matchStartDate"]
+            occurrences.append(
+                {
+                    "type": "MATCHDAY",
+                    "tournamentAlias": t_alias,
+                    "seasonAlias": s_alias,
+                    "fromTeamId": from_team_id,
+                    "toTeamId": to_team_id,
+                    "matchdayId": matchday_id,
+                    "matchdayName": matchday_name,
+                    "matchdayStartDate": matchday_start_date,
+                }
+            )
 
         return occurrences
 
@@ -1358,8 +1477,7 @@ class StatsService:
             s_alias = occurrence["seasonAlias"]
             from_team_id = occurrence["fromTeamId"]
             to_team_id = occurrence["toTeamId"]
-            match_id = occurrence["matchId"]
-            match_start_date = occurrence["matchStartDate"]
+            occurrence_type = occurrence.get("type", "MATCH")
 
             tracking_found = False
             for tracking in existing_trackings:
@@ -1370,33 +1488,60 @@ class StatsService:
                     and tracking.get("toTeamId") == to_team_id
                 ):
                     tracking_found = True
-                    existing_match_ids = [
-                        occ.get("matchId") for occ in tracking.get("occurrences", [])
-                    ]
-                    if match_id not in existing_match_ids:
-                        tracking.setdefault("occurrences", []).append(
-                            {
-                                "matchId": match_id,
-                                "matchStartDate": match_start_date,
-                                "counted": True,
-                            }
-                        )
+                    if occurrence_type == "MATCHDAY":
+                        matchday_id = occurrence["matchdayId"]
+                        existing_matchday_ids = [
+                            occ.get("matchdayId") for occ in tracking.get("occurrences", [])
+                        ]
+                        if matchday_id not in existing_matchday_ids:
+                            tracking.setdefault("occurrences", []).append(
+                                {
+                                    "type": "MATCHDAY",
+                                    "matchdayId": matchday_id,
+                                    "matchdayName": occurrence["matchdayName"],
+                                    "matchdayStartDate": occurrence.get("matchdayStartDate"),
+                                    "counted": True,
+                                }
+                            )
+                    else:
+                        match_id = occurrence["matchId"]
+                        existing_match_ids = [
+                            occ.get("matchId") for occ in tracking.get("occurrences", [])
+                        ]
+                        if match_id not in existing_match_ids:
+                            tracking.setdefault("occurrences", []).append(
+                                {
+                                    "type": "MATCH",
+                                    "matchId": match_id,
+                                    "matchStartDate": occurrence.get("matchStartDate"),
+                                    "counted": True,
+                                }
+                            )
                     break
 
             if not tracking_found:
+                if occurrence_type == "MATCHDAY":
+                    new_occ_entry = {
+                        "type": "MATCHDAY",
+                        "matchdayId": occurrence["matchdayId"],
+                        "matchdayName": occurrence["matchdayName"],
+                        "matchdayStartDate": occurrence.get("matchdayStartDate"),
+                        "counted": True,
+                    }
+                else:
+                    new_occ_entry = {
+                        "type": "MATCH",
+                        "matchId": occurrence["matchId"],
+                        "matchStartDate": occurrence.get("matchStartDate"),
+                        "counted": True,
+                    }
                 existing_trackings.append(
                     {
                         "tournamentAlias": t_alias,
                         "seasonAlias": s_alias,
                         "fromTeamId": from_team_id,
                         "toTeamId": to_team_id,
-                        "occurrences": [
-                            {
-                                "matchId": match_id,
-                                "matchStartDate": match_start_date,
-                                "counted": True,
-                            }
-                        ],
+                        "occurrences": [new_occ_entry],
                     }
                 )
 
