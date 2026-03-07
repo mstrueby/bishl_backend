@@ -174,7 +174,7 @@ class PlayUpOccurrence(BaseModel):
     # Felder für MATCH
     matchId: str | None = Field(
         None, description="ID of the match where play-up occurred")
-    matchStartDate: datetime = Field(...,
+    matchStartDate: datetime | None = Field(None,
                                      description="Start date of the match")
     # Felder für MATCHDAY
     matchdayId: str | None = Field(None, description="ID of the matchday")
