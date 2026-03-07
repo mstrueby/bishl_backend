@@ -160,14 +160,44 @@ class LicenseInvalidReasonCode(str, Enum):
     CALLED_LIMIT_EXCEEDED = "CALLED_LIMIT_EXCEEDED"
 
 
+class PlayUpOccurrenceType(str, Enum):
+    MATCH = "MATCH"  # Hochmelden zählen pro Spiel
+    MATCHDAY = "MATCHDAY"  # Hochmelden zählen pro Spieltag
+
+
 class PlayUpOccurrence(BaseModel):
-    matchId: str = Field(...,
-                         description="ID of the match where play-up occurred")
-    matchStartDate: datetime = Field(...,
-                                     description="Start date of the match")
+    type: PlayUpOccurrenceType = Field(..., description="MATCH or MATCHDAY")
+    # gemiende Felder für beide Typen
     counted: bool = Field(
         default=True,
         description="Whether this occurrence counts towards play-up limits")
+    # Felder für MATCH
+    matchId: str | None = Field(
+        None, description="ID of the match where play-up occurred")
+    matchStartDate: datetime = Field(...,
+                                     description="Start date of the match")
+    # Felder für MATCHDAY
+    matchdayId: str | None = Field(None, description="ID of the matchday")
+    matchdayName: str | None = Field(None, description="Name of the matchday")
+    matchdayStartDate: datetime | None = Field(
+        None, description="Start date of the matchday")
+
+    @model_validator(mode='after')
+    def validate_fields(self):
+        t = self.type
+        if t == PlayUpOccurrenceType.MATCH:
+            if not self.matchId or not self.matchStartDate:
+                raise ValueError(
+                    "matchId and matchStartDate required for type=MATCH")
+            if self.matchdayId:
+                self.matchdayId = None  # Clear irrelevant
+        elif t == PlayUpOccurrenceType.MATCHDAY:
+            if not self.matchdayId or not self.matchdayName:
+                raise ValueError(
+                    "matchdayId and matchdayName required for type=MATCHDAY")
+            if self.matchId:
+                self.matchId = None  # Clear irrelevant
+        return self
 
 
 class PlayUpTracking(BaseModel):
@@ -266,6 +296,7 @@ class PlayerStats(BaseModel):
     points: int = Field(0)
     penaltyMinutes: int = Field(0)
     calledMatches: int = Field(0)
+    calledMatchdays: int = Field(0)
 
 
 class PlayerBase(MongoBaseModel):
