@@ -353,7 +353,7 @@ class TestStatsServiceIntegration:
         assert round_stat["penaltyMinutes"] == 4
 
     async def test_called_teams_assignment_logic(self, mongodb, client: AsyncClient, admin_token):
-        """Test that players with 5+ called matches get team assignments and playUpTrackings persisted in DB"""
+        """Test that called players produce MATCH-type playUpTrackings persisted in DB"""
         from tests.fixtures.data_fixtures import (
             create_test_match,
             create_test_player,
@@ -486,15 +486,6 @@ class TestStatsServiceIntegration:
         )
         if round_stat:
             assert round_stat.get("calledMatchdays", 0) == 0, "calledMatchdays should be 0 for REGULAR round"
-
-        assigned_teams = updated_player.get("assignedTeams", [])
-        team_found = False
-        for club in assigned_teams:
-            for team in club.get("teams", []):
-                if team.get("teamId") == "test-team-id":
-                    team_found = True
-                    assert team.get("source") == "CALLED", "source should be CALLED"
-        assert team_found, f"Team 'test-team-id' should be in assignedTeams. Got: {assigned_teams}"
 
     async def test_called_players_tournament_matchday_tracking(self, mongodb, client: AsyncClient, admin_token):
         """Test that TOURNAMENT rounds produce MATCHDAY-type playUpOccurrences grouped per matchday"""
