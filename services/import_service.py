@@ -412,6 +412,183 @@ class ImportService:
             logger.error(error_msg)
             return False, error_msg
 
+    def import_referees(
+        self, csv_path: str, import_all: bool = False, send_email: bool = False
+    ) -> tuple[bool, str]:
+        """
+        Import referees from CSV file.
+
+        For each row the function either:
+        - Updates an existing user by ensuring the REFEREE role is present, or
+        - Creates a new user via the /users/register endpoint with a random
+          password and optionally sends a welcome email.
+
+        CSV columns (semicolon-delimited):
+            Vorname, Nachname, Email, club (JSON), level, passNo, ishdLevel
+
+        Args:
+            csv_path:    Path to the CSV file.
+            import_all:  If False, stop after the first successfully created user.
+            send_email:  If True, send a welcome email to newly created referees.
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        import asyncio
+        import csv
+        import json
+        import random
+        import string
+
+        if not self.token or not self.headers:
+            return False, "Not authenticated. Call authenticate() first."
+
+        clubs_collection = self.get_collection("clubs")
+        users_collection = self.get_collection("users")
+
+        try:
+            with open(csv_path, encoding="utf-8") as f:
+                reader = csv.DictReader(
+                    f, delimiter=";", quotechar='"', doublequote=True, skipinitialspace=True
+                )
+                rows = list(reader)
+
+            progress = ImportProgress(len(rows), "Importing referees")
+            created = 0
+            updated = 0
+            skipped = 0
+
+            for row in rows:
+                try:
+                    first_name = row.get("Vorname", "").strip()
+                    last_name = row.get("Nachname", "").strip()
+                    email = (row.get("Email") or "").strip()
+
+                    if not email:
+                        progress.add_error(f"No email for referee {first_name} {last_name} — skipping")
+                        continue
+
+                    # Parse club JSON
+                    club_raw = row.get("club")
+                    club = None
+                    if isinstance(club_raw, str) and club_raw.strip():
+                        try:
+                            club = json.loads(club_raw)
+                        except json.JSONDecodeError:
+                            pass
+
+                    if not club:
+                        progress.add_error(f"No club data for referee {email} — skipping")
+                        continue
+
+                    # Enrich club with logoUrl from DB
+                    if club.get("clubId"):
+                        club_doc = clubs_collection.find_one({"_id": club["clubId"]})
+                        if club_doc and club_doc.get("logoUrl"):
+                            club["logoUrl"] = club_doc["logoUrl"]
+
+                    level = (row.get("level") or "n/a").strip()
+                    pass_no = row.get("passNo") or None
+                    ishd_level = row.get("ishdLevel") or None
+
+                    # --- Existing user: ensure REFEREE role ---
+                    existing_user = users_collection.find_one({"email": email})
+                    if existing_user:
+                        roles = existing_user.get("roles", [])
+                        if "REFEREE" not in roles:
+                            roles.append("REFEREE")
+                            users_collection.update_one(
+                                {"email": email}, {"$set": {"roles": roles}}
+                            )
+                            updated += 1
+                            progress.update(message=f"Updated roles for existing user: {email}")
+                        else:
+                            skipped += 1
+                            progress.update(message=f"Already has REFEREE role: {email}")
+                        continue
+
+                    # --- New user: generate password and register via API ---
+                    random_password = "".join(
+                        random.choices(string.ascii_letters + string.digits, k=12)
+                    )
+
+                    new_user = {
+                        "email": email,
+                        "password": random_password,
+                        "firstName": first_name,
+                        "lastName": last_name,
+                        "roles": ["REFEREE"],
+                        "referee": {
+                            "club": club,
+                            "level": level,
+                            "passNo": pass_no,
+                            "ishdLevel": ishd_level,
+                            "active": True,
+                        },
+                    }
+
+                    register_url = f"{self.base_url}/users/register"
+                    response = requests.post(register_url, json=new_user, headers=self.headers)
+
+                    if response.status_code == 201:
+                        created += 1
+                        progress.update(message=f"Created: {email}")
+
+                        # Optionally send welcome email
+                        if send_email:
+                            try:
+                                from mail_service import send_email as _send_email
+
+                                subject = "BISHL - Schiedsrichter-Account angelegt"
+                                body = f"""
+<p>Hallo {first_name},</p>
+<p>dein Schiedsrichter-Account wurde erfolgreich angelegt.</p>
+<p>Hier sind deine Login-Details:</p>
+<ul>
+  <li><strong>E-Mail:</strong> {email}</li>
+  <li><strong>Passwort:</strong> {random_password}</li>
+</ul>
+<p>Bitte logge dich bei www.bishl.de ein und ändere dein Passwort.</p>
+<p>Falls du Fragen hast, melde dich bitte über website@bishl.de</p>
+<p>Viele Grüße,<br>Das BISHL-Team</p>
+"""
+                                asyncio.run(_send_email(subject, [email], body))
+                                logger.info(f"Welcome email sent to {email}")
+                            except Exception as mail_err:
+                                logger.warning(f"Failed to send welcome email to {email}: {mail_err}")
+                        else:
+                            logger.info(f"Skipping welcome email for {email} (--send-email not set)")
+
+                        if not import_all:
+                            logger.info("--import-all not set, stopping after first created referee")
+                            break
+                    else:
+                        progress.add_error(
+                            f"Failed to register {email} (HTTP {response.status_code}): {response.text}"
+                        )
+
+                except json.JSONDecodeError as e:
+                    progress.add_error(f"Invalid JSON in row for {row.get('Email', '?')}: {e}")
+                except Exception as e:
+                    progress.add_error(f"Error processing row {row.get('Email', '?')}: {e}")
+
+            summary = progress.summary()
+            logger.info(summary)
+
+            result_msg = (
+                f"Referees: {created} created, {updated} updated (role added), {skipped} already up-to-date"
+            )
+            return True, result_msg
+
+        except FileNotFoundError:
+            error_msg = f"CSV file not found: {csv_path}"
+            logger.error(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Referee import failed: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
+
     def import_with_rollback(
         self, import_func: Callable, collection_name: str, backup_before: bool = True
     ) -> tuple[bool, str]:
