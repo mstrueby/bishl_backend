@@ -47,11 +47,6 @@ class ImportService:
         self.token: str | None = None
         self.headers: dict[str, str] | None = None
 
-        # Shared HTTP session — uses certifi CA bundle for SSL verification so
-        # that self-signed / intermediate certs (common in Replit dev) are trusted.
-        self.session = requests.Session()
-        self.session.verify = certifi.where()
-
         if environment == "prod":
             self.db_url = settings.DB_URL_PROD
             self.db_name = "bishl"
@@ -66,6 +61,18 @@ class ImportService:
             self.base_url = settings.BE_API_URL
 
         self.environment_label = environment.upper()
+
+        # Shared HTTP session.
+        # Replit dev-proxy domains use an intermediate CA not in certifi's bundle,
+        # so SSL verification is disabled for those URLs only.  All other
+        # environments (prod/demo) keep full verification via certifi.
+        self.session = requests.Session()
+        if ".replit.dev" in self.base_url:
+            self.session.verify = False
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        else:
+            self.session.verify = certifi.where()
 
         logger.info(f"Import Service initialized for {self.environment_label}")
         logger.info(f"Database: {self.db_name}")
