@@ -47,6 +47,11 @@ class ImportService:
         self.token: str | None = None
         self.headers: dict[str, str] | None = None
 
+        # Shared HTTP session — uses certifi CA bundle for SSL verification so
+        # that self-signed / intermediate certs (common in Replit dev) are trusted.
+        self.session = requests.Session()
+        self.session.verify = certifi.where()
+
         if environment == "prod":
             self.db_url = settings.DB_URL_PROD
             self.db_name = "bishl"
@@ -90,7 +95,7 @@ class ImportService:
         }
 
         try:
-            response = requests.post(login_url, json=login_data)
+            response = self.session.post(login_url, json=login_data)
 
             if response.status_code != 200:
                 logger.error(f"Authentication failed: {response.text}")
@@ -101,6 +106,9 @@ class ImportService:
                 "Authorization": f"Bearer {self.token}",
                 "Content-Type": "application/json",
             }
+            # Persist headers on the session so every subsequent request is
+            # automatically authenticated without passing headers explicitly.
+            self.session.headers.update(self.headers)
             logger.info("Authentication successful")
             return True
 
@@ -129,7 +137,6 @@ class ImportService:
         import json
         from datetime import datetime
 
-        import requests
         from fastapi.encoders import jsonable_encoder
 
         from models.matches import (
@@ -234,7 +241,7 @@ class ImportService:
                     round_url = (
                         f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}"
                     )
-                    round_response = requests.get(round_url, headers=self.headers)
+                    round_response = self.session.get(round_url)
                     if round_response.status_code != 200:
                         progress.add_error(f"Round does not exist: {t_alias}/{s_alias}/{r_alias}")
                         continue
@@ -243,7 +250,7 @@ class ImportService:
 
                     # Check if matchday exists, create if needed
                     matchday_url = f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
-                    matchday_response = requests.get(matchday_url, headers=self.headers)
+                    matchday_response = self.session.get(matchday_url)
                     if matchday_response.status_code != 200:
                         new_matchday_data = row.get("newMatchday")
                         logger.info(
@@ -259,10 +266,9 @@ class ImportService:
                         new_matchday = MatchdayBase(**new_matchday_data)
                         new_matchday.published = True
 
-                        create_md_response = requests.post(
+                        create_md_response = self.session.post(
                             f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays",
                             json=jsonable_encoder(new_matchday),
-                            headers=self.headers,
                         )
                         if create_md_response.status_code != 201:
                             progress.add_error(
@@ -274,17 +280,16 @@ class ImportService:
                     home_club_alias = row.get("homeClubAlias")
                     home_team_alias = row.get("homeTeamAlias")
 
-                    home_club_response = requests.get(
-                        f"{self.base_url}/clubs/{home_club_alias}", headers=self.headers
+                    home_club_response = self.session.get(
+                        f"{self.base_url}/clubs/{home_club_alias}"
                     )
                     if home_club_response.status_code != 200:
                         progress.add_error(f"Home club not found: {home_club_alias}")
                         continue
                     home_club = home_club_response.json().get("data")
 
-                    home_team_response = requests.get(
-                        f"{self.base_url}/clubs/{home_club_alias}/teams/{home_team_alias}",
-                        headers=self.headers,
+                    home_team_response = self.session.get(
+                        f"{self.base_url}/clubs/{home_club_alias}/teams/{home_team_alias}"
                     )
                     if home_team_response.status_code != 200:
                         progress.add_error(
@@ -310,17 +315,16 @@ class ImportService:
                     away_club_alias = row.get("awayClubAlias")
                     away_team_alias = row.get("awayTeamAlias")
 
-                    away_club_response = requests.get(
-                        f"{self.base_url}/clubs/{away_club_alias}", headers=self.headers
+                    away_club_response = self.session.get(
+                        f"{self.base_url}/clubs/{away_club_alias}"
                     )
                     if away_club_response.status_code != 200:
                         progress.add_error(f"Away club not found: {away_club_alias}")
                         continue
                     away_club = away_club_response.json().get("data")
 
-                    away_team_response = requests.get(
-                        f"{self.base_url}/clubs/{away_club_alias}/teams/{away_team_alias}",
-                        headers=self.headers,
+                    away_team_response = self.session.get(
+                        f"{self.base_url}/clubs/{away_club_alias}/teams/{away_team_alias}"
                     )
                     if away_team_response.status_code != 200:
                         progress.add_error(
@@ -368,8 +372,8 @@ class ImportService:
                     match_exists = collection.find_one(query)
 
                     if not match_exists:
-                        response = requests.post(
-                            f"{self.base_url}/matches", json=new_match_data, headers=self.headers
+                        response = self.session.post(
+                            f"{self.base_url}/matches", json=new_match_data
                         )
                         if response.status_code == 201:
                             matches_created += 1
@@ -528,7 +532,7 @@ class ImportService:
                     }
 
                     register_url = f"{self.base_url}/users/register"
-                    response = requests.post(register_url, json=new_user, headers=self.headers)
+                    response = self.session.post(register_url, json=new_user)
 
                     if response.status_code == 201:
                         created += 1
@@ -643,10 +647,11 @@ class ImportService:
             return False, error_msg
 
     def close(self) -> None:
-        """Close database connection"""
+        """Close database connection and HTTP session"""
         if self.client is not None:
             self.client.close()
             logger.info("Database connection closed")
+        self.session.close()
 
     def __enter__(self):
         """Context manager entry"""
