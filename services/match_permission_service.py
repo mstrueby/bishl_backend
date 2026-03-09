@@ -117,12 +117,18 @@ class MatchPermissionService:
             and is_match_day
         )
 
+        # When a matchday owner is set, their club admin acts as the home club
+        # admin for all matches on this matchday (the owner hosts every game).
+        # The regular home admin retains that role only when no matchday owner
+        # is configured.  Both terms already require is_match_day to be True.
+        is_effective_home_admin = is_matchday_owner_admin or (
+            is_home_admin and is_match_day and not is_valid_matchday_owner
+        )
+
         if action == MatchAction.EDIT_ROSTER_HOME:
-            if is_home_admin:
-                return True
-            if is_matchday_owner_admin:
-                return True
-            return False
+            # Both the actual home admin and the matchday owner admin may manage
+            # the home roster (preparation can happen before match day too).
+            return bool(is_home_admin or is_matchday_owner_admin)
 
         if action == MatchAction.EDIT_ROSTER_AWAY:
             if is_away_admin:
@@ -130,19 +136,14 @@ class MatchPermissionService:
                     return False
                 if is_match_day:
                     roster = (match.get("away") or {}).get("roster") or {}
-                    roster_status = roster.get("status", "DRAFT")
-                    if roster_status != "DRAFT":
+                    if roster.get("status", "DRAFT") != "DRAFT":
                         return False
                 if not is_finished:
                     return True
                 if is_match_day:
                     return True
                 return False
-            if is_home_admin and is_match_day and not is_valid_matchday_owner:
-                return True
-            if is_matchday_owner_admin:
-                return True
-            return False
+            return bool(is_effective_home_admin)
 
         if action in (
             MatchAction.EDIT_SCORES_HOME,
@@ -150,26 +151,20 @@ class MatchPermissionService:
             MatchAction.EDIT_PENALTIES_HOME,
             MatchAction.EDIT_PENALTIES_AWAY,
         ):
-            if is_finished and is_match_day:
-                if is_home_admin or is_matchday_owner_admin:
-                    return True
-            if is_match_day:
-                if is_home_admin and not is_valid_matchday_owner:
-                    return True
-                if is_matchday_owner_admin:
-                    return True
-            return False
+            if not is_match_day:
+                return False
+            if is_finished:
+                # After the final whistle both the home admin and the matchday
+                # owner admin may amend scores/penalties (e.g. late corrections).
+                return bool(is_home_admin or is_matchday_owner_admin)
+            return bool(is_effective_home_admin)
 
         if action in (
             MatchAction.EDIT_SCHEDULING,
             MatchAction.EDIT_STATUS_RESULT,
             MatchAction.EDIT_MATCH_DATA,
         ):
-            if is_home_admin and is_match_day and not is_valid_matchday_owner:
-                return True
-            if is_matchday_owner_admin:
-                return True
-            return False
+            return bool(is_effective_home_admin)
 
         return False
 
