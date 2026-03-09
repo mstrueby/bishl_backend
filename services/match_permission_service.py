@@ -159,8 +159,23 @@ class MatchPermissionService:
                 return bool(is_home_admin or is_matchday_owner_admin)
             return bool(is_effective_home_admin)
 
+        if action == MatchAction.EDIT_SCHEDULING:
+            if settings.ENVIRONMENT != "production":
+                # Non-production: lift the match-day restriction so home admins,
+                # away admins, and the matchday owner admin can reschedule any
+                # match.  This lets users move games to today for match-centre
+                # testing without waiting for the actual match day.
+                # All other constraints (CLUB_ADMIN role, current season, past-
+                # match guard) are still enforced above.
+                is_matchday_owner_any_day = (
+                    is_valid_matchday_owner
+                    and user_club_id
+                    and matchday_owner.get("clubId") == user_club_id
+                )
+                return bool(is_home_admin or is_away_admin or is_matchday_owner_any_day)
+            return bool(is_effective_home_admin)
+
         if action in (
-            MatchAction.EDIT_SCHEDULING,
             MatchAction.EDIT_STATUS_RESULT,
             MatchAction.EDIT_MATCH_DATA,
         ):
