@@ -3,7 +3,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
@@ -25,7 +24,6 @@ DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 router = APIRouter()
 auth = AuthHandler()
-BASE_URL = settings.BE_API_URL
 
 
 class AllStatuses(Enum):
@@ -672,45 +670,60 @@ async def get_unassigned_matches_in_14_days(
 
     emails_sent = 0
 
-    # --- Step 1: group matches by responsible club (matchday owner takes priority) ---
+    # --- Step 1: pre-fetch matchday owners directly from DB, keyed by matchday alias tuple ---
+    # Avoids making internal HTTP requests and eliminates SSL issues with self-calls.
+    matchday_owner_cache: dict[tuple[str, str, str, str], dict | None] = {}
+    for match in matches:
+        t_alias = match.get("tournament", {}).get("alias")
+        s_alias = match.get("season", {}).get("alias")
+        r_alias = match.get("round", {}).get("alias")
+        md_alias = match.get("matchday", {}).get("alias")
+        key = (t_alias, s_alias, r_alias, md_alias)
+        if all(key) and key not in matchday_owner_cache:
+            try:
+                pipeline = [
+                    {"$match": {"alias": t_alias}},
+                    {"$unwind": "$seasons"},
+                    {"$match": {"seasons.alias": s_alias}},
+                    {"$unwind": "$seasons.rounds"},
+                    {"$match": {"seasons.rounds.alias": r_alias}},
+                    {"$unwind": "$seasons.rounds.matchdays"},
+                    {"$match": {"seasons.rounds.matchdays.alias": md_alias}},
+                    {"$project": {"_id": 0, "owner": "$seasons.rounds.matchdays.owner"}},
+                ]
+                result = await mongodb["tournaments"].aggregate(pipeline).to_list(length=1)
+                owner = result[0].get("owner") if result else None
+                matchday_owner_cache[key] = owner if (owner and owner.get("clubId")) else None
+                logger.debug(
+                    f"Matchday owner cache: {key} -> {matchday_owner_cache[key]}"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to fetch matchday owner for key {key}: {str(e)}")
+                matchday_owner_cache[key] = None
+
+    # --- Step 2: group matches by responsible club (matchday owner takes priority) ---
     # club_id -> {"matches": [...], "matchday_owner": <owner dict or None>}
     matches_by_club: dict[str, dict[str, Any]] = {}
 
     for match in matches:
-        matchday_owner = None
-        try:
-            tournament_alias = match.get("tournament", {}).get("alias")
-            season_alias = match.get("season", {}).get("alias")
-            round_alias = match.get("round", {}).get("alias")
-            matchday_alias = match.get("matchday", {}).get("alias")
+        t_alias = match.get("tournament", {}).get("alias")
+        s_alias = match.get("season", {}).get("alias")
+        r_alias = match.get("round", {}).get("alias")
+        md_alias = match.get("matchday", {}).get("alias")
+        key = (t_alias, s_alias, r_alias, md_alias)
+        matchday_owner = matchday_owner_cache.get(key)
 
-            if all([tournament_alias, season_alias, round_alias, matchday_alias]):
-                matchday_url = (
-                    f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}"
-                    f"/rounds/{round_alias}/matchdays/{matchday_alias}"
-                )
-                async with httpx.AsyncClient() as client:
-                    matchday_response = await client.get(matchday_url, headers={"Content-Type": "application/json"})
-                    if matchday_response.status_code == 200:
-                        matchday_owner = matchday_response.json().get("owner")
-        except Exception as e:
-            logger.warning(f"Failed to fetch matchday owner for match {match.get('_id')}: {str(e)}")
-
-        if matchday_owner and matchday_owner.get("clubId"):
+        if matchday_owner:
             club_id = matchday_owner.get("clubId")
         else:
             club_id = match.get("home", {}).get("clubId")
-            matchday_owner = None
 
         if club_id:
             if club_id not in matches_by_club:
                 matches_by_club[club_id] = {"matches": [], "matchday_owner": matchday_owner}
             matches_by_club[club_id]["matches"].append(match)
-            # If we just determined there IS a matchday owner, store it (first truthy wins)
-            if matchday_owner and not matches_by_club[club_id]["matchday_owner"]:
-                matches_by_club[club_id]["matchday_owner"] = matchday_owner
 
-    # --- Step 2: build email content per club, always log, conditionally send ---
+    # --- Step 3: build email content per club, always log, conditionally send ---
     for club_id, group in matches_by_club.items():
         try:
             club_matches = group["matches"]
