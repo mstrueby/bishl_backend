@@ -685,8 +685,54 @@ class ImportService:
                         # merge / insert: create a new user account
 
                     # ----------------------------------------------------------
-                    # CREATE new user — reached by merge (not found) and insert (not found)
+                    # CREATE or UPGRADE — reached by merge (not found by name)
+                    # and insert (not found by name).
+                    #
+                    # A user may already exist under a different name match but
+                    # share the same email (e.g. they registered independently
+                    # before becoming a referee).  Check by email first:
+                    #   • Found by email → upgrade: add REFEREE role + set
+                    #     referee sub-document.  No new account is created.
+                    #   • Not found by email → register a brand-new account via
+                    #     the API with a generated password.
                     # ----------------------------------------------------------
+                    existing_by_email = users_collection.find_one({"email": email})
+
+                    if existing_by_email:
+                        # Upgrade an existing user to referee.
+                        # Set the whole referee sub-document (not dot-notation fields)
+                        # to avoid MongoDB error 28 when the field is currently null.
+                        users_collection.update_one(
+                            {"_id": existing_by_email["_id"]},
+                            {"$set": {
+                                "referee": {
+                                    "club": club,
+                                    "level": level,
+                                    "passNo": pass_no,
+                                    "ishdLevel": ishd_level,
+                                    "active": True,
+                                }
+                            }},
+                        )
+                        roles = existing_by_email.get("roles", [])
+                        if "REFEREE" not in roles:
+                            roles.append("REFEREE")
+                            users_collection.update_one(
+                                {"_id": existing_by_email["_id"]},
+                                {"$set": {"roles": roles}},
+                            )
+                        updated += 1
+                        progress.update(
+                            message=f"[{strategy}] Upgraded existing user to referee: {email}"
+                        )
+                        if not import_all:
+                            logger.info(
+                                "--import-all not set, stopping after first upgraded referee"
+                            )
+                            break
+                        continue
+
+                    # No match by email either — register a brand-new account
                     random_password = "".join(
                         random.choices(string.ascii_letters + string.digits, k=12)
                     )
