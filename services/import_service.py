@@ -752,11 +752,10 @@ class ImportService:
                                     f"Failed to send upgrade notification to {email}: {mail_err}"
                                 )
 
-                        if not import_all:
-                            logger.info(
-                                "--import-all not set, stopping after first upgraded referee"
-                            )
-                            break
+                        # Upgrades are idempotent updates — do NOT apply the
+                        # import_all safety stop here.  That stop only makes sense
+                        # for brand-new account creation where a random password
+                        # was generated and a single test-creation is desired.
                         continue
 
                     # No match by email either — register a brand-new account
