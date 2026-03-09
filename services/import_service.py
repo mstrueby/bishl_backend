@@ -471,9 +471,9 @@ class ImportService:
 
             for row in rows:
                 try:
-                    first_name = row.get("Vorname", "").strip()
-                    last_name = row.get("Nachname", "").strip()
-                    email = (row.get("Email") or "").strip()
+                    first_name = row.get("firstName", "").strip()
+                    last_name = row.get("lastName", "").strip()
+                    email = (row.get("email") or "").strip()
 
                     if not email:
                         progress.add_error(f"No email for referee {first_name} {last_name} — skipping")
