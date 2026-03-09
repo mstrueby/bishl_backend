@@ -309,8 +309,14 @@ class ImportCLI:
                     logger.error(f"No handler found for entity: {self.args.entity}")
                     return
 
+                # Entities whose service methods manage their own scoped backup
+                # and rollback internally.  Wrapping them in import_with_rollback
+                # would target the wrong collection ('referees' instead of 'users')
+                # and could dangerously wipe unrelated data on rollback.
+                SELF_MANAGED_ROLLBACK_ENTITIES = {"referees"}
+
                 # Execute import with rollback support
-                if self.args.dry_run:
+                if self.args.dry_run or self.args.entity in SELF_MANAGED_ROLLBACK_ENTITIES:
                     success, message = handler()
                 else:
                     success, message = service.import_with_rollback(

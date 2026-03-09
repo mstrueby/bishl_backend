@@ -512,6 +512,16 @@ class ImportService:
         clubs_collection = self.get_collection("clubs")
         users_collection = self.get_collection("users")
 
+        # ------------------------------------------------------------------
+        # BACKUP — capture all users that carry referee data so we can
+        # restore them precisely if anything goes wrong.  Referees are
+        # embedded in the 'users' collection, so a generic collection-level
+        # rollback would be both wrong (wrong collection name) and dangerous
+        # (would delete all users).  We scope the backup to referee docs only.
+        # ------------------------------------------------------------------
+        referee_backup = list(users_collection.find({"referee": {"$exists": True}}))
+        logger.info(f"Backed up {len(referee_backup)} referee user(s) for rollback safety")
+
         try:
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(
@@ -767,6 +777,29 @@ class ImportService:
         except Exception as e:
             error_msg = f"Referee import failed: {str(e)}"
             logger.error(error_msg, exc_info=True)
+
+            # ------------------------------------------------------------------
+            # ROLLBACK — restore all referee users to their pre-import state.
+            # Uses replace_one with upsert=True so that documents that were
+            # modified are fully overwritten, and any that were removed are
+            # recreated.  Users created via the /users/register API during this
+            # run are NOT automatically deleted here; a warning is logged instead.
+            # ------------------------------------------------------------------
+            if referee_backup:
+                try:
+                    logger.info(
+                        f"Rolling back {len(referee_backup)} referee user(s) to pre-import state..."
+                    )
+                    for doc in referee_backup:
+                        users_collection.replace_one(
+                            {"_id": doc["_id"]}, doc, upsert=True
+                        )
+                    logger.info("Rollback completed successfully")
+                    return False, f"{error_msg} (rolled back)"
+                except Exception as rollback_err:
+                    logger.error(f"Rollback failed: {rollback_err}")
+                    return False, f"{error_msg} (rollback failed: {rollback_err})"
+
             return False, error_msg
 
     def import_with_rollback(
