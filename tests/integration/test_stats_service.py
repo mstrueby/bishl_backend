@@ -1,5 +1,7 @@
 """Integration tests for StatsService with real database"""
 
+from datetime import UTC
+
 import pytest
 from bson import ObjectId
 from httpx import AsyncClient
@@ -471,25 +473,33 @@ class TestStatsServiceIntegration:
         ), f"Should have 5 occurrences (one per match). Got: {len(tracking['occurrences'])}"
         # Verify occurrence type is MATCH and has matchId
         for occ in tracking["occurrences"]:
-            assert occ.get("type") == "MATCH", f"Occurrence type should be MATCH, got: {occ.get('type')}"
+            assert (
+                occ.get("type") == "MATCH"
+            ), f"Occurrence type should be MATCH, got: {occ.get('type')}"
             assert occ.get("matchId"), f"Occurrence should have matchId, got: {occ}"
 
         # Verify calledMatches incremented, calledMatchdays not
         player_stats = updated_player.get("stats", [])
         round_stat = next(
             (
-                s for s in player_stats
+                s
+                for s in player_stats
                 if s.get("round", {}).get("alias") == tournament["seasons"][0]["rounds"][0]["alias"]
                 and s.get("matchday") is None
             ),
             None,
         )
         if round_stat:
-            assert round_stat.get("calledMatchdays", 0) == 0, "calledMatchdays should be 0 for REGULAR round"
+            assert (
+                round_stat.get("calledMatchdays", 0) == 0
+            ), "calledMatchdays should be 0 for REGULAR round"
 
-    async def test_called_players_tournament_matchday_tracking(self, mongodb, client: AsyncClient, admin_token):
+    async def test_called_players_tournament_matchday_tracking(
+        self, mongodb, client: AsyncClient, admin_token
+    ):
         """Test that TOURNAMENT rounds produce MATCHDAY-type playUpOccurrences grouped per matchday"""
         from bson import ObjectId
+
         from tests.fixtures.data_fixtures import (
             create_test_match,
             create_test_player,
@@ -502,12 +512,16 @@ class TestStatsServiceIntegration:
 
         tournament = create_test_tournament()
         # Set matchdaysType to TOURNAMENT on the round
-        tournament["seasons"][0]["rounds"][0]["matchdaysType"] = {"key": "TOURNAMENT", "value": "Turnier"}
+        tournament["seasons"][0]["rounds"][0]["matchdaysType"] = {
+            "key": "TOURNAMENT",
+            "value": "Turnier",
+        }
         tournament["seasons"][0]["rounds"][0]["createStats"] = True
         # Give the matchday an _id and startDate so it can be resolved
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         matchday_id = str(ObjectId())
-        matchday_start = datetime(2024, 10, 5, 10, 0, 0, tzinfo=timezone.utc)
+        matchday_start = datetime(2024, 10, 5, 10, 0, 0, tzinfo=UTC)
         tournament["seasons"][0]["rounds"][0]["matchdays"][0]["_id"] = matchday_id
         tournament["seasons"][0]["rounds"][0]["matchdays"][0]["startDate"] = matchday_start
         await mongodb["tournaments"].insert_one(tournament)
@@ -530,7 +544,10 @@ class TestStatsServiceIntegration:
             match = create_test_match(status="FINISHED")
             match["tournament"] = {"alias": t_alias, "name": tournament["name"]}
             match["season"] = {"alias": s_alias, "name": tournament["seasons"][0]["name"]}
-            match["round"] = {"alias": r_alias, "name": tournament["seasons"][0]["rounds"][0]["name"]}
+            match["round"] = {
+                "alias": r_alias,
+                "name": tournament["seasons"][0]["rounds"][0]["name"],
+            }
             match["matchday"] = {"alias": md_alias, "name": md_name}
             match["matchStatus"] = {"key": "FINISHED", "value": "Beendet"}
             match["home"]["teamId"] = "upper-team-id"
@@ -581,7 +598,9 @@ class TestStatsServiceIntegration:
 
         # --- playUpTrackings assertions ---
         playup_trackings = updated_player.get("playUpTrackings", [])
-        assert len(playup_trackings) >= 1, f"playUpTrackings should have at least one entry. Got: {playup_trackings}"
+        assert (
+            len(playup_trackings) >= 1
+        ), f"playUpTrackings should have at least one entry. Got: {playup_trackings}"
         tracking = playup_trackings[0]
         assert tracking["fromTeamId"] == "lower-team-id", "fromTeamId should match calledFromTeam"
         assert tracking["toTeamId"] == "upper-team-id", "toTeamId should match match team"
@@ -591,28 +610,32 @@ class TestStatsServiceIntegration:
             len(tracking["occurrences"]) == 1
         ), f"Should have 1 occurrence (per matchday, not per match). Got: {len(tracking['occurrences'])}"
         occ = tracking["occurrences"][0]
-        assert occ.get("type") == "MATCHDAY", f"Occurrence type should be MATCHDAY, got: {occ.get('type')}"
+        assert (
+            occ.get("type") == "MATCHDAY"
+        ), f"Occurrence type should be MATCHDAY, got: {occ.get('type')}"
         assert occ.get("matchdayId") == matchday_id, f"matchdayId mismatch: {occ.get('matchdayId')}"
-        assert occ.get("matchdayName") == md_name, f"matchdayName mismatch: {occ.get('matchdayName')}"
+        assert (
+            occ.get("matchdayName") == md_name
+        ), f"matchdayName mismatch: {occ.get('matchdayName')}"
         assert occ.get("matchdayStartDate") is not None, "matchdayStartDate should be set"
 
         # --- PlayerStats assertions ---
         player_stats = updated_player.get("stats", [])
         round_stat = next(
             (
-                s for s in player_stats
-                if s.get("round", {}).get("alias") == r_alias
-                and s.get("matchday") is None
+                s
+                for s in player_stats
+                if s.get("round", {}).get("alias") == r_alias and s.get("matchday") is None
             ),
             None,
         )
         assert round_stat is not None, f"Should have round-level stats. Got: {player_stats}"
-        assert round_stat.get("calledMatchdays", 0) >= 1, (
-            f"calledMatchdays should be >= 1 for TOURNAMENT round, got: {round_stat.get('calledMatchdays')}"
-        )
-        assert round_stat.get("calledMatches", 0) == 0, (
-            f"calledMatches should be 0 for TOURNAMENT round, got: {round_stat.get('calledMatches')}"
-        )
+        assert (
+            round_stat.get("calledMatchdays", 0) >= 1
+        ), f"calledMatchdays should be >= 1 for TOURNAMENT round, got: {round_stat.get('calledMatchdays')}"
+        assert (
+            round_stat.get("calledMatches", 0) == 0
+        ), f"calledMatches should be 0 for TOURNAMENT round, got: {round_stat.get('calledMatches')}"
 
     async def test_standings_recalculated_on_match_finished(
         self, mongodb, client: AsyncClient, admin_token

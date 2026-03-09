@@ -4,7 +4,6 @@ from enum import Enum
 from authentication import TokenPayload
 from config import settings
 from exceptions import AuthorizationException
-from logging_config import logger
 
 
 class MatchAction(str, Enum):
@@ -188,4 +187,3 @@ class MatchPermissionService:
         if team_flag == "home":
             return MatchAction.EDIT_PENALTIES_HOME
         return MatchAction.EDIT_PENALTIES_AWAY
-

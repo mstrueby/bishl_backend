@@ -70,6 +70,7 @@ class ImportService:
         if ".replit.dev" in self.base_url:
             self.session.verify = False
             import urllib3
+
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         else:
             self.session.verify = certifi.where()
@@ -155,7 +156,7 @@ class ImportService:
             MatchTournament,
             MatchVenue,
         )
-        from models.tournaments import MatchdayBase, RoundDB
+        from models.tournaments import MatchdayBase
 
         if not self.token or not self.headers:
             return False, "Not authenticated. Call authenticate() first."
@@ -253,7 +254,7 @@ class ImportService:
                         progress.add_error(f"Round does not exist: {t_alias}/{s_alias}/{r_alias}")
                         continue
 
-                    round_db = RoundDB(**round_response.json().get("data", {}))
+                    # round_db = RoundDB(**round_response.json().get("data", {}))
 
                     # Check if matchday exists, create if needed
                     matchday_url = f"{self.base_url}/tournaments/{t_alias}/seasons/{s_alias}/rounds/{r_alias}/matchdays/{md_alias}"
@@ -499,12 +500,14 @@ class ImportService:
         import json
         import random
         import string
-        from typing import Literal
 
         # Validate strategy value early so callers get a clear error
         valid_strategies = ("merge", "insert", "update")
         if strategy not in valid_strategies:
-            return False, f"Invalid strategy '{strategy}'. Must be one of: {', '.join(valid_strategies)}"
+            return (
+                False,
+                f"Invalid strategy '{strategy}'. Must be one of: {', '.join(valid_strategies)}",
+            )
 
         if not self.token or not self.headers:
             return False, "Not authenticated. Call authenticate() first."
@@ -704,15 +707,17 @@ class ImportService:
                         # to avoid MongoDB error 28 when the field is currently null.
                         users_collection.update_one(
                             {"_id": existing_by_email["_id"]},
-                            {"$set": {
-                                "referee": {
-                                    "club": club,
-                                    "level": level,
-                                    "passNo": pass_no,
-                                    "ishdLevel": ishd_level,
-                                    "active": True,
+                            {
+                                "$set": {
+                                    "referee": {
+                                        "club": club,
+                                        "level": level,
+                                        "passNo": pass_no,
+                                        "ishdLevel": ishd_level,
+                                        "active": True,
+                                    }
                                 }
-                            }},
+                            },
                         )
                         roles = existing_by_email.get("roles", [])
                         if "REFEREE" not in roles:
@@ -872,9 +877,7 @@ class ImportService:
                         f"Rolling back {len(referee_backup)} referee user(s) to pre-import state..."
                     )
                     for doc in referee_backup:
-                        users_collection.replace_one(
-                            {"_id": doc["_id"]}, doc, upsert=True
-                        )
+                        users_collection.replace_one({"_id": doc["_id"]}, doc, upsert=True)
                     logger.info("Rollback completed successfully")
                     return False, f"{error_msg} (rolled back)"
                 except Exception as rollback_err:

@@ -916,7 +916,14 @@ class StatsService:
 
             player_card_stats: dict[str, dict[str, Any]] = {}
             await self._update_player_card_stats(
-                "ROUND", matches, player_ids, player_card_stats, t_alias, s_alias, r_alias, md_alias,
+                "ROUND",
+                matches,
+                player_ids,
+                player_card_stats,
+                t_alias,
+                s_alias,
+                r_alias,
+                md_alias,
                 matchdays_type_key=matchdays_type_key,
             )
 
@@ -986,7 +993,11 @@ class StatsService:
             )
         if matches:
             await self._process_called_teams_assignments(
-                player_ids, matches, t_alias, s_alias, token_payload,
+                player_ids,
+                matches,
+                t_alias,
+                s_alias,
+                token_payload,
                 matchdays_type_key=matchdays_type_key,
                 round_info=round_info,
             )
@@ -1010,8 +1021,12 @@ class StatsService:
         logger.debug(f"Processing roster for {flag}", extra={"num_matches": len(matches)})
 
         # Process rosters for both home and away teams
-        self._process_roster_for_team(matches, "home", player_ids, player_card_stats, flag, matchdays_type_key)
-        self._process_roster_for_team(matches, "away", player_ids, player_card_stats, flag, matchdays_type_key)
+        self._process_roster_for_team(
+            matches, "home", player_ids, player_card_stats, flag, matchdays_type_key
+        )
+        self._process_roster_for_team(
+            matches, "away", player_ids, player_card_stats, flag, matchdays_type_key
+        )
 
         logger.debug("Player card stats updated", extra={"player_card_stats": player_card_stats})
 
@@ -1054,7 +1069,11 @@ class StatsService:
                 if player_id and player_id in player_ids:
                     logger.debug(f"Updating stats for player {player_id} in {team_flag} team")
                     self._update_player_stats(
-                        player_id, team, roster_player, match_info, player_card_stats,
+                        player_id,
+                        team,
+                        roster_player,
+                        match_info,
+                        player_card_stats,
                         matchdays_type_key=matchdays_type_key,
                     )
 
@@ -1252,7 +1271,10 @@ class StatsService:
                 )
 
                 playup_occurrences = self._find_playup_occurrences(
-                    player_id, matches, t_alias, s_alias,
+                    player_id,
+                    matches,
+                    t_alias,
+                    s_alias,
                     matchdays_type_key=matchdays_type_key,
                     round_info=round_info or {},
                 )
@@ -1354,7 +1376,9 @@ class StatsService:
         seen: dict[tuple, dict] = {}
 
         for match in matches:
-            matchday_alias = match.get("matchday", {}).get("alias") if match.get("matchday") else None
+            matchday_alias = (
+                match.get("matchday", {}).get("alias") if match.get("matchday") else None
+            )
             match_start_date = match.get("startDate")
 
             for team_flag in ["home", "away"]:

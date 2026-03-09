@@ -68,7 +68,9 @@ class TestPlayersAPI:
         assert bd == datetime(2008, 5, 15, 0, 0, 0)
         assert bd.tzinfo is None, "birthdate must be timezone-naive"
 
-    async def test_create_player_duplicate_rejected(self, client: AsyncClient, mongodb, admin_token):
+    async def test_create_player_duplicate_rejected(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """Test that creating a player with the same name and birthdate is rejected"""
         player_data = {
             "firstName": "Duplicate",
@@ -91,7 +93,7 @@ class TestPlayersAPI:
         response = await client.post(
             "/players", data=player_data, headers={"Authorization": f"Bearer {admin_token}"}
         )
-        assert response.status_code == 422
+        assert response.status_code == 400
 
     async def test_get_player_by_id(self, client: AsyncClient, mongodb, admin_token):
         """Test retrieving a player by ID"""

@@ -858,7 +858,9 @@ async def get_unassigned_matches_in_14_days(
                         body=email_content,
                     )
                     emails_sent += len(admin_emails)
-                    print(f"Email sent to {len(admin_emails)} club admins for {club_name} with CC to {cc_emails}")
+                    print(
+                        f"Email sent to {len(admin_emails)} club admins for {club_name} with CC to {cc_emails}"
+                    )
                 elif ligenleitung_email:
                     await send_email(
                         subject=email_subject,
@@ -866,9 +868,13 @@ async def get_unassigned_matches_in_14_days(
                         body=email_content,
                     )
                     emails_sent += 1
-                    print(f"Email sent to LIGENLEITUNG_EMAIL for {club_name} (no club admin emails available)")
+                    print(
+                        f"Email sent to LIGENLEITUNG_EMAIL for {club_name} (no club admin emails available)"
+                    )
                 else:
-                    print(f"No email addresses found for club admins of {club_name} and LIGENLEITUNG_EMAIL not set")
+                    print(
+                        f"No email addresses found for club admins of {club_name} and LIGENLEITUNG_EMAIL not set"
+                    )
 
             except Exception as e:
                 print(f"Failed to send email for club {club_id}: {str(e)}")
@@ -955,14 +961,22 @@ async def delete_assignment(
                     detail=f"Failed to delete assignment: {str(e)}",
                 ) from e
 
-    # Send notification after transaction commits
-    await send_message_to_referee(
-        message_service=message_service,
-        match=match,
-        receiver_id=assignment["referee"]["userId"],
-        content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
-        sender_id=token_payload.sub,
-        sender_name=f"{token_payload.firstName} {token_payload.lastName}",
-    )
+    # Send notification after transaction commits — best-effort, must not
+    # fail the response since the deletion has already been committed.
+    try:
+        await send_message_to_referee(
+            message_service=message_service,
+            match=match,
+            receiver_id=assignment["referee"]["userId"],
+            content=f"Hallo {assignment['referee']['firstName']}, deine Einteilung wurde von {token_payload.firstName} für folgendes Spiel ENTFERNT:",
+            sender_id=token_payload.sub,
+            sender_name=f"{token_payload.firstName} {token_payload.lastName}",
+        )
+    except Exception as notify_err:
+        logger.warning(
+            "Could not send deletion notification for assignment {}: {}",
+            id,
+            notify_err,
+        )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

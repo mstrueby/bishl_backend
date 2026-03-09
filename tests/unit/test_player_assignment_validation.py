@@ -333,9 +333,9 @@ class TestAdminOverride:
         )
         result = await service.classify_license_types_for_player(player)
         t1 = result["assignedTeams"][0]["teams"][0]
-        assert t1["licenseType"] == "PRIMARY", (
-            "adminOverride+UNKNOWN is still classified — UNKNOWN means 'auto-classify me'"
-        )
+        assert (
+            t1["licenseType"] == "PRIMARY"
+        ), "adminOverride+UNKNOWN is still classified — UNKNOWN means 'auto-classify me'"
 
     @pytest.mark.asyncio
     async def test_classification_preserves_explicit_loan_without_admin_override(self, service):
@@ -354,9 +354,9 @@ class TestAdminOverride:
         )
         result = await service.classify_license_types_for_player(player)
         t2 = result["assignedTeams"][0]["teams"][1]
-        assert t2["licenseType"] == "LOAN", (
-            "Explicit LOAN must be preserved without passNo L-suffix or adminOverride"
-        )
+        assert (
+            t2["licenseType"] == "LOAN"
+        ), "Explicit LOAN must be preserved without passNo L-suffix or adminOverride"
 
     # ------------------------------------------------------------------ #
     # T002: Validation                                                      #
@@ -370,7 +370,11 @@ class TestAdminOverride:
             [
                 self._make_club(
                     "club1",
-                    [self._make_team("t1", "U16", "PRIMARY", status="INVALID", admin_override=True)],
+                    [
+                        self._make_team(
+                            "t1", "U16", "PRIMARY", status="INVALID", admin_override=True
+                        )
+                    ],
                 )
             ],
         )
@@ -406,9 +410,7 @@ class TestAdminOverride:
                     "club1",
                     [
                         self._make_team("t1", "U16", "PRIMARY", source="BISHL"),
-                        self._make_team(
-                            "t2", "U16", "PRIMARY", source="ISHD", admin_override=True
-                        ),
+                        self._make_team("t2", "U16", "PRIMARY", source="ISHD", admin_override=True),
                     ],
                 )
             ],
@@ -437,9 +439,9 @@ class TestAdminOverride:
         )
         result = await service.validate_licenses_for_player(player)
         t3 = result["assignedTeams"][0]["teams"][2]
-        assert "EXCEEDS_WKO_LIMIT" not in t3["invalidReasonCodes"], (
-            "t3 should not be over quota since adminOverride t2 is excluded from counting"
-        )
+        assert (
+            "EXCEEDS_WKO_LIMIT" not in t3["invalidReasonCodes"]
+        ), "t3 should not be over quota since adminOverride t2 is excluded from counting"
 
     @pytest.mark.asyncio
     async def test_validation_date_sanity_skips_admin_override(self, service):
@@ -474,7 +476,11 @@ class TestAdminOverride:
             [
                 self._make_club(
                     "club1",
-                    [self._make_team("t1", "U16", "PRIMARY", status="UNKNOWN", admin_override=True)],
+                    [
+                        self._make_team(
+                            "t1", "U16", "PRIMARY", status="UNKNOWN", admin_override=True
+                        )
+                    ],
                 )
             ],
         )
