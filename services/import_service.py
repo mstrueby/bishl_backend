@@ -725,6 +725,33 @@ class ImportService:
                         progress.update(
                             message=f"[{strategy}] Upgraded existing user to referee: {email}"
                         )
+
+                        # Send notification email to the upgraded user
+                        if send_email:
+                            try:
+                                from mail_service import send_email as _send_email
+
+                                user_first_name = existing_by_email.get("firstName", "")
+                                subject = "BISHL - Du bist nun auch Schiedsrichter"
+                                body = f"""
+<p>Hallo {user_first_name},</p>
+<p>du bist jetzt als Schiedsrichter bei der BISHL registriert.</p>
+<p>Du kannst dich mit deinen bekannten Login-Daten anmelden:</p>
+<ul>
+  <li><strong>E-Mail:</strong> {email}</li>
+  <li><strong>Passwort:</strong> Dein bestehendes Passwort</li>
+</ul>
+<p>Bitte logge dich bei www.bishl.de ein und aktualisiere dein Profil mit deinen Schiedsrichter-Daten, falls nötig.</p>
+<p>Falls du Fragen hast, melde dich bitte über website@bishl.de</p>
+<p>Viele Grüße,<br>Das BISHL-Team</p>
+"""
+                                asyncio.run(_send_email(subject, [email], body))
+                                logger.info(f"Referee upgrade notification sent to {email}")
+                            except Exception as mail_err:
+                                logger.warning(
+                                    f"Failed to send upgrade notification to {email}: {mail_err}"
+                                )
+
                         if not import_all:
                             logger.info(
                                 "--import-all not set, stopping after first upgraded referee"
