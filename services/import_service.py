@@ -424,32 +424,87 @@ class ImportService:
             return False, error_msg
 
     def import_referees(
-        self, csv_path: str, import_all: bool = False, send_email: bool = False
+        self,
+        csv_path: str,
+        import_all: bool = False,
+        send_email: bool = False,
+        strategy: str = "merge",
     ) -> tuple[bool, str]:
         """
-        Import referees from CSV file.
+        Import referees from a semicolon-delimited CSV file using a configurable strategy.
 
-        For each row the function either:
-        - Updates an existing user by ensuring the REFEREE role is present, or
-        - Creates a new user via the /users/register endpoint with a random
-          password and optionally sends a welcome email.
+        Existing users are matched by firstName + lastName (case-sensitive).
 
         CSV columns (semicolon-delimited):
-            Vorname, Nachname, Email, club (JSON), level, passNo, ishdLevel
+            firstName, lastName, email, club (JSON), level, passNo, ishdLevel
 
         Args:
-            csv_path:    Path to the CSV file.
-            import_all:  If False, stop after the first successfully created user.
-            send_email:  If True, send a welcome email to newly created referees.
+            csv_path:   Path to the CSV file.
+            import_all: If False, stop after the first successfully created user.
+                        Useful for smoke-testing before a full run.
+            send_email: If True, send email notifications:
+                        - Welcome email for newly created referees.
+                        - Login-change email when an existing referee's email is updated.
+            strategy:   Controls how the CSV is reconciled against the database.
+
+                        "merge"  (default)
+                            Step 1 — Deactivate all current referees by setting
+                                     referee.active = False on every user that has a
+                                     referee sub-document.
+                            Step 2 — Loop CSV rows:
+                                Found   → Reactivate (active=True) and update level,
+                                          passNo, ishdLevel.  If the email in the CSV
+                                          differs from the stored email, update it too
+                                          and, if --send-email is set, notify the user
+                                          that their login credential has changed.
+                                Not found → Create new user/referee and optionally
+                                            send a welcome email.
+                            Use this strategy for a full roster replacement, e.g.
+                            at the start of a new season.
+
+                        "insert"
+                            Does NOT deactivate existing referees.
+                            Found   → Skip (no changes made).
+                            Not found → Create new user/referee and optionally
+                                        send a welcome email.
+                            Use this strategy to add new referees without touching
+                            existing records.
+
+                        "update"
+                            Does NOT deactivate existing referees.
+                            Found   → Update level, passNo, ishdLevel and handle
+                                      email changes the same way as "merge".
+                            Not found → Skip (no changes made).
+                            Use this strategy to refresh data for known referees
+                            without creating new accounts.
 
         Returns:
             Tuple of (success: bool, message: str)
+
+        Examples:
+            # Full season refresh — deactivate all, re-activate from CSV, create new ones
+            service.import_referees("data/referees.csv", strategy="merge",
+                                    import_all=True, send_email=True)
+
+            # Add new referees only, leave existing ones untouched
+            service.import_referees("data/referees.csv", strategy="insert",
+                                    import_all=True, send_email=True)
+
+            # Update existing referees only (no creates)
+            service.import_referees("data/referees.csv", strategy="update",
+                                    import_all=True)
         """
         import asyncio
         import csv
         import json
         import random
         import string
+        from typing import Literal
+
+        # Validate strategy value early so callers get a clear error
+        valid_strategies = ("merge", "insert", "update")
+        if strategy not in valid_strategies:
+            return False, f"Invalid strategy '{strategy}'. Must be one of: {', '.join(valid_strategies)}"
 
         if not self.token or not self.headers:
             return False, "Not authenticated. Call authenticate() first."
@@ -464,10 +519,24 @@ class ImportService:
                 )
                 rows = list(reader)
 
-            progress = ImportProgress(len(rows), "Importing referees")
+            progress = ImportProgress(len(rows), f"Importing referees [{strategy}]")
             created = 0
             updated = 0
             skipped = 0
+            email_changed = 0
+
+            # ------------------------------------------------------------------
+            # MERGE: deactivate all existing referees before processing the CSV.
+            # They will be selectively reactivated as each matching row is found.
+            # ------------------------------------------------------------------
+            if strategy == "merge":
+                deactivated = users_collection.update_many(
+                    {"referee": {"$exists": True}},
+                    {"$set": {"referee.active": False}},
+                )
+                logger.info(
+                    f"[merge] Deactivated {deactivated.modified_count} referee(s) before import"
+                )
 
             for row in rows:
                 try:
@@ -476,7 +545,9 @@ class ImportService:
                     email = (row.get("email") or "").strip()
 
                     if not email:
-                        progress.add_error(f"No email for referee {first_name} {last_name} — skipping")
+                        progress.add_error(
+                            f"No email for referee {first_name} {last_name} — skipping"
+                        )
                         continue
 
                     # Parse club JSON
@@ -502,23 +573,107 @@ class ImportService:
                     pass_no = row.get("passNo") or None
                     ishd_level = row.get("ishdLevel") or None
 
-                    # --- Existing user: ensure REFEREE role ---
-                    existing_user = users_collection.find_one({"email": email})
+                    # ----------------------------------------------------------
+                    # Look up the user by firstName + lastName (not by email).
+                    # Email may change between imports; the name is the stable key.
+                    # ----------------------------------------------------------
+                    existing_user = users_collection.find_one(
+                        {"firstName": first_name, "lastName": last_name}
+                    )
+
                     if existing_user:
+                        # -------------------------------------------------------
+                        # User EXISTS — behaviour depends on strategy
+                        # -------------------------------------------------------
+
+                        if strategy == "insert":
+                            # insert: skip existing users entirely
+                            skipped += 1
+                            progress.update(
+                                message=f"[insert] Skipped existing: {first_name} {last_name}"
+                            )
+                            continue
+
+                        # merge / update: update the referee's fields
+                        stored_email = existing_user.get("email", "")
+                        update_fields: dict = {
+                            "referee.active": True,
+                            "referee.level": level,
+                            "referee.passNo": pass_no,
+                            "referee.ishdLevel": ishd_level,
+                            "referee.club": club,
+                        }
+
+                        # Handle email change
+                        if email != stored_email:
+                            update_fields["email"] = email
+                            email_changed += 1
+                            logger.info(
+                                f"[{strategy}] Email changed for {first_name} {last_name}: "
+                                f"{stored_email} → {email}"
+                            )
+
+                            # Notify the user about the credential change if requested
+                            if send_email:
+                                try:
+                                    from mail_service import send_email as _send_email
+
+                                    subject = "BISHL - Deine Login-E-Mail wurde geändert"
+                                    body = f"""
+<p>Hallo {first_name},</p>
+<p>deine Login-E-Mail-Adresse für dein Schiedsrichter-Account auf www.bishl.de wurde aktualisiert.</p>
+<p>Ab sofort meldest du dich mit folgender E-Mail-Adresse an:</p>
+<ul>
+  <li><strong>Neue E-Mail (Login):</strong> {email}</li>
+</ul>
+<p>Bitte verwende ab sofort diese Adresse, um dich bei www.bishl.de einzuloggen.</p>
+<p>Falls du diese Änderung nicht erwartet hast, melde dich bitte über website@bishl.de</p>
+<p>Viele Grüße,<br>Das BISHL-Team</p>
+"""
+                                    asyncio.run(_send_email(subject, [email], body))
+                                    logger.info(f"Email-change notification sent to {email}")
+                                except Exception as mail_err:
+                                    logger.warning(
+                                        f"Failed to send email-change notification to {email}: {mail_err}"
+                                    )
+
+                        users_collection.update_one(
+                            {"_id": existing_user["_id"]},
+                            {"$set": update_fields},
+                        )
+
+                        # Ensure the REFEREE role is present
                         roles = existing_user.get("roles", [])
                         if "REFEREE" not in roles:
                             roles.append("REFEREE")
                             users_collection.update_one(
-                                {"email": email}, {"$set": {"roles": roles}}
+                                {"_id": existing_user["_id"]}, {"$set": {"roles": roles}}
                             )
-                            updated += 1
-                            progress.update(message=f"Updated roles for existing user: {email}")
-                        else:
-                            skipped += 1
-                            progress.update(message=f"Already has REFEREE role: {email}")
+
+                        updated += 1
+                        progress.update(
+                            message=f"[{strategy}] Updated: {first_name} {last_name} ({email})"
+                        )
                         continue
 
-                    # --- New user: generate password and register via API ---
+                    else:
+                        # -------------------------------------------------------
+                        # User does NOT EXIST — behaviour depends on strategy
+                        # -------------------------------------------------------
+
+                        if strategy == "update":
+                            # update: skip rows where no matching user exists
+                            skipped += 1
+                            progress.update(
+                                message=f"[update] Not found, skipped: {first_name} {last_name}"
+                            )
+                            continue
+
+                        # merge / insert: create a new user account
+
+                    # ----------------------------------------------------------
+                    # CREATE new user — reached by merge (not found) and insert (not found)
+                    # ----------------------------------------------------------
                     random_password = "".join(
                         random.choices(string.ascii_letters + string.digits, k=12)
                     )
@@ -543,9 +698,9 @@ class ImportService:
 
                     if response.status_code == 201:
                         created += 1
-                        progress.update(message=f"Created: {email}")
+                        progress.update(message=f"[{strategy}] Created: {email}")
 
-                        # Optionally send welcome email
+                        # Optionally send welcome email to new referee
                         if send_email:
                             try:
                                 from mail_service import send_email as _send_email
@@ -566,28 +721,42 @@ class ImportService:
                                 asyncio.run(_send_email(subject, [email], body))
                                 logger.info(f"Welcome email sent to {email}")
                             except Exception as mail_err:
-                                logger.warning(f"Failed to send welcome email to {email}: {mail_err}")
+                                logger.warning(
+                                    f"Failed to send welcome email to {email}: {mail_err}"
+                                )
                         else:
-                            logger.info(f"Skipping welcome email for {email} (--send-email not set)")
+                            logger.info(
+                                f"Skipping welcome email for {email} (--send-email not set)"
+                            )
 
                         if not import_all:
-                            logger.info("--import-all not set, stopping after first created referee")
+                            logger.info(
+                                "--import-all not set, stopping after first created referee"
+                            )
                             break
                     else:
                         progress.add_error(
-                            f"Failed to register {email} (HTTP {response.status_code}): {response.text}"
+                            f"Failed to register {email} "
+                            f"(HTTP {response.status_code}): {response.text}"
                         )
 
                 except json.JSONDecodeError as e:
-                    progress.add_error(f"Invalid JSON in row for {row.get('Email', '?')}: {e}")
+                    progress.add_error(
+                        f"Invalid JSON in row for {row.get('firstName', '?')} "
+                        f"{row.get('lastName', '?')}: {e}"
+                    )
                 except Exception as e:
-                    progress.add_error(f"Error processing row {row.get('Email', '?')}: {e}")
+                    progress.add_error(
+                        f"Error processing row {row.get('firstName', '?')} "
+                        f"{row.get('lastName', '?')}: {e}"
+                    )
 
             summary = progress.summary()
             logger.info(summary)
 
             result_msg = (
-                f"Referees: {created} created, {updated} updated (role added), {skipped} already up-to-date"
+                f"Referees [{strategy}]: {created} created, {updated} updated "
+                f"({email_changed} email change(s)), {skipped} skipped"
             )
             return True, result_msg
 
