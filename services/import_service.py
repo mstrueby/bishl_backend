@@ -538,10 +538,13 @@ class ImportService:
             # ------------------------------------------------------------------
             # MERGE: deactivate all existing referees before processing the CSV.
             # They will be selectively reactivated as each matching row is found.
+            # Only target documents where 'referee' is a real object (type 3).
+            # Using dot-notation $set on a null referee field causes MongoDB
+            # error 28 "Cannot create field in element {referee: null}".
             # ------------------------------------------------------------------
             if strategy == "merge":
                 deactivated = users_collection.update_many(
-                    {"referee": {"$exists": True}},
+                    {"referee": {"$type": "object"}},
                     {"$set": {"referee.active": False}},
                 )
                 logger.info(
@@ -775,8 +778,14 @@ class ImportService:
             logger.error(error_msg)
             return False, error_msg
         except Exception as e:
+            # Build the error message as a plain string for return values.
+            # IMPORTANT: do NOT embed str(e) directly inside a loguru message
+            # template because MongoDB errors may contain literal curly-brace
+            # sequences (e.g. "{referee: null}") that loguru interprets as
+            # format placeholders, causing a secondary KeyError.
+            # Always pass exception objects as positional args to loguru.
             error_msg = f"Referee import failed: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            logger.opt(exception=True).error("Referee import failed: {}", e)
 
             # ------------------------------------------------------------------
             # ROLLBACK — restore all referee users to their pre-import state.
@@ -797,7 +806,7 @@ class ImportService:
                     logger.info("Rollback completed successfully")
                     return False, f"{error_msg} (rolled back)"
                 except Exception as rollback_err:
-                    logger.error(f"Rollback failed: {rollback_err}")
+                    logger.error("Rollback failed: {}", rollback_err)
                     return False, f"{error_msg} (rollback failed: {rollback_err})"
 
             return False, error_msg
