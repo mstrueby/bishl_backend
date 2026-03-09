@@ -284,8 +284,6 @@ class PlayerStats(BaseModel):
     assists: int = Field(0)
     points: int = Field(0)
     penaltyMinutes: int = Field(0)
-    calledMatches: int = Field(0)
-    calledMatchdays: int = Field(0)
 
 
 class PlayerBase(MongoBaseModel):

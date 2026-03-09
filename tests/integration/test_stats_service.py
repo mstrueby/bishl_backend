@@ -393,7 +393,6 @@ class TestStatsServiceIntegration:
                 "assists": 0,
                 "points": 5,
                 "penaltyMinutes": 0,
-                "calledMatches": 5,
             }
         ]
         player["assignedTeams"] = []
@@ -478,21 +477,6 @@ class TestStatsServiceIntegration:
             ), f"Occurrence type should be MATCH, got: {occ.get('type')}"
             assert occ.get("matchId"), f"Occurrence should have matchId, got: {occ}"
 
-        # Verify calledMatches incremented, calledMatchdays not
-        player_stats = updated_player.get("stats", [])
-        round_stat = next(
-            (
-                s
-                for s in player_stats
-                if s.get("round", {}).get("alias") == tournament["seasons"][0]["rounds"][0]["alias"]
-                and s.get("matchday") is None
-            ),
-            None,
-        )
-        if round_stat:
-            assert (
-                round_stat.get("calledMatchdays", 0) == 0
-            ), "calledMatchdays should be 0 for REGULAR round"
 
     async def test_called_players_tournament_matchday_tracking(
         self, mongodb, client: AsyncClient, admin_token
@@ -619,23 +603,6 @@ class TestStatsServiceIntegration:
         ), f"matchdayName mismatch: {occ.get('matchdayName')}"
         assert occ.get("matchdayStartDate") is not None, "matchdayStartDate should be set"
 
-        # --- PlayerStats assertions ---
-        player_stats = updated_player.get("stats", [])
-        round_stat = next(
-            (
-                s
-                for s in player_stats
-                if s.get("round", {}).get("alias") == r_alias and s.get("matchday") is None
-            ),
-            None,
-        )
-        assert round_stat is not None, f"Should have round-level stats. Got: {player_stats}"
-        assert (
-            round_stat.get("calledMatchdays", 0) >= 1
-        ), f"calledMatchdays should be >= 1 for TOURNAMENT round, got: {round_stat.get('calledMatchdays')}"
-        assert (
-            round_stat.get("calledMatches", 0) == 0
-        ), f"calledMatches should be 0 for TOURNAMENT round, got: {round_stat.get('calledMatches')}"
 
     async def test_standings_recalculated_on_match_finished(
         self, mongodb, client: AsyncClient, admin_token

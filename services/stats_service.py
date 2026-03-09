@@ -1105,8 +1105,6 @@ class StatsService:
                 "assists": 0,
                 "points": 0,
                 "penaltyMinutes": 0,
-                "calledMatches": 0,
-                "calledMatchdays": 0,
             }
 
     def _update_player_stats(
@@ -1131,12 +1129,6 @@ class StatsService:
             stats["points"] += roster_player.get("points", 0)
             stats["penaltyMinutes"] += roster_player.get("penaltyMinutes", 0)
 
-            # Track called matches or matchdays depending on round type
-            if roster_player.get("called", False):
-                if matchdays_type_key == "TOURNAMENT":
-                    stats["calledMatchdays"] += 1
-                else:
-                    stats["calledMatches"] += 1
 
     @monitor_query("save_player_stats_to_db")
     async def _save_player_stats_to_db(
@@ -1249,7 +1241,7 @@ class StatsService:
         matchdays_type_key: str = "REGULAR",
         round_info: dict | None = None,
     ) -> None:
-        """Check calledMatches for affected players and update assignedTeams/playUpTrackings directly in DB."""
+        """Check play-up occurrences for affected players and update playUpTrackings directly in DB."""
         if not token_payload:
             logger.debug("Skipping called teams processing (no token)")
             return
