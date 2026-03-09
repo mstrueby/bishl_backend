@@ -172,7 +172,7 @@ class MatchPermissionService:
                     and user_club_id
                     and matchday_owner.get("clubId") == user_club_id
                 )
-                return bool(is_home_admin or is_away_admin or is_matchday_owner_any_day)
+                return bool(is_home_admin or is_matchday_owner_any_day)
             return bool(is_effective_home_admin)
 
         if action in (
