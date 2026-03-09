@@ -642,6 +642,7 @@ async def get_unassigned_matches_in_14_days(
     target_date = datetime.now() + timedelta(days=14)
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+    logger.debug(f"Searching for matches between {start_of_day} and {end_of_day}")
 
     # Find matches starting exactly in 14 days with no referees assigned
     matches_cursor = mongodb["matches"].find(
@@ -650,7 +651,7 @@ async def get_unassigned_matches_in_14_days(
             "$and": [
                 {"$or": [{"referee1": {"$exists": False}}, {"referee1": None}]},
                 {"$or": [{"referee2": {"$exists": False}}, {"referee2": None}]},
-                {"tournament.alias": {"$nin": ["bambini", "mini"]}},
+                {"tournament.alias": {"$nin": ["bambini", "bambini-lk2" "mini"]}},
             ],
         }
     )
@@ -671,115 +672,88 @@ async def get_unassigned_matches_in_14_days(
 
     emails_sent = 0
 
-    if send_emails:
-        # Group matches by club - either matchday owner or home club
-        matches_by_club: dict[str, list[Any]] = {}
-        for match in matches:
-            # Get matchday owner by calling the API endpoint
-            matchday_owner = None
-            try:
-                tournament_alias = match.get("tournament", {}).get("alias")
-                season_alias = match.get("season", {}).get("alias")
-                round_alias = match.get("round", {}).get("alias")
-                matchday_alias = match.get("matchday", {}).get("alias")
+    # --- Step 1: group matches by responsible club (matchday owner takes priority) ---
+    # club_id -> {"matches": [...], "matchday_owner": <owner dict or None>}
+    matches_by_club: dict[str, dict[str, Any]] = {}
 
-                if all([tournament_alias, season_alias, round_alias, matchday_alias]):
-                    headers = {"Content-Type": "application/json"}
+    for match in matches:
+        matchday_owner = None
+        try:
+            tournament_alias = match.get("tournament", {}).get("alias")
+            season_alias = match.get("season", {}).get("alias")
+            round_alias = match.get("round", {}).get("alias")
+            matchday_alias = match.get("matchday", {}).get("alias")
 
-                    matchday_url = f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_alias}"
-                    async with httpx.AsyncClient() as client:
-                        matchday_response = await client.get(matchday_url, headers=headers)
-                        if matchday_response.status_code == 200:
-                            matchday_data = matchday_response.json()
-                            matchday_owner = matchday_data.get("owner")
-            except Exception as e:
-                print(f"Failed to fetch matchday owner for match {match.get('_id')}: {str(e)}")
-
-            if matchday_owner and matchday_owner.get("clubId"):
-                # Group by matchday owner club
-                club_id = matchday_owner.get("clubId")
-            else:
-                # Group by home club if no matchday owner
-                club_id = match.get("home", {}).get("clubId")
-
-            if club_id:
-                if club_id not in matches_by_club:
-                    matches_by_club[club_id] = []
-                matches_by_club[club_id].append(match)
-
-        # Send emails to club admins
-        for club_id, club_matches in matches_by_club.items():
-            try:
-                # Find users with CLUB_ADMIN role for this club
-                club_admins = (
-                    await mongodb["users"]
-                    .find({"roles": "CLUB_ADMIN", "club.clubId": club_id})
-                    .to_list(length=None)
+            if all([tournament_alias, season_alias, round_alias, matchday_alias]):
+                matchday_url = (
+                    f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}"
+                    f"/rounds/{round_alias}/matchdays/{matchday_alias}"
                 )
+                async with httpx.AsyncClient() as client:
+                    matchday_response = await client.get(matchday_url, headers={"Content-Type": "application/json"})
+                    if matchday_response.status_code == 200:
+                        matchday_owner = matchday_response.json().get("owner")
+        except Exception as e:
+            logger.warning(f"Failed to fetch matchday owner for match {match.get('_id')}: {str(e)}")
 
-                if not club_admins:
-                    print(f"No club admins found for club {club_id}")
-                    continue
+        if matchday_owner and matchday_owner.get("clubId"):
+            club_id = matchday_owner.get("clubId")
+        else:
+            club_id = match.get("home", {}).get("clubId")
+            matchday_owner = None
 
-                # Get club info for the email
-                first_match = club_matches[0]
+        if club_id:
+            if club_id not in matches_by_club:
+                matches_by_club[club_id] = {"matches": [], "matchday_owner": matchday_owner}
+            matches_by_club[club_id]["matches"].append(match)
+            # If we just determined there IS a matchday owner, store it (first truthy wins)
+            if matchday_owner and not matches_by_club[club_id]["matchday_owner"]:
+                matches_by_club[club_id]["matchday_owner"] = matchday_owner
 
-                # Fetch matchday owner info for email subject
-                matchday_owner = None
-                try:
-                    tournament_alias = first_match.get("tournament", {}).get("alias")
-                    season_alias = first_match.get("season", {}).get("alias")
-                    round_alias = first_match.get("round", {}).get("alias")
-                    matchday_alias = first_match.get("matchday", {}).get("alias")
+    # --- Step 2: build email content per club, always log, conditionally send ---
+    for club_id, group in matches_by_club.items():
+        try:
+            club_matches = group["matches"]
+            matchday_owner = group["matchday_owner"]
+            is_matchday_owner = matchday_owner is not None
 
-                    if all([tournament_alias, season_alias, round_alias, matchday_alias]):
-                        headers = {"Content-Type": "application/json"}
+            # Find club admins
+            club_admins = (
+                await mongodb["users"]
+                .find({"roles": "CLUB_ADMIN", "club.clubId": club_id})
+                .to_list(length=None)
+            )
 
-                        matchday_url = f"{BASE_URL}/tournaments/{tournament_alias}/seasons/{season_alias}/rounds/{round_alias}/matchdays/{matchday_alias}"
-                        async with httpx.AsyncClient() as client:
-                            matchday_response = await client.get(matchday_url, headers=headers)
-                            if matchday_response.status_code == 200:
-                                matchday_data = matchday_response.json()
-                                matchday_owner = matchday_data.get("owner")
-                except Exception as e:
-                    print(f"Failed to fetch matchday owner for email: {str(e)}")
+            if is_matchday_owner:
+                club_name = matchday_owner.get("clubName", "Unknown Club")
+            else:
+                club_name = club_matches[0].get("home", {}).get("clubName", "Unknown Club")
 
-                if matchday_owner and matchday_owner.get("clubId"):
-                    # Use matchday owner club info
-                    club_name = matchday_owner.get("clubName", "Unknown Club")
-                else:
-                    # Use home club info
-                    club_name = first_match.get("home", {}).get("clubName", "Unknown Club")
+            admin_emails = [a.get("email") for a in club_admins if a.get("email")]
+            ligenleitung_email = settings.LIGENLEITUNG_EMAIL
 
-                # Determine if this is a matchday owner or home club
-                is_matchday_owner = matchday_owner and matchday_owner.get("clubId") == club_id
+            email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
 
-                # Prepare email content
-                email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
+            # Build match table rows and plain-text summary for logging
+            match_rows = ""
+            log_lines: list[str] = []
+            for m in club_matches:
+                tournament_name = m.get("tournament", {}).get("name", "Unknown Tournament")
+                home_team = m.get("home", {}).get("fullName", "Unknown Team")
+                away_team = m.get("away", {}).get("fullName", "Unknown Team")
+                start_date = m.get("startDate")
+                venue_name = m.get("venue", {}).get("name", "Unknown Venue")
 
-                match_details = ""
-                for match in club_matches:
-                    tournament_name = match.get("tournament", {}).get("name", "Unknown Tournament")
-                    home_team = match.get("home", {}).get("fullName", "Unknown Team")
-                    away_team = match.get("away", {}).get("fullName", "Unknown Team")
-                    start_date = match.get("startDate")
-                    venue_name = match.get("venue", {}).get("name", "Unknown Venue")
+                if start_date:
+                    weekdays_german = [
+                        "Montag", "Dienstag", "Mittwoch", "Donnerstag",
+                        "Freitag", "Samstag", "Sonntag",
+                    ]
+                    weekday = weekdays_german[start_date.weekday()]
+                    formatted_date = start_date.strftime("%d.%m.%Y")
+                    formatted_time = start_date.strftime("%H:%M")
 
-                    if start_date:
-                        weekdays_german = [
-                            "Montag",
-                            "Dienstag",
-                            "Mittwoch",
-                            "Donnerstag",
-                            "Freitag",
-                            "Samstag",
-                            "Sonntag",
-                        ]
-                        weekday = weekdays_german[start_date.weekday()]
-                        formatted_date = start_date.strftime("%d.%m.%Y")
-                        formatted_time = start_date.strftime("%H:%M")
-
-                        match_details += f"""
+                    match_rows += f"""
                         <tr>
                             <td style="padding: 8px; border: 1px solid #ddd;">{tournament_name}</td>
                             <td style="padding: 8px; border: 1px solid #ddd;">{home_team} - {away_team}</td>
@@ -788,10 +762,12 @@ async def get_unassigned_matches_in_14_days(
                             <td style="padding: 8px; border: 1px solid #ddd;">{venue_name}</td>
                         </tr>
                         """
+                    log_lines.append(
+                        f"  {tournament_name} | {home_team} - {away_team} | {weekday}, {formatted_date} {formatted_time} | {venue_name}"
+                    )
 
-                if is_matchday_owner:
-                    # Email content for matchday owner
-                    email_content = f"""
+            if is_matchday_owner:
+                email_content = f"""
                     <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
                     <p>Hallo,</p>
                     <p>für den Spieltag des Vereins <strong>{club_name}</strong> sind für folgende Spiele noch keine Schiedsrichter eingeteilt:</p>
@@ -807,7 +783,7 @@ async def get_unassigned_matches_in_14_days(
                             </tr>
                         </thead>
                         <tbody>
-                            {match_details}
+                            {match_rows}
                         </tbody>
                     </table>
 
@@ -817,9 +793,8 @@ async def get_unassigned_matches_in_14_days(
                     <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
                     <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
                     """
-                else:
-                    # Email content for home club
-                    email_content = f"""
+            else:
+                email_content = f"""
                     <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
                     <p>Hallo,</p>
                     <p>für folgende Heimspiele von <strong>{club_name}</strong> sind noch keine Schiedsrichter eingeteilt:</p>
@@ -835,7 +810,7 @@ async def get_unassigned_matches_in_14_days(
                             </tr>
                         </thead>
                         <tbody>
-                            {match_details}
+                            {match_rows}
                         </tbody>
                     </table>
 
@@ -845,10 +820,21 @@ async def get_unassigned_matches_in_14_days(
                     <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
                     """
 
-                # Send email to all club admins
-                admin_emails = [admin.get("email") for admin in club_admins if admin.get("email")]
-                ligenleitung_email = settings.LIGENLEITUNG_EMAIL
+            # Always log the email table so the content is visible regardless of send_emails
+            role_label = "matchday-owner" if is_matchday_owner else "home-club"
+            logger.info(
+                f"[unassigned-14d] Email preview | club={club_name} ({club_id}) role={role_label} "
+                f"recipients={admin_emails} cc={[ligenleitung_email] if ligenleitung_email else []} "
+                f"send_emails={send_emails} matches={len(club_matches)}\n"
+                + "\n".join(log_lines)
+            )
 
+            if not admin_emails:
+                logger.warning(
+                    f"[unassigned-14d] No club admin emails for club {club_name} ({club_id})"
+                )
+
+            if send_emails:
                 if admin_emails:
                     cc_emails = [ligenleitung_email] if ligenleitung_email else []
                     await send_email(
@@ -858,8 +844,8 @@ async def get_unassigned_matches_in_14_days(
                         body=email_content,
                     )
                     emails_sent += len(admin_emails)
-                    print(
-                        f"Email sent to {len(admin_emails)} club admins for {club_name} with CC to {cc_emails}"
+                    logger.info(
+                        f"[unassigned-14d] Email sent to {len(admin_emails)} admin(s) for {club_name} cc={cc_emails}"
                     )
                 elif ligenleitung_email:
                     await send_email(
@@ -868,16 +854,16 @@ async def get_unassigned_matches_in_14_days(
                         body=email_content,
                     )
                     emails_sent += 1
-                    print(
-                        f"Email sent to LIGENLEITUNG_EMAIL for {club_name} (no club admin emails available)"
+                    logger.info(
+                        f"[unassigned-14d] Email sent to LIGENLEITUNG for {club_name} (no club admin emails)"
                     )
                 else:
-                    print(
-                        f"No email addresses found for club admins of {club_name} and LIGENLEITUNG_EMAIL not set"
+                    logger.warning(
+                        f"[unassigned-14d] No recipients at all for club {club_name} ({club_id})"
                     )
 
-            except Exception as e:
-                print(f"Failed to send email for club {club_id}: {str(e)}")
+        except Exception as e:
+            logger.opt(exception=True).error(f"[unassigned-14d] Failed processing club {club_id}: {str(e)}")
 
     # Return the matches and email status
     match_list = []
