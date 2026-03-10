@@ -88,6 +88,14 @@ class StandingsSettings(BaseModel):
     pointsLossShootout: int | None = Field(default=0)
 
 
+class CallUpMode(str, Enum):
+    LOCKED = "LOCKED"
+    DECIDE = "DECIDE"
+
+class MinimumStartingStrength(BaseModel):
+    skater: int | None = Field(default=4)
+    goalie: int | None = Field(default=1)
+    
 # settings on round and matchday level
 class MatchSettings(BaseModel):
     numOfPeriods: int | None = Field(default=0)
@@ -106,6 +114,10 @@ class MatchSettings(BaseModel):
     regularStrength: int | None = Field(default=4)
     minPenaltyKillStrength: int | None = Field(default=2)
     notes: str | None = Field(default=None)
+    callUpMode: CallUpMode | None = Field(default=CallUpMode.LOCKED)
+    maxCallUpAppearances: int | None = Field(default=5)
+    maxCallUpPlayers: int | None = Field(default=5)
+    minimumStartingStrength: MinimumStartingStrength | None = Field(default_factory=MinimumStartingStrength)
 
 
 # ------------
