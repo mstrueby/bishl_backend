@@ -807,3 +807,124 @@ class TestDamenHerrenWkoRules:
         assert by_id["t1"]["status"] == "VALID", (
             "HERREN SECONDARY is the only valid licence; quota is satisfied (1 ≤ max 1)"
         )
+
+    @pytest.mark.asyncio
+    async def test_update_player_validation_corrects_stale_ishd_secondary(self, service, mock_db):
+        """Regression test for T001: _update_player_validation_in_db must reset licenseTypes
+        before classifying, so a stale SECONDARY stored in the DB for an ISHD licence that
+        belongs to the player's primary age group is corrected to PRIMARY (then invalidated
+        as MULTIPLE_PRIMARY because there is already a BISHL PRIMARY in the same age group).
+
+        Before the fix: classify ran without resetting → the stale SECONDARY survived → the
+        ISHD licence was never promoted to PRIMARY → MULTIPLE_PRIMARY was never raised.
+        After the fix: licenseType is reset to UNKNOWN, classify re-derives PRIMARY, and
+        validate correctly marks it INVALID[MULTIPLE_PRIMARY].
+        """
+        from unittest.mock import AsyncMock
+        from bson import ObjectId
+
+        player_id = str(ObjectId())
+        player_doc = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team(
+                            "t_bishl", "HERREN", "PRIMARY", source="BISHL", pass_no=""
+                        ),
+                        self._make_team(
+                            "t_ishd",
+                            "HERREN",
+                            "SECONDARY",
+                            source="ISHD",
+                            pass_no="4144",
+                        ),
+                    ],
+                )
+            ],
+            sex=Sex.MALE,
+        )
+        player_doc["_id"] = player_id
+
+        mock_db["players"].find_one = AsyncMock(return_value=player_doc)
+        mock_db["players"].update_one = AsyncMock()
+
+        was_modified = await service._update_player_validation_in_db(player_id, reset=True)
+
+        assert was_modified is True, "Player must be modified when stale SECONDARY is corrected"
+
+        updated_call_args = mock_db["players"].update_one.call_args
+        new_teams = updated_call_args[0][1]["$set"]["assignedTeams"][0]["teams"]
+        by_id = {t["teamId"]: t for t in new_teams}
+
+        assert by_id["t_ishd"]["licenseType"] == "PRIMARY", (
+            "Stale ISHD SECONDARY must be reclassified to PRIMARY"
+        )
+        assert by_id["t_ishd"]["status"] == "INVALID", (
+            "ISHD PRIMARY must be invalidated (MULTIPLE_PRIMARY)"
+        )
+        assert "MULTIPLE_PRIMARY" in by_id["t_ishd"]["invalidReasonCodes"], (
+            "MULTIPLE_PRIMARY must be the reason code for the duplicate PRIMARY"
+        )
+        assert by_id["t_bishl"]["status"] == "VALID", (
+            "BISHL PRIMARY must remain VALID as the first-found PRIMARY"
+        )
+
+    @pytest.mark.asyncio
+    async def test_classify_and_validate_player_in_memory_corrects_stale_types(self, service):
+        """Unit test for T002: classify_and_validate_player_in_memory must return a fresh dict
+        with all licenseTypes and statuses recomputed from scratch, without touching the DB.
+
+        Input: a HERREN male player whose ISHD licence has a stale SECONDARY and whose BISHL
+        licence has UNKNOWN status.  Output must have BISHL=PRIMARY/VALID and
+        ISHD=PRIMARY/INVALID[MULTIPLE_PRIMARY].
+
+        The original dict must not be mutated (deep-copy contract).
+        """
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team(
+                            "t_bishl", "HERREN", "UNKNOWN", status="UNKNOWN", source="BISHL", pass_no=""
+                        ),
+                        self._make_team(
+                            "t_ishd",
+                            "HERREN",
+                            "SECONDARY",
+                            status="VALID",
+                            source="ISHD",
+                            pass_no="4144",
+                        ),
+                    ],
+                )
+            ],
+            sex=Sex.MALE,
+        )
+
+        original_ishd_type = player["assignedTeams"][0]["teams"][1]["licenseType"]
+
+        result = await service.classify_and_validate_player_in_memory(player)
+
+        assert player["assignedTeams"][0]["teams"][1]["licenseType"] == original_ishd_type, (
+            "classify_and_validate_player_in_memory must not mutate the input dict"
+        )
+
+        by_id = {t["teamId"]: t for t in result["assignedTeams"][0]["teams"]}
+
+        assert by_id["t_bishl"]["licenseType"] == "PRIMARY"
+        assert by_id["t_bishl"]["status"] == "VALID", "BISHL PRIMARY must be VALID"
+        assert by_id["t_ishd"]["licenseType"] == "PRIMARY", (
+            "Stale ISHD SECONDARY must be reclassified to PRIMARY in-memory"
+        )
+        assert by_id["t_ishd"]["status"] == "INVALID", (
+            "ISHD PRIMARY must be INVALID (MULTIPLE_PRIMARY) in-memory"
+        )
+        assert "MULTIPLE_PRIMARY" in by_id["t_ishd"]["invalidReasonCodes"]
+
+        assert not hasattr(service, "_db_write_called"), (
+            "No DB writes should occur during in-memory classification+validation"
+        )

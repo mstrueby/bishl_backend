@@ -1730,28 +1730,15 @@ async def get_players(
 
     items = await cursor.to_list(length=None)
 
-    # Trigger fresh validation for each player to ensure current license status
-    # Skip validation if all=True (large result set) or validate=False (explicit opt-out)
-    should_validate = validate and not all
+    # Always classify+validate every player in-memory so the response reflects current
+    # WKO rules even when the DB contains stale licenseTypes or statuses.
+    # No DB writes are performed here — corrections are persisted lazily via GET /{id}.
+    # The `validate` query param is kept for API backwards compatibility (now a no-op).
+    assignment_service = PlayerAssignmentService(mongodb)
     validated_items = []
-
-    if should_validate:
-        assignment_service = PlayerAssignmentService(mongodb)
-        for item in items:
-            player_id = item.get("_id")
-            if player_id:
-                # reset=True ensures we start from clean state and properly detect expired suspensions
-                fresh_player = await assignment_service.update_player_validation_in_db(
-                    player_id, reset=True
-                )
-                if fresh_player:
-                    validated_items.append(PlayerDB(**fresh_player).model_dump(by_alias=True))
-                else:
-                    validated_items.append(PlayerDB(**item).model_dump(by_alias=True))
-            else:
-                validated_items.append(PlayerDB(**item).model_dump(by_alias=True))
-    else:
-        validated_items = [PlayerDB(**item).model_dump(by_alias=True) for item in items]
+    for item in items:
+        fresh = await assignment_service.classify_and_validate_player_in_memory(item)
+        validated_items.append(PlayerDB(**fresh).model_dump(by_alias=True))
 
     # Create the paginated response
     paginated_result = PaginationHelper.create_response(

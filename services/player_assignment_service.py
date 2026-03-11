@@ -1837,13 +1837,20 @@ class PlayerAssignmentService:
         # Capture original state
         original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
 
-        # Re-classify first: corrects any misplaced licenseTypes stored in the DB
-        # (e.g. HERREN PRIMARY for a DAMEN player becomes SECONDARY).
-        # Classification is idempotent: already-correct types are untouched.
+        # Always reset licenseTypes before classifying so stale types (e.g. an ISHD
+        # licence that was SECONDARY last season but should now be PRIMARY) are fully
+        # corrected rather than left in place.  adminOverride licences are skipped.
+        for club in player.get("assignedTeams", []):
+            for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
+                team["licenseType"] = LicenseType.UNKNOWN
+
+        # Re-classify: derives correct licenseType from WKO rules + passNo suffix.
         player = await self.classify_license_types_for_player(player)
 
-        # Reset if requested — skip adminOverride=True licenses so their
-        # admin-set status and invalidReasonCodes are preserved through validation.
+        # Reset status/invalidReasonCodes if requested — skip adminOverride=True
+        # licences so admin-set status is preserved through validation.
         if reset:
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
@@ -1893,6 +1900,49 @@ class PlayerAssignmentService:
         player = await self.db["players"].find_one({"_id": player_id})
         if player:
             logger.info(f"Validated player {player_id}, modified={was_modified}")
+        return player
+
+    async def classify_and_validate_player_in_memory(self, player: dict) -> dict:
+        """
+        Run a full classify + validate cycle on a player dict entirely in memory.
+
+        No database reads or writes are performed.  The input dict is treated as
+        the source of truth; classification and validation are applied to a shallow
+        copy of the assignedTeams so the caller's original dict is not mutated.
+
+        Steps:
+          1. Reset all non-adminOverride licenseTypes to UNKNOWN.
+          2. Classify: derive correct licenseTypes from WKO rules + passNo suffix.
+          3. Reset all non-adminOverride status/invalidReasonCodes to UNKNOWN/[].
+          4. Validate: apply WKO quota/conflict rules, set final status + codes.
+
+        Args:
+            player: Raw player dict (e.g. straight from MongoDB or from a list endpoint).
+
+        Returns:
+            A new player dict with freshly classified and validated assignedTeams.
+        """
+        import copy
+
+        player = copy.deepcopy(player)
+
+        for club in player.get("assignedTeams", []):
+            for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
+                team["licenseType"] = LicenseType.UNKNOWN
+
+        player = await self.classify_license_types_for_player(player)
+
+        for club in player.get("assignedTeams", []):
+            for team in club.get("teams", []):
+                if team.get("adminOverride"):
+                    continue
+                team["status"] = LicenseStatus.UNKNOWN
+                team["invalidReasonCodes"] = []
+
+        player = await self.validate_licenses_for_player(player)
+
         return player
 
     # ========================================================================
