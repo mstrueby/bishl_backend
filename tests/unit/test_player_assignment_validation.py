@@ -184,7 +184,13 @@ class TestPlayerAssignmentServiceValidation:
 
     @pytest.mark.asyncio
     async def test_ishd_vs_bishl_conflict(self, assignment_service, mock_db):
-        """Test ISHD license conflicts with BISHL license"""
+        """Test ISHD license is invalidated when BISHL already has a PRIMARY in the same pool.
+
+        After the ordering fix (_validate_primary_consistency runs before _validate_import_conflicts),
+        the ISHD PRIMARY is first invalidated by MULTIPLE_PRIMARY (BISHL wins as source preference 0).
+        When _validate_import_conflicts then inspects the ISHD licence, its status is already INVALID,
+        so IMPORT_CONFLICT is NOT added — MULTIPLE_PRIMARY is the sufficient and correct reason code.
+        """
         club = AssignedClubs(
             clubId="club1",
             clubName="Club 1",
@@ -205,9 +211,17 @@ class TestPlayerAssignmentServiceValidation:
 
         validated_player = await assignment_service.validate_licenses_for_player(player_dict)
 
+        bishl_team = validated_player["assignedTeams"][0]["teams"][0]
         ishd_team = validated_player["assignedTeams"][0]["teams"][1]
-        assert ishd_team["status"] == LicenseStatus.INVALID
-        assert LicenseInvalidReasonCode.IMPORT_CONFLICT in ishd_team["invalidReasonCodes"]
+
+        assert bishl_team["status"] == LicenseStatus.VALID, "BISHL PRIMARY must be the valid anchor"
+        assert ishd_team["status"] == LicenseStatus.INVALID, "ISHD PRIMARY must be invalidated"
+        assert LicenseInvalidReasonCode.MULTIPLE_PRIMARY in ishd_team["invalidReasonCodes"], (
+            "ISHD must carry MULTIPLE_PRIMARY"
+        )
+        assert LicenseInvalidReasonCode.IMPORT_CONFLICT not in ishd_team["invalidReasonCodes"], (
+            "IMPORT_CONFLICT must NOT be added when MULTIPLE_PRIMARY already explains the invalidity"
+        )
 
 
 class TestAdminOverride:
@@ -333,9 +347,9 @@ class TestAdminOverride:
         )
         result = await service.classify_license_types_for_player(player)
         t1 = result["assignedTeams"][0]["teams"][0]
-        assert t1["licenseType"] == "PRIMARY", (
-            "adminOverride+UNKNOWN is still classified — UNKNOWN means 'auto-classify me'"
-        )
+        assert (
+            t1["licenseType"] == "PRIMARY"
+        ), "adminOverride+UNKNOWN is still classified — UNKNOWN means 'auto-classify me'"
 
     @pytest.mark.asyncio
     async def test_classification_preserves_explicit_loan_without_admin_override(self, service):
@@ -354,9 +368,9 @@ class TestAdminOverride:
         )
         result = await service.classify_license_types_for_player(player)
         t2 = result["assignedTeams"][0]["teams"][1]
-        assert t2["licenseType"] == "LOAN", (
-            "Explicit LOAN must be preserved without passNo L-suffix or adminOverride"
-        )
+        assert (
+            t2["licenseType"] == "LOAN"
+        ), "Explicit LOAN must be preserved without passNo L-suffix or adminOverride"
 
     # ------------------------------------------------------------------ #
     # T002: Validation                                                      #
@@ -370,7 +384,11 @@ class TestAdminOverride:
             [
                 self._make_club(
                     "club1",
-                    [self._make_team("t1", "U16", "PRIMARY", status="INVALID", admin_override=True)],
+                    [
+                        self._make_team(
+                            "t1", "U16", "PRIMARY", status="INVALID", admin_override=True
+                        )
+                    ],
                 )
             ],
         )
@@ -406,9 +424,7 @@ class TestAdminOverride:
                     "club1",
                     [
                         self._make_team("t1", "U16", "PRIMARY", source="BISHL"),
-                        self._make_team(
-                            "t2", "U16", "PRIMARY", source="ISHD", admin_override=True
-                        ),
+                        self._make_team("t2", "U16", "PRIMARY", source="ISHD", admin_override=True),
                     ],
                 )
             ],
@@ -437,9 +453,9 @@ class TestAdminOverride:
         )
         result = await service.validate_licenses_for_player(player)
         t3 = result["assignedTeams"][0]["teams"][2]
-        assert "EXCEEDS_WKO_LIMIT" not in t3["invalidReasonCodes"], (
-            "t3 should not be over quota since adminOverride t2 is excluded from counting"
-        )
+        assert (
+            "EXCEEDS_WKO_LIMIT" not in t3["invalidReasonCodes"]
+        ), "t3 should not be over quota since adminOverride t2 is excluded from counting"
 
     @pytest.mark.asyncio
     async def test_validation_date_sanity_skips_admin_override(self, service):
@@ -474,9 +490,444 @@ class TestAdminOverride:
             [
                 self._make_club(
                     "club1",
-                    [self._make_team("t1", "U16", "PRIMARY", status="UNKNOWN", admin_override=True)],
+                    [
+                        self._make_team(
+                            "t1", "U16", "PRIMARY", status="UNKNOWN", admin_override=True
+                        )
+                    ],
                 )
             ],
         )
         service._enforce_no_unknown_status(player)
         assert player["assignedTeams"][0]["teams"][0]["status"] == "UNKNOWN"
+
+
+class TestDamenHerrenWkoRules:
+    """Tests for DAMEN players playing in HERREN teams — WKO secondary rule enforcement."""
+
+    @pytest.fixture
+    def mock_db(self, mocker):
+        mock_db = MagicMock()
+        mock_db["players"].update_one = mocker.AsyncMock()
+        return mock_db
+
+    @pytest.fixture
+    def service(self, mock_db):
+        return PlayerAssignmentService(mock_db)
+
+    def _make_player_dict(self, birthdate, teams_by_club: list[dict], sex=Sex.FEMALE) -> dict:
+        return {
+            "_id": str(ObjectId()),
+            "firstName": "Test",
+            "lastName": "Player",
+            "birthdate": birthdate,
+            "displayFirstName": "Test",
+            "displayLastName": "Player",
+            "sex": sex,
+            "position": "Skater",
+            "managedByISHD": False,
+            "assignedTeams": teams_by_club,
+        }
+
+    def _make_club(self, club_id: str, teams: list[dict]) -> dict:
+        return {
+            "clubId": club_id,
+            "clubName": f"Club {club_id}",
+            "clubAlias": club_id,
+            "clubType": "MAIN",
+            "teams": teams,
+        }
+
+    def _make_team(
+        self,
+        team_id: str,
+        age_group: str,
+        license_type: str,
+        status: str = "VALID",
+        source: str = "BISHL",
+        pass_no: str = "12345",
+        admin_override: bool = False,
+    ) -> dict:
+        return {
+            "teamId": team_id,
+            "teamName": f"Team {team_id}",
+            "teamAlias": team_id,
+            "teamType": "COMPETITIVE",
+            "teamAgeGroup": age_group,
+            "licenseType": license_type,
+            "status": status,
+            "invalidReasonCodes": [],
+            "source": source,
+            "passNo": pass_no,
+            "adminOverride": admin_override,
+        }
+
+    @pytest.mark.asyncio
+    async def test_classification_normalizes_ishd_german_age_group_casing(self, service):
+        """ISHD data arrives with German capitalization: 'Herren', 'Junioren', etc.
+        WKO rules use all-caps keys: 'HERREN', 'U19', etc.
+
+        Without normalization every WKO lookup for ISHD teams silently falls back to
+        PRIMARY, making all age-group-aware logic useless for ISHD licences.
+        This regression test verifies that 'Herren' (mixed case) is treated identically
+        to 'HERREN' (all caps) for a DAMEN player — both should become SECONDARY.
+        """
+        player = self._make_player_dict(
+            datetime(2007, 11, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t_ishd", "Herren", "UNKNOWN", source="ISHD", pass_no="6293"),
+                        self._make_team("t_bishl", "HERREN", "UNKNOWN", source="BISHL", pass_no=""),
+                    ],
+                )
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+        t_ishd = classified["assignedTeams"][0]["teams"][0]
+        t_bishl = classified["assignedTeams"][0]["teams"][1]
+
+        assert t_ishd["teamAgeGroup"] == "HERREN", "teamAgeGroup must be normalized to uppercase"
+        assert t_ishd["licenseType"] == "SECONDARY", (
+            "ISHD 'Herren' (mixed case) must classify as SECONDARY for DAMEN player, not fall back to PRIMARY"
+        )
+        assert t_bishl["licenseType"] == "SECONDARY", (
+            "BISHL 'HERREN' (all caps) must classify as SECONDARY for DAMEN player"
+        )
+
+    @pytest.mark.asyncio
+    async def test_classification_damen_herren_primary_in_db_reclassified(self, service):
+        """Regression test for the exact reported bug: a female player (DAMEN) whose ISHD
+        licence for a HERREN team is already stored as PRIMARY in the database.
+
+        When classify_license_types_for_player runs, step 5 must detect that the PRIMARY
+        is in a secondary age group for this player and re-classify it as SECONDARY.
+        The BISHL SECONDARY licence stays SECONDARY.
+        After full validation: quota (maxLicenses=1) invalidates one of them.
+
+        Note: must use a birth year that yields ageGroup=DAMEN in the running test year.
+        In 2026 the cutoff is birth year <= 2005 (birth_year < current_year - 20).
+        """
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t_ishd", "HERREN", "PRIMARY", source="ISHD", pass_no="ISHDABC"),
+                        self._make_team("t_bishl", "HERREN", "SECONDARY", source="BISHL", pass_no="BISHLXYZ"),
+                    ],
+                )
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+        t_ishd = classified["assignedTeams"][0]["teams"][0]
+        t_bishl = classified["assignedTeams"][0]["teams"][1]
+
+        assert t_ishd["licenseType"] == "SECONDARY", (
+            "HERREN PRIMARY (ISHD) must be re-classified to SECONDARY for DAMEN player"
+        )
+        assert t_bishl["licenseType"] == "SECONDARY", (
+            "HERREN SECONDARY (BISHL) must stay SECONDARY"
+        )
+
+        validated = await service.validate_licenses_for_player(classified)
+        teams = validated["assignedTeams"][0]["teams"]
+        statuses = [t["status"] for t in teams]
+
+        assert statuses.count("VALID") == 1, "Exactly 1 HERREN licence should be VALID"
+        assert statuses.count("INVALID") == 1, "Exactly 1 HERREN licence should be INVALID (EXCEEDS_WKO_LIMIT)"
+        invalid_team = next(t for t in teams if t["status"] == "INVALID")
+        assert "EXCEEDS_WKO_LIMIT" in invalid_team["invalidReasonCodes"]
+
+    @pytest.mark.asyncio
+    async def test_classification_damen_two_herren_unknown_become_secondary(self, service):
+        """A female player with no DAMEN licence and 2 HERREN UNKNOWN licences (ISHD, same club)
+        should have both classified as SECONDARY — not PRIMARY — because HERREN is a secondaryRule
+        target for DAMEN, not the player's natural age group.
+
+        After validation only 1 HERREN SECONDARY should be VALID (quota maxLicenses=1).
+        """
+        # birthdate: female born 2000 → ageGroup=DAMEN
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t1", "HERREN", "UNKNOWN", source="ISHD", pass_no="AAA001"),
+                        self._make_team("t2", "HERREN", "UNKNOWN", source="ISHD", pass_no="AAA002"),
+                    ],
+                )
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+        t1 = classified["assignedTeams"][0]["teams"][0]
+        t2 = classified["assignedTeams"][0]["teams"][1]
+
+        assert t1["licenseType"] == "SECONDARY", "First HERREN licence should be SECONDARY for DAMEN player"
+        assert t2["licenseType"] == "SECONDARY", "Second HERREN licence should be SECONDARY for DAMEN player"
+
+        validated = await service.validate_licenses_for_player(classified)
+        statuses = [t["status"] for t in validated["assignedTeams"][0]["teams"]]
+        valid_count = statuses.count("VALID")
+        invalid_count = statuses.count("INVALID")
+
+        assert valid_count == 1, f"Exactly 1 HERREN licence should be VALID (got {valid_count})"
+        assert invalid_count == 1, f"Exactly 1 HERREN licence should be INVALID/EXCEEDS_WKO_LIMIT (got {invalid_count})"
+
+        invalid_team = next(t for t in validated["assignedTeams"][0]["teams"] if t["status"] == "INVALID")
+        assert "EXCEEDS_WKO_LIMIT" in invalid_team["invalidReasonCodes"]
+
+    @pytest.mark.asyncio
+    async def test_classification_damen_single_herren_unknown_becomes_secondary(self, service):
+        """A female player with no DAMEN licence and exactly 1 HERREN UNKNOWN licence
+        should be classified as SECONDARY (not PRIMARY) and validated as VALID (acts as anchor).
+        """
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [self._make_team("t1", "HERREN", "UNKNOWN", source="BISHL", pass_no="BBB001")],
+                )
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+        t1 = classified["assignedTeams"][0]["teams"][0]
+        assert t1["licenseType"] == "SECONDARY", "Single HERREN licence for DAMEN player must be SECONDARY"
+
+        validated = await service.validate_licenses_for_player(classified)
+        t1v = validated["assignedTeams"][0]["teams"][0]
+        assert t1v["status"] == "VALID", "Single HERREN SECONDARY for DAMEN player must be VALID (anchor)"
+
+    @pytest.mark.asyncio
+    async def test_validation_sex_filter_blocks_male_damen_secondary(self, service):
+        """_is_secondary_allowed must enforce the sex filter on secondaryRules.
+
+        DAMEN's secondaryRule for HERREN restricts sex=[FEMALE]. A male player whose
+        ageGroup is DAMEN (edge-case / wrong data) with a HERREN SECONDARY should be
+        blocked by step 8 with AGE_GROUP_VIOLATION.
+        """
+        # Force a male player into DAMEN age group by using a very old birthdate
+        # and setting sex=MALE manually (edge-case / corrupted data scenario).
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [self._make_team("t1", "HERREN", "SECONDARY")],
+                )
+            ],
+            sex=Sex.MALE,
+        )
+        # Override sex to MALE so ageGroup=HERREN (males born <=2007 are HERREN)
+        # We need to force ageGroup=DAMEN for a male to test the sex filter directly
+        # on _is_secondary_allowed. Call it directly.
+        from models.players import Sex as SexModel
+
+        result = service._is_secondary_allowed("DAMEN", "HERREN", SexModel.MALE)
+        assert result is False, "Male player should NOT satisfy DAMEN→HERREN secondary rule (sex=[FEMALE])"
+
+        result_female = service._is_secondary_allowed("DAMEN", "HERREN", SexModel.FEMALE)
+        assert result_female is True, "Female player should satisfy DAMEN→HERREN secondary rule"
+
+    @pytest.mark.asyncio
+    async def test_validation_herren_male_two_primary_no_import_conflict(self, service):
+        """Regression test: a HERREN male player with both a BISHL PRIMARY and an ISHD PRIMARY
+        in the same club should get exactly one VALID (BISHL wins) and one INVALID (MULTIPLE_PRIMARY).
+
+        The INVALID licence must NOT also carry IMPORT_CONFLICT.  Before the ordering fix,
+        _validate_import_conflicts ran first (both statuses still VALID at that point), added
+        IMPORT_CONFLICT to the ISHD licence, then _validate_primary_consistency added MULTIPLE_PRIMARY
+        on top — resulting in two error codes.  With the correct ordering (primary_consistency first),
+        the ISHD licence is already INVALID when import_conflicts inspects it, so it is skipped.
+        """
+        from models.players import Sex as SexModel
+
+        player = self._make_player_dict(
+            datetime(1990, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t_ishd", "HERREN", "PRIMARY", source="ISHD", pass_no="4144"),
+                        self._make_team("t_bishl", "HERREN", "PRIMARY", source="BISHL", pass_no=""),
+                    ],
+                )
+            ],
+            sex=SexModel.MALE,
+        )
+
+        validated = await service.validate_licenses_for_player(player)
+        teams = validated["assignedTeams"][0]["teams"]
+        by_id = {t["teamId"]: t for t in teams}
+
+        assert by_id["t_bishl"]["status"] == "VALID", "BISHL PRIMARY must be the valid anchor"
+        assert by_id["t_ishd"]["status"] == "INVALID", "ISHD PRIMARY must be invalidated"
+        assert "MULTIPLE_PRIMARY" in by_id["t_ishd"]["invalidReasonCodes"], (
+            "ISHD PRIMARY must carry MULTIPLE_PRIMARY"
+        )
+        assert "IMPORT_CONFLICT" not in by_id["t_ishd"]["invalidReasonCodes"], (
+            "IMPORT_CONFLICT must NOT be added when MULTIPLE_PRIMARY already explains the invalidity"
+        )
+
+    @pytest.mark.asyncio
+    async def test_validation_primary_in_wrong_age_group_invalidated(self, service):
+        """Validation Pass 1 must flag a PRIMARY licence whose teamAgeGroup differs
+        from the player's own age group as INVALID (AGE_GROUP_VIOLATION).
+
+        Old behaviour (before Fix B): quota sorter kept PRIMARY VALID, marked SECONDARY INVALID.
+        New behaviour: Pass 1 catches the misplaced PRIMARY immediately; only the
+        SECONDARY remains VALID (1 VALID HERREN ≤ quota max 1, so no EXCEEDS_WKO_LIMIT).
+        """
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t1", "HERREN", "SECONDARY"),
+                        self._make_team("t2", "HERREN", "PRIMARY"),
+                    ],
+                )
+            ],
+        )
+
+        validated = await service.validate_licenses_for_player(player)
+        teams = validated["assignedTeams"][0]["teams"]
+        by_id = {t["teamId"]: t for t in teams}
+
+        assert by_id["t2"]["status"] == "INVALID", (
+            "HERREN PRIMARY must be INVALID (AGE_GROUP_VIOLATION) for a DAMEN player"
+        )
+        assert "AGE_GROUP_VIOLATION" in by_id["t2"]["invalidReasonCodes"]
+        assert by_id["t1"]["status"] == "VALID", (
+            "HERREN SECONDARY is the only valid licence; quota is satisfied (1 ≤ max 1)"
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_player_validation_corrects_stale_ishd_secondary(self, service, mock_db):
+        """Regression test for T001: _update_player_validation_in_db must reset licenseTypes
+        before classifying, so a stale SECONDARY stored in the DB for an ISHD licence that
+        belongs to the player's primary age group is corrected to PRIMARY (then invalidated
+        as MULTIPLE_PRIMARY because there is already a BISHL PRIMARY in the same age group).
+
+        Before the fix: classify ran without resetting → the stale SECONDARY survived → the
+        ISHD licence was never promoted to PRIMARY → MULTIPLE_PRIMARY was never raised.
+        After the fix: licenseType is reset to UNKNOWN, classify re-derives PRIMARY, and
+        validate correctly marks it INVALID[MULTIPLE_PRIMARY].
+        """
+        from unittest.mock import AsyncMock
+        from bson import ObjectId
+
+        player_id = str(ObjectId())
+        player_doc = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team(
+                            "t_bishl", "HERREN", "PRIMARY", source="BISHL", pass_no=""
+                        ),
+                        self._make_team(
+                            "t_ishd",
+                            "HERREN",
+                            "SECONDARY",
+                            source="ISHD",
+                            pass_no="4144",
+                        ),
+                    ],
+                )
+            ],
+            sex=Sex.MALE,
+        )
+        player_doc["_id"] = player_id
+
+        mock_db["players"].find_one = AsyncMock(return_value=player_doc)
+        mock_db["players"].update_one = AsyncMock()
+
+        was_modified = await service._update_player_validation_in_db(player_id, reset=True)
+
+        assert was_modified is True, "Player must be modified when stale SECONDARY is corrected"
+
+        updated_call_args = mock_db["players"].update_one.call_args
+        new_teams = updated_call_args[0][1]["$set"]["assignedTeams"][0]["teams"]
+        by_id = {t["teamId"]: t for t in new_teams}
+
+        assert by_id["t_ishd"]["licenseType"] == "PRIMARY", (
+            "Stale ISHD SECONDARY must be reclassified to PRIMARY"
+        )
+        assert by_id["t_ishd"]["status"] == "INVALID", (
+            "ISHD PRIMARY must be invalidated (MULTIPLE_PRIMARY)"
+        )
+        assert "MULTIPLE_PRIMARY" in by_id["t_ishd"]["invalidReasonCodes"], (
+            "MULTIPLE_PRIMARY must be the reason code for the duplicate PRIMARY"
+        )
+        assert by_id["t_bishl"]["status"] == "VALID", (
+            "BISHL PRIMARY must remain VALID as the first-found PRIMARY"
+        )
+
+    @pytest.mark.asyncio
+    async def test_classify_and_validate_player_in_memory_corrects_stale_types(self, service):
+        """Unit test for T002: classify_and_validate_player_in_memory must return a fresh dict
+        with all licenseTypes and statuses recomputed from scratch, without touching the DB.
+
+        Input: a HERREN male player whose ISHD licence has a stale SECONDARY and whose BISHL
+        licence has UNKNOWN status.  Output must have BISHL=PRIMARY/VALID and
+        ISHD=PRIMARY/INVALID[MULTIPLE_PRIMARY].
+
+        The original dict must not be mutated (deep-copy contract).
+        """
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team(
+                            "t_bishl", "HERREN", "UNKNOWN", status="UNKNOWN", source="BISHL", pass_no=""
+                        ),
+                        self._make_team(
+                            "t_ishd",
+                            "HERREN",
+                            "SECONDARY",
+                            status="VALID",
+                            source="ISHD",
+                            pass_no="4144",
+                        ),
+                    ],
+                )
+            ],
+            sex=Sex.MALE,
+        )
+
+        original_ishd_type = player["assignedTeams"][0]["teams"][1]["licenseType"]
+
+        result = await service.classify_and_validate_player_in_memory(player)
+
+        assert player["assignedTeams"][0]["teams"][1]["licenseType"] == original_ishd_type, (
+            "classify_and_validate_player_in_memory must not mutate the input dict"
+        )
+
+        by_id = {t["teamId"]: t for t in result["assignedTeams"][0]["teams"]}
+
+        assert by_id["t_bishl"]["licenseType"] == "PRIMARY"
+        assert by_id["t_bishl"]["status"] == "VALID", "BISHL PRIMARY must be VALID"
+        assert by_id["t_ishd"]["licenseType"] == "PRIMARY", (
+            "Stale ISHD SECONDARY must be reclassified to PRIMARY in-memory"
+        )
+        assert by_id["t_ishd"]["status"] == "INVALID", (
+            "ISHD PRIMARY must be INVALID (MULTIPLE_PRIMARY) in-memory"
+        )
+        assert "MULTIPLE_PRIMARY" in by_id["t_ishd"]["invalidReasonCodes"]
+
+        assert not hasattr(service, "_db_write_called"), (
+            "No DB writes should occur during in-memory classification+validation"
+        )

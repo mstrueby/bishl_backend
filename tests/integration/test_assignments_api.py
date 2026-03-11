@@ -290,6 +290,14 @@ class TestAssignmentsAPI:
     async def test_delete_assignment(self, client: AsyncClient, mongodb, admin_token):
         """Test deleting an assignment"""
         # Setup
+        referee = {
+            "_id": "ref-1",
+            "firstName": "John",
+            "lastName": "Referee",
+            "roles": ["REFEREE"],
+        }
+        await mongodb["users"].insert_one(referee)
+
         match = create_test_match()
         match["referee1"] = {"userId": "ref-1", "firstName": "John", "lastName": "Referee"}
         await mongodb["matches"].insert_one(match)

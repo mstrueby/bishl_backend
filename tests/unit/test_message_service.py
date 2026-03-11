@@ -205,7 +205,9 @@ class TestEmailNotification:
         }
         mock_db._users_collection.find_one = AsyncMock(return_value=referee)
 
-        with patch("services.message_service.send_email", new_callable=AsyncMock) as mock_send_email:
+        with patch(
+            "services.message_service.send_email", new_callable=AsyncMock
+        ) as mock_send_email:
             await message_service.send_referee_notification(
                 referee_id="referee-123",
                 match={},
@@ -225,7 +227,9 @@ class TestEmailNotification:
         referee = {"_id": "referee-123", "firstName": "John", "lastName": "Doe"}
         mock_db._users_collection.find_one = AsyncMock(return_value=referee)
 
-        with patch("services.message_service.send_email", new_callable=AsyncMock) as mock_send_email:
+        with patch(
+            "services.message_service.send_email", new_callable=AsyncMock
+        ) as mock_send_email:
             await message_service.send_referee_notification(
                 referee_id="referee-123",
                 match={},

@@ -900,6 +900,9 @@ class StatsService:
             logger.error(f"Network error fetching round information: {str(e)}")
             raise
 
+        # Determine matchdays type for this round
+        matchdays_type_key = round_info.get("matchdaysType", {}).get("key", "REGULAR")
+
         # Process round statistics
         matches = []
         if round_info.get("createStats", False):
@@ -913,7 +916,15 @@ class StatsService:
 
             player_card_stats: dict[str, dict[str, Any]] = {}
             await self._update_player_card_stats(
-                "ROUND", matches, player_ids, player_card_stats, t_alias, s_alias, r_alias, md_alias
+                "ROUND",
+                matches,
+                player_ids,
+                player_card_stats,
+                t_alias,
+                s_alias,
+                r_alias,
+                md_alias,
+                matchdays_type_key=matchdays_type_key,
             )
 
             logger.debug(
@@ -950,6 +961,7 @@ class StatsService:
                     s_alias,
                     r_alias,
                     md_alias,
+                    matchdays_type_key=matchdays_type_key,
                 )
 
                 logger.debug(
@@ -981,7 +993,13 @@ class StatsService:
             )
         if matches:
             await self._process_called_teams_assignments(
-                player_ids, matches, t_alias, s_alias, token_payload
+                player_ids,
+                matches,
+                t_alias,
+                s_alias,
+                token_payload,
+                matchdays_type_key=matchdays_type_key,
+                round_info=round_info,
             )
 
     async def _update_player_card_stats(
@@ -994,6 +1012,7 @@ class StatsService:
         s_alias: str,
         r_alias: str,
         md_alias: str,
+        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Main function to update player card statistics."""
         if flag not in ["ROUND", "MATCHDAY"]:
@@ -1002,8 +1021,12 @@ class StatsService:
         logger.debug(f"Processing roster for {flag}", extra={"num_matches": len(matches)})
 
         # Process rosters for both home and away teams
-        self._process_roster_for_team(matches, "home", player_ids, player_card_stats, flag)
-        self._process_roster_for_team(matches, "away", player_ids, player_card_stats, flag)
+        self._process_roster_for_team(
+            matches, "home", player_ids, player_card_stats, flag, matchdays_type_key
+        )
+        self._process_roster_for_team(
+            matches, "away", player_ids, player_card_stats, flag, matchdays_type_key
+        )
 
         logger.debug("Player card stats updated", extra={"player_card_stats": player_card_stats})
 
@@ -1019,6 +1042,7 @@ class StatsService:
         player_ids: list[str],
         player_card_stats: dict,
         flag: str,
+        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Process roster data for a specific team (home/away) across all matches."""
         for match in matches:
@@ -1045,7 +1069,12 @@ class StatsService:
                 if player_id and player_id in player_ids:
                     logger.debug(f"Updating stats for player {player_id} in {team_flag} team")
                     self._update_player_stats(
-                        player_id, team, roster_player, match_info, player_card_stats
+                        player_id,
+                        team,
+                        roster_player,
+                        match_info,
+                        player_card_stats,
+                        matchdays_type_key=matchdays_type_key,
                     )
 
     def _create_team_dict(self, match_team_data: dict) -> dict:
@@ -1076,7 +1105,6 @@ class StatsService:
                 "assists": 0,
                 "points": 0,
                 "penaltyMinutes": 0,
-                "calledMatches": 0,
             }
 
     def _update_player_stats(
@@ -1086,6 +1114,7 @@ class StatsService:
         roster_player: dict,
         match_info: dict,
         player_card_stats: dict,
+        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Update individual player statistics from roster data."""
         team_key = team["fullName"]
@@ -1100,9 +1129,6 @@ class StatsService:
             stats["points"] += roster_player.get("points", 0)
             stats["penaltyMinutes"] += roster_player.get("penaltyMinutes", 0)
 
-            # Track called matches
-            if roster_player.get("called", False):
-                stats["calledMatches"] += 1
 
     @monitor_query("save_player_stats_to_db")
     async def _save_player_stats_to_db(
@@ -1206,9 +1232,16 @@ class StatsService:
         return existing_stat.get("matchday") is None
 
     async def _process_called_teams_assignments(
-        self, player_ids: list[str], matches: list[dict], t_alias: str, s_alias: str, token_payload
+        self,
+        player_ids: list[str],
+        matches: list[dict],
+        t_alias: str,
+        s_alias: str,
+        token_payload,
+        matchdays_type_key: str = "REGULAR",
+        round_info: dict | None = None,
     ) -> None:
-        """Check calledMatches for affected players and update assignedTeams/playUpTrackings directly in DB."""
+        """Check play-up occurrences for affected players and update playUpTrackings directly in DB."""
         if not token_payload:
             logger.debug("Skipping called teams processing (no token)")
             return
@@ -1228,23 +1261,14 @@ class StatsService:
                 logger.debug(
                     f"Processing called matches for player {player_id} in {len(matches)} matches"
                 )
-                teams_to_check = self._find_called_teams(player_id, matches)
-
-                logger.debug(
-                    f"Found {len(teams_to_check)} teams to check for player {player_id}",
-                    extra={"player_id": player_id, "teams_count": len(teams_to_check)},
-                )
-
-                await self._update_assigned_teams_for_called_matches(
-                    player_id,
-                    player_data,
-                    teams_to_check,
-                    t_alias,
-                    s_alias,
-                )
 
                 playup_occurrences = self._find_playup_occurrences(
-                    player_id, matches, t_alias, s_alias
+                    player_id,
+                    matches,
+                    t_alias,
+                    s_alias,
+                    matchdays_type_key=matchdays_type_key,
+                    round_info=round_info or {},
                 )
                 if playup_occurrences and self.db is not None:
                     fresh_player = await self.db["players"].find_one({"_id": player_id})
@@ -1263,50 +1287,28 @@ class StatsService:
                 )
                 # Continue to next player even if one fails
 
-    def _find_called_teams(self, player_id: str, matches: list[dict]) -> set:
-        """Find all teams this player was called for across matches."""
-        teams_to_check = set()
-
-        for match in matches:
-            for team_flag in ["home", "away"]:
-                roster_data = match.get(team_flag, {}).get("roster", {})
-                if isinstance(roster_data, dict):
-                    roster = roster_data.get("players", [])
-                else:
-                    roster = roster_data if roster_data else []
-                for roster_player in roster:
-                    if roster_player.get("player", {}).get(
-                        "playerId"
-                    ) == player_id and roster_player.get("called", False):
-                        team_data = match.get(team_flag, {})
-                        team_id = team_data.get("teamId")
-                        club_id = team_data.get("clubId")
-                        if team_id and club_id:
-                            teams_to_check.add(
-                                (
-                                    team_id,
-                                    team_data.get("name"),
-                                    team_data.get("teamAlias"),
-                                    team_data.get("ageGroup", ""),
-                                    team_data.get("ishdId"),
-                                    club_id,
-                                    team_data.get("clubName"),
-                                    team_data.get("clubAlias"),
-                                    team_data.get("clubIshdId"),
-                                )
-                            )
-
-        return teams_to_check
-
     def _find_playup_occurrences(
-        self, player_id: str, matches: list[dict], t_alias: str, s_alias: str
+        self,
+        player_id: str,
+        matches: list[dict],
+        t_alias: str,
+        s_alias: str,
+        matchdays_type_key: str = "REGULAR",
+        round_info: dict | None = None,
     ) -> list[dict]:
         """
         Find all play-up occurrences for a player across matches.
-        Returns a list of dicts with fromTeamId, toTeamId, matchId, matchStartDate.
-        """
-        occurrences = []
 
+        If matchdays_type_key == 'TOURNAMENT', occurrences are grouped per matchday
+        and returned with type=MATCHDAY, matchdayId, matchdayName, matchdayStartDate.
+        Otherwise returns one occurrence per match with type=MATCH, matchId, matchStartDate.
+        """
+        if matchdays_type_key == "TOURNAMENT":
+            return self._find_playup_occurrences_by_matchday(
+                player_id, matches, t_alias, s_alias, round_info or {}
+            )
+
+        occurrences = []
         for match in matches:
             match_id = str(match.get("_id", ""))
             match_start_date = match.get("startDate")
@@ -1330,6 +1332,7 @@ class StatsService:
                             if from_team_id and to_team_id:
                                 occurrences.append(
                                     {
+                                        "type": "MATCH",
                                         "tournamentAlias": t_alias,
                                         "seasonAlias": s_alias,
                                         "fromTeamId": from_team_id,
@@ -1338,6 +1341,89 @@ class StatsService:
                                         "matchStartDate": match_start_date,
                                     }
                                 )
+
+        return occurrences
+
+    def _find_playup_occurrences_by_matchday(
+        self,
+        player_id: str,
+        matches: list[dict],
+        t_alias: str,
+        s_alias: str,
+        round_info: dict,
+    ) -> list[dict]:
+        """
+        Find play-up occurrences grouped per matchday (for TOURNAMENT rounds).
+        Returns one occurrence per (fromTeamId, toTeamId, matchday) combination.
+        """
+        # Build a lookup of matchday data from round_info keyed by alias
+        matchday_lookup: dict[str, dict] = {}
+        for md in round_info.get("matchdays", []):
+            alias = md.get("alias")
+            if alias:
+                matchday_lookup[alias] = md
+
+        # Collect unique (fromTeamId, toTeamId, matchdayAlias) combinations
+        # Map to earliest match startDate per group as fallback
+        seen: dict[tuple, dict] = {}
+
+        for match in matches:
+            matchday_alias = (
+                match.get("matchday", {}).get("alias") if match.get("matchday") else None
+            )
+            match_start_date = match.get("startDate")
+
+            for team_flag in ["home", "away"]:
+                roster_data = match.get(team_flag, {}).get("roster", {})
+                if isinstance(roster_data, dict):
+                    roster = roster_data.get("players", [])
+                else:
+                    roster = roster_data if roster_data else []
+
+                for roster_player in roster:
+                    if roster_player.get("player", {}).get(
+                        "playerId"
+                    ) == player_id and roster_player.get("called", False):
+                        called_from_team = roster_player.get("calledFromTeam")
+                        if called_from_team:
+                            team_data = match.get(team_flag, {})
+                            from_team_id = called_from_team.get("teamId")
+                            to_team_id = team_data.get("teamId")
+                            if from_team_id and to_team_id and matchday_alias:
+                                key = (from_team_id, to_team_id, matchday_alias)
+                                if key not in seen:
+                                    seen[key] = {
+                                        "matchStartDate": match_start_date,
+                                    }
+                                else:
+                                    # Keep earliest date as fallback
+                                    existing_date = seen[key]["matchStartDate"]
+                                    if (
+                                        match_start_date
+                                        and existing_date
+                                        and match_start_date < existing_date
+                                    ):
+                                        seen[key]["matchStartDate"] = match_start_date
+
+        occurrences = []
+        for (from_team_id, to_team_id, matchday_alias), extra in seen.items():
+            matchday_data = matchday_lookup.get(matchday_alias, {})
+            matchday_id = str(matchday_data.get("_id", matchday_alias))
+            matchday_name = matchday_data.get("name", matchday_alias)
+            # Prefer the matchday's own startDate; fall back to earliest match startDate
+            matchday_start_date = matchday_data.get("startDate") or extra["matchStartDate"]
+            occurrences.append(
+                {
+                    "type": "MATCHDAY",
+                    "tournamentAlias": t_alias,
+                    "seasonAlias": s_alias,
+                    "fromTeamId": from_team_id,
+                    "toTeamId": to_team_id,
+                    "matchdayId": matchday_id,
+                    "matchdayName": matchday_name,
+                    "matchdayStartDate": matchday_start_date,
+                }
+            )
 
         return occurrences
 
@@ -1358,8 +1444,7 @@ class StatsService:
             s_alias = occurrence["seasonAlias"]
             from_team_id = occurrence["fromTeamId"]
             to_team_id = occurrence["toTeamId"]
-            match_id = occurrence["matchId"]
-            match_start_date = occurrence["matchStartDate"]
+            occurrence_type = occurrence.get("type", "MATCH")
 
             tracking_found = False
             for tracking in existing_trackings:
@@ -1370,33 +1455,60 @@ class StatsService:
                     and tracking.get("toTeamId") == to_team_id
                 ):
                     tracking_found = True
-                    existing_match_ids = [
-                        occ.get("matchId") for occ in tracking.get("occurrences", [])
-                    ]
-                    if match_id not in existing_match_ids:
-                        tracking.setdefault("occurrences", []).append(
-                            {
-                                "matchId": match_id,
-                                "matchStartDate": match_start_date,
-                                "counted": True,
-                            }
-                        )
+                    if occurrence_type == "MATCHDAY":
+                        matchday_id = occurrence["matchdayId"]
+                        existing_matchday_ids = [
+                            occ.get("matchdayId") for occ in tracking.get("occurrences", [])
+                        ]
+                        if matchday_id not in existing_matchday_ids:
+                            tracking.setdefault("occurrences", []).append(
+                                {
+                                    "type": "MATCHDAY",
+                                    "matchdayId": matchday_id,
+                                    "matchdayName": occurrence["matchdayName"],
+                                    "matchdayStartDate": occurrence.get("matchdayStartDate"),
+                                    "counted": True,
+                                }
+                            )
+                    else:
+                        match_id = occurrence["matchId"]
+                        existing_match_ids = [
+                            occ.get("matchId") for occ in tracking.get("occurrences", [])
+                        ]
+                        if match_id not in existing_match_ids:
+                            tracking.setdefault("occurrences", []).append(
+                                {
+                                    "type": "MATCH",
+                                    "matchId": match_id,
+                                    "matchStartDate": occurrence.get("matchStartDate"),
+                                    "counted": True,
+                                }
+                            )
                     break
 
             if not tracking_found:
+                if occurrence_type == "MATCHDAY":
+                    new_occ_entry = {
+                        "type": "MATCHDAY",
+                        "matchdayId": occurrence["matchdayId"],
+                        "matchdayName": occurrence["matchdayName"],
+                        "matchdayStartDate": occurrence.get("matchdayStartDate"),
+                        "counted": True,
+                    }
+                else:
+                    new_occ_entry = {
+                        "type": "MATCH",
+                        "matchId": occurrence["matchId"],
+                        "matchStartDate": occurrence.get("matchStartDate"),
+                        "counted": True,
+                    }
                 existing_trackings.append(
                     {
                         "tournamentAlias": t_alias,
                         "seasonAlias": s_alias,
                         "fromTeamId": from_team_id,
                         "toTeamId": to_team_id,
-                        "occurrences": [
-                            {
-                                "matchId": match_id,
-                                "matchStartDate": match_start_date,
-                                "counted": True,
-                            }
-                        ],
+                        "occurrences": [new_occ_entry],
                     }
                 )
 
@@ -1420,148 +1532,3 @@ class StatsService:
                 f"Failed to update playUpTrackings for player {player_id}: {str(e)}",
                 extra={"player_id": player_id, "error": str(e)},
             )
-
-    async def _update_assigned_teams_for_called_matches(
-        self,
-        player_id: str,
-        player_data: dict,
-        teams_to_check: set,
-        t_alias: str,
-        s_alias: str,
-    ) -> None:
-        """Update assignedTeams for players with 5+ called matches."""
-        for team_info in teams_to_check:
-            (
-                team_id,
-                team_name,
-                team_alias,
-                team_age_group,
-                team_ishd_id,
-                club_id,
-                club_name,
-                club_alias,
-                club_ishd_id,
-            ) = team_info
-
-            player_stats = player_data.get("stats", [])
-            for stat in player_stats:
-                if self._has_enough_called_matches(
-                    stat, t_alias, s_alias, team_name
-                ) and not self._team_already_assigned(player_data, team_id):
-
-                    await self._add_called_team_assignment(player_id, player_data, team_info)
-                    if self.db is not None:
-                        fresh_player = await self.db["players"].find_one({"_id": player_id})
-                        if fresh_player:
-                            player_data = fresh_player
-                    break
-
-    def _has_enough_called_matches(
-        self, stat: dict, t_alias: str, s_alias: str, team_name: str
-    ) -> bool:
-        """Check if a player has enough called matches for a team."""
-        tournament_match: bool = stat.get("tournament", {}).get("alias") == t_alias
-        season_match: bool = stat.get("season", {}).get("alias") == s_alias
-        team_match: bool = stat.get("team", {}).get("name") == team_name
-        called_enough: bool = stat.get("calledMatches", 0) >= 5
-        return tournament_match and season_match and team_match and called_enough
-
-    def _team_already_assigned(self, player_data: dict, team_id: str) -> bool:
-        """Check if team is already in player's assignedTeams."""
-        assigned_teams: list = player_data.get("assignedTeams", [])
-        if not assigned_teams:
-            return False
-
-        team_id_str: str = str(team_id)
-
-        for club in assigned_teams:
-            teams: list = club.get("teams", [])
-            if not teams:
-                continue
-            for team in teams:
-                current_team_id = team.get("teamId")
-                if current_team_id is not None and bool(str(current_team_id) == team_id_str):
-                    return True
-
-        return False
-
-    async def _add_called_team_assignment(
-        self,
-        player_id: str,
-        player_data: dict,
-        team_info: tuple,
-    ) -> None:
-        """Add a new team assignment with CALLED source via direct DB update."""
-        (
-            team_id,
-            team_name,
-            team_alias,
-            team_age_group,
-            team_ishd_id,
-            club_id,
-            club_name,
-            club_alias,
-            club_ishd_id,
-        ) = team_info
-
-        assigned_teams = player_data.get("assignedTeams", [])
-
-        club_found = False
-        for club in assigned_teams:
-            if club.get("clubId") == club_id:
-                club["teams"].append(self._create_team_assignment(team_info))
-                club_found = True
-                break
-
-        if not club_found and club_id:
-            assigned_teams.append(self._create_club_assignment(team_info))
-
-        try:
-            result = await self.db["players"].update_one(
-                {"_id": player_id},
-                {"$set": {"assignedTeams": assigned_teams}},
-            )
-            if result.modified_count == 1:
-                logger.info(f"Added CALLED assignment: Player {player_id} → Team {team_name}")
-            else:
-                logger.warning(
-                    f"CALLED assignment update had no effect for player {player_id}",
-                    extra={"player_id": player_id, "team_name": team_name},
-                )
-        except Exception as e:
-            logger.error(
-                f"Failed to update assignments for player {player_id}: {str(e)}",
-                extra={"player_id": player_id, "team_name": team_name, "error": str(e)},
-            )
-            raise DatabaseOperationException(
-                operation="update_player_assignments",
-                message=f"DB error updating assignments for player {player_id}: {str(e)}",
-                details={"player_id": player_id, "team_name": team_name},
-            ) from e
-
-    def _create_team_assignment(self, team_info: tuple) -> dict:
-        """Create a team assignment dictionary."""
-        team_id, team_name, team_alias, team_age_group, team_ishd_id = team_info[:5]
-        return {
-            "teamId": team_id,
-            "teamName": team_name,
-            "teamAlias": team_alias,
-            "teamAgeGroup": team_age_group,
-            "teamIshdId": team_ishd_id,
-            "passNo": "",
-            "source": "CALLED",
-            "modifyDate": None,
-            "active": True,
-            "jerseyNo": None,
-        }
-
-    def _create_club_assignment(self, team_info: tuple) -> dict:
-        """Create a club assignment dictionary with team."""
-        club_id, club_name, club_alias, club_ishd_id = team_info[5:]
-        return {
-            "clubId": club_id,
-            "clubName": club_name,
-            "clubAlias": club_alias,
-            "clubIshdId": club_ishd_id,
-            "teams": [self._create_team_assignment(team_info)],
-        }

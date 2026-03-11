@@ -101,7 +101,10 @@ class MessageService:
                     recipients=[referee_email],
                     body=f"<p>{full_content.replace(chr(10), '<br>')}</p>",
                 )
-                logger.info("Email sent to referee", extra={"referee_id": referee_id, "email": referee_email})
+                logger.info(
+                    "Email sent to referee",
+                    extra={"referee_id": referee_id, "email": referee_email},
+                )
             except Exception as e:
                 logger.error(
                     f"Failed to send email to referee {referee_id}: {e}",
@@ -145,4 +148,3 @@ class MessageService:
             f"{weekday_abbr}, {date_str}, {time_str} Uhr\n"
             f"{venue_name}"
         )
-

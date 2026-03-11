@@ -1,5 +1,7 @@
 """Integration tests for StatsService with real database"""
 
+from datetime import UTC
+
 import pytest
 from bson import ObjectId
 from httpx import AsyncClient
@@ -353,7 +355,7 @@ class TestStatsServiceIntegration:
         assert round_stat["penaltyMinutes"] == 4
 
     async def test_called_teams_assignment_logic(self, mongodb, client: AsyncClient, admin_token):
-        """Test that players with 5+ called matches get team assignments and playUpTrackings persisted in DB"""
+        """Test that called players produce MATCH-type playUpTrackings persisted in DB"""
         from tests.fixtures.data_fixtures import (
             create_test_match,
             create_test_player,
@@ -391,7 +393,6 @@ class TestStatsServiceIntegration:
                 "assists": 0,
                 "points": 5,
                 "penaltyMinutes": 0,
-                "calledMatches": 5,
             }
         ]
         player["assignedTeams"] = []
@@ -469,15 +470,139 @@ class TestStatsServiceIntegration:
         assert (
             len(tracking["occurrences"]) == 5
         ), f"Should have 5 occurrences (one per match). Got: {len(tracking['occurrences'])}"
+        # Verify occurrence type is MATCH and has matchId
+        for occ in tracking["occurrences"]:
+            assert (
+                occ.get("type") == "MATCH"
+            ), f"Occurrence type should be MATCH, got: {occ.get('type')}"
+            assert occ.get("matchId"), f"Occurrence should have matchId, got: {occ}"
 
-        assigned_teams = updated_player.get("assignedTeams", [])
-        team_found = False
-        for club in assigned_teams:
-            for team in club.get("teams", []):
-                if team.get("teamId") == "test-team-id":
-                    team_found = True
-                    assert team.get("source") == "CALLED", "source should be CALLED"
-        assert team_found, f"Team 'test-team-id' should be in assignedTeams. Got: {assigned_teams}"
+
+    async def test_called_players_tournament_matchday_tracking(
+        self, mongodb, client: AsyncClient, admin_token
+    ):
+        """Test that TOURNAMENT rounds produce MATCHDAY-type playUpOccurrences grouped per matchday"""
+        from bson import ObjectId
+
+        from tests.fixtures.data_fixtures import (
+            create_test_match,
+            create_test_player,
+            create_test_roster_player,
+            create_test_tournament,
+        )
+
+        player_id = "player-tournament-1"
+        await mongodb["players"].delete_many({"_id": player_id})
+
+        tournament = create_test_tournament()
+        # Set matchdaysType to TOURNAMENT on the round
+        tournament["seasons"][0]["rounds"][0]["matchdaysType"] = {
+            "key": "TOURNAMENT",
+            "value": "Turnier",
+        }
+        tournament["seasons"][0]["rounds"][0]["createStats"] = True
+        # Give the matchday an _id and startDate so it can be resolved
+        from datetime import datetime
+
+        matchday_id = str(ObjectId())
+        matchday_start = datetime(2024, 10, 5, 10, 0, 0, tzinfo=UTC)
+        tournament["seasons"][0]["rounds"][0]["matchdays"][0]["_id"] = matchday_id
+        tournament["seasons"][0]["rounds"][0]["matchdays"][0]["startDate"] = matchday_start
+        await mongodb["tournaments"].insert_one(tournament)
+
+        player = create_test_player(player_id)
+        player["_id"] = player_id
+        player["assignedTeams"] = []
+        player["playUpTrackings"] = []
+        player["stats"] = []
+        await mongodb["players"].insert_one(player)
+
+        t_alias = tournament["alias"]
+        s_alias = tournament["seasons"][0]["alias"]
+        r_alias = tournament["seasons"][0]["rounds"][0]["alias"]
+        md_alias = tournament["seasons"][0]["rounds"][0]["matchdays"][0]["alias"]
+        md_name = tournament["seasons"][0]["rounds"][0]["matchdays"][0]["name"]
+
+        # Create 3 matches on the SAME matchday — all called
+        for _i in range(3):
+            match = create_test_match(status="FINISHED")
+            match["tournament"] = {"alias": t_alias, "name": tournament["name"]}
+            match["season"] = {"alias": s_alias, "name": tournament["seasons"][0]["name"]}
+            match["round"] = {
+                "alias": r_alias,
+                "name": tournament["seasons"][0]["rounds"][0]["name"],
+            }
+            match["matchday"] = {"alias": md_alias, "name": md_name}
+            match["matchStatus"] = {"key": "FINISHED", "value": "Beendet"}
+            match["home"]["teamId"] = "upper-team-id"
+            match["home"]["name"] = "Upper Team"
+            match["home"]["fullName"] = "Upper Team"
+            match["home"]["shortName"] = "UT"
+            match["home"]["tinyName"] = "UT"
+            match["home"]["teamAlias"] = "upper-team"
+            match["home"]["ageGroup"] = "SEN"
+            match["home"]["ishdId"] = "999"
+            match["home"]["clubId"] = "upper-club-id"
+            match["home"]["clubName"] = "Upper Club"
+            match["home"]["clubAlias"] = "upper-club"
+            match["home"]["clubIshdId"] = "888"
+
+            roster_player = create_test_roster_player(player_id)
+            roster_player["called"] = True
+            roster_player["calledFromTeam"] = {
+                "teamId": "lower-team-id",
+                "teamName": "Lower Team",
+                "teamAlias": "lower-team",
+            }
+            match["home"]["roster"] = {"players": [roster_player], "status": "SUBMITTED"}
+            await mongodb["matches"].insert_one(match)
+
+        from types import SimpleNamespace
+
+        token_payload = SimpleNamespace(
+            sub="user-1",
+            roles=["ADMIN"],
+            firstName="Test",
+            lastName="User",
+            clubId=None,
+            clubName=None,
+        )
+
+        stats_service = StatsService(mongodb)
+        await stats_service.calculate_player_card_stats(
+            [player_id],
+            t_alias,
+            s_alias,
+            r_alias,
+            md_alias,
+            token_payload=token_payload,
+        )
+
+        updated_player = await mongodb["players"].find_one({"_id": player_id})
+
+        # --- playUpTrackings assertions ---
+        playup_trackings = updated_player.get("playUpTrackings", [])
+        assert (
+            len(playup_trackings) >= 1
+        ), f"playUpTrackings should have at least one entry. Got: {playup_trackings}"
+        tracking = playup_trackings[0]
+        assert tracking["fromTeamId"] == "lower-team-id", "fromTeamId should match calledFromTeam"
+        assert tracking["toTeamId"] == "upper-team-id", "toTeamId should match match team"
+        assert "occurrences" in tracking, "tracking should have occurrences"
+        # 3 matches on same matchday → only 1 occurrence (deduplicated by matchday)
+        assert (
+            len(tracking["occurrences"]) == 1
+        ), f"Should have 1 occurrence (per matchday, not per match). Got: {len(tracking['occurrences'])}"
+        occ = tracking["occurrences"][0]
+        assert (
+            occ.get("type") == "MATCHDAY"
+        ), f"Occurrence type should be MATCHDAY, got: {occ.get('type')}"
+        assert occ.get("matchdayId") == matchday_id, f"matchdayId mismatch: {occ.get('matchdayId')}"
+        assert (
+            occ.get("matchdayName") == md_name
+        ), f"matchdayName mismatch: {occ.get('matchdayName')}"
+        assert occ.get("matchdayStartDate") is not None, "matchdayStartDate should be set"
+
 
     async def test_standings_recalculated_on_match_finished(
         self, mongodb, client: AsyncClient, admin_token

@@ -111,6 +111,24 @@ class ImportCLI:
             help="Show what would be imported without making changes",
         )
 
+        parser.add_argument(
+            "--send-email",
+            action="store_true",
+            help="Send welcome email to newly created referees (referees entity only)",
+        )
+
+        parser.add_argument(
+            "--strategy",
+            choices=["merge", "insert", "update"],
+            default="merge",
+            help=(
+                "Import strategy for referees (default: merge). "
+                "merge: deactivate all referees first, then re-activate/create from CSV; "
+                "insert: only create new referees, skip existing ones; "
+                "update: only update existing referees, skip rows with no match."
+            ),
+        )
+
         return parser
 
     def get_csv_path(self, entity: str) -> str:
@@ -225,8 +243,28 @@ class ImportCLI:
     def import_referees(self) -> tuple[bool, str]:
         """Import referees"""
         logger.info("Starting referees import...")
-        # TODO: Implement from import_referees.py
-        return True, "Referees import not yet implemented"
+
+        csv_path = self.get_csv_path("referees")
+        if not os.path.exists(csv_path):
+            return False, f"Referees CSV file not found: {csv_path}"
+
+        send_email = getattr(self.args, "send_email", False)
+        strategy = getattr(self.args, "strategy", "merge")
+
+        if self.args.dry_run:
+            logger.info(f"DRY RUN: would import referees from {csv_path}")
+            logger.info(
+                f"DRY RUN: strategy={strategy}, send_email={send_email}, "
+                f"import_all={self.args.import_all}"
+            )
+            return True, "Dry run complete — no changes made"
+
+        return self.service.import_referees(
+            csv_path,
+            import_all=self.args.import_all,
+            send_email=send_email,
+            strategy=strategy,
+        )
 
     def _resolve_environment(self) -> str:
         """Resolve target environment from CLI flags"""
@@ -271,8 +309,14 @@ class ImportCLI:
                     logger.error(f"No handler found for entity: {self.args.entity}")
                     return
 
+                # Entities whose service methods manage their own scoped backup
+                # and rollback internally.  Wrapping them in import_with_rollback
+                # would target the wrong collection ('referees' instead of 'users')
+                # and could dangerously wipe unrelated data on rollback.
+                SELF_MANAGED_ROLLBACK_ENTITIES = {"referees"}
+
                 # Execute import with rollback support
-                if self.args.dry_run:
+                if self.args.dry_run or self.args.entity in SELF_MANAGED_ROLLBACK_ENTITIES:
                     success, message = handler()
                 else:
                     success, message = service.import_with_rollback(
