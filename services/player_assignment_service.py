@@ -288,6 +288,16 @@ class PlayerAssignmentService:
         if not player.get("assignedTeams"):
             return player
 
+        # Step 0: Normalize teamAgeGroup to uppercase.
+        # ISHD data arrives with German capitalization (e.g. "Herren", "Junioren")
+        # while WKO rules are keyed by all-caps strings ("HERREN", "U19", etc.).
+        # Without normalization every WKO rules lookup for ISHD teams silently fails
+        # and the fallback returns PRIMARY, defeating all age-group-aware classification.
+        for club in player["assignedTeams"]:
+            for team in club.get("teams", []):
+                if team.get("teamAgeGroup"):
+                    team["teamAgeGroup"] = team["teamAgeGroup"].upper()
+
         # Collect all licenses across all clubs
         all_licenses = []
         for club in player["assignedTeams"]:
@@ -771,6 +781,15 @@ class PlayerAssignmentService:
         """
         if not player.get("assignedTeams"):
             return player
+
+        # Step 0: Normalize teamAgeGroup to uppercase.
+        # ISHD data may arrive with German capitalization ("Herren", "Junioren").
+        # All WKO rules lookups use all-caps keys ("HERREN", "U19"), so without
+        # normalization every age-group check silently fails and falls back to PRIMARY.
+        for club in player["assignedTeams"]:
+            for team in club.get("teams", []):
+                if team.get("teamAgeGroup"):
+                    team["teamAgeGroup"] = team["teamAgeGroup"].upper()
 
         # Step 1: Reset all license states to VALID with empty codes
         # (except those with adminOverride=True)

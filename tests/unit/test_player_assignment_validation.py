@@ -549,6 +549,41 @@ class TestDamenHerrenWkoRules:
         }
 
     @pytest.mark.asyncio
+    async def test_classification_normalizes_ishd_german_age_group_casing(self, service):
+        """ISHD data arrives with German capitalization: 'Herren', 'Junioren', etc.
+        WKO rules use all-caps keys: 'HERREN', 'U19', etc.
+
+        Without normalization every WKO lookup for ISHD teams silently falls back to
+        PRIMARY, making all age-group-aware logic useless for ISHD licences.
+        This regression test verifies that 'Herren' (mixed case) is treated identically
+        to 'HERREN' (all caps) for a DAMEN player — both should become SECONDARY.
+        """
+        player = self._make_player_dict(
+            datetime(2007, 11, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t_ishd", "Herren", "UNKNOWN", source="ISHD", pass_no="6293"),
+                        self._make_team("t_bishl", "HERREN", "UNKNOWN", source="BISHL", pass_no=""),
+                    ],
+                )
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+        t_ishd = classified["assignedTeams"][0]["teams"][0]
+        t_bishl = classified["assignedTeams"][0]["teams"][1]
+
+        assert t_ishd["teamAgeGroup"] == "HERREN", "teamAgeGroup must be normalized to uppercase"
+        assert t_ishd["licenseType"] == "SECONDARY", (
+            "ISHD 'Herren' (mixed case) must classify as SECONDARY for DAMEN player, not fall back to PRIMARY"
+        )
+        assert t_bishl["licenseType"] == "SECONDARY", (
+            "BISHL 'HERREN' (all caps) must classify as SECONDARY for DAMEN player"
+        )
+
+    @pytest.mark.asyncio
     async def test_classification_damen_herren_primary_in_db_reclassified(self, service):
         """Regression test for the exact reported bug: a female player (DAMEN) whose ISHD
         licence for a HERREN team is already stored as PRIMARY in the database.
