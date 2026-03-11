@@ -686,9 +686,13 @@ class TestDamenHerrenWkoRules:
         assert result_female is True, "Female player should satisfy DAMEN→HERREN secondary rule"
 
     @pytest.mark.asyncio
-    async def test_validation_quota_keeps_primary_over_secondary(self, service):
-        """When a DAMEN player has both HERREN PRIMARY (legacy wrong data) and HERREN SECONDARY,
-        quota enforcement should keep the PRIMARY VALID and invalidate the SECONDARY.
+    async def test_validation_primary_in_wrong_age_group_invalidated(self, service):
+        """Validation Pass 1 must flag a PRIMARY licence whose teamAgeGroup differs
+        from the player's own age group as INVALID (AGE_GROUP_VIOLATION).
+
+        Old behaviour (before Fix B): quota sorter kept PRIMARY VALID, marked SECONDARY INVALID.
+        New behaviour: Pass 1 catches the misplaced PRIMARY immediately; only the
+        SECONDARY remains VALID (1 VALID HERREN ≤ quota max 1, so no EXCEEDS_WKO_LIMIT).
         """
         player = self._make_player_dict(
             datetime(2000, 1, 1),
@@ -707,6 +711,10 @@ class TestDamenHerrenWkoRules:
         teams = validated["assignedTeams"][0]["teams"]
         by_id = {t["teamId"]: t for t in teams}
 
-        assert by_id["t2"]["status"] == "VALID", "PRIMARY HERREN should be kept VALID"
-        assert by_id["t1"]["status"] == "INVALID", "SECONDARY HERREN should be marked INVALID (EXCEEDS_WKO_LIMIT)"
-        assert "EXCEEDS_WKO_LIMIT" in by_id["t1"]["invalidReasonCodes"]
+        assert by_id["t2"]["status"] == "INVALID", (
+            "HERREN PRIMARY must be INVALID (AGE_GROUP_VIOLATION) for a DAMEN player"
+        )
+        assert "AGE_GROUP_VIOLATION" in by_id["t2"]["invalidReasonCodes"]
+        assert by_id["t1"]["status"] == "VALID", (
+            "HERREN SECONDARY is the only valid licence; quota is satisfied (1 ≤ max 1)"
+        )

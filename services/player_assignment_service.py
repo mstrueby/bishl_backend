@@ -1183,7 +1183,21 @@ class PlayerAssignmentService:
                     continue
 
                 team_age_group = team.get("teamAgeGroup")
-                if not self._is_age_group_compatible(player_age_group, team_age_group):
+
+                # PRIMARY is only valid in the player's own age group.
+                # A player in a secondary age group should have SECONDARY, not PRIMARY.
+                # For unknown age groups fall back to the old compatibility check.
+                both_known = (
+                    player_age_group
+                    and team_age_group
+                    and player_age_group in self._wko_rules
+                    and team_age_group in self._wko_rules
+                )
+                is_invalid = (
+                    (both_known and team_age_group != player_age_group)
+                    or (not both_known and not self._is_age_group_compatible(player_age_group, team_age_group))
+                )
+                if is_invalid:
                     team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
                         "invalidReasonCodes", []
@@ -1796,6 +1810,11 @@ class PlayerAssignmentService:
 
         # Capture original state
         original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
+
+        # Re-classify first: corrects any misplaced licenseTypes stored in the DB
+        # (e.g. HERREN PRIMARY for a DAMEN player becomes SECONDARY).
+        # Classification is idempotent: already-correct types are untouched.
+        player = await self.classify_license_types_for_player(player)
 
         # Reset if requested — skip adminOverride=True licenses so their
         # admin-set status and invalidReasonCodes are preserved through validation.
