@@ -108,7 +108,7 @@ class PlayerAssignmentService:
             sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
                 SecondaryRule(targetAgeGroup="HERREN",
-                              sex=[Sex.MALE],
+                              sex=[Sex.MALE, Sex.FEMALE],
                               maxLicenses=99,
                               requiresAdmin=False),
                 SecondaryRule(
