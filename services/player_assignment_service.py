@@ -57,7 +57,10 @@ class PlayerAssignmentService:
             sortOrder=1,
             altKey="Herren",
             sex=[Sex.MALE, Sex.FEMALE],
-            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 2},
+            maxTotalAgeClasses={
+                Sex.MALE: 2,
+                Sex.FEMALE: 2
+            },
         ),
         WkoRule(
             ageGroup="DAMEN",
@@ -73,18 +76,41 @@ class PlayerAssignmentService:
                     requiresAdmin=False,
                 )
             ],
-            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 2},
+            maxTotalAgeClasses={
+                Sex.MALE: 2,
+                Sex.FEMALE: 2
+            },
         ),
+        WkoRule(ageGroup="U21",
+                label="U21",
+                sortOrder=10,
+                altKey="U21",
+                sex=[Sex.MALE, Sex.FEMALE],
+                secondaryRules=[
+                    SecondaryRule(targetAgeGroup="HERREN",
+                                  sex=[Sex.MALE, Sex.FEMALE],
+                                  maxLicenses=99,
+                                  requiresAdmin=False),
+                    SecondaryRule(targetAgeGroup="DAMEN",
+                                  sex=[Sex.FEMALE],
+                                  maxLicenses=99,
+                                  requiresAdmin=False)
+                ],
+                maxTotalAgeClasses={
+                    Sex.MALE: 2,
+                    Sex.FEMALE: 2
+                }),
         WkoRule(
             ageGroup="U19",
             label="U19",
-            sortOrder=3,
+            sortOrder=20,
             altKey="Junioren",
             sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
-                SecondaryRule(
-                    targetAgeGroup="HERREN", sex=[Sex.MALE], maxLicenses=99, requiresAdmin=False
-                ),
+                SecondaryRule(targetAgeGroup="HERREN",
+                              sex=[Sex.MALE],
+                              maxLicenses=99,
+                              requiresAdmin=False),
                 SecondaryRule(
                     targetAgeGroup="DAMEN",
                     sex=[Sex.FEMALE],
@@ -100,12 +126,15 @@ class PlayerAssignmentService:
                     maxOverAgePlayersPerTeam=3,
                 )
             ],
-            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
+            maxTotalAgeClasses={
+                Sex.MALE: 2,
+                Sex.FEMALE: 3
+            },
         ),
         WkoRule(
             ageGroup="U16",
             label="U16",
-            sortOrder=4,
+            sortOrder=30,
             altKey="Jugend",
             sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
@@ -115,12 +144,14 @@ class PlayerAssignmentService:
                     maxLicenses=1,
                     requiresAdmin=False,
                 ),
-                SecondaryRule(
-                    targetAgeGroup="HERREN", sex=[Sex.MALE], maxLicenses=1, requiresAdmin=False
-                ),
-                SecondaryRule(
-                    targetAgeGroup="DAMEN", sex=[Sex.FEMALE], maxLicenses=1, requiresAdmin=True
-                ),
+                SecondaryRule(targetAgeGroup="HERREN",
+                              sex=[Sex.MALE],
+                              maxLicenses=1,
+                              requiresAdmin=False),
+                SecondaryRule(targetAgeGroup="DAMEN",
+                              sex=[Sex.FEMALE],
+                              maxLicenses=1,
+                              requiresAdmin=True),
             ],
             overAgeRules=[
                 OverAgeRule(
@@ -130,12 +161,15 @@ class PlayerAssignmentService:
                     maxOverAgePlayersPerTeam=3,
                 )
             ],
-            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
+            maxTotalAgeClasses={
+                Sex.MALE: 2,
+                Sex.FEMALE: 3
+            },
         ),
         WkoRule(
             ageGroup="U13",
             label="U13",
-            sortOrder=5,
+            sortOrder=40,
             altKey="Schüler",
             sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
@@ -145,9 +179,10 @@ class PlayerAssignmentService:
                     maxLicenses=1,
                     requiresAdmin=False,
                 ),
-                SecondaryRule(
-                    targetAgeGroup="DAMEN", sex=[Sex.FEMALE], maxLicenses=1, requiresAdmin=True
-                ),
+                SecondaryRule(targetAgeGroup="DAMEN",
+                              sex=[Sex.FEMALE],
+                              maxLicenses=1,
+                              requiresAdmin=True),
             ],
             overAgeRules=[
                 OverAgeRule(
@@ -157,12 +192,15 @@ class PlayerAssignmentService:
                     maxOverAgePlayersPerTeam=3,
                 )
             ],
-            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
+            maxTotalAgeClasses={
+                Sex.MALE: 2,
+                Sex.FEMALE: 3
+            },
         ),
         WkoRule(
             ageGroup="U10",
             label="U10",
-            sortOrder=6,
+            sortOrder=50,
             altKey="Bambini",
             sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
@@ -172,9 +210,10 @@ class PlayerAssignmentService:
                     maxLicenses=1,
                     requiresAdmin=False,
                 ),
-                SecondaryRule(
-                    targetAgeGroup="DAMEN", sex=[Sex.FEMALE], maxLicenses=1, requiresAdmin=True
-                ),
+                SecondaryRule(targetAgeGroup="DAMEN",
+                              sex=[Sex.FEMALE],
+                              maxLicenses=1,
+                              requiresAdmin=True),
             ],
             overAgeRules=[
                 OverAgeRule(
@@ -184,12 +223,15 @@ class PlayerAssignmentService:
                     maxOverAgePlayersPerTeam=2,
                 ),
             ],
-            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
+            maxTotalAgeClasses={
+                Sex.MALE: 2,
+                Sex.FEMALE: 3
+            },
         ),
         WkoRule(
             ageGroup="U8",
             label="U8",
-            sortOrder=7,
+            sortOrder=60,
             altKey="Mini",
             sex=[Sex.MALE, Sex.FEMALE],
             secondaryRules=[
@@ -199,11 +241,15 @@ class PlayerAssignmentService:
                     maxLicenses=1,
                     requiresAdmin=False,
                 ),
-                SecondaryRule(
-                    targetAgeGroup="DAMEN", sex=[Sex.FEMALE], maxLicenses=1, requiresAdmin=True
-                ),
+                SecondaryRule(targetAgeGroup="DAMEN",
+                              sex=[Sex.FEMALE],
+                              maxLicenses=1,
+                              requiresAdmin=True),
             ],
-            maxTotalAgeClasses={Sex.MALE: 2, Sex.FEMALE: 3},
+            maxTotalAgeClasses={
+                Sex.MALE: 2,
+                Sex.FEMALE: 3
+            },
         ),
     ]
 
@@ -233,9 +279,11 @@ class PlayerAssignmentService:
             player_copy["displayLastName"] = player_copy.get("lastName", "")
         return player_copy
 
-    def _is_team_allowed(
-        self, player_age: str, team_age: str, sex: Sex, over_age_flag: bool = False
-    ):
+    def _is_team_allowed(self,
+                         player_age: str,
+                         team_age: str,
+                         sex: Sex,
+                         over_age_flag: bool = False):
         """
         Checks if a player of a given age and sex is allowed to play in a team of a given age
         based on WKO secondary and overage rules.
@@ -249,15 +297,18 @@ class PlayerAssignmentService:
 
         # Check secondaryRules (playing in older age groups)
         for sec in rule.secondaryRules:
-            if sec.targetAgeGroup == team_age and (not sec.sex or sex in sec.sex):
+            if sec.targetAgeGroup == team_age and (not sec.sex
+                                                   or sex in sec.sex):
                 return True, sec.maxLicenses, sec.requiresAdmin
 
         # Check overAgeRules (playing in younger age groups)
         for over in rule.overAgeRules:
-            if over.targetAgeGroup == team_age and (not over.sex or sex in over.sex):
+            if over.targetAgeGroup == team_age and (not over.sex
+                                                    or sex in over.sex):
                 # Only allowed if player has the overAge flag set to true
                 if not over_age_flag:
-                    return False, over.maxLicenses, getattr(over, "requiresAdmin", False)
+                    return False, over.maxLicenses, getattr(
+                        over, "requiresAdmin", False)
 
                 # Overage rules in WKO might not have requiresAdmin field,
                 # but we return a consistent signature. Default to False if missing.
@@ -318,13 +369,13 @@ class PlayerAssignmentService:
             team_age_group = team.get("teamAgeGroup")
 
             # Get player's age group for comparison
-            player_obj = PlayerDB(**self._prepare_player_for_validation(player))
+            player_obj = PlayerDB(
+                **self._prepare_player_for_validation(player))
             player_age_group = player_obj.ageGroup
 
             # Determine license type based on age group relationship
             license_type = self._classify_single_license_by_age_group(
-                player_age_group, team_age_group, player_obj.overAge
-            )
+                player_age_group, team_age_group, player_obj.overAge)
             team["licenseType"] = license_type
 
             if settings.DEBUG_LEVEL > 0:
@@ -339,8 +390,10 @@ class PlayerAssignmentService:
         # Only runs when licenseType is UNKNOWN — any explicitly-set type is preserved.
         for club, team in all_licenses:
             # Only classify if licenseType is UNKNOWN or not set
-            if team.get("licenseType") == LicenseType.UNKNOWN or not team.get("licenseType"):
-                license_type = self._classify_by_pass_suffix(team.get("passNo", ""))
+            if team.get("licenseType") == LicenseType.UNKNOWN or not team.get(
+                    "licenseType"):
+                license_type = self._classify_by_pass_suffix(
+                    team.get("passNo", ""))
                 team["licenseType"] = license_type
 
                 # New rule: if "F" suffix was used, it returned PRIMARY, but mark club as DEVELOPMENT
@@ -359,7 +412,8 @@ class PlayerAssignmentService:
         # A club is LOAN if passNo ends with 'L' OR licenseType is LOAN
         for club, team in all_licenses:
             pass_no = team.get("passNo") or ""
-            if pass_no.strip().upper().endswith("L") or team.get("licenseType") == LicenseType.LOAN:
+            if pass_no.strip().upper().endswith("L") or team.get(
+                    "licenseType") == LicenseType.LOAN:
                 club["clubType"] = ClubType.LOAN
 
         # Step 3: Apply PRIMARY heuristic for UNKNOWN licenses based on age group match
@@ -421,7 +475,8 @@ class PlayerAssignmentService:
                 if team.get("licenseType") != LicenseType.PRIMARY:
                     continue
                 team_age_group = team.get("teamAgeGroup")
-                if team_age_group == player_age_group or team.get("adminOverride"):
+                if team_age_group == player_age_group or team.get(
+                        "adminOverride"):
                     # Correctly-placed PRIMARY or admin-explicitly-set: count the club.
                     clubs_with_primary.add(club_id)
                 else:
@@ -429,8 +484,7 @@ class PlayerAssignmentService:
                     # Re-classify using WKO secondaryRules/overAgeRules; do NOT add
                     # this club to clubs_with_primary so step 6 can handle it normally.
                     correct_type = self._classify_single_license_by_age_group(
-                        player_age_group, team_age_group, player_obj.overAge
-                    )
+                        player_age_group, team_age_group, player_obj.overAge)
                     team["licenseType"] = correct_type
                     if settings.DEBUG_LEVEL > 0:
                         logger.debug(
@@ -447,8 +501,7 @@ class PlayerAssignmentService:
             club_id = club.get("clubId")
             if club_id not in clubs_with_primary:
                 ishd_unknown_licenses = [
-                    team
-                    for team in club.get("teams", [])
+                    team for team in club.get("teams", [])
                     if team.get("licenseType") == LicenseType.UNKNOWN
                     and team.get("source") == Source.ISHD
                 ]
@@ -467,8 +520,8 @@ class PlayerAssignmentService:
                     else:
                         # Age group mismatch — classify via WKO rules, do NOT add to clubs_with_primary
                         classified = self._classify_single_license_by_age_group(
-                            player_age_group, team_age_group, player_obj.overAge
-                        )
+                            player_age_group, team_age_group,
+                            player_obj.overAge)
                         first["licenseType"] = classified
                         if settings.DEBUG_LEVEL > 0:
                             logger.debug(
@@ -500,8 +553,8 @@ class PlayerAssignmentService:
                 if team.get("licenseType") == LicenseType.UNKNOWN:
                     team_age_group = team.get("teamAgeGroup")
                     classified = self._classify_single_license_by_age_group(
-                        player_age_group, team_age_group or "", player_obj.overAge
-                    )
+                        player_age_group, team_age_group or "",
+                        player_obj.overAge)
                     team["licenseType"] = classified
                     if settings.DEBUG_LEVEL > 0:
                         logger.debug(
@@ -513,8 +566,8 @@ class PlayerAssignmentService:
         return player
 
     def _classify_single_license_by_age_group(
-        self, player_age_group: str, team_age_group: str, player_is_overage: bool
-    ) -> LicenseType:
+            self, player_age_group: str, team_age_group: str,
+            player_is_overage: bool) -> LicenseType:
         """
         Classify a single license based on age group comparison.
 
@@ -636,7 +689,8 @@ class PlayerAssignmentService:
         # Check suffix
         if pass_no_normalized.endswith("F"):
             if settings.DEBUG_LEVEL > 0:
-                logger.debug(f"Classified license {pass_no} as PRIMARY (F-suffix)")
+                logger.debug(
+                    f"Classified license {pass_no} as PRIMARY (F-suffix)")
             # Concept change: "F" is now PRIMARY, but the club will be marked DEVELOPMENT later
             return LicenseType.PRIMARY
         elif pass_no_normalized.endswith("A"):
@@ -652,9 +706,10 @@ class PlayerAssignmentService:
             # PRIMARY heuristic will handle single-license case
             return LicenseType.UNKNOWN
 
-    async def bootstrap_classification_for_all_players(
-        self, reset: bool = False, batch_size: int = 1000
-    ) -> list[str]:
+    async def bootstrap_classification_for_all_players(self,
+                                                       reset: bool = False,
+                                                       batch_size: int = 1000
+                                                       ) -> list[str]:
         """
         Runs the classification step for all players.
 
@@ -669,7 +724,9 @@ class PlayerAssignmentService:
         total_processed = 0
         total_modified = 0
 
-        logger.info(f"Starting bootstrap classification of all player licenses (reset={reset})...")
+        logger.info(
+            f"Starting bootstrap classification of all player licenses (reset={reset})..."
+        )
 
         # Process in batches to avoid memory issues
         cursor = self.db["players"].find({})
@@ -683,8 +740,7 @@ class PlayerAssignmentService:
                 for p in batch:
                     total_processed += 1
                     was_modified = await self._update_player_classification_in_db(
-                        p["_id"], reset=reset
-                    )
+                        p["_id"], reset=reset)
                     if was_modified:
                         modified_ids.append(str(p["_id"]))
                         total_modified += 1
@@ -697,21 +753,21 @@ class PlayerAssignmentService:
         # Process remaining players in final batch
         for p in batch:
             total_processed += 1
-            was_modified = await self._update_player_classification_in_db(p["_id"], reset=reset)
+            was_modified = await self._update_player_classification_in_db(
+                p["_id"], reset=reset)
             if was_modified:
                 modified_ids.append(str(p["_id"]))
                 total_modified += 1
 
         logger.info(
             f"Classification bootstrap complete: processed {total_processed} players, "
-            f"modified {total_modified} players"
-        )
+            f"modified {total_modified} players")
 
         return modified_ids
 
-    async def _update_player_classification_in_db(
-        self, player_id: str, reset: bool = False
-    ) -> bool:
+    async def _update_player_classification_in_db(self,
+                                                  player_id: str,
+                                                  reset: bool = False) -> bool:
         """
         Load a player by _id, run classification, and update in MongoDB.
 
@@ -728,7 +784,8 @@ class PlayerAssignmentService:
             return False
 
         # Capture original state
-        original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
+        original_assigned_teams = jsonable_encoder(
+            player.get("assignedTeams", []))
 
         # Reset if requested — skip adminOverride=True licenses so their
         # admin-set licenseType and status are preserved throughout classification.
@@ -751,13 +808,13 @@ class PlayerAssignmentService:
 
         # Persist changes
         await self.db["players"].update_one(
-            {"_id": player_id}, {"$set": {"assignedTeams": new_assigned_teams}}
-        )
+            {"_id": player_id},
+            {"$set": {
+                "assignedTeams": new_assigned_teams
+            }})
 
-        logger.info(
-            f"Updated license classifications for player {player_id}: "
-            f"{player.get('firstName')} {player.get('lastName')}"
-        )
+        logger.info(f"Updated license classifications for player {player_id}: "
+                    f"{player.get('firstName')} {player.get('lastName')}")
         return True
 
     # ========================================================================
@@ -876,11 +933,9 @@ class PlayerAssignmentService:
                 if team.get("licenseType") == LicenseType.UNKNOWN:
                     team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get(
-                        "invalidReasonCodes", []
-                    ):
+                            "invalidReasonCodes", []):
                         team.setdefault("invalidReasonCodes", []).append(
-                            LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE
-                        )
+                            LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE)
 
     def _validate_primary_consistency(self, player: dict) -> None:
         """
@@ -911,22 +966,28 @@ class PlayerAssignmentService:
                     continue
                 if team.get("licenseType") == LicenseType.PRIMARY:
                     # Keep track of parent club for validation
-                    primary_by_type[club_type].append({"club": club, "team": team})
+                    primary_by_type[club_type].append({
+                        "club": club,
+                        "team": team
+                    })
 
         for club_type, licenses in primary_by_type.items():
             if len(licenses) > 1:
                 # Sort licenses to pick the "best" one to keep valid
                 def sort_key(item):
                     team = item["team"]
-                    source_pref = 0 if team.get("source") == Source.BISHL else 1
+                    source_pref = 0 if team.get(
+                        "source") == Source.BISHL else 1
                     modify_date = team.get("modifyDate") or datetime.max
                     # Handle case where modifyDate might be a string (from jsonable_encoder)
                     if isinstance(modify_date, str):
                         try:
-                            modify_date = datetime.fromisoformat(modify_date.replace("Z", "+00:00"))
+                            modify_date = datetime.fromisoformat(
+                                modify_date.replace("Z", "+00:00"))
                         except (ValueError, TypeError):
                             modify_date = datetime.max
-                    return (source_pref, modify_date, team.get("teamAlias", ""))
+                    return (source_pref, modify_date,
+                            team.get("teamAlias", ""))
 
                 licenses.sort(key=sort_key)
 
@@ -935,11 +996,9 @@ class PlayerAssignmentService:
                     team = item["team"]
                     team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.MULTIPLE_PRIMARY not in team.get(
-                        "invalidReasonCodes", []
-                    ):
+                            "invalidReasonCodes", []):
                         team.setdefault("invalidReasonCodes", []).append(
-                            LicenseInvalidReasonCode.MULTIPLE_PRIMARY
-                        )
+                            LicenseInvalidReasonCode.MULTIPLE_PRIMARY)
                     logger.debug(
                         f"Invalidated excess PRIMARY in {club_type} club: "
                         f"{item['club'].get('clubName')} / {team.get('teamName')}"
@@ -961,14 +1020,12 @@ class PlayerAssignmentService:
                 if team.get("adminOverride"):
                     continue
                 if team.get("licenseType") == LicenseType.LOAN:
-                    loan_licenses.append(
-                        {
-                            "club": club,
-                            "team": team,
-                            "clubId": club.get("clubId"),
-                            "ageGroup": team.get("teamAgeGroup"),
-                        }
-                    )
+                    loan_licenses.append({
+                        "club": club,
+                        "team": team,
+                        "clubId": club.get("clubId"),
+                        "ageGroup": team.get("teamAgeGroup"),
+                    })
 
         if not loan_licenses:
             return
@@ -978,10 +1035,10 @@ class PlayerAssignmentService:
             for loan_info in loan_licenses:
                 team = loan_info["team"]
                 team["status"] = LicenseStatus.INVALID
-                if LicenseInvalidReasonCode.TOO_MANY_LOAN not in team.get("invalidReasonCodes", []):
+                if LicenseInvalidReasonCode.TOO_MANY_LOAN not in team.get(
+                        "invalidReasonCodes", []):
                     team.setdefault("invalidReasonCodes", []).append(
-                        LicenseInvalidReasonCode.TOO_MANY_LOAN
-                    )
+                        LicenseInvalidReasonCode.TOO_MANY_LOAN)
             return
 
         # We have exactly one LOAN license
@@ -1001,11 +1058,9 @@ class PlayerAssignmentService:
                 # Any other license in the same club as LOAN is invalid
                 team["status"] = LicenseStatus.INVALID
                 if LicenseInvalidReasonCode.LOAN_CLUB_CONFLICT not in team.get(
-                    "invalidReasonCodes", []
-                ):
+                        "invalidReasonCodes", []):
                     team.setdefault("invalidReasonCodes", []).append(
-                        LicenseInvalidReasonCode.LOAN_CLUB_CONFLICT
-                    )
+                        LicenseInvalidReasonCode.LOAN_CLUB_CONFLICT)
 
         # Rule 3: LOAN cannot be in the same age group as any license in other clubs
         # When conflict exists, invalidate the LOAN (not the other license - PRIMARY takes priority)
@@ -1020,11 +1075,9 @@ class PlayerAssignmentService:
                     # Conflict found - invalidate the LOAN license, not this one
                     loan_team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.LOAN_AGE_GROUP_CONFLICT not in loan_team.get(
-                        "invalidReasonCodes", []
-                    ):
+                            "invalidReasonCodes", []):
                         loan_team.setdefault("invalidReasonCodes", []).append(
-                            LicenseInvalidReasonCode.LOAN_AGE_GROUP_CONFLICT
-                        )
+                            LicenseInvalidReasonCode.LOAN_AGE_GROUP_CONFLICT)
                     return  # LOAN is already invalid, no need to check further
 
     def _validate_import_conflicts(self, player: dict) -> None:
@@ -1049,7 +1102,8 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("source") == Source.BISHL and team.get("status") == LicenseStatus.VALID:
+                if team.get("source") == Source.BISHL and team.get(
+                        "status") == LicenseStatus.VALID:
                     license_type = team.get("licenseType")
                     pool_key = (club_type, license_type)
                     if pool_key not in bishl_licenses_by_pool:
@@ -1065,7 +1119,8 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("source") == Source.ISHD and team.get("status") == LicenseStatus.VALID:
+                if team.get("source") == Source.ISHD and team.get(
+                        "status") == LicenseStatus.VALID:
                     license_type = team.get("licenseType")
                     pool_key = (club_type, license_type)
 
@@ -1074,13 +1129,14 @@ class PlayerAssignmentService:
                         if license_type == LicenseType.PRIMARY:
                             team["status"] = LicenseStatus.INVALID
                             if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
-                                "invalidReasonCodes", []
-                            ):
-                                team.setdefault("invalidReasonCodes", []).append(
-                                    LicenseInvalidReasonCode.IMPORT_CONFLICT
-                                )
+                                    "invalidReasonCodes", []):
+                                team.setdefault("invalidReasonCodes",
+                                                []).append(
+                                                    LicenseInvalidReasonCode.
+                                                    IMPORT_CONFLICT)
 
-    def _get_anchor_license(self, player: dict) -> tuple[dict | None, dict | None]:
+    def _get_anchor_license(self,
+                            player: dict) -> tuple[dict | None, dict | None]:
         """
         Determine the anchor license (PRIMARY or fallback) for a player.
         Priority 1: Valid PRIMARY.
@@ -1092,10 +1148,8 @@ class PlayerAssignmentService:
         # Priority 1: Valid PRIMARY
         for club in player["assignedTeams"]:
             for team in club.get("teams", []):
-                if (
-                    team.get("status") == LicenseStatus.VALID
-                    and team.get("licenseType") == LicenseType.PRIMARY
-                ):
+                if (team.get("status") == LicenseStatus.VALID
+                        and team.get("licenseType") == LicenseType.PRIMARY):
                     return club, team
 
         # Priority 2: Single valid license
@@ -1139,7 +1193,8 @@ class PlayerAssignmentService:
 
         return []
 
-    def _validate_club_consistency(self, player: dict, primary_club_ids: list[str]) -> None:
+    def _validate_club_consistency(self, player: dict,
+                                   primary_club_ids: list[str]) -> None:
         """
         SECONDARY and OVERAGE licenses are valid only if they belong to a club
         that also has a valid PRIMARY license (or acts as anchor).
@@ -1152,21 +1207,22 @@ class PlayerAssignmentService:
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
-                if team.get("licenseType") in [LicenseType.SECONDARY, LicenseType.OVERAGE]:
+                if team.get("licenseType") in [
+                        LicenseType.SECONDARY, LicenseType.OVERAGE
+                ]:
                     if club_id not in primary_club_ids:
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.CONFLICTING_CLUB not in team.get(
-                            "invalidReasonCodes", []
-                        ):
+                                "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.CONFLICTING_CLUB
-                            )
+                                LicenseInvalidReasonCode.CONFLICTING_CLUB)
                         logger.debug(
                             f"Club consistency violation: {team.get('licenseType')} "
                             f"in club {club.get('clubName')} without valid PRIMARY"
                         )
 
-    def _validate_age_group_compliance(self, player: dict, player_obj: PlayerDB) -> None:
+    def _validate_age_group_compliance(self, player: dict,
+                                       player_obj: PlayerDB) -> None:
         """
         Validate age group compliance and OVERAGE rules.
 
@@ -1190,11 +1246,10 @@ class PlayerAssignmentService:
         # Detect anchor-only scenario (single license acting as anchor)
         anchor_club, anchor_team = self._get_anchor_license(player)
         primary_club_ids = self._get_primary_club_ids(player)
-        is_anchor_only = (
-            anchor_team is not None
-            and anchor_team.get("clubId") in primary_club_ids
-            and anchor_team.get("licenseType") != LicenseType.PRIMARY
-        )
+        is_anchor_only = (anchor_team is not None
+                          and anchor_team.get("clubId") in primary_club_ids
+                          and anchor_team.get("licenseType")
+                          != LicenseType.PRIMARY)
 
         # PASS 1: Validate PRIMARY licenses first
         for club in player["assignedTeams"]:
@@ -1213,24 +1268,19 @@ class PlayerAssignmentService:
                 # PRIMARY is only valid in the player's own age group.
                 # A player in a secondary age group should have SECONDARY, not PRIMARY.
                 # For unknown age groups fall back to the old compatibility check.
-                both_known = (
-                    player_age_group
-                    and team_age_group
-                    and player_age_group in self._wko_rules
-                    and team_age_group in self._wko_rules
-                )
+                both_known = (player_age_group and team_age_group
+                              and player_age_group in self._wko_rules
+                              and team_age_group in self._wko_rules)
                 is_invalid = (
                     (both_known and team_age_group != player_age_group)
-                    or (not both_known and not self._is_age_group_compatible(player_age_group, team_age_group))
-                )
+                    or (not both_known and not self._is_age_group_compatible(
+                        player_age_group, team_age_group)))
                 if is_invalid:
                     team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
-                        "invalidReasonCodes", []
-                    ):
+                            "invalidReasonCodes", []):
                         team.setdefault("invalidReasonCodes", []).append(
-                            LicenseInvalidReasonCode.AGE_GROUP_VIOLATION
-                        )
+                            LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
         # PASS 2: Validate SECONDARY, OVERAGE, and LOAN licenses
         for club in player["assignedTeams"]:
@@ -1249,44 +1299,36 @@ class PlayerAssignmentService:
                 # Handle OVERAGE licenses
                 if license_type == LicenseType.OVERAGE:
                     if not self._is_overage_allowed(
-                        player_age_group,
-                        team_age_group,
-                        player_is_overage,
-                        is_anchor_license=is_this_anchor,
+                            player_age_group,
+                            team_age_group,
+                            player_is_overage,
+                            is_anchor_license=is_this_anchor,
                     ):
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED not in team.get(
-                            "invalidReasonCodes", []
-                        ):
+                                "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED
-                            )
+                                LicenseInvalidReasonCode.OVERAGE_NOT_ALLOWED)
 
                 # Handle SECONDARY licenses
                 elif license_type == LicenseType.SECONDARY:
                     if not self._is_secondary_allowed(
-                        player_age_group, team_age_group, player_obj.sex
-                    ):
+                            player_age_group, team_age_group, player_obj.sex):
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
-                            "invalidReasonCodes", []
-                        ):
+                                "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.AGE_GROUP_VIOLATION
-                            )
+                                LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
                 # Handle LOAN licenses (similar to SECONDARY rules)
                 elif license_type == LicenseType.LOAN:
                     if not self._is_secondary_allowed(
-                        player_age_group, team_age_group, player_obj.sex
-                    ):
+                            player_age_group, team_age_group, player_obj.sex):
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
-                            "invalidReasonCodes", []
-                        ):
+                                "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.AGE_GROUP_VIOLATION
-                            )
+                                LicenseInvalidReasonCode.AGE_GROUP_VIOLATION)
 
     def _is_overage_allowed(
         self,
@@ -1314,14 +1356,11 @@ class PlayerAssignmentService:
             return False
 
         player_rule = self._wko_rules[player_age_group]
-        return any(
-            over_age_rule.targetAgeGroup == team_age_group
-            for over_age_rule in player_rule.overAgeRules
-        )
+        return any(over_age_rule.targetAgeGroup == team_age_group
+                   for over_age_rule in player_rule.overAgeRules)
 
-    def _is_secondary_allowed(
-        self, player_age_group: str, team_age_group: str, player_sex: Sex
-    ) -> bool:
+    def _is_secondary_allowed(self, player_age_group: str, team_age_group: str,
+                              player_sex: Sex) -> bool:
         """Check if SECONDARY/LOAN license in this age group is allowed for this player's sex.
 
         Mirrors the sex filter in _is_team_allowed so that secondaryRules with a sex
@@ -1336,13 +1375,12 @@ class PlayerAssignmentService:
         if team_age_group == player_age_group:
             return True
 
-        return any(
-            secondary_rule.targetAgeGroup == team_age_group
-            and (not secondary_rule.sex or player_sex in secondary_rule.sex)
-            for secondary_rule in player_rule.secondaryRules
-        )
+        return any(secondary_rule.targetAgeGroup == team_age_group and (
+            not secondary_rule.sex or player_sex in secondary_rule.sex)
+                   for secondary_rule in player_rule.secondaryRules)
 
-    def _is_age_group_compatible(self, player_age_group: str, team_age_group: str) -> bool:
+    def _is_age_group_compatible(self, player_age_group: str,
+                                 team_age_group: str) -> bool:
         """Check if player can play in the team's age group"""
         if player_age_group not in self._wko_rules or team_age_group not in self._wko_rules:
             return True  # Unknown age groups - allow for now
@@ -1356,10 +1394,8 @@ class PlayerAssignmentService:
 
         # Playing up (younger player in older team) - check if team allows this age group
         if team_rule.sortOrder < player_rule.sortOrder:
-            allowed = any(
-                secondary_rule.targetAgeGroup == team_age_group
-                for secondary_rule in player_rule.secondaryRules
-            )
+            allowed = any(secondary_rule.targetAgeGroup == team_age_group
+                          for secondary_rule in player_rule.secondaryRules)
             logger.debug(
                 f"{player_age_group} is {'allowed' if allowed else 'NOT allowed'} to play up in {team_age_group}"
             )
@@ -1368,7 +1404,8 @@ class PlayerAssignmentService:
         # Playing down (older player in younger team) - not allowed without OVERAGE
         return False
 
-    def _count_all_licenses_by_age_group(self, player: dict) -> dict[str, list[dict]]:
+    def _count_all_licenses_by_age_group(
+            self, player: dict) -> dict[str, list[dict]]:
         """
         Count ALL valid licenses by target age group (regardless of license type).
 
@@ -1391,13 +1428,16 @@ class PlayerAssignmentService:
                     target_age_group = team.get("teamAgeGroup")
                     if target_age_group not in result:
                         result[target_age_group] = []
-                    result[target_age_group].append({"club": club, "team": team})
+                    result[target_age_group].append({
+                        "club": club,
+                        "team": team
+                    })
 
         return result
 
-    def _get_max_licenses_for_age_group(
-        self, player_age_group: str, target_age_group: str, player_sex: Sex
-    ) -> int | None:
+    def _get_max_licenses_for_age_group(self, player_age_group: str,
+                                        target_age_group: str,
+                                        player_sex: Sex) -> int | None:
         """
         Get the maximum licenses allowed for a target age group by merging
         secondary and overage rules.
@@ -1436,7 +1476,8 @@ class PlayerAssignmentService:
         # Return the minimum (most restrictive) limit, or None if no limits
         return min(limits) if limits else None
 
-    def _validate_wko_license_quota(self, player: dict, player_obj: PlayerDB) -> None:
+    def _validate_wko_license_quota(self, player: dict,
+                                    player_obj: PlayerDB) -> None:
         """
         Validate that player doesn't exceed maxLicenses for each target age group (skip adminOverride=True).
 
@@ -1467,30 +1508,25 @@ class PlayerAssignmentService:
 
             # Get the maximum allowed for this target age group
             max_licenses = self._get_max_licenses_for_age_group(
-                player_age_group, target_age_group, player_sex
-            )
+                player_age_group, target_age_group, player_sex)
 
             if max_licenses is not None and len(licenses) > max_licenses:
                 # Sort so PRIMARY is kept over SECONDARY/OVERAGE when within the same
                 # secondary age group (handles legacy data where wrong PRIMARY was assigned).
-                licenses.sort(
-                    key=lambda e: 0 if e["team"].get("licenseType") == LicenseType.PRIMARY else 1
-                )
+                licenses.sort(key=lambda e: 0 if e["team"].get("licenseType")
+                              == LicenseType.PRIMARY else 1)
                 # Mark excess licenses as invalid (keep first max_licenses)
                 for entry in licenses[max_licenses:]:
                     team = entry["team"]
                     team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get(
-                        "invalidReasonCodes", []
-                    ):
+                            "invalidReasonCodes", []):
                         team.setdefault("invalidReasonCodes", []).append(
-                            LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT
-                        )
+                            LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
                     logger.debug(
                         f"Player {player_obj.firstName} {player_obj.lastName}: "
                         f"licenses in {target_age_group} exceeds quota "
-                        f"({len(licenses)} > {max_licenses})"
-                    )
+                        f"({len(licenses)} > {max_licenses})")
 
     def _validate_wko_limits(self, player: dict) -> None:
         """
@@ -1531,11 +1567,11 @@ class PlayerAssignmentService:
                     continue
 
                 reason_codes = team.get("invalidReasonCodes", [])
-                is_structurally_valid = team.get("status") == LicenseStatus.VALID or (
-                    team.get("status") == LicenseStatus.INVALID
-                    and LicenseInvalidReasonCode.MULTIPLE_PRIMARY in reason_codes
-                    and len(reason_codes) == 1
-                )
+                is_structurally_valid = team.get(
+                    "status") == LicenseStatus.VALID or (
+                        team.get("status") == LicenseStatus.INVALID
+                        and LicenseInvalidReasonCode.MULTIPLE_PRIMARY
+                        in reason_codes and len(reason_codes) == 1)
 
                 if is_structurally_valid:
                     age_group = team.get("teamAgeGroup")
@@ -1550,11 +1586,11 @@ class PlayerAssignmentService:
             # Sort groups to prioritize: PRIMARY-first, then wko sortOrder (older first)
             def group_priority(group_name):
                 teams = licenses_by_group[group_name]
-                has_primary = any(t.get("licenseType") == LicenseType.PRIMARY for t in teams)
+                has_primary = any(
+                    t.get("licenseType") == LicenseType.PRIMARY for t in teams)
                 # Use simple fallback if rule missing
-                sort_order = (
-                    self._wko_rules[group_name].sortOrder if group_name in self._wko_rules else 99
-                )
+                sort_order = (self._wko_rules[group_name].sortOrder
+                              if group_name in self._wko_rules else 99)
                 return (0 if has_primary else 1, sort_order)
 
             unique_age_groups.sort(key=group_priority)
@@ -1567,11 +1603,9 @@ class PlayerAssignmentService:
                     if team.get("status") == LicenseStatus.VALID:
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT not in team.get(
-                            "invalidReasonCodes", []
-                        ):
+                                "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT
-                            )
+                                LicenseInvalidReasonCode.EXCEEDS_WKO_LIMIT)
 
     def _validate_distinct_age_groups(self, player: dict) -> None:
         """Legacy method - functionality merged into _validate_wko_limits"""
@@ -1592,11 +1626,9 @@ class PlayerAssignmentService:
                     if valid_from > valid_to:
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.IMPORT_CONFLICT not in team.get(
-                            "invalidReasonCodes", []
-                        ):
+                                "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.IMPORT_CONFLICT
-                            )
+                                LicenseInvalidReasonCode.IMPORT_CONFLICT)
 
     def _validate_hobby_exclusivity(self, player: dict) -> None:
         """
@@ -1634,21 +1666,19 @@ class PlayerAssignmentService:
                 if team_type == "COMPETITIVE":
                     team["status"] = LicenseStatus.INVALID
                     if LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT not in team.get(
-                        "invalidReasonCodes", []
-                    ):
+                            "invalidReasonCodes", []):
                         team.setdefault("invalidReasonCodes", []).append(
-                            LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT
-                        )
+                            LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT)
 
                     # Also mark all HOBBY teams as invalid
                     for _, hobby_team in hobby_teams:
                         hobby_team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT not in hobby_team.get(
-                            "invalidReasonCodes", []
-                        ):
-                            hobby_team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.HOBBY_PLAYER_CONFLICT
-                            )
+                                "invalidReasonCodes", []):
+                            hobby_team.setdefault("invalidReasonCodes",
+                                                  []).append(
+                                                      LicenseInvalidReasonCode.
+                                                      HOBBY_PLAYER_CONFLICT)
 
     def _validate_suspensions(self, player: dict) -> None:
         """
@@ -1679,12 +1709,14 @@ class PlayerAssignmentService:
             # Convert string dates if needed
             if isinstance(start_date, str):
                 try:
-                    start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+                    start_date = datetime.fromisoformat(
+                        start_date.replace("Z", "+00:00"))
                 except (ValueError, TypeError):
                     start_date = None
             if isinstance(end_date, str):
                 try:
-                    end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+                    end_date = datetime.fromisoformat(
+                        end_date.replace("Z", "+00:00"))
                 except (ValueError, TypeError):
                     end_date = None
 
@@ -1722,11 +1754,9 @@ class PlayerAssignmentService:
                     if is_suspended:
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.SUSPENDED not in team.get(
-                            "invalidReasonCodes", []
-                        ):
+                                "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.SUSPENDED
-                            )
+                                LicenseInvalidReasonCode.SUSPENDED)
                         logger.debug(
                             f"Player {player.get('firstName')} {player.get('lastName')} "
                             f"suspended for team {team.get('teamName')}: {susp.get('reason')} "
@@ -1754,18 +1784,17 @@ class PlayerAssignmentService:
                         # Cannot classify license type, mark as invalid
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE not in team.get(
-                            "invalidReasonCodes", []
-                        ):
+                                "invalidReasonCodes", []):
                             team.setdefault("invalidReasonCodes", []).append(
-                                LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE
-                            )
+                                LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE)
                     else:
                         # License type is known and no structural issues found
                         team["status"] = LicenseStatus.VALID
 
-    async def bootstrap_validation_for_all_players(
-        self, reset: bool = False, batch_size: int = 1000
-    ) -> list[str]:
+    async def bootstrap_validation_for_all_players(self,
+                                                   reset: bool = False,
+                                                   batch_size: int = 1000
+                                                   ) -> list[str]:
         """
         Runs the validation step for all players.
 
@@ -1780,7 +1809,9 @@ class PlayerAssignmentService:
         total_processed = 0
         total_modified = 0
 
-        logger.info(f"Starting bootstrap validation of all player licenses (reset={reset})...")
+        logger.info(
+            f"Starting bootstrap validation of all player licenses (reset={reset})..."
+        )
 
         # Process in batches to avoid memory issues
         cursor = self.db["players"].find({})
@@ -1793,7 +1824,8 @@ class PlayerAssignmentService:
                 # Process batch
                 for p in batch:
                     total_processed += 1
-                    was_modified = await self._update_player_validation_in_db(p["_id"], reset=reset)
+                    was_modified = await self._update_player_validation_in_db(
+                        p["_id"], reset=reset)
                     if was_modified:
                         modified_ids.append(str(p["_id"]))
                         total_modified += 1
@@ -1806,19 +1838,21 @@ class PlayerAssignmentService:
         # Process remaining players in final batch
         for p in batch:
             total_processed += 1
-            was_modified = await self._update_player_validation_in_db(p["_id"], reset=reset)
+            was_modified = await self._update_player_validation_in_db(
+                p["_id"], reset=reset)
             if was_modified:
                 modified_ids.append(str(p["_id"]))
                 total_modified += 1
 
         logger.info(
             f"Validation bootstrap complete: processed {total_processed} players, "
-            f"modified {total_modified} players"
-        )
+            f"modified {total_modified} players")
 
         return modified_ids
 
-    async def _update_player_validation_in_db(self, player_id: str, reset: bool = False) -> bool:
+    async def _update_player_validation_in_db(self,
+                                              player_id: str,
+                                              reset: bool = False) -> bool:
         """
         Load a player by _id, run validation, and update in MongoDB.
 
@@ -1835,7 +1869,8 @@ class PlayerAssignmentService:
             return False
 
         # Capture original state
-        original_assigned_teams = jsonable_encoder(player.get("assignedTeams", []))
+        original_assigned_teams = jsonable_encoder(
+            player.get("assignedTeams", []))
 
         # Always reset licenseTypes before classifying so stale types (e.g. an ISHD
         # licence that was SECONDARY last season but should now be PRIMARY) are fully
@@ -1869,18 +1904,19 @@ class PlayerAssignmentService:
 
         # Persist changes
         await self.db["players"].update_one(
-            {"_id": player_id}, {"$set": {"assignedTeams": new_assigned_teams}}
-        )
+            {"_id": player_id},
+            {"$set": {
+                "assignedTeams": new_assigned_teams
+            }})
 
-        logger.info(
-            f"Updated license validations for player {player_id}: "
-            f"{player.get('firstName')} {player.get('lastName')}"
-        )
+        logger.info(f"Updated license validations for player {player_id}: "
+                    f"{player.get('firstName')} {player.get('lastName')}")
         return True
 
-    async def update_player_validation_in_db(
-        self, player_id: str, reset: bool = False
-    ) -> dict | None:
+    async def update_player_validation_in_db(self,
+                                             player_id: str,
+                                             reset: bool = False
+                                             ) -> dict | None:
         """
         Public method to update player validation in database.
 
@@ -1894,15 +1930,18 @@ class PlayerAssignmentService:
         Returns:
             Updated player dict if found, None if player not found
         """
-        was_modified = await self._update_player_validation_in_db(player_id, reset=reset)
+        was_modified = await self._update_player_validation_in_db(player_id,
+                                                                  reset=reset)
 
         # Return the updated player document
         player = await self.db["players"].find_one({"_id": player_id})
         if player:
-            logger.info(f"Validated player {player_id}, modified={was_modified}")
+            logger.info(
+                f"Validated player {player_id}, modified={was_modified}")
         return player
 
-    async def classify_and_validate_player_in_memory(self, player: dict) -> dict:
+    async def classify_and_validate_player_in_memory(self,
+                                                     player: dict) -> dict:
         """
         Run a full classify + validate cycle on a player dict entirely in memory.
 
@@ -1970,13 +2009,11 @@ class PlayerAssignmentService:
 
         # Step 1: Classification
         classification_modified = await self.bootstrap_classification_for_all_players(
-            reset=reset_classification, batch_size=batch_size
-        )
+            reset=reset_classification, batch_size=batch_size)
 
         # Step 2: Validation
         validation_modified = await self.bootstrap_validation_for_all_players(
-            reset=reset_validation, batch_size=batch_size
-        )
+            reset=reset_validation, batch_size=batch_size)
 
         # Get statistics
         stats = await self.get_classification_stats()
@@ -1985,9 +2022,11 @@ class PlayerAssignmentService:
 
         return {
             "classification_modified_count": len(classification_modified),
-            "classification_modified_ids": classification_modified[:100],  # First 100 IDs
+            "classification_modified_ids":
+            classification_modified[:100],  # First 100 IDs
             "validation_modified_count": len(validation_modified),
-            "validation_modified_ids": validation_modified[:100],  # First 100 IDs
+            "validation_modified_ids":
+            validation_modified[:100],  # First 100 IDs
             "stats": stats,
         }
 
@@ -1995,7 +2034,8 @@ class PlayerAssignmentService:
     # HELPER METHODS
     # ========================================================================
 
-    async def apply_heuristics_for_imported_player(self, player_doc: dict) -> dict:
+    async def apply_heuristics_for_imported_player(self,
+                                                   player_doc: dict) -> dict:
         """
         Hook for process_ishd_data: apply classification to a player doc
         right after ISHD import, before persisting to MongoDB.
@@ -2038,10 +2078,12 @@ class PlayerAssignmentService:
                     stats["total_licenses"] += 1
 
                     license_type = team.get("licenseType", LicenseType.UNKNOWN)
-                    stats["by_type"][license_type] = stats["by_type"].get(license_type, 0) + 1
+                    stats["by_type"][license_type] = stats["by_type"].get(
+                        license_type, 0) + 1
 
                     status = team.get("status", LicenseStatus.UNKNOWN)
-                    stats["by_status"][status] = stats["by_status"].get(status, 0) + 1
+                    stats["by_status"][status] = stats["by_status"].get(
+                        status, 0) + 1
 
         return stats
 
@@ -2079,14 +2121,14 @@ class PlayerAssignmentService:
                         reason_codes = team.get("invalidReasonCodes", [])
                         for code in reason_codes:
                             stats["by_invalidReasonCodes"][code] = (
-                                stats["by_invalidReasonCodes"].get(code, 0) + 1
-                            )
+                                stats["by_invalidReasonCodes"].get(code, 0) +
+                                1)
 
         return stats
 
-    async def get_possible_teams_for_player(
-        self, player_id: str, club_id: str = None
-    ) -> list[dict]:
+    async def get_possible_teams_for_player(self,
+                                            player_id: str,
+                                            club_id: str = None) -> list[dict]:
         """
         Get a list of teams that a player could potentially join,
         with recommendations and WKO compliance status.
@@ -2121,13 +2163,11 @@ class PlayerAssignmentService:
 
                 # Recommendation logic based on WKO rules
                 rec_type = self._get_recommended_license_type(
-                    player_age, team_age_group, player_sex, player_obj.overAge
-                )
+                    player_age, team_age_group, player_sex, player_obj.overAge)
 
                 # WKO compliance check
                 is_allowed, max_lic, requires_admin = self._is_team_allowed(
-                    player_age, team_age_group, player_sex, player_obj.overAge
-                )
+                    player_age, team_age_group, player_sex, player_obj.overAge)
 
                 # Special case: PRIMARY (player's own age group) is always allowed
                 if team_age_group == player_age:
@@ -2137,22 +2177,20 @@ class PlayerAssignmentService:
                 reason_detail = "allowed" if is_allowed else "not allowed"
 
                 # 6. Build result
-                results.append(
-                    {
-                        "teamId": team_id,
-                        "teamAlias": team.get("alias"),
-                        "teamName": team.get("name"),
-                        "teamAgeGroup": team_age_group,
-                        "recommendedType": rec_type.value,
-                        "status": status,
-                        "reason": f"{rec_type.value} ({reason_detail})",
-                        "maxLicenses": max_lic,
-                        "requiresAdmin": requires_admin,
-                        "clubId": club["_id"],
-                        "clubName": club["name"],
-                        "assigned": team_id in assigned_team_ids,
-                    }
-                )
+                results.append({
+                    "teamId": team_id,
+                    "teamAlias": team.get("alias"),
+                    "teamName": team.get("name"),
+                    "teamAgeGroup": team_age_group,
+                    "recommendedType": rec_type.value,
+                    "status": status,
+                    "reason": f"{rec_type.value} ({reason_detail})",
+                    "maxLicenses": max_lic,
+                    "requiresAdmin": requires_admin,
+                    "clubId": club["_id"],
+                    "clubName": club["name"],
+                    "assigned": team_id in assigned_team_ids,
+                })
 
         return results
 
@@ -2160,7 +2198,9 @@ class PlayerAssignmentService:
     # ISHD SYNC METHODS
     # ========================================================================
 
-    async def process_ishd_sync(self, mode: str = "live", run: int = 1) -> dict[str, Any]:
+    async def process_ishd_sync(self,
+                                mode: str = "live",
+                                run: int = 1) -> dict[str, Any]:
         """
         Process ISHD player data synchronization.
 
@@ -2190,7 +2230,9 @@ class PlayerAssignmentService:
 
         # Helper class to store club/team info for processing
         class IshdTeams:
-            def __init__(self, club_id, club_ishd_id, club_name, club_alias, teams):
+
+            def __init__(self, club_id, club_ishd_id, club_name, club_alias,
+                         teams):
                 self.club_id = club_id
                 self.club_ishd_id = club_ishd_id
                 self.club_name = club_name
@@ -2201,23 +2243,33 @@ class PlayerAssignmentService:
         create_date = datetime.now().replace(microsecond=0)
 
         # Get all active clubs with teams from database
-        async for club in self.db["clubs"].aggregate(
-            [
-                {
-                    "$match": {
-                        "active": True,
-                        "teams": {"$ne": []},
-                    }
-                },
-                {"$project": {"ishdId": 1, "_id": 1, "name": 1, "alias": 1, "teams": 1}},
-                {"$sort": {"name": 1}},
-            ]
-        ):
+        async for club in self.db["clubs"].aggregate([
+            {
+                "$match": {
+                    "active": True,
+                    "teams": {
+                        "$ne": []
+                    },
+                }
+            },
+            {
+                "$project": {
+                    "ishdId": 1,
+                    "_id": 1,
+                    "name": 1,
+                    "alias": 1,
+                    "teams": 1
+                }
+            },
+            {
+                "$sort": {
+                    "name": 1
+                }
+            },
+        ]):
             ishd_teams.append(
-                IshdTeams(
-                    club["_id"], club.get("ishdId"), club["name"], club["alias"], club["teams"]
-                )
-            )
+                IshdTeams(club["_id"], club.get("ishdId"), club["name"],
+                          club["alias"], club["teams"]))
 
         # Get existing players from database for comparison
         existing_players = []
@@ -2236,8 +2288,10 @@ class PlayerAssignmentService:
         # Setup HTTP headers for ISHD API
         base_url_str = str(ISHD_API_URL)
         headers = {
-            "Authorization": f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode()).decode('utf-8')}",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Authorization":
+            f"Basic {base64.b64encode(f'{ISHD_API_USER}:{ISHD_API_PASS}'.encode()).decode('utf-8')}",
+            "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
             "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
             "Accept-Encoding": "gzip, deflate, br",
@@ -2251,9 +2305,12 @@ class PlayerAssignmentService:
 
         # Create SSL context with certificate verification
         ssl_context = ssl.create_default_context()
-        connector = aiohttp.TCPConnector(ssl=ssl_context, limit=10, limit_per_host=5)
+        connector = aiohttp.TCPConnector(ssl=ssl_context,
+                                         limit=10,
+                                         limit_per_host=5)
 
-        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        async with aiohttp.ClientSession(timeout=timeout,
+                                         connector=connector) as session:
             # Initialize ISHD log structure
             ishd_log_base = IshdLogBase(
                 processDate=datetime.now().replace(microsecond=0),
@@ -2282,11 +2339,13 @@ class PlayerAssignmentService:
                 # Process each team in the club
                 processed_team_ids = set()
                 for team in club.teams:
-                    if not team["ishdId"] or team["ishdId"] in processed_team_ids:
+                    if not team["ishdId"] or team[
+                            "ishdId"] in processed_team_ids:
                         continue
                     processed_team_ids.add(team["ishdId"])
 
-                    club_ishd_id_str = urllib.parse.quote(str(club.club_ishd_id))
+                    club_ishd_id_str = urllib.parse.quote(
+                        str(club.club_ishd_id))
                     team_id_str = urllib.parse.quote(str(team["ishdId"]))
                     api_url = f"{base_url_str}/clubs/{club_ishd_id_str}/teams/{team_id_str}.json"
 
@@ -2307,21 +2366,26 @@ class PlayerAssignmentService:
                             with open(test_file) as file:
                                 data = json.load(file)
                         else:
-                            logger.warning(f"File {test_file} does not exist. Skipping...")
+                            logger.warning(
+                                f"File {test_file} does not exist. Skipping..."
+                            )
                     else:
                         # Live or Dry mode - fetch from API
                         logger.info(
                             f"Fetching team data: {club.club_name} / {team['ishdId']} (URL: {api_url})"
                         )
 
-                        async with session.get(api_url, headers=headers) as response:
+                        async with session.get(api_url,
+                                               headers=headers) as response:
                             if response.status == 200:
                                 data = await response.json()
                                 logger.debug(
                                     f"Successfully fetched {len(data.get('players', []))} players from {api_url}"
                                 )
                             elif response.status == 404:
-                                logger.error(f"API URL {api_url} returned a 404 status code.")
+                                logger.error(
+                                    f"API URL {api_url} returned a 404 status code."
+                                )
                             else:
                                 try:
                                     error_detail = await response.json()
@@ -2336,7 +2400,8 @@ class PlayerAssignmentService:
 
                                 raise ExternalServiceException(
                                     service_name="ISHD_API",
-                                    message=f"Failed to fetch team data (status {response.status})",
+                                    message=
+                                    f"Failed to fetch team data (status {response.status})",
                                     details={
                                         "url": api_url,
                                         "status_code": response.status,
@@ -2349,7 +2414,8 @@ class PlayerAssignmentService:
                         for player in data["players"]:
                             # Validate player birthdate
                             try:
-                                birthdate = datetime.strptime(player["date_of_birth"], "%Y-%m-%d")
+                                birthdate = datetime.strptime(
+                                    player["date_of_birth"], "%Y-%m-%d")
                             except ValueError:
                                 log_line = (
                                     f"ERROR: Invalid date format for player "
@@ -2363,19 +2429,20 @@ class PlayerAssignmentService:
                             # Check if player exists and has managedByISHD=false (skip if so)
                             existing_player_check = None
                             for existing_player in existing_players:
-                                if (
-                                    existing_player["firstName"] == player["first_name"]
-                                    and existing_player["lastName"] == player["last_name"]
-                                    and datetime.strftime(existing_player["birthdate"], "%Y-%m-%d")
-                                    == player["date_of_birth"]
-                                ):
+                                if (existing_player["firstName"]
+                                        == player["first_name"]
+                                        and existing_player["lastName"]
+                                        == player["last_name"]
+                                        and datetime.strftime(
+                                            existing_player["birthdate"],
+                                            "%Y-%m-%d")
+                                        == player["date_of_birth"]):
                                     existing_player_check = existing_player
                                     break
 
-                            if (
-                                existing_player_check
-                                and existing_player_check.get("managedByISHD", True) is False
-                            ):
+                            if (existing_player_check
+                                    and existing_player_check.get(
+                                        "managedByISHD", True) is False):
                                 log_line = f"Skipping player (managedByISHD=false): {player['first_name']} {player['last_name']} {player['date_of_birth']}"
                                 logger.info(log_line)
                                 log_lines.append(log_line)
@@ -2384,16 +2451,16 @@ class PlayerAssignmentService:
                             ishd_log_player = IshdLogPlayer(
                                 firstName=player["first_name"],
                                 lastName=player["last_name"],
-                                birthdate=datetime.strptime(player["date_of_birth"], "%Y-%m-%d"),
+                                birthdate=datetime.strptime(
+                                    player["date_of_birth"], "%Y-%m-%d"),
                             )
 
                             # NEW: Get teamType from database team document
-                            team_doc = await self.db["teams"].find_one({"_id": team["_id"]})
-                            team_type = (
-                                team_doc.get("teamType", TeamType.COMPETITIVE)
-                                if team_doc
-                                else TeamType.COMPETITIVE
-                            )
+                            team_doc = await self.db["teams"].find_one(
+                                {"_id": team["_id"]})
+                            team_type = (team_doc.get("teamType",
+                                                      TeamType.COMPETITIVE)
+                                         if team_doc else TeamType.COMPETITIVE)
 
                             # Build assigned team object with source=ISHD
                             assigned_team = AssignedTeams(
@@ -2406,8 +2473,8 @@ class PlayerAssignmentService:
                                 passNo=player["license_number"],
                                 source=Source.ISHD,
                                 modifyDate=datetime.strptime(
-                                    player["last_modification"], "%Y-%m-%d %H:%M:%S"
-                                ),
+                                    player["last_modification"],
+                                    "%Y-%m-%d %H:%M:%S"),
                             )
                             assigned_club = AssignedClubs(
                                 clubId=club.club_id,
@@ -2421,14 +2488,14 @@ class PlayerAssignmentService:
                             player_exists = False
                             existing_player = None
                             for existing_player_loop in existing_players:
-                                if (
-                                    existing_player_loop["firstName"] == player["first_name"]
-                                    and existing_player_loop["lastName"] == player["last_name"]
-                                    and datetime.strftime(
-                                        existing_player_loop["birthdate"], "%Y-%m-%d"
-                                    )
-                                    == player["date_of_birth"]
-                                ):
+                                if (existing_player_loop["firstName"]
+                                        == player["first_name"]
+                                        and existing_player_loop["lastName"]
+                                        == player["last_name"]
+                                        and datetime.strftime(
+                                            existing_player_loop["birthdate"],
+                                            "%Y-%m-%d")
+                                        == player["date_of_birth"]):
                                     player_exists = True
                                     existing_player = existing_player_loop
                                     break
@@ -2438,82 +2505,99 @@ class PlayerAssignmentService:
                                 club_assignment_exists = False
 
                                 # Correctly identify existing_player as a dict
-                                assigned_teams_list = existing_player.get("assignedTeams", [])
+                                assigned_teams_list = existing_player.get(
+                                    "assignedTeams", [])
                                 if not isinstance(assigned_teams_list, list):
                                     assigned_teams_list = []
 
                                 for club_assignment in assigned_teams_list:
-                                    if club_assignment["clubName"] == club.club_name:
+                                    if club_assignment[
+                                            "clubName"] == club.club_name:
                                         club_assignment_exists = True
 
                                         # Check if team assignment exists
                                         team_assignment_exists = False
-                                        for team_assignment in club_assignment.get("teams", []):
-                                            if team_assignment["teamId"] == team["_id"]:
+                                        for team_assignment in club_assignment.get(
+                                                "teams", []):
+                                            if team_assignment[
+                                                    "teamId"] == team["_id"]:
                                                 team_assignment_exists = True
-                                                ishd_pass_no = player["license_number"]
-                                                current_pass_no = team_assignment.get("passNo")
-                                                if (
-                                                    existing_player.get("managedByISHD", True)
-                                                    is not False
-                                                    and team_assignment.get("source") == Source.ISHD
-                                                    and current_pass_no != ishd_pass_no
-                                                ):
+                                                ishd_pass_no = player[
+                                                    "license_number"]
+                                                current_pass_no = team_assignment.get(
+                                                    "passNo")
+                                                if (existing_player.get(
+                                                        "managedByISHD",
+                                                        True) is not False
+                                                        and team_assignment.
+                                                        get("source")
+                                                        == Source.ISHD
+                                                        and current_pass_no
+                                                        != ishd_pass_no):
                                                     old_pass_no = current_pass_no
-                                                    team_assignment["passNo"] = ishd_pass_no
+                                                    team_assignment[
+                                                        "passNo"] = ishd_pass_no
                                                     team_assignment["modifyDate"] = (
                                                         datetime.strptime(
-                                                            player["last_modification"],
+                                                            player[
+                                                                "last_modification"],
                                                             "%Y-%m-%d %H:%M:%S",
-                                                        )
-                                                    )
+                                                        ))
 
                                                     existing_player = await self.classify_license_types_for_player(
-                                                        existing_player
-                                                    )
+                                                        existing_player)
                                                     existing_player = (
-                                                        await self.validate_licenses_for_player(
-                                                            existing_player
-                                                        )
-                                                    )
+                                                        await self.
+                                                        validate_licenses_for_player(
+                                                            existing_player))
 
-                                                    birthdate_val = existing_player.get("birthdate")
+                                                    birthdate_val = existing_player.get(
+                                                        "birthdate")
                                                     birthdate_str = (
-                                                        birthdate_val.strftime("%Y-%m-%d")
-                                                        if birthdate_val
-                                                        else "Unknown"
-                                                    )
+                                                        birthdate_val.strftime(
+                                                            "%Y-%m-%d")
+                                                        if birthdate_val else
+                                                        "Unknown")
                                                     if mode == "dry":
                                                         log_line = f"[DRY] Would update passNo for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']} (passNo: {old_pass_no} -> {ishd_pass_no})"
                                                         logger.info(log_line)
-                                                        log_lines.append(log_line)
+                                                        log_lines.append(
+                                                            log_line)
                                                         ishd_log_player.action = (
-                                                            IshdAction.UPDATE_TEAM
-                                                        )
-                                                        stats["updated_passno"] += 1
+                                                            IshdAction.
+                                                            UPDATE_TEAM)
+                                                        stats[
+                                                            "updated_passno"] += 1
                                                     else:
                                                         result = await self.db[
                                                             "players"
                                                         ].update_one(
-                                                            {"_id": existing_player["_id"]},
+                                                            {
+                                                                "_id":
+                                                                existing_player[
+                                                                    "_id"]
+                                                            },
                                                             {
                                                                 "$set": {
-                                                                    "assignedTeams": jsonable_encoder(
+                                                                    "assignedTeams":
+                                                                    jsonable_encoder(
                                                                         existing_player[
-                                                                            "assignedTeams"
-                                                                        ]
+                                                                            "assignedTeams"]
                                                                     )
                                                                 }
                                                             },
                                                         )
                                                         if result.modified_count:
                                                             log_line = f"Updated passNo for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']} (passNo: {old_pass_no} -> {ishd_pass_no})"
-                                                            logger.info(log_line)
-                                                            log_lines.append(log_line)
+                                                            logger.info(
+                                                                log_line)
+                                                            log_lines.append(
+                                                                log_line)
                                                             ishd_log_player.action = (
-                                                                IshdAction.UPDATE_TEAM
-                                                            )
-                                                            stats["updated_passno"] += 1
+                                                                IshdAction.
+                                                                UPDATE_TEAM)
+                                                            stats[
+                                                                "updated_passno"] += 1
                                                         else:
                                                             logger.debug(
                                                                 f"passNo update had no effect for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str}"
@@ -2522,9 +2606,10 @@ class PlayerAssignmentService:
 
                                         if not team_assignment_exists:
                                             # Add team assignment to existing club
-                                            club_assignment.get("teams").append(
-                                                jsonable_encoder(assigned_team)
-                                            )
+                                            club_assignment.get(
+                                                "teams").append(
+                                                    jsonable_encoder(
+                                                        assigned_team))
                                             # Fix: Update the list in place if needed, or ensure it's correctly referenced
                                             # The current logic below [club_assignment] + ... might be creating duplicates if not careful
                                             # but the primary issue is the loop over assignedTeams might be hitting the same club multiple times
@@ -2532,47 +2617,54 @@ class PlayerAssignmentService:
 
                                             # Apply license classification and validation
                                             existing_player = (
-                                                await self.classify_license_types_for_player(
-                                                    existing_player
-                                                )
-                                            )
+                                                await self.
+                                                classify_license_types_for_player(
+                                                    existing_player))
                                             existing_player = (
-                                                await self.validate_licenses_for_player(
-                                                    existing_player
-                                                )
-                                            )
+                                                await self.
+                                                validate_licenses_for_player(
+                                                    existing_player))
 
                                             # Persist to database (skip in dry mode)
                                             if mode == "dry":
-                                                birthdate_val = existing_player.get("birthdate")
+                                                birthdate_val = existing_player.get(
+                                                    "birthdate")
                                                 birthdate_str = (
-                                                    birthdate_val.strftime("%Y-%m-%d")
-                                                    if birthdate_val
-                                                    else "Unknown"
-                                                )
+                                                    birthdate_val.strftime(
+                                                        "%Y-%m-%d")
+                                                    if birthdate_val else
+                                                    "Unknown")
                                                 log_line = f"[DRY] Would update team assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']}"
                                                 logger.info(log_line)
                                                 log_lines.append(log_line)
                                                 ishd_log_player.action = IshdAction.ADD_TEAM
                                                 stats["updated_teams"] += 1
                                             else:
-                                                result = await self.db["players"].update_one(
-                                                    {"_id": existing_player["_id"]},
+                                                result = await self.db[
+                                                    "players"
+                                                ].update_one(
+                                                    {
+                                                        "_id":
+                                                        existing_player["_id"]
+                                                    },
                                                     {
                                                         "$set": {
-                                                            "assignedTeams": jsonable_encoder(
-                                                                existing_player["assignedTeams"]
+                                                            "assignedTeams":
+                                                            jsonable_encoder(
+                                                                existing_player[
+                                                                    "assignedTeams"]
                                                             )
                                                         }
                                                     },
                                                 )
                                                 if result.modified_count:
-                                                    birthdate_val = existing_player.get("birthdate")
+                                                    birthdate_val = existing_player.get(
+                                                        "birthdate")
                                                     birthdate_str = (
-                                                        birthdate_val.strftime("%Y-%m-%d")
-                                                        if birthdate_val
-                                                        else "Unknown"
-                                                    )
+                                                        birthdate_val.strftime(
+                                                            "%Y-%m-%d")
+                                                        if birthdate_val else
+                                                        "Unknown")
                                                     log_line = f"Updated team assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team['ishdId']}"
                                                     logger.info(log_line)
                                                     log_lines.append(log_line)
@@ -2583,8 +2675,11 @@ class PlayerAssignmentService:
                                                         operation="update_one",
                                                         collection="players",
                                                         details={
-                                                            "player_id": existing_player["_id"],
-                                                            "reason": "Failed to update team assignment",
+                                                            "player_id":
+                                                            existing_player[
+                                                                "_id"],
+                                                            "reason":
+                                                            "Failed to update team assignment",
                                                         },
                                                     )
                                         break
@@ -2592,49 +2687,49 @@ class PlayerAssignmentService:
                                 if not club_assignment_exists:
                                     # Club assignment does not exist - add new club with team
                                     existing_player["assignedTeams"].append(
-                                        jsonable_encoder(assigned_club)
-                                    )
+                                        jsonable_encoder(assigned_club))
 
                                     # Apply license classification and validation
                                     existing_player = await self.classify_license_types_for_player(
-                                        existing_player
-                                    )
+                                        existing_player)
                                     existing_player = await self.validate_licenses_for_player(
-                                        existing_player
-                                    )
+                                        existing_player)
 
                                     # Persist to database (skip in dry mode)
                                     if mode == "dry":
-                                        birthdate_val = existing_player.get("birthdate")
+                                        birthdate_val = existing_player.get(
+                                            "birthdate")
                                         birthdate_str = (
                                             birthdate_val.strftime("%Y-%m-%d")
-                                            if birthdate_val
-                                            else "Unknown"
-                                        )
+                                            if birthdate_val else "Unknown")
                                         log_line = f"[DRY] Would add club assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
                                         logger.info(log_line)
                                         log_lines.append(log_line)
                                         ishd_log_player.action = IshdAction.ADD_CLUB
                                         stats["updated_teams"] += 1
                                     else:
-                                        result = await self.db["players"].update_one(
+                                        result = await self.db[
+                                            "players"
+                                        ].update_one(
                                             {"_id": existing_player["_id"]},
                                             {
                                                 "$set": {
-                                                    "source": Source.ISHD,
-                                                    "assignedTeams": jsonable_encoder(
-                                                        existing_player["assignedTeams"]
-                                                    ),
+                                                    "source":
+                                                    Source.ISHD,
+                                                    "assignedTeams":
+                                                    jsonable_encoder(
+                                                        existing_player[
+                                                            "assignedTeams"]),
                                                 }
                                             },
                                         )
                                         if result.modified_count:
-                                            birthdate_val = existing_player.get("birthdate")
+                                            birthdate_val = existing_player.get(
+                                                "birthdate")
                                             birthdate_str = (
-                                                birthdate_val.strftime("%Y-%m-%d")
-                                                if birthdate_val
-                                                else "Unknown"
-                                            )
+                                                birthdate_val.strftime(
+                                                    "%Y-%m-%d") if
+                                                birthdate_val else "Unknown")
                                             log_line = f"New club assignment for: {existing_player.get('firstName')} {existing_player.get('lastName')} {birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
                                             logger.info(log_line)
                                             log_lines.append(log_line)
@@ -2645,8 +2740,10 @@ class PlayerAssignmentService:
                                                 operation="update_one",
                                                 collection="players",
                                                 details={
-                                                    "player_id": existing_player["_id"],
-                                                    "reason": "Failed to add club assignment",
+                                                    "player_id":
+                                                    existing_player["_id"],
+                                                    "reason":
+                                                    "Failed to add club assignment",
                                                 },
                                             )
 
@@ -2656,37 +2753,38 @@ class PlayerAssignmentService:
                                     firstName=player["first_name"],
                                     lastName=player["last_name"],
                                     birthdate=datetime.strptime(
-                                        player["date_of_birth"], "%Y-%m-%d"
-                                    ),
+                                        player["date_of_birth"], "%Y-%m-%d"),
                                     displayFirstName=player["first_name"],
                                     displayLastName=player["last_name"],
-                                    nationality=(
-                                        player["nationality"] if "nationality" in player else None
-                                    ),
+                                    nationality=(player["nationality"]
+                                                 if "nationality" in player
+                                                 else None),
                                     assignedTeams=[assigned_club],
-                                    fullFaceReq=(
-                                        True if player.get("full_face_req") == "true" else False
-                                    ),
+                                    fullFaceReq=(True
+                                                 if player.get("full_face_req")
+                                                 == "true" else False),
                                     source=Source.ISHD,
                                 )
                                 new_player_dict = jsonable_encoder(new_player)
-                                new_player_dict["birthdate"] = datetime.strptime(
-                                    player["date_of_birth"], "%Y-%m-%d"
-                                )
+                                new_player_dict[
+                                    "birthdate"] = datetime.strptime(
+                                        player["date_of_birth"], "%Y-%m-%d")
                                 new_player_dict["createDate"] = create_date
 
                                 # Apply license classification and validation
                                 new_player_dict = await self.classify_license_types_for_player(
-                                    new_player_dict
-                                )
+                                    new_player_dict)
                                 new_player_dict = await self.validate_licenses_for_player(
-                                    new_player_dict
-                                )
+                                    new_player_dict)
 
                                 # Check if any license is INVALID (for stats)
-                                for club_assign in new_player_dict.get("assignedTeams", []):
-                                    for team_assign in club_assign.get("teams", []):
-                                        if team_assign.get("status") == LicenseStatus.INVALID:
+                                for club_assign in new_player_dict.get(
+                                        "assignedTeams", []):
+                                    for team_assign in club_assign.get(
+                                            "teams", []):
+                                        if team_assign.get(
+                                                "status"
+                                        ) == LicenseStatus.INVALID:
                                             stats["invalid_new"] += 1
 
                                 # Add to existing players array
@@ -2694,26 +2792,27 @@ class PlayerAssignmentService:
 
                                 # Persist to database (skip in dry mode)
                                 if mode == "dry":
-                                    birthdate = new_player_dict.get("birthdate")
+                                    birthdate = new_player_dict.get(
+                                        "birthdate")
                                     birthdate_str = (
                                         birthdate.strftime("%Y-%m-%d")
-                                        if isinstance(birthdate, datetime)
-                                        else "Unknown"
-                                    )
+                                        if isinstance(birthdate,
+                                                      datetime) else "Unknown")
                                     log_line = f"[DRY] Would insert player: {new_player_dict.get('firstName')} {new_player_dict.get('lastName')} {birthdate_str} -> {assigned_club.clubName} / {assigned_team.teamName}"
                                     logger.info(log_line)
                                     log_lines.append(log_line)
                                     ishd_log_player.action = IshdAction.ADD_PLAYER
                                     stats["added_players"] += 1
                                 else:
-                                    result = await self.db["players"].insert_one(new_player_dict)
+                                    result = await self.db[
+                                        "players"].insert_one(new_player_dict)
                                     if result.inserted_id:
-                                        birthdate = new_player_dict.get("birthdate")
+                                        birthdate = new_player_dict.get(
+                                            "birthdate")
                                         birthdate_str = (
                                             birthdate.strftime("%Y-%m-%d")
                                             if isinstance(birthdate, datetime)
-                                            else "Unknown"
-                                        )
+                                            else "Unknown")
                                         log_line = f"Inserted player: {new_player_dict.get('firstName')} {new_player_dict.get('lastName')} {birthdate_str} -> {assigned_club.clubName} / {assigned_team.teamName}"
                                         logger.info(log_line)
                                         log_lines.append(log_line)
@@ -2724,8 +2823,10 @@ class PlayerAssignmentService:
                                             operation="insert_one",
                                             collection="players",
                                             details={
-                                                "player_name": f"{new_player_dict.get('firstName')} {new_player_dict.get('lastName')}",
-                                                "reason": "Insert operation did not return inserted_id",
+                                                "player_name":
+                                                f"{new_player_dict.get('firstName')} {new_player_dict.get('lastName')}",
+                                                "reason":
+                                                "Insert operation did not return inserted_id",
                                             },
                                         )
 
@@ -2743,7 +2844,8 @@ class PlayerAssignmentService:
                                 }
                             }
                         }
-                        players = await self.db["players"].find(query).to_list(length=None)
+                        players = await self.db["players"].find(query).to_list(
+                            length=None)
                         if mode == "test":
                             print("removing / players:", players)
 
@@ -2759,51 +2861,55 @@ class PlayerAssignmentService:
 
                                 # Only remove player from team if source is ISHD
                                 team_source_is_ishd = False
-                                for club_assignment in player_to_check.get("assignedTeams", []):
-                                    if club_assignment.get("clubAlias") == club.club_alias:
-                                        for team_assignment in club_assignment.get("teams", []):
-                                            if (
-                                                team_assignment.get("teamAlias") == team["alias"]
-                                                and team_assignment.get("source") == "ISHD"
-                                            ):
+                                for club_assignment in player_to_check.get(
+                                        "assignedTeams", []):
+                                    if club_assignment.get(
+                                            "clubAlias") == club.club_alias:
+                                        for team_assignment in club_assignment.get(
+                                                "teams", []):
+                                            if (team_assignment.get(
+                                                    "teamAlias")
+                                                    == team["alias"]
+                                                    and team_assignment.get(
+                                                        "source") == "ISHD"):
                                                 team_source_is_ishd = True
                                                 break
 
                                 # Skip players with managedByISHD=false
-                                if player_to_check.get("managedByISHD", True) is False:
-                                    birthdate_val = player_to_check.get("birthdate")
+                                if player_to_check.get("managedByISHD",
+                                                       True) is False:
+                                    birthdate_val = player_to_check.get(
+                                        "birthdate")
                                     birthdate_str = (
                                         birthdate_val.strftime("%Y-%m-%d")
-                                        if birthdate_val
-                                        else "Unknown"
-                                    )
+                                        if birthdate_val else "Unknown")
                                     log_line = f"Skipping player (managedByISHD=false): {player_to_check.get('firstName')} {player_to_check.get('lastName')} {birthdate_str}"
                                     logger.info(log_line)
                                     log_lines.append(log_line)
                                     continue
 
                                 # Check if player exists in ISHD data by comparing name and birthdate
-                                player_birthdate = player_to_check.get("birthdate")
+                                player_birthdate = player_to_check.get(
+                                    "birthdate")
                                 player_birthdate_str = (
                                     player_birthdate.strftime("%Y-%m-%d")
-                                    if player_birthdate
-                                    else ""
-                                )
+                                    if player_birthdate else "")
 
                                 if team_source_is_ishd and not any(
-                                    p["first_name"] == player_to_check["firstName"]
-                                    and p["last_name"] == player_to_check["lastName"]
-                                    and p["date_of_birth"] == player_birthdate_str
-                                    for p in data["players"]
-                                ):
+                                        p["first_name"] ==
+                                        player_to_check["firstName"]
+                                        and p["last_name"] ==
+                                        player_to_check["lastName"]
+                                        and p["date_of_birth"] ==
+                                        player_birthdate_str
+                                        for p in data["players"]):
                                     # Player missing in ISHD - remove from team (skip in dry mode)
                                     if mode == "dry":
-                                        del_birthdate = player_to_check.get("birthdate")
+                                        del_birthdate = player_to_check.get(
+                                            "birthdate")
                                         del_birthdate_str = (
                                             del_birthdate.strftime("%Y-%m-%d")
-                                            if del_birthdate
-                                            else "Unknown"
-                                        )
+                                            if del_birthdate else "Unknown")
                                         log_line = f"[DRY] Would remove player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {del_birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
                                         logger.info(log_line)
                                         log_lines.append(log_line)
@@ -2812,14 +2918,20 @@ class PlayerAssignmentService:
                                     else:
                                         query_update = {
                                             "$and": [
-                                                {"_id": player_to_check["_id"]},
+                                                {
+                                                    "_id":
+                                                    player_to_check["_id"]
+                                                },
                                                 {
                                                     "assignedTeams": {
                                                         "$elemMatch": {
-                                                            "clubAlias": club.club_alias,
+                                                            "clubAlias":
+                                                            club.club_alias,
                                                             "teams": {
                                                                 "$elemMatch": {
-                                                                    "teamAlias": team["alias"]
+                                                                    "teamAlias":
+                                                                    team[
+                                                                        "alias"]
                                                                 }
                                                             },
                                                         }
@@ -2827,12 +2939,15 @@ class PlayerAssignmentService:
                                                 },
                                             ]
                                         }
-                                        result = await self.db["players"].update_one(
+                                        result = await self.db[
+                                            "players"
+                                        ].update_one(
                                             query_update,
                                             {
                                                 "$pull": {
                                                     "assignedTeams.$.teams": {
-                                                        "teamAlias": team["alias"]
+                                                        "teamAlias":
+                                                        team["alias"]
                                                     }
                                                 }
                                             },
@@ -2840,27 +2955,34 @@ class PlayerAssignmentService:
                                         if result.modified_count:
                                             # Update existing_players array
                                             for existing_player in existing_players:
-                                                if existing_player["_id"] == player_to_check["_id"]:
+                                                if existing_player[
+                                                        "_id"] == player_to_check[
+                                                            "_id"]:
                                                     for club_assignment in existing_player.get(
-                                                        "assignedTeams", []
-                                                    ):
-                                                        if (
-                                                            club_assignment["clubAlias"]
-                                                            == club.club_alias
-                                                        ):
-                                                            club_assignment["teams"] = [
-                                                                t
-                                                                for t in club_assignment["teams"]
-                                                                if t["teamAlias"] != team["alias"]
-                                                            ]
+                                                            "assignedTeams",
+                                                        []):
+                                                        if (club_assignment[
+                                                                "clubAlias"] ==
+                                                                club.club_alias
+                                                            ):
+                                                            club_assignment[
+                                                                "teams"] = [
+                                                                    t for t in
+                                                                    club_assignment[
+                                                                        "teams"]
+                                                                    if
+                                                                    t["teamAlias"]
+                                                                    != team[
+                                                                        "alias"]
+                                                                ]
                                                             break
 
-                                            del_birthdate = player_to_check.get("birthdate")
+                                            del_birthdate = player_to_check.get(
+                                                "birthdate")
                                             del_birthdate_str = (
-                                                del_birthdate.strftime("%Y-%m-%d")
-                                                if del_birthdate
-                                                else "Unknown"
-                                            )
+                                                del_birthdate.strftime(
+                                                    "%Y-%m-%d") if
+                                                del_birthdate else "Unknown")
                                             log_line = f"Removed player from team: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {del_birthdate_str} -> {club.club_name} / {team.get('ishdId')}"
                                             logger.info(log_line)
                                             log_lines.append(log_line)
@@ -2868,38 +2990,50 @@ class PlayerAssignmentService:
                                             stats["deleted"] += 1
 
                                             # Remove club assignment if teams array is empty
-                                            result = await self.db["players"].update_one(
+                                            result = await self.db[
+                                                "players"
+                                            ].update_one(
                                                 {
-                                                    "_id": player_to_check["_id"],
-                                                    "assignedTeams.clubIshdId": club.club_ishd_id,
+                                                    "_id":
+                                                    player_to_check["_id"],
+                                                    "assignedTeams.clubIshdId":
+                                                    club.club_ishd_id,
                                                 },
                                                 {
                                                     "$pull": {
-                                                        "assignedTeams": {"teams": {"$size": 0}}
+                                                        "assignedTeams": {
+                                                            "teams": {
+                                                                "$size": 0
+                                                            }
+                                                        }
                                                     }
                                                 },
                                             )
                                             if result.modified_count:
                                                 for existing_player in existing_players:
-                                                    if (
-                                                        existing_player["_id"]
-                                                        == player_to_check["_id"]
-                                                    ):
-                                                        existing_player["assignedTeams"] = [
-                                                            a
-                                                            for a in existing_player.get(
-                                                                "assignedTeams", []
-                                                            )
-                                                            if a["clubIshdId"] != club.club_ishd_id
-                                                        ]
+                                                    if (existing_player["_id"]
+                                                            == player_to_check[
+                                                                "_id"]):
+                                                        existing_player[
+                                                            "assignedTeams"] = [
+                                                                a for a in
+                                                                existing_player
+                                                                .get(
+                                                                    "assignedTeams",
+                                                                    []) if
+                                                                a["clubIshdId"]
+                                                                != club.
+                                                                club_ishd_id
+                                                            ]
                                                         break
 
-                                                birthdate_val = player_to_check.get("birthdate")
+                                                birthdate_val = player_to_check.get(
+                                                    "birthdate")
                                                 birthdate_str = (
-                                                    birthdate_val.strftime("%Y-%m-%d")
-                                                    if birthdate_val
-                                                    else "Unknown"
-                                                )
+                                                    birthdate_val.strftime(
+                                                        "%Y-%m-%d")
+                                                    if birthdate_val else
+                                                    "Unknown")
                                                 log_line = f"Removed club assignment for player: {player_to_check.get('firstName')} {player_to_check.get('lastName')} {birthdate_str} -> {club.club_name}"
                                                 logger.info(log_line)
                                                 log_lines.append(log_line)
@@ -2913,16 +3047,21 @@ class PlayerAssignmentService:
                                                 operation="update_one",
                                                 collection="players",
                                                 details={
-                                                    "player_id": player_to_check["_id"],
-                                                    "reason": "Failed to remove player from team",
+                                                    "player_id":
+                                                    player_to_check["_id"],
+                                                    "reason":
+                                                    "Failed to remove player from team",
                                                 },
                                             )
                                 else:
                                     if mode == "test":
-                                        print("player exists in team - do not remove")
+                                        print(
+                                            "player exists in team - do not remove"
+                                        )
 
                                 if ishd_log_player_remove.action is not None:
-                                    ishd_log_team.players.append(ishd_log_player_remove)
+                                    ishd_log_team.players.append(
+                                        ishd_log_player_remove)
 
                     if ishd_log_team:
                         ishd_log_club.teams.append(ishd_log_team)
@@ -2943,7 +3082,9 @@ class PlayerAssignmentService:
                 raise DatabaseOperationException(
                     operation="insert_one",
                     collection="ishdLogs",
-                    details={"reason": "Insert operation did not return inserted_id"},
+                    details={
+                        "reason": "Insert operation did not return inserted_id"
+                    },
                 )
 
         return {
@@ -2952,7 +3093,9 @@ class PlayerAssignmentService:
             "ishdLog": ishd_log_base_enc,
         }
 
-    async def bootstrap_ishd_sync(self, mode: str = "live", reset: bool = False) -> dict[str, Any]:
+    async def bootstrap_ishd_sync(self,
+                                  mode: str = "live",
+                                  reset: bool = False) -> dict[str, Any]:
         """
         Orchestrate ISHD synchronization for all managedByISHD=True players.
 
@@ -2967,7 +3110,10 @@ class PlayerAssignmentService:
 
         # If reset is True and mode is test, delete all managed players first
         if reset and mode == "test":
-            result = await self.db["players"].delete_many({"managedByISHD": {"$ne": False}})
+            result = await self.db["players"].delete_many(
+                {"managedByISHD": {
+                    "$ne": False
+                }})
             log_line = f"Reset: Deleted {result.deleted_count} players with managedByISHD=True"
             logger.warning(log_line)
             log_lines.append(log_line)

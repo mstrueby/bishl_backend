@@ -347,6 +347,8 @@ class PlayerDB(PlayerBase):
             return "U16"
         elif birth_year >= current_year - 18:  # for year 2025: from 2007 to 2009
             return "U19"
+        elif birth_year >= current_year - 20:  # for year 2025: from 2005 to 2006
+            return "U21"
         else:
             return "HERREN" if self.sex == Sex.MALE else "DAMEN"
 

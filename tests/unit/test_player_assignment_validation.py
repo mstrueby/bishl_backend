@@ -606,9 +606,12 @@ class TestDamenHerrenWkoRules:
         is in a secondary age group for this player and re-classify it as SECONDARY.
         The BISHL SECONDARY licence stays SECONDARY.
         After full validation: quota (maxLicenses=1) invalidates one of them.
+
+        Note: must use a birth year that yields ageGroup=DAMEN in the running test year.
+        In 2026 the cutoff is birth year <= 2005 (birth_year < current_year - 20).
         """
         player = self._make_player_dict(
-            datetime(2007, 11, 1),
+            datetime(2000, 1, 1),
             [
                 self._make_club(
                     "clubA",
