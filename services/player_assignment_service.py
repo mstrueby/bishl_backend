@@ -407,12 +407,13 @@ class PlayerAssignmentService:
                     clubs_with_primary.add(club.get("clubId"))
                     break
 
-        # Step 6:
-        # For each club without PRIMARY, set first ISHD UNKNOWN license to PRIMARY
+        # Step 6: For each club without PRIMARY, promote first ISHD UNKNOWN license.
+        # Only promote to PRIMARY if the team's age group matches the player's natural age group.
+        # Otherwise classify using WKO rules (secondaryRules / overAgeRules) — e.g. a DAMEN
+        # player playing in HERREN teams gets SECONDARY, not PRIMARY.
         for club in player.get("assignedTeams", []):
             club_id = club.get("clubId")
             if club_id not in clubs_with_primary:
-                # Find ISHD UNKNOWN licenses in this club
                 ishd_unknown_licenses = [
                     team
                     for team in club.get("teams", [])
@@ -420,15 +421,29 @@ class PlayerAssignmentService:
                     and team.get("source") == Source.ISHD
                 ]
 
-                # Set first ISHD UNKNOWN to PRIMARY
                 if ishd_unknown_licenses:
-                    ishd_unknown_licenses[0]["licenseType"] = LicenseType.PRIMARY
-                    clubs_with_primary.add(club_id)
-                    if settings.DEBUG_LEVEL > 0:
-                        logger.debug(
-                            f"Set ISHD UNKNOWN license to PRIMARY in club without PRIMARY for player "
-                            f"{player.get('firstName')} {player.get('lastName')}"
+                    first = ishd_unknown_licenses[0]
+                    team_age_group = first.get("teamAgeGroup")
+                    if team_age_group == player_age_group:
+                        first["licenseType"] = LicenseType.PRIMARY
+                        clubs_with_primary.add(club_id)
+                        if settings.DEBUG_LEVEL > 0:
+                            logger.debug(
+                                f"Set ISHD UNKNOWN license to PRIMARY in club without PRIMARY for player "
+                                f"{player.get('firstName')} {player.get('lastName')}"
+                            )
+                    else:
+                        # Age group mismatch — classify via WKO rules, do NOT add to clubs_with_primary
+                        classified = self._classify_single_license_by_age_group(
+                            player_age_group, team_age_group, player_obj.overAge
                         )
+                        first["licenseType"] = classified
+                        if settings.DEBUG_LEVEL > 0:
+                            logger.debug(
+                                f"Set ISHD UNKNOWN license to {classified.value} "
+                                f"(age group mismatch: player={player_age_group}, team={team_age_group}) "
+                                f"for player {player.get('firstName')} {player.get('lastName')}"
+                            )
 
         # Step 7: Convert UNKNOWN to SECONDARY in clubs with PRIMARY license
         # Then, convert UNKNOWN licenses in those clubs to SECONDARY
@@ -443,22 +458,25 @@ class PlayerAssignmentService:
                                 f"{player.get('firstName')} {player.get('lastName')}"
                             )
 
-        # Step 8: Apply PRIMARY heuristic for remaining UNKNOWN licenses
-        # Collect remaining UNKNOWN licenses (only UNKNOWN — explicitly-set types are preserved)
-        unknown_licenses = []
+        # Step 7b: Classify any remaining UNKNOWN licenses via WKO rules.
+        # This covers non-ISHD licences and cases where step 6 did not produce a PRIMARY
+        # (e.g. all HERREN licences for a DAMEN player). Each remaining UNKNOWN is
+        # classified using the same WKO-rules-aware helper, so SECONDARY/OVERAGE is
+        # assigned correctly even when no PRIMARY exists in the club.
         for club in player.get("assignedTeams", []):
             for team in club.get("teams", []):
                 if team.get("licenseType") == LicenseType.UNKNOWN:
-                    unknown_licenses.append((club, team))
-
-        # If exactly one UNKNOWN license remains, make it PRIMARY
-        if len(unknown_licenses) == 1:
-            club, team = unknown_licenses[0]
-            team["licenseType"] = LicenseType.PRIMARY
-            if settings.DEBUG_LEVEL > 0:
-                logger.debug(
-                    f"Set single UNKNOWN license to PRIMARY for player {player.get('firstName')} {player.get('lastName')}"
-                )
+                    team_age_group = team.get("teamAgeGroup")
+                    classified = self._classify_single_license_by_age_group(
+                        player_age_group, team_age_group or "", player_obj.overAge
+                    )
+                    team["licenseType"] = classified
+                    if settings.DEBUG_LEVEL > 0:
+                        logger.debug(
+                            f"Step 7b: classified remaining UNKNOWN to {classified.value} "
+                            f"(player={player_age_group}, team={team_age_group}) "
+                            f"for player {player.get('firstName')} {player.get('lastName')}"
+                        )
 
         return player
 
@@ -1184,7 +1202,9 @@ class PlayerAssignmentService:
 
                 # Handle SECONDARY licenses
                 elif license_type == LicenseType.SECONDARY:
-                    if not self._is_secondary_allowed(player_age_group, team_age_group):
+                    if not self._is_secondary_allowed(
+                        player_age_group, team_age_group, player_obj.sex
+                    ):
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
                             "invalidReasonCodes", []
@@ -1195,7 +1215,9 @@ class PlayerAssignmentService:
 
                 # Handle LOAN licenses (similar to SECONDARY rules)
                 elif license_type == LicenseType.LOAN:
-                    if not self._is_secondary_allowed(player_age_group, team_age_group):
+                    if not self._is_secondary_allowed(
+                        player_age_group, team_age_group, player_obj.sex
+                    ):
                         team["status"] = LicenseStatus.INVALID
                         if LicenseInvalidReasonCode.AGE_GROUP_VIOLATION not in team.get(
                             "invalidReasonCodes", []
@@ -1235,19 +1257,26 @@ class PlayerAssignmentService:
             for over_age_rule in player_rule.overAgeRules
         )
 
-    def _is_secondary_allowed(self, player_age_group: str, team_age_group: str) -> bool:
-        """Check if SECONDARY license in this age group is allowed"""
+    def _is_secondary_allowed(
+        self, player_age_group: str, team_age_group: str, player_sex: Sex
+    ) -> bool:
+        """Check if SECONDARY/LOAN license in this age group is allowed for this player's sex.
+
+        Mirrors the sex filter in _is_team_allowed so that secondaryRules with a sex
+        restriction (e.g. DAMEN→HERREN only for Sex.FEMALE) are correctly enforced.
+        """
         if player_age_group not in self._wko_rules:
             return False
 
         player_rule = self._wko_rules[player_age_group]
 
-        # SECONDARY can be in same age group or allowed play-up groups
+        # SECONDARY can be in same age group (no sex restriction on own group)
         if team_age_group == player_age_group:
             return True
 
         return any(
             secondary_rule.targetAgeGroup == team_age_group
+            and (not secondary_rule.sex or player_sex in secondary_rule.sex)
             for secondary_rule in player_rule.secondaryRules
         )
 
@@ -1380,6 +1409,11 @@ class PlayerAssignmentService:
             )
 
             if max_licenses is not None and len(licenses) > max_licenses:
+                # Sort so PRIMARY is kept over SECONDARY/OVERAGE when within the same
+                # secondary age group (handles legacy data where wrong PRIMARY was assigned).
+                licenses.sort(
+                    key=lambda e: 0 if e["team"].get("licenseType") == LicenseType.PRIMARY else 1
+                )
                 # Mark excess licenses as invalid (keep first max_licenses)
                 for entry in licenses[max_licenses:]:
                     team = entry["team"]

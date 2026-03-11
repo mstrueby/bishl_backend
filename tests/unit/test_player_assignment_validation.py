@@ -486,3 +486,184 @@ class TestAdminOverride:
         )
         service._enforce_no_unknown_status(player)
         assert player["assignedTeams"][0]["teams"][0]["status"] == "UNKNOWN"
+
+
+class TestDamenHerrenWkoRules:
+    """Tests for DAMEN players playing in HERREN teams — WKO secondary rule enforcement."""
+
+    @pytest.fixture
+    def mock_db(self, mocker):
+        mock_db = MagicMock()
+        mock_db["players"].update_one = mocker.AsyncMock()
+        return mock_db
+
+    @pytest.fixture
+    def service(self, mock_db):
+        return PlayerAssignmentService(mock_db)
+
+    def _make_player_dict(self, birthdate, teams_by_club: list[dict], sex=Sex.FEMALE) -> dict:
+        return {
+            "_id": str(ObjectId()),
+            "firstName": "Test",
+            "lastName": "Player",
+            "birthdate": birthdate,
+            "displayFirstName": "Test",
+            "displayLastName": "Player",
+            "sex": sex,
+            "position": "Skater",
+            "managedByISHD": False,
+            "assignedTeams": teams_by_club,
+        }
+
+    def _make_club(self, club_id: str, teams: list[dict]) -> dict:
+        return {
+            "clubId": club_id,
+            "clubName": f"Club {club_id}",
+            "clubAlias": club_id,
+            "clubType": "MAIN",
+            "teams": teams,
+        }
+
+    def _make_team(
+        self,
+        team_id: str,
+        age_group: str,
+        license_type: str,
+        status: str = "VALID",
+        source: str = "BISHL",
+        pass_no: str = "12345",
+        admin_override: bool = False,
+    ) -> dict:
+        return {
+            "teamId": team_id,
+            "teamName": f"Team {team_id}",
+            "teamAlias": team_id,
+            "teamType": "COMPETITIVE",
+            "teamAgeGroup": age_group,
+            "licenseType": license_type,
+            "status": status,
+            "invalidReasonCodes": [],
+            "source": source,
+            "passNo": pass_no,
+            "adminOverride": admin_override,
+        }
+
+    @pytest.mark.asyncio
+    async def test_classification_damen_two_herren_unknown_become_secondary(self, service):
+        """A female player with no DAMEN licence and 2 HERREN UNKNOWN licences (ISHD, same club)
+        should have both classified as SECONDARY — not PRIMARY — because HERREN is a secondaryRule
+        target for DAMEN, not the player's natural age group.
+
+        After validation only 1 HERREN SECONDARY should be VALID (quota maxLicenses=1).
+        """
+        # birthdate: female born 2000 → ageGroup=DAMEN
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t1", "HERREN", "UNKNOWN", source="ISHD", pass_no="AAA001"),
+                        self._make_team("t2", "HERREN", "UNKNOWN", source="ISHD", pass_no="AAA002"),
+                    ],
+                )
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+        t1 = classified["assignedTeams"][0]["teams"][0]
+        t2 = classified["assignedTeams"][0]["teams"][1]
+
+        assert t1["licenseType"] == "SECONDARY", "First HERREN licence should be SECONDARY for DAMEN player"
+        assert t2["licenseType"] == "SECONDARY", "Second HERREN licence should be SECONDARY for DAMEN player"
+
+        validated = await service.validate_licenses_for_player(classified)
+        statuses = [t["status"] for t in validated["assignedTeams"][0]["teams"]]
+        valid_count = statuses.count("VALID")
+        invalid_count = statuses.count("INVALID")
+
+        assert valid_count == 1, f"Exactly 1 HERREN licence should be VALID (got {valid_count})"
+        assert invalid_count == 1, f"Exactly 1 HERREN licence should be INVALID/EXCEEDS_WKO_LIMIT (got {invalid_count})"
+
+        invalid_team = next(t for t in validated["assignedTeams"][0]["teams"] if t["status"] == "INVALID")
+        assert "EXCEEDS_WKO_LIMIT" in invalid_team["invalidReasonCodes"]
+
+    @pytest.mark.asyncio
+    async def test_classification_damen_single_herren_unknown_becomes_secondary(self, service):
+        """A female player with no DAMEN licence and exactly 1 HERREN UNKNOWN licence
+        should be classified as SECONDARY (not PRIMARY) and validated as VALID (acts as anchor).
+        """
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [self._make_team("t1", "HERREN", "UNKNOWN", source="BISHL", pass_no="BBB001")],
+                )
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+        t1 = classified["assignedTeams"][0]["teams"][0]
+        assert t1["licenseType"] == "SECONDARY", "Single HERREN licence for DAMEN player must be SECONDARY"
+
+        validated = await service.validate_licenses_for_player(classified)
+        t1v = validated["assignedTeams"][0]["teams"][0]
+        assert t1v["status"] == "VALID", "Single HERREN SECONDARY for DAMEN player must be VALID (anchor)"
+
+    @pytest.mark.asyncio
+    async def test_validation_sex_filter_blocks_male_damen_secondary(self, service):
+        """_is_secondary_allowed must enforce the sex filter on secondaryRules.
+
+        DAMEN's secondaryRule for HERREN restricts sex=[FEMALE]. A male player whose
+        ageGroup is DAMEN (edge-case / wrong data) with a HERREN SECONDARY should be
+        blocked by step 8 with AGE_GROUP_VIOLATION.
+        """
+        # Force a male player into DAMEN age group by using a very old birthdate
+        # and setting sex=MALE manually (edge-case / corrupted data scenario).
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [self._make_team("t1", "HERREN", "SECONDARY")],
+                )
+            ],
+            sex=Sex.MALE,
+        )
+        # Override sex to MALE so ageGroup=HERREN (males born <=2007 are HERREN)
+        # We need to force ageGroup=DAMEN for a male to test the sex filter directly
+        # on _is_secondary_allowed. Call it directly.
+        from models.players import Sex as SexModel
+
+        result = service._is_secondary_allowed("DAMEN", "HERREN", SexModel.MALE)
+        assert result is False, "Male player should NOT satisfy DAMEN→HERREN secondary rule (sex=[FEMALE])"
+
+        result_female = service._is_secondary_allowed("DAMEN", "HERREN", SexModel.FEMALE)
+        assert result_female is True, "Female player should satisfy DAMEN→HERREN secondary rule"
+
+    @pytest.mark.asyncio
+    async def test_validation_quota_keeps_primary_over_secondary(self, service):
+        """When a DAMEN player has both HERREN PRIMARY (legacy wrong data) and HERREN SECONDARY,
+        quota enforcement should keep the PRIMARY VALID and invalidate the SECONDARY.
+        """
+        player = self._make_player_dict(
+            datetime(2000, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t1", "HERREN", "SECONDARY"),
+                        self._make_team("t2", "HERREN", "PRIMARY"),
+                    ],
+                )
+            ],
+        )
+
+        validated = await service.validate_licenses_for_player(player)
+        teams = validated["assignedTeams"][0]["teams"]
+        by_id = {t["teamId"]: t for t in teams}
+
+        assert by_id["t2"]["status"] == "VALID", "PRIMARY HERREN should be kept VALID"
+        assert by_id["t1"]["status"] == "INVALID", "SECONDARY HERREN should be marked INVALID (EXCEEDS_WKO_LIMIT)"
+        assert "EXCEEDS_WKO_LIMIT" in by_id["t1"]["invalidReasonCodes"]
