@@ -184,7 +184,13 @@ class TestPlayerAssignmentServiceValidation:
 
     @pytest.mark.asyncio
     async def test_ishd_vs_bishl_conflict(self, assignment_service, mock_db):
-        """Test ISHD license conflicts with BISHL license"""
+        """Test ISHD license is invalidated when BISHL already has a PRIMARY in the same pool.
+
+        After the ordering fix (_validate_primary_consistency runs before _validate_import_conflicts),
+        the ISHD PRIMARY is first invalidated by MULTIPLE_PRIMARY (BISHL wins as source preference 0).
+        When _validate_import_conflicts then inspects the ISHD licence, its status is already INVALID,
+        so IMPORT_CONFLICT is NOT added — MULTIPLE_PRIMARY is the sufficient and correct reason code.
+        """
         club = AssignedClubs(
             clubId="club1",
             clubName="Club 1",
@@ -205,9 +211,17 @@ class TestPlayerAssignmentServiceValidation:
 
         validated_player = await assignment_service.validate_licenses_for_player(player_dict)
 
+        bishl_team = validated_player["assignedTeams"][0]["teams"][0]
         ishd_team = validated_player["assignedTeams"][0]["teams"][1]
-        assert ishd_team["status"] == LicenseStatus.INVALID
-        assert LicenseInvalidReasonCode.IMPORT_CONFLICT in ishd_team["invalidReasonCodes"]
+
+        assert bishl_team["status"] == LicenseStatus.VALID, "BISHL PRIMARY must be the valid anchor"
+        assert ishd_team["status"] == LicenseStatus.INVALID, "ISHD PRIMARY must be invalidated"
+        assert LicenseInvalidReasonCode.MULTIPLE_PRIMARY in ishd_team["invalidReasonCodes"], (
+            "ISHD must carry MULTIPLE_PRIMARY"
+        )
+        assert LicenseInvalidReasonCode.IMPORT_CONFLICT not in ishd_team["invalidReasonCodes"], (
+            "IMPORT_CONFLICT must NOT be added when MULTIPLE_PRIMARY already explains the invalidity"
+        )
 
 
 class TestAdminOverride:
@@ -719,6 +733,46 @@ class TestDamenHerrenWkoRules:
 
         result_female = service._is_secondary_allowed("DAMEN", "HERREN", SexModel.FEMALE)
         assert result_female is True, "Female player should satisfy DAMEN→HERREN secondary rule"
+
+    @pytest.mark.asyncio
+    async def test_validation_herren_male_two_primary_no_import_conflict(self, service):
+        """Regression test: a HERREN male player with both a BISHL PRIMARY and an ISHD PRIMARY
+        in the same club should get exactly one VALID (BISHL wins) and one INVALID (MULTIPLE_PRIMARY).
+
+        The INVALID licence must NOT also carry IMPORT_CONFLICT.  Before the ordering fix,
+        _validate_import_conflicts ran first (both statuses still VALID at that point), added
+        IMPORT_CONFLICT to the ISHD licence, then _validate_primary_consistency added MULTIPLE_PRIMARY
+        on top — resulting in two error codes.  With the correct ordering (primary_consistency first),
+        the ISHD licence is already INVALID when import_conflicts inspects it, so it is skipped.
+        """
+        from models.players import Sex as SexModel
+
+        player = self._make_player_dict(
+            datetime(1990, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t_ishd", "HERREN", "PRIMARY", source="ISHD", pass_no="4144"),
+                        self._make_team("t_bishl", "HERREN", "PRIMARY", source="BISHL", pass_no=""),
+                    ],
+                )
+            ],
+            sex=SexModel.MALE,
+        )
+
+        validated = await service.validate_licenses_for_player(player)
+        teams = validated["assignedTeams"][0]["teams"]
+        by_id = {t["teamId"]: t for t in teams}
+
+        assert by_id["t_bishl"]["status"] == "VALID", "BISHL PRIMARY must be the valid anchor"
+        assert by_id["t_ishd"]["status"] == "INVALID", "ISHD PRIMARY must be invalidated"
+        assert "MULTIPLE_PRIMARY" in by_id["t_ishd"]["invalidReasonCodes"], (
+            "ISHD PRIMARY must carry MULTIPLE_PRIMARY"
+        )
+        assert "IMPORT_CONFLICT" not in by_id["t_ishd"]["invalidReasonCodes"], (
+            "IMPORT_CONFLICT must NOT be added when MULTIPLE_PRIMARY already explains the invalidity"
+        )
 
     @pytest.mark.asyncio
     async def test_validation_primary_in_wrong_age_group_invalidated(self, service):

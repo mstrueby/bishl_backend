@@ -798,12 +798,19 @@ class PlayerAssignmentService:
         # Step 2: Validate UNKNOWN license types
         self._validate_unknown_license_types(player)
 
-        # Step 3: Validate ISHD vs BISHL conflicts (Fix 3: Order change)
-        # This may invalidate ISHD licenses before primary consistency check
-        self._validate_import_conflicts(player)
-
-        # Step 4: Validate PRIMARY-like consistency
+        # Step 3: Validate PRIMARY-like consistency first.
+        # Must run before import-conflict check so that duplicate PRIMARYs are resolved
+        # (MULTIPLE_PRIMARY → ISHD licence becomes INVALID) before _validate_import_conflicts
+        # inspects statuses. Without this ordering, a HERREN player with both BISHL PRIMARY
+        # and ISHD PRIMARY gets IMPORT_CONFLICT + MULTIPLE_PRIMARY; with correct ordering it
+        # gets only MULTIPLE_PRIMARY, which is the right and sufficient reason code.
         self._validate_primary_consistency(player)
+
+        # Step 4: Validate ISHD vs BISHL conflicts.
+        # Runs after primary consistency so that ISHD licences already invalidated by
+        # MULTIPLE_PRIMARY are skipped (status != VALID) and don't accumulate a redundant
+        # IMPORT_CONFLICT code on top of MULTIPLE_PRIMARY.
+        self._validate_import_conflicts(player)
 
         # Step 5: Validate LOAN consistency
         self._validate_loan_consistency(player)
