@@ -549,6 +549,49 @@ class TestDamenHerrenWkoRules:
         }
 
     @pytest.mark.asyncio
+    async def test_classification_damen_herren_primary_in_db_reclassified(self, service):
+        """Regression test for the exact reported bug: a female player (DAMEN) whose ISHD
+        licence for a HERREN team is already stored as PRIMARY in the database.
+
+        When classify_license_types_for_player runs, step 5 must detect that the PRIMARY
+        is in a secondary age group for this player and re-classify it as SECONDARY.
+        The BISHL SECONDARY licence stays SECONDARY.
+        After full validation: quota (maxLicenses=1) invalidates one of them.
+        """
+        player = self._make_player_dict(
+            datetime(2007, 11, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [
+                        self._make_team("t_ishd", "HERREN", "PRIMARY", source="ISHD", pass_no="ISHDABC"),
+                        self._make_team("t_bishl", "HERREN", "SECONDARY", source="BISHL", pass_no="BISHLXYZ"),
+                    ],
+                )
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+        t_ishd = classified["assignedTeams"][0]["teams"][0]
+        t_bishl = classified["assignedTeams"][0]["teams"][1]
+
+        assert t_ishd["licenseType"] == "SECONDARY", (
+            "HERREN PRIMARY (ISHD) must be re-classified to SECONDARY for DAMEN player"
+        )
+        assert t_bishl["licenseType"] == "SECONDARY", (
+            "HERREN SECONDARY (BISHL) must stay SECONDARY"
+        )
+
+        validated = await service.validate_licenses_for_player(classified)
+        teams = validated["assignedTeams"][0]["teams"]
+        statuses = [t["status"] for t in teams]
+
+        assert statuses.count("VALID") == 1, "Exactly 1 HERREN licence should be VALID"
+        assert statuses.count("INVALID") == 1, "Exactly 1 HERREN licence should be INVALID (EXCEEDS_WKO_LIMIT)"
+        invalid_team = next(t for t in teams if t["status"] == "INVALID")
+        assert "EXCEEDS_WKO_LIMIT" in invalid_team["invalidReasonCodes"]
+
+    @pytest.mark.asyncio
     async def test_classification_damen_two_herren_unknown_become_secondary(self, service):
         """A female player with no DAMEN licence and 2 HERREN UNKNOWN licences (ISHD, same club)
         should have both classified as SECONDARY — not PRIMARY — because HERREN is a secondaryRule

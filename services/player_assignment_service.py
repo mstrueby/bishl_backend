@@ -398,14 +398,36 @@ class PlayerAssignmentService:
                                     f"for player {player.get('firstName')} {player.get('lastName')}"
                                 )
 
-        # Step 5: Set ISHD UNKNOWN licenses to PRIMARY in clubs without PRIMARY
-        # First, identify clubs with PRIMARY licenses
+        # Step 5: Identify clubs with correctly-placed PRIMARY licenses.
+        # A PRIMARY is "correctly placed" when its teamAgeGroup matches the player's own
+        # age group OR it was set via adminOverride.
+        # Any other PRIMARY (e.g. HERREN PRIMARY for a DAMEN player) is silently
+        # misclassified data — re-classify it via WKO rules so downstream steps
+        # (quota, age-group compliance) see the correct type.
         clubs_with_primary = set()
         for club in player.get("assignedTeams", []):
+            club_id = club.get("clubId")
             for team in club.get("teams", []):
-                if team.get("licenseType") == LicenseType.PRIMARY:
-                    clubs_with_primary.add(club.get("clubId"))
-                    break
+                if team.get("licenseType") != LicenseType.PRIMARY:
+                    continue
+                team_age_group = team.get("teamAgeGroup")
+                if team_age_group == player_age_group or team.get("adminOverride"):
+                    # Correctly-placed PRIMARY or admin-explicitly-set: count the club.
+                    clubs_with_primary.add(club_id)
+                else:
+                    # Misplaced PRIMARY (e.g. HERREN PRIMARY for a DAMEN player).
+                    # Re-classify using WKO secondaryRules/overAgeRules; do NOT add
+                    # this club to clubs_with_primary so step 6 can handle it normally.
+                    correct_type = self._classify_single_license_by_age_group(
+                        player_age_group, team_age_group, player_obj.overAge
+                    )
+                    team["licenseType"] = correct_type
+                    if settings.DEBUG_LEVEL > 0:
+                        logger.debug(
+                            f"Re-classified misplaced PRIMARY in {team_age_group} to "
+                            f"{correct_type.value} (player ageGroup={player_age_group}) "
+                            f"for player {player.get('firstName')} {player.get('lastName')}"
+                        )
 
         # Step 6: For each club without PRIMARY, promote first ISHD UNKNOWN license.
         # Only promote to PRIMARY if the team's age group matches the player's natural age group.
