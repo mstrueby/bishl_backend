@@ -235,7 +235,7 @@ class AssignedClubs(BaseModel):
 
 class TeamInput(BaseModel):
     teamId: str = Field(...)
-    passNo: str = Field(...)
+    passNo: str | None = Field(default=None)
     jerseyNo: int | None = None
     active: bool | None = False
     source: Source | None = Field(default=Source.BISHL)
