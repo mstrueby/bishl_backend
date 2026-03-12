@@ -90,7 +90,7 @@ async def get_assignments_by_match(
 
     # Get all active users with role REFEREE
     referees = (
-        await mongodb["users"].find({"roles": "REFEREE", "active": True}, {"password": 0}).to_list(length=None)
+        await mongodb["users"].find({"roles": "REFEREE", "referee.active": True}, {"password": 0}).to_list(length=None)
     )
 
     # Get all assignments for the match with optional status filter
