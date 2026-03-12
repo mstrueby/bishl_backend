@@ -377,8 +377,8 @@ async def get_all_referees(
     # Build query with referee role and optional active filter
     query: dict[str, Any] = {"roles": "REFEREE"}
     if active:
-        query["active"] = True
-
+        query["referee.active"] = True
+    logger.debug(f"Query: {query}")
     if all:
         # Fetch all referees without pagination
         items = await mongodb["users"].find(query).sort([("lastName", 1), ("firstName", 1)]).to_list(None)

@@ -88,9 +88,9 @@ async def get_assignments_by_match(
     if not match:
         raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
 
-    # Get all users with role REFEREE
+    # Get all active users with role REFEREE
     referees = (
-        await mongodb["users"].find({"roles": "REFEREE"}, {"password": 0}).to_list(length=None)
+        await mongodb["users"].find({"roles": "REFEREE", "active": True}, {"password": 0}).to_list(length=None)
     )
 
     # Get all assignments for the match with optional status filter
