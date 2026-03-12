@@ -435,25 +435,23 @@ class PlayerAssignmentService:
                             )
 
         # Step 4: Detect and set OVERAGE licenses
-        # OVERAGE licenses are when a license is exactly one age group below the player's age group
+        # OVERAGE licenses are when the team's age group is listed in the player's overAgeRules.
         if player_age_group in self._wko_rules:
             player_rule = self._wko_rules[player_age_group]
-            player_sort_order = player_rule.sortOrder
 
             for club in player.get("assignedTeams", []):
                 for team in club.get("teams", []):
                     # Only check UNKNOWN licenses
                     if team.get("licenseType") == LicenseType.UNKNOWN:
                         team_age_group = team.get("teamAgeGroup")
-                        if not team_age_group or team_age_group not in self._wko_rules:
+                        if not team_age_group:
                             continue
 
-                        team_rule = self._wko_rules[team_age_group]
-                        team_sort_order = team_rule.sortOrder
-
-                        # OVERAGE: team is exactly one age group below player
-                        # (higher sortOrder means younger age group)
-                        if team_sort_order == player_sort_order + 1:
+                        # OVERAGE: team's age group is in the player's overAgeRules targets
+                        if any(
+                            over.targetAgeGroup == team_age_group
+                            for over in player_rule.overAgeRules
+                        ):
                             team["licenseType"] = LicenseType.OVERAGE
                             if settings.DEBUG_LEVEL > 0:
                                 logger.debug(
