@@ -374,7 +374,7 @@ async def get_all_referees(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     # Build query with referee role and optional active filter
-    query = {"roles": "REFEREE"}
+    query: dict[str, Any] = {"roles": "REFEREE"}
     if active:
         query["active"] = True
 
