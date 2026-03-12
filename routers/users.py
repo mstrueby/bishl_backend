@@ -364,6 +364,7 @@ async def get_all_referees(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(100, ge=1, le=100, description="Items per page"),
     all: bool = Query(False, description="Return all referees without pagination"),
+    active: bool = Query(False, description="Return only active referees"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -372,15 +373,20 @@ async def get_all_referees(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
+    # Build query with referee role and optional active filter
+    query = {"roles": "REFEREE"}
+    if active:
+        query["active"] = True
+
     if all:
         # Fetch all referees without pagination
-        items = await mongodb["users"].find({"roles": "REFEREE"}).sort([("lastName", 1), ("firstName", 1)]).to_list(None)
+        items = await mongodb["users"].find(query).sort([("lastName", 1), ("firstName", 1)]).to_list(None)
         total_count = len(items)
     else:
         # Use pagination helper
         items, total_count = await PaginationHelper.paginate_query(
             collection=mongodb["users"],
-            query={"roles": "REFEREE"},
+            query=query,
             page=page,
             page_size=page_size,
             sort=[("lastName", 1), ("firstName", 1)],
