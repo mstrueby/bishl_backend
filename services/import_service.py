@@ -613,7 +613,6 @@ class ImportService:
                         # merge / update: update the referee's fields
                         stored_email = existing_user.get("email", "")
                         update_fields: dict = {
-                            "club": club,
                             "referee.active": True,
                             "referee.level": level,
                             "referee.passNo": pass_no,
@@ -710,14 +709,13 @@ class ImportService:
                             {"_id": existing_by_email["_id"]},
                             {
                                 "$set": {
-                                    "club": club,
                                     "referee": {
                                         "club": club,
                                         "level": level,
                                         "passNo": pass_no,
                                         "ishdLevel": ishd_level,
                                         "active": True,
-                                    },
+                                    }
                                 }
                             },
                         )
@@ -775,7 +773,6 @@ class ImportService:
                         "password": random_password,
                         "firstName": first_name,
                         "lastName": last_name,
-                        "club": club,
                         "roles": ["REFEREE"],
                         "referee": {
                             "club": club,
