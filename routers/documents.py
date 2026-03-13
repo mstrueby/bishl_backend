@@ -54,12 +54,15 @@ def validate_file_type(file: UploadFile):
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-excel",
+        "application/vnd.ms-excel.sheet.macroEnabled.12",
+        "application/msword",
         "text/plain",
         "text/csv",
     ]
     if file.content_type not in allowed_types:
         raise HTTPException(
-            status_code=400, detail="Invalid file type. Only PDF, DOCX and XLSX are allowed."
+            status_code=400, detail="Invalid file type. Allowed types: PDF, DOCX, DOC, XLSX, XLS, XLSM, PPTX, TXT, CSV."
         )
 
 
