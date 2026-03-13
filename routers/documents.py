@@ -41,7 +41,7 @@ def upload_to_cloudinary(title: str, file: UploadFile):
         result = cloudinary.uploader.upload(
             file.file, public_id=file.filename, resource_type="raw", folder="docs/"
         )
-        logger.info(f"Document uploaded to Cloudinary: {result["public_id"]}")
+        logger.info(f"Document uploaded to Cloudinary: {result['public_id']}")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -49,20 +49,25 @@ def upload_to_cloudinary(title: str, file: UploadFile):
 
 # Helper function to check file format
 def validate_file_type(file: UploadFile):
+    content_type = (file.content_type or "").lower().strip()
+    logger.debug(f"file content type: {content_type}")
+
     allowed_types = [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.ms-excel",
-        "application/vnd.ms-excel.sheet.macroEnabled.12",
+        "application/vnd.ms-excel.sheet.macroenabled.12",
         "application/msword",
         "text/plain",
         "text/csv",
     ]
-    if file.content_type not in allowed_types:
+
+    if not content_type or content_type not in allowed_types:
         raise HTTPException(
-            status_code=400, detail="Invalid file type. Allowed types: PDF, DOCX, DOC, XLSX, XLS, XLSM, PPTX, TXT, CSV."
+            status_code=400,
+            detail="Invalid file type. Allowed types: PDF, DOCX, DOC, XLSX, XLS, XLSM, PPTX, TXT, CSV.",
         )
 
 
