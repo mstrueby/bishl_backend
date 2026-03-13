@@ -931,3 +931,272 @@ class TestDamenHerrenWkoRules:
         assert not hasattr(service, "_db_write_called"), (
             "No DB writes should occur during in-memory classification+validation"
         )
+
+
+class TestDevelopmentClub:
+    """Tests for DEVELOPMENT clubs (F-suffix passNo) — standalone pools
+    exempt from CONFLICTING_CLUB validation."""
+
+    @pytest.fixture
+    def mock_db(self, mocker):
+        mock_db = MagicMock()
+        mock_db["players"].update_one = mocker.AsyncMock()
+        return mock_db
+
+    @pytest.fixture
+    def service(self, mock_db):
+        return PlayerAssignmentService(mock_db)
+
+    def _make_player_dict(self, birthdate, teams_by_club: list[dict], sex=Sex.MALE) -> dict:
+        return {
+            "_id": str(ObjectId()),
+            "firstName": "Test",
+            "lastName": "Player",
+            "birthdate": birthdate,
+            "displayFirstName": "Test",
+            "displayLastName": "Player",
+            "sex": sex,
+            "position": "Skater",
+            "managedByISHD": False,
+            "assignedTeams": teams_by_club,
+        }
+
+    def _make_club(self, club_id: str, teams: list[dict], club_type: str = "MAIN") -> dict:
+        return {
+            "clubId": club_id,
+            "clubName": f"Club {club_id}",
+            "clubAlias": club_id,
+            "clubType": club_type,
+            "teams": teams,
+        }
+
+    def _make_team(
+        self,
+        team_id: str,
+        age_group: str,
+        license_type: str,
+        status: str = "VALID",
+        source: str = "BISHL",
+        pass_no: str = "12345",
+        admin_override: bool = False,
+    ) -> dict:
+        return {
+            "teamId": team_id,
+            "teamName": f"Team {team_id}",
+            "teamAlias": team_id,
+            "teamType": "COMPETITIVE",
+            "teamAgeGroup": age_group,
+            "licenseType": license_type,
+            "status": status,
+            "invalidReasonCodes": [],
+            "source": source,
+            "passNo": pass_no,
+            "adminOverride": admin_override,
+        }
+
+    @pytest.mark.asyncio
+    async def test_development_club_secondary_no_conflicting_club(self, service):
+        """DEVELOPMENT club SECONDARY license must NOT get CONFLICTING_CLUB.
+
+        Scenario: U19 player
+        - Club A (MAIN): ISHD PRIMARY in U19 team → valid
+        - Club B (DEVELOPMENT): F-suffix HERREN team → classified as SECONDARY
+          (U19 player playing up in HERREN) → must be VALID, no CONFLICTING_CLUB.
+
+        The F-suffix marks the club as DEVELOPMENT during classification.
+        A DEVELOPMENT club is a standalone pool and does not need a co-located
+        PRIMARY to validate SECONDARY/OVERAGE licenses.
+        """
+        player = self._make_player_dict(
+            datetime(2008, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [self._make_team("t_main", "U19", "PRIMARY", source="ISHD", pass_no="6293")],
+                    club_type="MAIN",
+                ),
+                self._make_club(
+                    "clubB",
+                    [self._make_team("t_dev", "HERREN", "SECONDARY", source="BISHL", pass_no="9999F")],
+                    club_type="DEVELOPMENT",
+                ),
+            ],
+        )
+
+        result = await service.validate_licenses_for_player(player)
+
+        t_main = result["assignedTeams"][0]["teams"][0]
+        t_dev = result["assignedTeams"][1]["teams"][0]
+
+        assert t_main["status"] == "VALID", "MAIN club PRIMARY must be VALID"
+        assert t_dev["status"] == "VALID", (
+            "DEVELOPMENT club SECONDARY must be VALID — standalone pool, no CONFLICTING_CLUB"
+        )
+        assert "CONFLICTING_CLUB" not in t_dev["invalidReasonCodes"]
+
+    @pytest.mark.asyncio
+    async def test_development_club_full_classify_and_validate(self, service):
+        """End-to-end: F-suffix passNo in a separate club → classification sets
+        clubType=DEVELOPMENT and licenseType=SECONDARY, validation keeps it VALID.
+
+        Scenario: U19 player
+        - Club A: ISHD UNKNOWN in U19 team → classified as PRIMARY
+        - Club B: BISHL UNKNOWN in HERREN team with F-suffix → club becomes DEVELOPMENT,
+          license becomes SECONDARY (U19 → HERREN = secondary rule), stays VALID.
+        """
+        player = self._make_player_dict(
+            datetime(2008, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [self._make_team("t_main", "U19", "UNKNOWN", source="ISHD", pass_no="6293")],
+                ),
+                self._make_club(
+                    "clubB",
+                    [self._make_team("t_dev", "HERREN", "UNKNOWN", source="BISHL", pass_no="9999F")],
+                ),
+            ],
+        )
+
+        classified = await service.classify_license_types_for_player(player)
+
+        assert classified["assignedTeams"][1]["clubType"] == "DEVELOPMENT", (
+            "F-suffix must mark the club as DEVELOPMENT"
+        )
+
+        t_dev_classified = classified["assignedTeams"][1]["teams"][0]
+        assert t_dev_classified["licenseType"] in ["PRIMARY", "SECONDARY"], (
+            "F-suffix license must be classified (not left as UNKNOWN)"
+        )
+
+        validated = await service.validate_licenses_for_player(classified)
+
+        t_main = validated["assignedTeams"][0]["teams"][0]
+        t_dev = validated["assignedTeams"][1]["teams"][0]
+
+        assert t_main["status"] == "VALID"
+        assert t_dev["status"] == "VALID", (
+            "DEVELOPMENT club license must be VALID after full classify+validate"
+        )
+        assert "CONFLICTING_CLUB" not in t_dev["invalidReasonCodes"]
+
+    @pytest.mark.asyncio
+    async def test_non_development_secondary_still_gets_conflicting_club(self, service):
+        """Inverse case: a regular (non-DEVELOPMENT) club's SECONDARY without
+        a co-located PRIMARY must still get CONFLICTING_CLUB.
+
+        This ensures the DEVELOPMENT exemption does not accidentally
+        disable the check for regular MAIN clubs.
+        """
+        player = self._make_player_dict(
+            datetime(2008, 1, 1),
+            [
+                self._make_club(
+                    "clubA",
+                    [self._make_team("t_main", "U19", "PRIMARY", source="BISHL")],
+                    club_type="MAIN",
+                ),
+                self._make_club(
+                    "clubB",
+                    [self._make_team("t_other", "HERREN", "SECONDARY", source="BISHL")],
+                    club_type="MAIN",
+                ),
+            ],
+        )
+
+        result = await service.validate_licenses_for_player(player)
+        t_other = result["assignedTeams"][1]["teams"][0]
+
+        assert t_other["status"] == "INVALID", (
+            "Non-DEVELOPMENT club SECONDARY without co-located PRIMARY must be INVALID"
+        )
+        assert "CONFLICTING_CLUB" in t_other["invalidReasonCodes"]
+
+
+class TestAnchorOverage:
+    """Tests for anchor-only OVERAGE scenario — a single OVERAGE license
+    acting as anchor should not require the overAge flag."""
+
+    @pytest.fixture
+    def mock_db(self, mocker):
+        mock_db = MagicMock()
+        mock_db["players"].update_one = mocker.AsyncMock()
+        return mock_db
+
+    @pytest.fixture
+    def service(self, mock_db):
+        return PlayerAssignmentService(mock_db)
+
+    def _make_player_dict(self, birthdate, teams_by_club: list[dict], sex=Sex.MALE) -> dict:
+        return {
+            "_id": str(ObjectId()),
+            "firstName": "Test",
+            "lastName": "Player",
+            "birthdate": birthdate,
+            "displayFirstName": "Test",
+            "displayLastName": "Player",
+            "sex": sex,
+            "position": "Skater",
+            "managedByISHD": False,
+            "assignedTeams": teams_by_club,
+        }
+
+    def _make_club(self, club_id: str, teams: list[dict]) -> dict:
+        return {
+            "clubId": club_id,
+            "clubName": f"Club {club_id}",
+            "clubAlias": club_id,
+            "clubType": "MAIN",
+            "teams": teams,
+        }
+
+    def _make_team(
+        self,
+        team_id: str,
+        age_group: str,
+        license_type: str,
+        status: str = "VALID",
+        source: str = "BISHL",
+        pass_no: str = "12345",
+    ) -> dict:
+        return {
+            "teamId": team_id,
+            "teamName": f"Team {team_id}",
+            "teamAlias": team_id,
+            "teamType": "COMPETITIVE",
+            "teamAgeGroup": age_group,
+            "licenseType": license_type,
+            "status": status,
+            "invalidReasonCodes": [],
+            "source": source,
+            "passNo": pass_no,
+            "adminOverride": False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_single_overage_anchor_valid_without_overage_flag(self, service):
+        """A U16 player (overAge=False) with ONLY a single U13 OVERAGE license
+        and no PRIMARY anywhere — the OVERAGE acts as anchor and the overAge
+        flag is not required.
+
+        The player's club simply has no U16 team, so the U13 team is the only
+        option. _get_primary_club_ids returns the anchor club's ID, and
+        _validate_age_group_compliance relaxes the overAge flag requirement.
+        """
+        player = self._make_player_dict(
+            datetime(2011, 1, 1),
+            [
+                self._make_club(
+                    "club1",
+                    [self._make_team("t1", "U13", "OVERAGE")],
+                ),
+            ],
+        )
+
+        result = await service.validate_licenses_for_player(player)
+        t1 = result["assignedTeams"][0]["teams"][0]
+
+        assert t1["status"] == "VALID", (
+            "Single OVERAGE anchor license must be VALID without overAge flag"
+        )
+        assert "OVERAGE_NOT_ALLOWED" not in t1["invalidReasonCodes"]
