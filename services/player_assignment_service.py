@@ -881,7 +881,7 @@ class PlayerAssignmentService:
         # Step 8: Validate age group violations and OVERAGE rules
         # We need to create a PlayerDB instance for age group properties
         player_obj = PlayerDB(**self._prepare_player_for_validation(player))
-        self._validate_age_group_compliance(player, player_obj)
+        self._validate_age_group_compliance(player, player_obj, primary_club_ids)
 
         # Step 9: Validate WKO license quotas (maxLicenses per target age group)
         self._validate_wko_license_quota(player, player_obj)
@@ -1194,14 +1194,24 @@ class PlayerAssignmentService:
     def _validate_club_consistency(self, player: dict,
                                    primary_club_ids: list[str]) -> None:
         """
-        SECONDARY and OVERAGE licenses are valid only if they belong to a club
-        that also has a valid PRIMARY license (or acts as anchor).
+        Structural rule: a SECONDARY or OVERAGE license is only valid if its
+        club also holds a PRIMARY (or acts as anchor).
+
+        Exemptions (license is NOT checked):
+        - adminOverride=True — admin-confirmed, skip all automated checks.
+        - DEVELOPMENT club — standalone pool by design (F-suffix passNo),
+          does not need a co-located PRIMARY.
+        - No PRIMARY exists at all — handled by the caller which skips this
+          method entirely when primary_club_ids is empty.
         """
         if not player.get("assignedTeams"):
             return
 
         for club in player["assignedTeams"]:
             club_id = club.get("clubId")
+            club_type = club.get("clubType", ClubType.MAIN)
+            if club_type == ClubType.DEVELOPMENT:
+                continue
             for team in club.get("teams", []):
                 if team.get("adminOverride"):
                     continue
@@ -1220,20 +1230,26 @@ class PlayerAssignmentService:
                         )
 
     def _validate_age_group_compliance(self, player: dict,
-                                       player_obj: PlayerDB) -> None:
+                                       player_obj: PlayerDB,
+                                       primary_club_ids: list[str] | None = None) -> None:
         """
-        Validate age group compliance and OVERAGE rules.
+        WKO rule: validate that every license's age group / sex combination
+        is permitted by the WKO secondary and overage rules.
 
         Uses two-pass approach:
-        1. First pass: Validate PRIMARY licenses only
-        2. Second pass: Validate SECONDARY, OVERAGE, and LOAN licenses
+        1. First pass: Validate PRIMARY licenses only (must match player age group).
+        2. Second pass: Validate SECONDARY, OVERAGE, and LOAN licenses.
 
-        This ensures PRIMARY is validated first and other license types are
-        invalidated before the PRIMARY when there are conflicts.
+        Anchor-only scenario (single non-PRIMARY license acting as anchor):
+        - The overAge flag requirement is relaxed for an OVERAGE anchor,
+          because the player may simply be in a club that has no team in
+          their main age group.
 
-        Special handling for anchor-only scenarios:
-        - When player has only one license (no PRIMARY), the single OVERAGE/SECONDARY
-          license acts as anchor and doesn't require the overAge flag.
+        Args:
+            player: Player dict with assignedTeams.
+            player_obj: Parsed PlayerDB for age group / sex properties.
+            primary_club_ids: Pre-computed list from _get_primary_club_ids
+                (passed from the caller to avoid redundant computation).
         """
         if not player.get("assignedTeams"):
             return
@@ -1243,9 +1259,11 @@ class PlayerAssignmentService:
 
         # Detect anchor-only scenario (single license acting as anchor)
         anchor_club, anchor_team = self._get_anchor_license(player)
-        primary_club_ids = self._get_primary_club_ids(player)
+        if primary_club_ids is None:
+            primary_club_ids = self._get_primary_club_ids(player)
         is_anchor_only = (anchor_team is not None
-                          and anchor_team.get("clubId") in primary_club_ids
+                          and anchor_club is not None
+                          and anchor_club.get("clubId") in primary_club_ids
                           and anchor_team.get("licenseType")
                           != LicenseType.PRIMARY)
 
