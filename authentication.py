@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 
+import bcrypt
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerifyMismatchError
 from fastapi import Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import bcrypt as _bcrypt
 
 from config import settings
 from exceptions import AuthenticationException
@@ -33,7 +33,7 @@ class AuthHandler:
 
         # Fallback to bcrypt (legacy passwords)
         try:
-            return _bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+            return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
         except Exception:
             return False
 
