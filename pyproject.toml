@@ -18,7 +18,7 @@ pymongo = "^4.9"
 uvicorn = "^0.37.0"
 email-validator = "^2.0.0"
 django-routers = "^0.2"
-passlib = "^1.7.4"
+bcrypt = ">=4.0"
 Redberry = "^0.0.7"
 requests = "^2.32.3"
 aiohttp = "^3.10.9"
@@ -126,10 +126,6 @@ exclude = [
     '^build/',
     '^dist/',
 ]
-
-[[tool.mypy.overrides]]
-module = "passlib.*"
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "motor.*"
