@@ -222,6 +222,7 @@ class AssignedTeams(BaseModel):
     modifyDate: datetime | None = None
     active: bool = False
     jerseyNo: int | None = None
+    isCallable: bool = Field(default=True, description="Whether player can be called up")
 
 
 class AssignedClubs(BaseModel):
@@ -245,6 +246,7 @@ class TeamInput(BaseModel):
     overrideDate: datetime | None = None
     status: LicenseStatus | None = Field(default=LicenseStatus.UNKNOWN)
     licenseType: LicenseType | None = Field(default=LicenseType.UNKNOWN)
+    isCallable: bool | None = Field(default=True)
 
     @field_validator("overrideDate", mode="before")
     @classmethod
