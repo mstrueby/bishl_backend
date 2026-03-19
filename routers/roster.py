@@ -9,11 +9,11 @@ from logging_config import logger
 from models.matches import LicenseStatus, Roster, RosterPlayer, RosterStatus, RosterUpdate
 from models.players import LicenseInvalidReasonCode
 from models.responses import StandardResponse
+from models.tournaments import CallUpMode, CallUpType
 from services.match_permission_service import MatchPermissionService
+from services.match_settings_service import resolve_match_settings
 from services.player_assignment_service import PlayerAssignmentService
 from services.roster_service import RosterService
-
-CALLED_MATCH_LIMIT = 5
 
 router = APIRouter()
 auth = AuthHandler()
@@ -188,10 +188,15 @@ def _extract_status_and_reasons(
 
 
 def _count_called_matches(
-    player: dict, to_team_id: str, tournament_alias: str, season_alias: str
+    player: dict,
+    to_team_id: str,
+    tournament_alias: str,
+    season_alias: str,
+    call_up_type: CallUpType = CallUpType.MATCH,
 ) -> int:
     trackings = player.get("playUpTrackings", []) or []
     total = 0
+    expected_occ_type = call_up_type.value
     for tracking in trackings:
         if (
             tracking.get("toTeamId") == to_team_id
@@ -199,7 +204,7 @@ def _count_called_matches(
             and tracking.get("seasonAlias") == season_alias
         ):
             for occ in tracking.get("occurrences", []):
-                if occ.get("counted", True):
+                if occ.get("counted", True) and occ.get("type") == expected_occ_type:
                     total += 1
     return total
 
@@ -209,6 +214,8 @@ def _validate_called_player(
     roster_player: "RosterPlayer",
     match_team_id: str,
     match: dict,
+    max_call_up_appearances: int = 5,
+    call_up_type: CallUpType = CallUpType.MATCH,
 ) -> tuple[LicenseStatus, list[LicenseInvalidReasonCode]]:
     player_id = roster_player.player.playerId
     assigned_teams = validated_player.get("assignedTeams", [])
@@ -238,17 +245,19 @@ def _validate_called_player(
 
     t_alias = (match.get("tournament") or {}).get("alias", "")
     s_alias = (match.get("season") or {}).get("alias", "")
-    called_count = _count_called_matches(validated_player, match_team_id, t_alias, s_alias)
-    if called_count >= CALLED_MATCH_LIMIT:
+    called_count = _count_called_matches(
+        validated_player, match_team_id, t_alias, s_alias, call_up_type
+    )
+    if called_count >= max_call_up_appearances:
         logger.info(
             f"Called player {player_id} has {called_count} called matches "
-            f"(limit: {CALLED_MATCH_LIMIT}), marking INVALID"
+            f"(limit: {max_call_up_appearances}), marking INVALID"
         )
         return LicenseStatus.INVALID, [LicenseInvalidReasonCode.CALLED_LIMIT_EXCEEDED]
 
     logger.info(
         f"Called player {player_id} validated via origin team {origin_team_id}: "
-        f"VALID ({called_count}/{CALLED_MATCH_LIMIT} called matches)"
+        f"VALID ({called_count}/{max_call_up_appearances} called matches)"
     )
     return LicenseStatus.VALID, []
 
@@ -316,6 +325,31 @@ async def validate_roster(
     action = perm_service.get_roster_action(team_flag)
     perm_service.check_permission(token_payload, match, action, matchday_owner)
 
+    t_alias = (match.get("tournament") or {}).get("alias")
+    s_alias = (match.get("season") or {}).get("alias")
+    r_alias = (match.get("round") or {}).get("alias")
+    md_alias = (match.get("matchday") or {}).get("alias")
+
+    match_settings, _ = await resolve_match_settings(
+        mongodb, t_alias, s_alias, r_alias, md_alias, match.get("matchSettings")
+    )
+
+    max_call_up_appearances = (
+        match_settings.maxCallUpAppearances
+        if match_settings and match_settings.maxCallUpAppearances is not None
+        else 5
+    )
+    call_up_type = (
+        match_settings.callUpType or CallUpType.MATCH
+        if match_settings
+        else CallUpType.MATCH
+    )
+    call_up_mode = (
+        match_settings.callUpMode or CallUpMode.LOCKED
+        if match_settings
+        else CallUpMode.LOCKED
+    )
+
     team_data = match.get(team_flag, {})
     team_id = team_data.get("teamId")
 
@@ -340,7 +374,12 @@ async def validate_roster(
 
         if roster_player.called:
             player_status, reason_codes = _validate_called_player(
-                validated_player, roster_player, team_id, match
+                validated_player,
+                roster_player,
+                team_id,
+                match,
+                max_call_up_appearances=max_call_up_appearances,
+                call_up_type=call_up_type,
             )
         else:
             player_status, reason_codes = _validate_regular_player(
@@ -372,6 +411,9 @@ async def validate_roster(
         user_id=token_payload.sub,
         skip_status_validation=True,
     )
+
+    updated_roster.callUpType = call_up_type
+    updated_roster.callUpMode = call_up_mode
 
     valid_count = sum(1 for p in updated_players if p.eligibilityStatus == LicenseStatus.VALID)
     invalid_count = len(updated_players) - valid_count

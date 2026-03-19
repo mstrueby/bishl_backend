@@ -7,7 +7,7 @@ from pydantic_core import core_schema
 
 from models.assignments import Referee
 from models.players import LicenseInvalidReasonCode, LicenseType, Source
-from models.tournaments import MatchSettings
+from models.tournaments import CallUpMode, CallUpType, MatchSettings
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 
 
@@ -241,6 +241,14 @@ class Roster(BaseModel):
     eligibilityValidator: str | None = None
     coach: Coach = Field(default_factory=Coach)
     staff: list[Staff] = Field(default_factory=list)
+    callUpType: CallUpType | None = Field(
+        default=None,
+        description="How call-up appearances are counted (MATCH or MATCHDAY). Only set in validation responses.",
+    )
+    callUpMode: CallUpMode | None = Field(
+        default=None,
+        description="What happens when the call-up limit is reached (LOCKED or DECIDE). Only set in validation responses.",
+    )
 
     # Valid status transitions: DRAFT -> SUBMITTED -> APPROVED, any -> INVALID, any -> DRAFT (reset)
     VALID_TRANSITIONS: dict[RosterStatus, set[RosterStatus]] = {

@@ -92,6 +92,12 @@ class CallUpMode(str, Enum):
     LOCKED = "LOCKED"
     DECIDE = "DECIDE"
 
+
+class CallUpType(str, Enum):
+    MATCH = "MATCH"
+    MATCHDAY = "MATCHDAY"
+
+
 class MinimumStartingStrength(BaseModel):
     skater: int | None = Field(default=4)
     goalie: int | None = Field(default=1)
@@ -115,6 +121,7 @@ class MatchSettings(BaseModel):
     minPenaltyKillStrength: int | None = Field(default=2)
     notes: str | None = Field(default=None)
     callUpMode: CallUpMode | None = Field(default=CallUpMode.LOCKED)
+    callUpType: CallUpType | None = Field(default=CallUpType.MATCH)
     maxCallUpAppearances: int | None = Field(default=5)
     maxCallUpPlayers: int | None = Field(default=5)
     minimumStartingStrength: MinimumStartingStrength | None = Field(default_factory=MinimumStartingStrength)
