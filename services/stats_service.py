@@ -14,8 +14,6 @@ from services.match_settings_service import resolve_match_settings
 from services.performance_monitor import monitor_query
 from services.tournament_service import TournamentService
 
-# Remove the pydantic_patch.py file as requested.
-
 
 def log_performance(func):
     """Decorator to log execution time and basic metrics for stats operations"""
