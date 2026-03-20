@@ -2,8 +2,8 @@
 
 from models.matches import CalledFromTeam, EventPlayer, LicenseStatus, RosterPlayer
 from models.players import LicenseInvalidReasonCode
+from models.tournaments import CallUpType
 from routers.roster import (
-    CALLED_MATCH_LIMIT,
     _count_called_matches,
     _extract_status_and_reasons,
     _find_team_in_assigned_teams,
@@ -136,9 +136,9 @@ class TestCountCalledMatches:
                     "tournamentAlias": "test-tournament",
                     "seasonAlias": "test-season",
                     "occurrences": [
-                        {"matchId": "m1", "counted": True},
-                        {"matchId": "m2", "counted": True},
-                        {"matchId": "m3", "counted": True},
+                        {"matchId": "m1", "counted": True, "type": "MATCH"},
+                        {"matchId": "m2", "counted": True, "type": "MATCH"},
+                        {"matchId": "m3", "counted": True, "type": "MATCH"},
                     ],
                 }
             ]
@@ -170,9 +170,9 @@ class TestCountCalledMatches:
                     "tournamentAlias": "test-tournament",
                     "seasonAlias": "test-season",
                     "occurrences": [
-                        {"matchId": "m1", "counted": True},
-                        {"matchId": "m2", "counted": False},
-                        {"matchId": "m3", "counted": True},
+                        {"matchId": "m1", "counted": True, "type": "MATCH"},
+                        {"matchId": "m2", "counted": False, "type": "MATCH"},
+                        {"matchId": "m3", "counted": True, "type": "MATCH"},
                     ],
                 }
             ]
@@ -187,7 +187,7 @@ class TestCountCalledMatches:
                     "fromTeamId": "team-lower-a",
                     "tournamentAlias": "test-tournament",
                     "seasonAlias": "test-season",
-                    "occurrences": [{"matchId": "m1", "counted": True}],
+                    "occurrences": [{"matchId": "m1", "counted": True, "type": "MATCH"}],
                 },
                 {
                     "toTeamId": "team-higher",
@@ -195,8 +195,8 @@ class TestCountCalledMatches:
                     "tournamentAlias": "test-tournament",
                     "seasonAlias": "test-season",
                     "occurrences": [
-                        {"matchId": "m2", "counted": True},
-                        {"matchId": "m3", "counted": True},
+                        {"matchId": "m2", "counted": True, "type": "MATCH"},
+                        {"matchId": "m3", "counted": True, "type": "MATCH"},
                     ],
                 },
             ]
@@ -212,14 +212,13 @@ class TestCountCalledMatches:
                     "tournamentAlias": "test-tournament",
                     "seasonAlias": "test-season",
                     "occurrences": [
-                        {"matchId": f"m{i}", "counted": True} for i in range(CALLED_MATCH_LIMIT)
+                        {"matchId": f"m{i}", "counted": True, "type": "MATCH"} for i in range(5)
                     ],
                 }
             ]
         }
         assert (
-            _count_called_matches(player, "team-higher", "test-tournament", "test-season")
-            == CALLED_MATCH_LIMIT
+            _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 5
         )
 
 
@@ -308,7 +307,9 @@ class TestValidateCalledPlayer:
                     "fromTeamId": "team-lower",
                     "tournamentAlias": "test-tournament",
                     "seasonAlias": "test-season",
-                    "occurrences": [{"matchId": f"m{i}", "counted": True} for i in range(5)],
+                    "occurrences": [
+                        {"matchId": f"m{i}", "counted": True, "type": "MATCH"} for i in range(5)
+                    ],
                 }
             ],
         }
@@ -348,7 +349,9 @@ class TestValidateCalledPlayer:
                     "fromTeamId": "team-lower",
                     "tournamentAlias": "test-tournament",
                     "seasonAlias": "test-season",
-                    "occurrences": [{"matchId": f"m{i}", "counted": True} for i in range(6)],
+                    "occurrences": [
+                        {"matchId": f"m{i}", "counted": True, "type": "MATCH"} for i in range(6)
+                    ],
                 }
             ],
         }

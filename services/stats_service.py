@@ -9,10 +9,10 @@ from exceptions.custom_exceptions import (
     ValidationException,
 )
 from logging_config import logger
+from models.tournaments import CallUpType
+from services.match_settings_service import resolve_match_settings
 from services.performance_monitor import monitor_query
 from services.tournament_service import TournamentService
-
-# Remove the pydantic_patch.py file as requested.
 
 
 def log_performance(func):
@@ -900,8 +900,15 @@ class StatsService:
             logger.error(f"Network error fetching round information: {str(e)}")
             raise
 
-        # Determine matchdays type for this round
-        matchdays_type_key = round_info.get("matchdaysType", {}).get("key", "REGULAR")
+        # Resolve MatchSettings for this round/matchday to get callUpType
+        match_settings, _ = await resolve_match_settings(
+            self.db, t_alias, s_alias, r_alias, md_alias
+        )
+        call_up_type = (
+            match_settings.callUpType or CallUpType.MATCH
+            if match_settings
+            else CallUpType.MATCH
+        )
 
         # Process round statistics
         matches = []
@@ -924,7 +931,6 @@ class StatsService:
                 s_alias,
                 r_alias,
                 md_alias,
-                matchdays_type_key=matchdays_type_key,
             )
 
             logger.debug(
@@ -961,7 +967,6 @@ class StatsService:
                     s_alias,
                     r_alias,
                     md_alias,
-                    matchdays_type_key=matchdays_type_key,
                 )
 
                 logger.debug(
@@ -998,7 +1003,7 @@ class StatsService:
                 t_alias,
                 s_alias,
                 token_payload,
-                matchdays_type_key=matchdays_type_key,
+                call_up_type=call_up_type,
                 round_info=round_info,
             )
 
@@ -1012,7 +1017,6 @@ class StatsService:
         s_alias: str,
         r_alias: str,
         md_alias: str,
-        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Main function to update player card statistics."""
         if flag not in ["ROUND", "MATCHDAY"]:
@@ -1021,12 +1025,8 @@ class StatsService:
         logger.debug(f"Processing roster for {flag}", extra={"num_matches": len(matches)})
 
         # Process rosters for both home and away teams
-        self._process_roster_for_team(
-            matches, "home", player_ids, player_card_stats, flag, matchdays_type_key
-        )
-        self._process_roster_for_team(
-            matches, "away", player_ids, player_card_stats, flag, matchdays_type_key
-        )
+        self._process_roster_for_team(matches, "home", player_ids, player_card_stats, flag)
+        self._process_roster_for_team(matches, "away", player_ids, player_card_stats, flag)
 
         logger.debug("Player card stats updated", extra={"player_card_stats": player_card_stats})
 
@@ -1042,7 +1042,6 @@ class StatsService:
         player_ids: list[str],
         player_card_stats: dict,
         flag: str,
-        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Process roster data for a specific team (home/away) across all matches."""
         for match in matches:
@@ -1074,7 +1073,6 @@ class StatsService:
                         roster_player,
                         match_info,
                         player_card_stats,
-                        matchdays_type_key=matchdays_type_key,
                     )
 
     def _create_team_dict(self, match_team_data: dict) -> dict:
@@ -1114,7 +1112,6 @@ class StatsService:
         roster_player: dict,
         match_info: dict,
         player_card_stats: dict,
-        matchdays_type_key: str = "REGULAR",
     ) -> None:
         """Update individual player statistics from roster data."""
         team_key = team["fullName"]
@@ -1238,7 +1235,7 @@ class StatsService:
         t_alias: str,
         s_alias: str,
         token_payload,
-        matchdays_type_key: str = "REGULAR",
+        call_up_type: CallUpType = CallUpType.MATCH,
         round_info: dict | None = None,
     ) -> None:
         """Check play-up occurrences for affected players and update playUpTrackings directly in DB."""
@@ -1267,7 +1264,7 @@ class StatsService:
                     matches,
                     t_alias,
                     s_alias,
-                    matchdays_type_key=matchdays_type_key,
+                    call_up_type=call_up_type,
                     round_info=round_info or {},
                 )
                 if playup_occurrences and self.db is not None:
@@ -1293,17 +1290,17 @@ class StatsService:
         matches: list[dict],
         t_alias: str,
         s_alias: str,
-        matchdays_type_key: str = "REGULAR",
+        call_up_type: CallUpType = CallUpType.MATCH,
         round_info: dict | None = None,
     ) -> list[dict]:
         """
         Find all play-up occurrences for a player across matches.
 
-        If matchdays_type_key == 'TOURNAMENT', occurrences are grouped per matchday
+        If call_up_type == MATCHDAY, occurrences are grouped per matchday
         and returned with type=MATCHDAY, matchdayId, matchdayName, matchdayStartDate.
         Otherwise returns one occurrence per match with type=MATCH, matchId, matchStartDate.
         """
-        if matchdays_type_key == "TOURNAMENT":
+        if call_up_type == CallUpType.MATCHDAY:
             return self._find_playup_occurrences_by_matchday(
                 player_id, matches, t_alias, s_alias, round_info or {}
             )

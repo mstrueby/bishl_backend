@@ -481,7 +481,7 @@ class TestStatsServiceIntegration:
     async def test_called_players_tournament_matchday_tracking(
         self, mongodb, client: AsyncClient, admin_token
     ):
-        """Test that TOURNAMENT rounds produce MATCHDAY-type playUpOccurrences grouped per matchday"""
+        """Test that callUpType=MATCHDAY in matchSettings produces MATCHDAY-type playUpOccurrences grouped per matchday"""
         from bson import ObjectId
 
         from tests.fixtures.data_fixtures import (
@@ -495,10 +495,9 @@ class TestStatsServiceIntegration:
         await mongodb["players"].delete_many({"_id": player_id})
 
         tournament = create_test_tournament()
-        # Set matchdaysType to TOURNAMENT on the round
-        tournament["seasons"][0]["rounds"][0]["matchdaysType"] = {
-            "key": "TOURNAMENT",
-            "value": "Turnier",
+        # Set callUpType to MATCHDAY via matchSettings — this controls MATCHDAY grouping
+        tournament["seasons"][0]["rounds"][0]["matchSettings"] = {
+            "callUpType": "MATCHDAY",
         }
         tournament["seasons"][0]["rounds"][0]["createStats"] = True
         # Give the matchday an _id and startDate so it can be resolved
