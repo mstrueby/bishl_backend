@@ -897,15 +897,14 @@ class ImportService:
             (German aliases Vorname / Nachname are accepted as fallbacks)
 
         updateMode values:
-            ADD    – Add player to team; create player document if not found.
-                     firstName, lastName and birthdate are mandatory.
-                     Fails if the player already holds an ISHD pass.
+            ADD    – Create the player if not found, then add the team to
+                     assignedTeams if not already present.  Idempotent: safe
+                     to run multiple times.  firstName, lastName and birthdate
+                     are mandatory.
             REMOVE – Remove the specific team from the player's assignedTeams.
                      Does not delete the player or touch other licenses.
                      Identified by firstName + lastName; birthdate is optional
                      (if multiple players share the same name, all are processed).
-            MERGE  – Like ADD but idempotent: silently skips if the player is
-                     already assigned to the team.
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -955,7 +954,7 @@ class ImportService:
                         )
                         continue
 
-                    if update_mode not in ("ADD", "REMOVE", "MERGE"):
+                    if update_mode not in ("ADD", "REMOVE"):
                         progress.add_error(
                             f"Unknown updateMode '{update_mode}' for {first_name} {last_name}"
                         )
@@ -1027,7 +1026,7 @@ class ImportService:
                         continue
 
                     # ----------------------------------------------------------
-                    # ADD / MERGE: birthdate is mandatory
+                    # ADD: birthdate is mandatory
                     # ----------------------------------------------------------
                     if not birthdate_raw:
                         progress.add_error(
@@ -1077,19 +1076,7 @@ class ImportService:
                     if existing_doc:
                         player = PlayerDB(**existing_doc)
                         player_id = existing_doc["_id"]
-
-                        # Verify no ISHD pass exists (ADD is strict; MERGE allows existing)
-                        if update_mode == "ADD":
-                            for ac in (player.assignedTeams or []):
-                                for t in ac.teams:
-                                    if t.source == Source.ISHD:
-                                        progress.add_error(
-                                            f"ADD: {first_name} {last_name} already has an "
-                                            f"ISHD pass — not allowed"
-                                        )
-                                        break
-
-                        logger.info(f"{update_mode}: Player {first_name} {last_name} exists")
+                        logger.info(f"ADD: Player {first_name} {last_name} exists")
                     else:
                         # Create player via API
                         new_player = PlayerDB(
@@ -1150,16 +1137,9 @@ class ImportService:
                             (t for t in existing_club.teams if t.teamAlias == team_alias), None
                         )
                         if existing_team:
-                            if update_mode == "ADD":
-                                progress.add_error(
-                                    f"ADD: {first_name} {last_name} is already assigned to "
-                                    f"'{team_alias}'"
-                                )
-                                continue
-                            # MERGE: already assigned → skip silently
                             skipped += 1
                             progress.update(
-                                message=f"MERGE: {first_name} {last_name} already in {team_alias}, skipped"
+                                message=f"ADD: {first_name} {last_name} already in {team_alias}, skipped"
                             )
                             if not import_all:
                                 break
