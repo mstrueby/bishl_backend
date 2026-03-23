@@ -1078,17 +1078,24 @@ class ImportService:
                         player_id = existing_doc["_id"]
                         logger.info(f"ADD: Player {first_name} {last_name} exists")
                     else:
-                        # Create player via API
-                        new_player = PlayerDB(
-                            firstName=first_name,
-                            lastName=last_name,
-                            displayFirstName=first_name,
-                            displayLastName=last_name,
-                            birthdate=birthdate,
-                        )
+                        # Create player via API.
+                        # The /players/ endpoint uses Form() fields, so we must send
+                        # multipart/form-data (not JSON).  The session has
+                        # Content-Type: application/json baked in, so we override it
+                        # for this request only by passing headers= explicitly.
+                        form_data = {
+                            "firstName": first_name,
+                            "lastName": last_name,
+                            "displayFirstName": first_name,
+                            "displayLastName": last_name,
+                            "birthdate": birthdate.strftime("%Y-%m-%dT%H:%M:%S"),
+                            "managedByISHD": "false",
+                            "source": "BISHL",
+                        }
                         create_response = self.session.post(
                             f"{self.base_url}/players/",
-                            json=new_player.model_dump(mode="json"),
+                            data=form_data,
+                            headers={"Content-Type": "application/x-www-form-urlencoded"},
                         )
                         if create_response.status_code != 201:
                             progress.add_error(
@@ -1098,7 +1105,7 @@ class ImportService:
                             )
                             continue
 
-                        player_id = create_response.json()["_id"]
+                        player_id = create_response.json()["data"]["_id"]
                         existing_doc = players_collection.find_one({"_id": ObjectId(player_id)})
                         if not existing_doc:
                             progress.add_error(

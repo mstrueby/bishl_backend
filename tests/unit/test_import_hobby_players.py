@@ -137,7 +137,7 @@ class TestHobbyPlayersAdd:
         created_id = str(ObjectId())
         create_resp = MagicMock()
         create_resp.status_code = 201
-        create_resp.json.return_value = {"_id": created_id}
+        create_resp.json.return_value = {"data": {"_id": created_id}}
 
         team_resp = MagicMock()
         team_resp.status_code = 200
