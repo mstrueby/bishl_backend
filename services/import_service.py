@@ -912,8 +912,6 @@ class ImportService:
         import csv
         from datetime import datetime
 
-        from bson import ObjectId
-
         from models.clubs import ClubDB, TeamDB
         from models.players import AssignedClubs, AssignedTeams, PlayerDB, Source
 
@@ -1106,7 +1104,10 @@ class ImportService:
                             continue
 
                         player_id = create_response.json()["data"]["_id"]
-                        existing_doc = players_collection.find_one({"_id": ObjectId(player_id)})
+                        # The router stores _id as a plain string (str(ObjectId())),
+                        # NOT as a BSON ObjectId.  Querying with ObjectId(player_id)
+                        # would never match — use the raw string directly.
+                        existing_doc = players_collection.find_one({"_id": player_id})
                         if not existing_doc:
                             progress.add_error(
                                 f"{update_mode}: Could not fetch newly created player "
