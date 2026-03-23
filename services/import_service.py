@@ -1002,7 +1002,7 @@ class ImportService:
                                     new_assigned_clubs.append(ac)
 
                             if not team_found:
-                                progress.add_error(
+                                logger.info(
                                     f"REMOVE: Team '{team_alias}' not found in "
                                     f"{first_name} {last_name}'s assignments"
                                 )
