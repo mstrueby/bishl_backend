@@ -886,6 +886,343 @@ class ImportService:
 
             return False, error_msg
 
+    def import_hobby_players(self, csv_path: str, import_all: bool = False) -> tuple[bool, str]:
+        """
+        Import hobby players from a semicolon-delimited CSV file.
+
+        Identifies players by firstName + lastName + birthdate.
+
+        CSV columns (semicolon-delimited):
+            clubAlias, teamAlias, updateMode, firstName, lastName, birthdate
+            (German aliases Vorname / Nachname are accepted as fallbacks)
+
+        updateMode values:
+            ADD    – Add player to team; create player document if not found.
+                     firstName, lastName and birthdate are mandatory.
+                     Fails if the player already holds an ISHD pass.
+            REMOVE – Remove the specific team from the player's assignedTeams.
+                     Does not delete the player or touch other licenses.
+                     Identified by firstName + lastName; birthdate is optional
+                     (if multiple players share the same name, all are processed).
+            MERGE  – Like ADD but idempotent: silently skips if the player is
+                     already assigned to the team.
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        import csv
+        from datetime import datetime
+
+        from bson import ObjectId
+
+        from models.clubs import ClubDB, TeamDB
+        from models.players import AssignedClubs, AssignedTeams, PlayerDB, Source
+
+        if not self.token or not self.headers:
+            return False, "Not authenticated. Call authenticate() first."
+
+        players_collection = self.get_collection("players")
+
+        try:
+            with open(csv_path, encoding="utf-8") as f:
+                reader = csv.DictReader(
+                    f, delimiter=";", quotechar='"', doublequote=True, skipinitialspace=True
+                )
+                rows = list(reader)
+
+            progress = ImportProgress(len(rows), "Importing hobby players")
+            created = 0
+            added = 0
+            removed = 0
+            skipped = 0
+
+            for row in rows:
+                try:
+                    first_name = (row.get("firstName") or row.get("Vorname") or "").strip()
+                    last_name = (row.get("lastName") or row.get("Nachname") or "").strip()
+                    club_alias = (row.get("clubAlias") or "").strip()
+                    team_alias = (row.get("teamAlias") or "").strip()
+                    update_mode = (row.get("updateMode") or "").strip().upper()
+                    birthdate_raw = (row.get("birthdate") or "").strip()
+
+                    if not first_name or not last_name:
+                        progress.add_error(f"Missing firstName/lastName in row: {row}")
+                        continue
+
+                    if not club_alias or not team_alias:
+                        progress.add_error(
+                            f"Missing clubAlias/teamAlias for {first_name} {last_name}"
+                        )
+                        continue
+
+                    if update_mode not in ("ADD", "REMOVE", "MERGE"):
+                        progress.add_error(
+                            f"Unknown updateMode '{update_mode}' for {first_name} {last_name}"
+                        )
+                        continue
+
+                    modify_date = datetime.now()
+
+                    # ----------------------------------------------------------
+                    # REMOVE: find by name (birthdate optional), remove team
+                    # ----------------------------------------------------------
+                    if update_mode == "REMOVE":
+                        query: dict = {"firstName": first_name, "lastName": last_name}
+                        if birthdate_raw:
+                            try:
+                                birthdate = datetime.strptime(birthdate_raw, "%d.%m.%Y")
+                                query["birthdate"] = birthdate
+                            except ValueError:
+                                pass  # birthdate is optional for REMOVE
+
+                        matching_players = list(players_collection.find(query))
+                        if not matching_players:
+                            progress.add_error(
+                                f"REMOVE: Player not found: {first_name} {last_name}"
+                            )
+                            continue
+
+                        for player_doc in matching_players:
+                            player = PlayerDB(**player_doc)
+                            player_id = player_doc["_id"]
+
+                            assigned_clubs = list(player.assignedTeams or [])
+                            new_assigned_clubs = []
+                            team_found = False
+
+                            for ac in assigned_clubs:
+                                if ac.clubAlias == club_alias:
+                                    remaining_teams = [
+                                        t for t in ac.teams if t.teamAlias != team_alias
+                                    ]
+                                    if len(remaining_teams) < len(ac.teams):
+                                        team_found = True
+                                    if remaining_teams:
+                                        ac.teams = remaining_teams
+                                        new_assigned_clubs.append(ac)
+                                    # else: drop club entirely (no more teams)
+                                else:
+                                    new_assigned_clubs.append(ac)
+
+                            if not team_found:
+                                progress.add_error(
+                                    f"REMOVE: Team '{team_alias}' not found in "
+                                    f"{first_name} {last_name}'s assignments"
+                                )
+                                continue
+
+                            assignments_data = [ac.model_dump() for ac in new_assigned_clubs]
+                            players_collection.update_one(
+                                {"_id": player_id},
+                                {"$set": {"assignedTeams": assignments_data}},
+                            )
+                            removed += 1
+                            progress.update(
+                                message=f"REMOVE: Removed {team_alias} from {first_name} {last_name}"
+                            )
+
+                        if not import_all:
+                            logger.info("--import-all not set, stopping after first REMOVE")
+                            break
+                        continue
+
+                    # ----------------------------------------------------------
+                    # ADD / MERGE: birthdate is mandatory
+                    # ----------------------------------------------------------
+                    if not birthdate_raw:
+                        progress.add_error(
+                            f"{update_mode}: birthdate is mandatory for {first_name} {last_name}"
+                        )
+                        continue
+
+                    try:
+                        birthdate = datetime.strptime(birthdate_raw, "%d.%m.%Y")
+                    except ValueError:
+                        progress.add_error(
+                            f"{update_mode}: Invalid birthdate format '{birthdate_raw}' "
+                            f"for {first_name} {last_name}"
+                        )
+                        continue
+
+                    # Look up the club in the DB
+                    club_res = self.db.clubs.find_one({"alias": club_alias})
+                    if club_res is None:
+                        progress.add_error(f"Club '{club_alias}' not found in DB")
+                        continue
+                    club = ClubDB(**club_res)
+
+                    # Look up the team via API
+                    team_url = f"{self.base_url}/clubs/{club_alias}/teams/{team_alias}"
+                    team_response = self.session.get(team_url)
+                    if team_response.status_code != 200:
+                        progress.add_error(
+                            f"Team '{team_alias}' not found via API "
+                            f"(HTTP {team_response.status_code})"
+                        )
+                        continue
+
+                    team_data = team_response.json()
+                    if "data" in team_data:
+                        team_data = team_data["data"]
+                    team_db = TeamDB(**team_data)
+
+                    # Find existing player by name + birthdate
+                    player_query = {
+                        "firstName": first_name,
+                        "lastName": last_name,
+                        "birthdate": birthdate,
+                    }
+                    existing_doc = players_collection.find_one(player_query)
+
+                    if existing_doc:
+                        player = PlayerDB(**existing_doc)
+                        player_id = existing_doc["_id"]
+
+                        # Verify no ISHD pass exists (ADD is strict; MERGE allows existing)
+                        if update_mode == "ADD":
+                            for ac in (player.assignedTeams or []):
+                                for t in ac.teams:
+                                    if t.source == Source.ISHD:
+                                        progress.add_error(
+                                            f"ADD: {first_name} {last_name} already has an "
+                                            f"ISHD pass — not allowed"
+                                        )
+                                        break
+
+                        logger.info(f"{update_mode}: Player {first_name} {last_name} exists")
+                    else:
+                        # Create player via API
+                        new_player = PlayerDB(
+                            firstName=first_name,
+                            lastName=last_name,
+                            displayFirstName=first_name,
+                            displayLastName=last_name,
+                            birthdate=birthdate,
+                        )
+                        create_response = self.session.post(
+                            f"{self.base_url}/players/",
+                            json=new_player.model_dump(mode="json"),
+                        )
+                        if create_response.status_code != 201:
+                            progress.add_error(
+                                f"{update_mode}: Failed to create player "
+                                f"{first_name} {last_name} "
+                                f"(HTTP {create_response.status_code}): {create_response.text}"
+                            )
+                            continue
+
+                        player_id = create_response.json()["_id"]
+                        existing_doc = players_collection.find_one({"_id": ObjectId(player_id)})
+                        if not existing_doc:
+                            progress.add_error(
+                                f"{update_mode}: Could not fetch newly created player "
+                                f"{first_name} {last_name}"
+                            )
+                            continue
+                        player = PlayerDB(**existing_doc)
+                        player_id = existing_doc["_id"]
+                        created += 1
+                        logger.info(f"{update_mode}: Created player {first_name} {last_name}")
+
+                    # Build the new team assignment object
+                    new_team = AssignedTeams(
+                        teamId=str(team_db.id),
+                        passNo=row.get("passNo", "H-LIGA"),
+                        active=False,
+                        source=Source.BISHL,
+                        modifyDate=modify_date,
+                        teamName=team_db.name,
+                        teamAlias=team_db.alias,
+                        teamIshdId=team_db.ishdId if team_db.ishdId is not None else "",
+                        teamAgeGroup=team_db.ageGroup,
+                    )
+
+                    assigned_clubs = [
+                        AssignedClubs(**ac.model_dump()) for ac in (player.assignedTeams or [])
+                    ]
+
+                    existing_club = next(
+                        (ac for ac in assigned_clubs if ac.clubId == str(club.id)), None
+                    )
+
+                    if existing_club:
+                        existing_team = next(
+                            (t for t in existing_club.teams if t.teamAlias == team_alias), None
+                        )
+                        if existing_team:
+                            if update_mode == "ADD":
+                                progress.add_error(
+                                    f"ADD: {first_name} {last_name} is already assigned to "
+                                    f"'{team_alias}'"
+                                )
+                                continue
+                            # MERGE: already assigned → skip silently
+                            skipped += 1
+                            progress.update(
+                                message=f"MERGE: {first_name} {last_name} already in {team_alias}, skipped"
+                            )
+                            if not import_all:
+                                break
+                            continue
+                        else:
+                            existing_club.teams.append(new_team)
+                    else:
+                        assigned_clubs.append(
+                            AssignedClubs(
+                                clubId=str(club.id),
+                                clubName=club.name,
+                                clubAlias=club_alias,
+                                clubIshdId=club.ishdId if club.ishdId is not None else 0,
+                                teams=[new_team],
+                            )
+                        )
+
+                    assignments_data = [ac.model_dump() for ac in assigned_clubs]
+                    update_result = players_collection.update_one(
+                        {"_id": player_id},
+                        {"$set": {"assignedTeams": assignments_data, "managedByISHD": False}},
+                    )
+
+                    if update_result.matched_count == 0:
+                        progress.add_error(
+                            f"{update_mode}: Player document not found for update: "
+                            f"{first_name} {last_name}"
+                        )
+                        continue
+
+                    added += 1
+                    progress.update(
+                        message=f"{update_mode}: Added {team_alias} to {first_name} {last_name}"
+                    )
+
+                    if not import_all:
+                        logger.info("--import-all not set, stopping after first processed row")
+                        break
+
+                except Exception as e:
+                    progress.add_error(
+                        f"Error processing row {row.get('firstName', '?')} "
+                        f"{row.get('lastName', '?')}: {e}"
+                    )
+
+            summary = progress.summary()
+            logger.info(summary)
+
+            result_msg = (
+                f"Hobby players: {created} created, {added} team assignment(s) added, "
+                f"{removed} removed, {skipped} skipped"
+            )
+            return True, result_msg
+
+        except FileNotFoundError:
+            error_msg = f"CSV file not found: {csv_path}"
+            logger.error(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Hobby player import failed: {str(e)}"
+            logger.opt(exception=True).error("Hobby player import failed: {}", e)
+            return False, error_msg
+
     def import_with_rollback(
         self, import_func: Callable, collection_name: str, backup_before: bool = True
     ) -> tuple[bool, str]:

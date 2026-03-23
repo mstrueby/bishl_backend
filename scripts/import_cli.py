@@ -237,8 +237,20 @@ class ImportCLI:
     def import_hobby_players(self) -> tuple[bool, str]:
         """Import hobby players"""
         logger.info("Starting hobby players import...")
-        # TODO: Implement from import_hobby_players.py
-        return True, "Hobby players import not yet implemented"
+
+        csv_path = self.get_csv_path("hobby-players")
+        if not os.path.exists(csv_path):
+            return False, f"Hobby players CSV file not found: {csv_path}"
+
+        if self.args.dry_run:
+            logger.info(f"DRY RUN: would import hobby players from {csv_path}")
+            logger.info(f"DRY RUN: import_all={self.args.import_all}")
+            return True, "Dry run complete — no changes made"
+
+        return self.service.import_hobby_players(
+            csv_path,
+            import_all=self.args.import_all,
+        )
 
     def import_referees(self) -> tuple[bool, str]:
         """Import referees"""
@@ -311,9 +323,10 @@ class ImportCLI:
 
                 # Entities whose service methods manage their own scoped backup
                 # and rollback internally.  Wrapping them in import_with_rollback
-                # would target the wrong collection ('referees' instead of 'users')
-                # and could dangerously wipe unrelated data on rollback.
-                SELF_MANAGED_ROLLBACK_ENTITIES = {"referees"}
+                # would target the wrong collection ('referees' instead of 'users',
+                # 'hobby_players' instead of 'players') and could dangerously wipe
+                # unrelated data on rollback.
+                SELF_MANAGED_ROLLBACK_ENTITIES = {"referees", "hobby-players"}
 
                 # Execute import with rollback support
                 if self.args.dry_run or self.args.entity in SELF_MANAGED_ROLLBACK_ENTITIES:
