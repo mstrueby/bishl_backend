@@ -428,18 +428,13 @@ class TestGetDaySummaries:
 
     @pytest.mark.asyncio
     async def test_days_with_no_matches_have_zero_counts(self, assignment_service, mock_db):
-        """Days with no matches show zero for all counts"""
+        """Days with no matches are not included in results"""
         start = date(2026, 3, 1)
         mock_db._matches_find.to_list = AsyncMock(return_value=[])
 
         result = await assignment_service.get_day_summaries(start_date=start, days=3)
 
-        assert len(result) == 3
-        for day in result:
-            assert day["totalMatches"] == 0
-            assert day["fullyAssigned"] == 0
-            assert day["partiallyAssigned"] == 0
-            assert day["unassigned"] == 0
+        assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_single_day_summary(self, assignment_service, mock_db):

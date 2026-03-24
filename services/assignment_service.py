@@ -616,16 +616,6 @@ class AssignmentService:
         ).to_list(length=None)
 
         day_map: dict[str, dict] = {}
-        for i in range(days):
-            d = start_date + timedelta(days=i)
-            day_key = d.isoformat()
-            day_map[day_key] = {
-                "date": day_key,
-                "totalMatches": 0,
-                "fullyAssigned": 0,
-                "partiallyAssigned": 0,
-                "unassigned": 0,
-            }
 
         for match in matches:
             match_date = match.get("startDate")
@@ -637,7 +627,13 @@ class AssignmentService:
                 day_key = str(match_date)[:10]
 
             if day_key not in day_map:
-                continue
+                day_map[day_key] = {
+                    "date": day_key,
+                    "totalMatches": 0,
+                    "fullyAssigned": 0,
+                    "partiallyAssigned": 0,
+                    "unassigned": 0,
+                }
 
             day_map[day_key]["totalMatches"] += 1
 

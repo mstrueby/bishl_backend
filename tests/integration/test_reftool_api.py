@@ -317,7 +317,14 @@ class TestReftoolDayStripEndpoint:
 
     @pytest.mark.asyncio
     async def test_get_day_strip_returns_200_with_correct_shape(self, client: AsyncClient, mongodb, admin_token):
-        """GET /reftool/day-strip returns HTTP 200 with per-day summaries"""
+        """GET /reftool/day-strip returns HTTP 200 with per-day summaries for days with matches"""
+        # Insert a match on the first day only
+        test_match = create_test_match()
+        test_match["startDate"] = datetime(2026, 3, 1, 10, 0)
+        test_match["referee1"] = {"userId": "r1"}
+        test_match["referee2"] = None
+        await mongodb["matches"].insert_one(test_match)
+
         response = await client.get(
             "/reftool/day-strip?start_date=2026-03-01&days=7",
             headers={"Authorization": f"Bearer {admin_token}"},
@@ -327,7 +334,8 @@ class TestReftoolDayStripEndpoint:
         data = response.json()
         assert data["success"] is True
         assert isinstance(data["data"], list)
-        assert len(data["data"]) == 7
+        assert len(data["data"]) == 1  # Only 1 day has matches
+        assert data["data"][0]["date"] == "2026-03-01"
 
     @pytest.mark.asyncio
     async def test_get_day_strip_totals_correct(self, client: AsyncClient, mongodb, admin_token):
@@ -405,7 +413,7 @@ class TestReftoolDayStripEndpoint:
 
     @pytest.mark.asyncio
     async def test_get_day_strip_empty_results_valid(self, client: AsyncClient, mongodb, admin_token):
-        """GET /reftool/day-strip with no matches returns zeros"""
+        """GET /reftool/day-strip with no matches returns empty list"""
         response = await client.get(
             "/reftool/day-strip?start_date=2020-01-01&days=3",
             headers={"Authorization": f"Bearer {admin_token}"},
@@ -413,12 +421,7 @@ class TestReftoolDayStripEndpoint:
 
         assert response.status_code == 200
         data = response.json()["data"]
-        assert len(data) == 3
-        for day in data:
-            assert day["totalMatches"] == 0
-            assert day["fullyAssigned"] == 0
-            assert day["partiallyAssigned"] == 0
-            assert day["unassigned"] == 0
+        assert len(data) == 0
 
     @pytest.mark.asyncio
     async def test_get_day_strip_ref_admin_role_allowed(self, client: AsyncClient, mongodb):
