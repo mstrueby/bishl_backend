@@ -648,4 +648,5 @@ class AssignmentService:
             else:
                 day_map[day_key]["unassigned"] += 1
 
-        return list(day_map.values())
+        # Return only days with matches, sorted by date
+        return sorted(day_map.values(), key=lambda x: x["date"])
