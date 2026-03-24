@@ -18,10 +18,8 @@ class LicenseStatus(str, Enum):
 
 
 class PyObjectId(ObjectId):
-
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):
-
         def validate_object_id(value: str, _info) -> ObjectId:
             if isinstance(value, ObjectId):
                 return value
@@ -277,7 +275,7 @@ class RosterUpdate(BaseModel):
     eligibilityValidator: str | None = None
     coach: Coach | None = None
     staff: list[Staff] | None = None
-
+    
 
 class RosterSummary(BaseModel):
     """Lightweight roster summary for list views (no player details)."""
@@ -302,6 +300,7 @@ class MatchTeam(BaseModel):
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = Field(default_factory=MatchStats)
+    timeouts: list[int] = Field(default_factory=list)
 
     @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
@@ -324,6 +323,7 @@ class MatchTeamUpdate(BaseModel):
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
     stats: MatchStats | None = None
+    timeouts: list[int] | None = Field(default_factory=list)
 
     @field_validator("teamAlias", "name", "fullName", "shortName", "tinyName", mode="before")
     @classmethod
