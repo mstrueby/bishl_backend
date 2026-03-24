@@ -4,7 +4,7 @@ Assignment Service - Business logic for referee assignment management
 Handles assignment creation, updates, validation, and synchronization with matches.
 """
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorClientSession
@@ -344,3 +344,312 @@ class AssignmentService:
         if not match:
             raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
         return dict(match)
+
+    async def get_matches_by_day_range(
+        self,
+        start_date: date,
+        end_date: date,
+        filters: dict | None = None,
+    ) -> list[dict]:
+        """
+        Fetch matches in a date range with aggregated refSummary counts.
+
+        Uses a MongoDB aggregation pipeline to join with the assignments collection
+        and compute refSummary (assignedCount, requestedCount, availableCount,
+        requestsByLevel) in a single database pass.
+
+        Args:
+            start_date: Start of date range (inclusive)
+            end_date: End of date range (inclusive); must be < 30 days after start
+            filters: Optional additional MongoDB filter criteria
+
+        Raises:
+            ValidationException: If date range exceeds 30 days
+
+        Returns:
+            List of match dicts with refSummary aggregations
+        """
+        if (end_date - start_date).days >= 30:
+            raise ValidationException(
+                field="end_date",
+                message="Date range must not exceed 30 days.",
+                details={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+            )
+
+        start_dt = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
+        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+
+        date_filter: dict = {"startDate": {"$gte": start_dt, "$lte": end_dt}}
+        if filters:
+            date_filter.update(filters)
+
+        total_active_referees = await self.db["users"].count_documents(
+            {"roles": "REFEREE", "referee.active": True}
+        )
+
+        pipeline = [
+            {"$match": date_filter},
+            {
+                "$lookup": {
+                    "from": "assignments",
+                    "localField": "_id",
+                    "foreignField": "matchId",
+                    "as": "_assignments",
+                }
+            },
+            {
+                "$addFields": {
+                    "refSummary": {
+                        "assignedCount": {
+                            "$size": {
+                                "$filter": {
+                                    "input": "$_assignments",
+                                    "as": "a",
+                                    "cond": {
+                                        "$in": ["$$a.status", ["ASSIGNED", "ACCEPTED"]]
+                                    },
+                                }
+                            }
+                        },
+                        "requestedCount": {
+                            "$size": {
+                                "$filter": {
+                                    "input": "$_assignments",
+                                    "as": "a",
+                                    "cond": {"$eq": ["$$a.status", "REQUESTED"]},
+                                }
+                            }
+                        },
+                        "availableCount": {
+                            "$max": [
+                                0,
+                                {
+                                    "$subtract": [
+                                        total_active_referees,
+                                        {"$size": "$_assignments"},
+                                    ]
+                                },
+                            ]
+                        },
+                        "requestsByLevel": {
+                            "$arrayToObject": {
+                                "$map": {
+                                    "input": {
+                                        "$reduce": {
+                                            "input": {
+                                                "$filter": {
+                                                    "input": "$_assignments",
+                                                    "as": "a",
+                                                    "cond": {"$eq": ["$$a.status", "REQUESTED"]},
+                                                }
+                                            },
+                                            "initialValue": [],
+                                            "in": {
+                                                "$let": {
+                                                    "vars": {
+                                                        "lvl": {
+                                                            "$ifNull": [
+                                                                "$$this.referee.level",
+                                                                "n/a",
+                                                            ]
+                                                        }
+                                                    },
+                                                    "in": {
+                                                        "$cond": {
+                                                            "if": {"$in": ["$$lvl", "$$value"]},
+                                                            "then": "$$value",
+                                                            "else": {"$concatArrays": ["$$value", ["$$lvl"]]},
+                                                        }
+                                                    },
+                                                }
+                                            },
+                                        }
+                                    },
+                                    "as": "level",
+                                    "in": {
+                                        "k": "$$level",
+                                        "v": {
+                                            "$size": {
+                                                "$filter": {
+                                                    "input": "$_assignments",
+                                                    "as": "a",
+                                                    "cond": {
+                                                        "$and": [
+                                                            {"$eq": ["$$a.status", "REQUESTED"]},
+                                                            {
+                                                                "$eq": [
+                                                                    {
+                                                                        "$ifNull": [
+                                                                            "$$a.referee.level",
+                                                                            "n/a",
+                                                                        ]
+                                                                    },
+                                                                    "$$level",
+                                                                ]
+                                                            },
+                                                        ]
+                                                    },
+                                                }
+                                            }
+                                        },
+                                    },
+                                }
+                            }
+                        },
+                    }
+                }
+            },
+            {"$unset": "_assignments"},
+        ]
+
+        cursor = self.db["matches"].aggregate(pipeline)
+        results = await cursor.to_list(length=None)
+        return [dict(r) for r in results]
+
+    async def get_referee_options_for_match(
+        self,
+        match_id: str,
+        scope: str | None = None,
+        level_filter: str | None = None,
+    ) -> dict:
+        """
+        Return assigned, requested, and available referee lists for a match.
+
+        Args:
+            match_id: Match ID to fetch referee options for
+            scope: Optional club-ID scope filter. When provided, only referees
+                   belonging to that club (referee.club.clubId) are included
+                   in the available list.
+            level_filter: Optional referee level to filter active referees
+                          (e.g. "S1", "S2").
+
+        Returns:
+            Dict with keys 'matchId', 'assigned', 'requested', 'available'
+
+        Raises:
+            ResourceNotFoundException: If match is not found
+        """
+        match = await self.db["matches"].find_one({"_id": match_id})
+        if not match:
+            raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+        assignments = await self.get_assignments_by_match(match_id)
+
+        assignment_dict = {a["referee"]["userId"]: a for a in assignments}
+
+        user_query: dict = {"roles": "REFEREE", "referee.active": True}
+        if level_filter:
+            user_query["referee.level"] = level_filter
+        if scope:
+            user_query["referee.club.clubId"] = scope
+
+        active_referees = await self.db["users"].find(
+            user_query, {"password": 0}
+        ).to_list(length=None)
+
+        assigned: list[dict] = []
+        requested: list[dict] = []
+        available: list[dict] = []
+
+        for referee in active_referees:
+            ref_id = referee["_id"]
+            club_info = referee.get("referee", {}).get("club", {}) or {}
+            ref_obj = {
+                "userId": ref_id,
+                "firstName": referee["firstName"],
+                "lastName": referee["lastName"],
+                "clubId": club_info.get("clubId"),
+                "clubName": club_info.get("clubName"),
+                "logoUrl": club_info.get("logoUrl"),
+                "level": referee.get("referee", {}).get("level", "n/a"),
+            }
+            if ref_id in assignment_dict:
+                a = assignment_dict[ref_id]
+                status = a.get("status")
+                entry = {
+                    **ref_obj,
+                    "_id": a.get("_id"),
+                    "status": status,
+                    "position": a.get("position"),
+                }
+                if status in ("ASSIGNED", "ACCEPTED"):
+                    assigned.append(entry)
+                elif status == "REQUESTED":
+                    requested.append(entry)
+            else:
+                available.append(ref_obj)
+
+        return {
+            "matchId": match_id,
+            "assigned": assigned,
+            "requested": requested,
+            "available": available,
+        }
+
+    async def get_day_summaries(
+        self,
+        start_date: date,
+        days: int,
+    ) -> list[dict]:
+        """
+        Return per-day totals for navigation tiles.
+
+        For each day in the range [start_date, start_date + days - 1], returns:
+          date, totalMatches, fullyAssigned, partiallyAssigned, unassigned
+
+        A match is 'fullyAssigned' when both referee1 and referee2 are set,
+        'partiallyAssigned' when exactly one is set, and 'unassigned' otherwise.
+
+        Args:
+            start_date: First day of range
+            days: Number of days to include
+
+        Returns:
+            List of per-day summary dicts ordered by date
+        """
+        end_date = start_date + timedelta(days=days - 1)
+        start_dt = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
+        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+
+        matches = await self.db["matches"].find(
+            {"startDate": {"$gte": start_dt, "$lte": end_dt}}
+        ).to_list(length=None)
+
+        day_map: dict[str, dict] = {}
+        for i in range(days):
+            d = start_date + timedelta(days=i)
+            day_key = d.isoformat()
+            day_map[day_key] = {
+                "date": day_key,
+                "totalMatches": 0,
+                "fullyAssigned": 0,
+                "partiallyAssigned": 0,
+                "unassigned": 0,
+            }
+
+        for match in matches:
+            match_date = match.get("startDate")
+            if not match_date:
+                continue
+            if isinstance(match_date, datetime):
+                day_key = match_date.date().isoformat()
+            else:
+                day_key = str(match_date)[:10]
+
+            if day_key not in day_map:
+                continue
+
+            day_map[day_key]["totalMatches"] += 1
+
+            ref1 = match.get("referee1")
+            ref2 = match.get("referee2")
+            assigned_count = (1 if ref1 else 0) + (1 if ref2 else 0)
+
+            if assigned_count == 2:
+                day_map[day_key]["fullyAssigned"] += 1
+            elif assigned_count == 1:
+                day_map[day_key]["partiallyAssigned"] += 1
+            else:
+                day_map[day_key]["unassigned"] += 1
+
+        return list(day_map.values())

@@ -17,6 +17,7 @@ from config import settings
 from exceptions import BISHLException
 from logging_config import logger
 from routers.assignments import router as assignments_router
+from routers.reftool import router as reftool_router
 from routers.clubs import router as clubs_router
 from routers.configs import router as configs_router
 from routers.documents import router as documents_router
@@ -128,6 +129,7 @@ All errors return a standardized format with correlation IDs for debugging:
             "description": "User authentication, registration, and referee management",
         },
         {"name": "assignments", "description": "Referee assignment and scheduling"},
+        {"name": "reftool", "description": "Optimized read-only endpoints for referee scheduling UX"},
         {"name": "posts", "description": "News posts and announcements"},
         {"name": "documents", "description": "Document management and downloads"},
         {"name": "venues", "description": "Venue and location management"},
@@ -260,6 +262,7 @@ app.include_router(
 
 app.include_router(matches_router, prefix="/matches", tags=["matches"])
 app.include_router(assignments_router, prefix="/assignments", tags=["assignments"])
+app.include_router(reftool_router, prefix="/reftool", tags=["reftool"])
 app.include_router(roster_router, prefix="/matches/{match_id}/{team_flag}/roster", tags=["roster"])
 app.include_router(scores_router, prefix="/matches/{match_id}/{team_flag}/scores", tags=["scores"])
 app.include_router(
