@@ -1321,6 +1321,10 @@ class StatsService:
                     if roster_player.get("player", {}).get(
                         "playerId"
                     ) == player_id and roster_player.get("called", False):
+                        player_position = roster_player.get("playerPosition", {})
+                        if "G" in player_position:
+                            if not roster_player.get("periodsPlayed"):
+                                continue
                         called_from_team = roster_player.get("calledFromTeam")
                         if called_from_team:
                             team_data = match.get(team_flag, {})
@@ -1381,6 +1385,10 @@ class StatsService:
                     if roster_player.get("player", {}).get(
                         "playerId"
                     ) == player_id and roster_player.get("called", False):
+                        player_position = roster_player.get("playerPosition", {})
+                        if "G" in player_position:
+                            if not roster_player.get("periodsPlayed"):
+                                continue
                         called_from_team = roster_player.get("calledFromTeam")
                         if called_from_team:
                             team_data = match.get(team_flag, {})

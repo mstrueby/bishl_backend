@@ -112,6 +112,10 @@ class RosterPlayer(BaseModel):
     invalidReasonCodes: list[LicenseInvalidReasonCode] = Field(
         default_factory=list, description="Reason codes when eligibilityStatus is INVALID"
     )
+    periodsPlayed: list[int] = Field(
+        default_factory=list,
+        description="Period numbers a goalie was in net (e.g. [1, 2]). Empty means no appearance recorded.",
+    )
 
 
 class ScoresBase(MongoBaseModel):

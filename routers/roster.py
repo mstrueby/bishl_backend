@@ -2,6 +2,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Body, Depends, Path, Request
+from pydantic import BaseModel
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import ResourceNotFoundException, ValidationException
@@ -14,6 +15,11 @@ from services.match_permission_service import MatchPermissionService
 from services.match_settings_service import resolve_match_settings
 from services.player_assignment_service import PlayerAssignmentService
 from services.roster_service import RosterService
+
+
+class GoalieAppearanceUpdate(BaseModel):
+    periodsPlayed: list[int]
+
 
 router = APIRouter()
 auth = AuthHandler()
@@ -430,3 +436,93 @@ async def validate_roster(
     )
 
     return StandardResponse(success=True, data=updated_roster, message=message)
+
+
+@router.patch(
+    "/players/{player_id}/goalie-appearance",
+    response_description="Update goalie period appearance for a roster player",
+    response_model=StandardResponse[RosterPlayer],
+)
+async def update_goalie_appearance(
+    request: Request,
+    match_id: str = Path(..., description="The match id"),
+    team_flag: str = Path(..., description="The team flag (home/away)"),
+    player_id: str = Path(..., description="The player id"),
+    appearance_update: GoalieAppearanceUpdate = Body(..., description="Periods played by the goalie"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+) -> StandardResponse[RosterPlayer]:
+    """
+    Update the periodsPlayed field for a goalie in a team roster.
+
+    This endpoint records which periods a goalie was in net for a match.
+    It performs a targeted update of only the periodsPlayed field — no draft
+    reset, no validation trigger, and no other side effects.
+
+    Protected by the same permission checks as the roster PUT endpoint.
+    Returns 404 if the player is not found in the roster.
+    """
+    mongodb = request.app.state.mongodb
+
+    team_flag = team_flag.lower()
+    if team_flag not in ["home", "away"]:
+        raise ValidationException(
+            field="team_flag", message=f"Must be 'home' or 'away', got '{team_flag}'"
+        )
+
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(match)
+    action = perm_service.get_roster_action(team_flag)
+    perm_service.check_permission(token_payload, match, action, matchday_owner)
+
+    roster_data = match.get(team_flag, {}).get("roster", {})
+    if isinstance(roster_data, dict):
+        players = roster_data.get("players", [])
+    else:
+        players = roster_data if roster_data else []
+
+    player_index = None
+    for i, roster_player in enumerate(players):
+        if roster_player.get("player", {}).get("playerId") == player_id:
+            player_index = i
+            break
+
+    if player_index is None:
+        raise ResourceNotFoundException(resource_type="RosterPlayer", resource_id=player_id)
+
+    result = await mongodb["matches"].update_one(
+        {"_id": match_id},
+        {
+            "$set": {
+                f"{team_flag}.roster.players.{player_index}.periodsPlayed": appearance_update.periodsPlayed
+            }
+        },
+    )
+
+    if not result.acknowledged:
+        raise ResourceNotFoundException(resource_type="RosterPlayer", resource_id=player_id)
+
+    updated_match = await mongodb["matches"].find_one({"_id": match_id})
+    updated_roster_data = updated_match.get(team_flag, {}).get("roster", {})
+    if isinstance(updated_roster_data, dict):
+        updated_players = updated_roster_data.get("players", [])
+    else:
+        updated_players = updated_roster_data if updated_roster_data else []
+
+    updated_player_data = updated_players[player_index]
+    updated_roster_player = RosterPlayer(**updated_player_data)
+
+    logger.info(
+        f"Updated goalie appearance for player {player_id} in match {match_id} "
+        f"({team_flag}): periodsPlayed={appearance_update.periodsPlayed}",
+        extra={"user": token_payload.sub},
+    )
+
+    return StandardResponse(
+        success=True,
+        data=updated_roster_player,
+        message=f"Updated goalie appearance for player {player_id}: periods {appearance_update.periodsPlayed}",
+    )
