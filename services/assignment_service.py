@@ -550,6 +550,7 @@ class AssignmentService:
         assigned: list[dict] = []
         requested: list[dict] = []
         available: list[dict] = []
+        unavailable: list[dict] = []
 
         for referee in active_referees:
             ref_id = referee["_id"]
@@ -576,6 +577,8 @@ class AssignmentService:
                     assigned.append(entry)
                 elif status == "REQUESTED":
                     requested.append(entry)
+                elif status == "UNAVAILABLE":
+                    unavailable.append(entry)
             else:
                 available.append(ref_obj)
 
@@ -584,6 +587,7 @@ class AssignmentService:
             "assigned": assigned,
             "requested": requested,
             "available": available,
+            "unavailable": unavailable,
         }
 
     async def get_day_summaries(

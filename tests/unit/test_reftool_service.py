@@ -267,6 +267,21 @@ class TestGetRefereeOptionsForMatch:
                         "level": "S1",
                     },
                 },
+                {
+                    "_id": "a3",
+                    "matchId": "match-1",
+                    "status": "UNAVAILABLE",
+                    "position": None,
+                    "referee": {
+                        "userId": "ref-4",
+                        "firstName": "David",
+                        "lastName": "D",
+                        "clubId": None,
+                        "clubName": None,
+                        "logoUrl": None,
+                        "level": "S1",
+                    },
+                },
             ]
         )
 
@@ -293,6 +308,13 @@ class TestGetRefereeOptionsForMatch:
                     "roles": ["REFEREE"],
                     "referee": {"active": True, "level": "S2"},
                 },
+                {
+                    "_id": "ref-4",
+                    "firstName": "David",
+                    "lastName": "D",
+                    "roles": ["REFEREE"],
+                    "referee": {"active": True, "level": "S1"},
+                },
             ]
         )
 
@@ -305,6 +327,9 @@ class TestGetRefereeOptionsForMatch:
         assert result["requested"][0]["userId"] == "ref-2"
         assert len(result["available"]) == 1
         assert result["available"][0]["userId"] == "ref-3"
+        assert len(result["unavailable"]) == 1
+        assert result["unavailable"][0]["userId"] == "ref-4"
+        assert result["unavailable"][0]["status"] == "UNAVAILABLE"
 
     @pytest.mark.asyncio
     async def test_match_not_found_raises_exception(self, assignment_service, mock_db):
