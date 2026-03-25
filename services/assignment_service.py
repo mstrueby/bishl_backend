@@ -588,28 +588,31 @@ class AssignmentService:
 
     async def get_day_summaries(
         self,
-        start_date: date,
-        days: int,
+        year: int,
+        month: int,
     ) -> list[dict]:
         """
-        Return per-day totals for navigation tiles.
+        Return per-day totals for all matchdays in a month.
 
-        For each day in the range [start_date, start_date + days - 1], returns:
+        For each day in the given month that has matches scheduled, returns:
           date, totalMatches, fullyAssigned, partiallyAssigned, unassigned
 
         A match is 'fullyAssigned' when both referee1 and referee2 are set,
         'partiallyAssigned' when exactly one is set, and 'unassigned' otherwise.
 
         Args:
-            start_date: First day of range
-            days: Number of days to include
+            year: Calendar year (e.g., 2026)
+            month: Calendar month (1-12)
 
         Returns:
-            List of per-day summary dicts ordered by date
+            List of per-day summary dicts for days with matches, ordered by date
         """
-        end_date = start_date + timedelta(days=days - 1)
-        start_dt = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
-        end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+        start_dt = datetime(year, month, 1, 0, 0, 0)
+        # Last day of the month
+        if month == 12:
+            end_dt = datetime(year + 1, 1, 1, 0, 0, 0) - timedelta(seconds=1)
+        else:
+            end_dt = datetime(year, month + 1, 1, 0, 0, 0) - timedelta(seconds=1)
 
         matches = await self.db["matches"].find(
             {"startDate": {"$gte": start_dt, "$lte": end_dt}}

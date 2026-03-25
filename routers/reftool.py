@@ -124,23 +124,21 @@ async def get_match_referee_options(
     response_description="Per-day totals for navigation tiles",
 )
 async def get_day_strip(
-    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
-    days: int = Query(7, description="Number of days to include (max 30)"),
+    year: int = Query(..., description="Calendar year (e.g., 2026)"),
+    month: int = Query(..., description="Calendar month (1-12)"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
     assignment_service: AssignmentService = Depends(get_assignment_service),
 ) -> StandardResponse:
     _require_reftool_role(token_payload)
 
-    start = _parse_date(start_date, "start_date")
-
-    if days < 1 or days > MAX_DATE_RANGE_DAYS:
+    if month < 1 or month > 12:
         raise ValidationException(
-            field="days",
-            message=f"'days' must be between 1 and {MAX_DATE_RANGE_DAYS}.",
-            details={"days": days},
+            field="month",
+            message="'month' must be between 1 and 12.",
+            details={"month": month},
         )
 
-    summaries = await assignment_service.get_day_summaries(start_date=start, days=days)
+    summaries = await assignment_service.get_day_summaries(year=year, month=month)
 
     return StandardResponse(
         success=True,

@@ -326,7 +326,7 @@ class TestReftoolDayStripEndpoint:
         await mongodb["matches"].insert_one(test_match)
 
         response = await client.get(
-            "/reftool/day-strip?start_date=2026-03-01&days=7",
+            "/reftool/day-strip?year=2026&month=3",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
 
@@ -360,7 +360,7 @@ class TestReftoolDayStripEndpoint:
         await mongodb["matches"].insert_many([fully, partial, unassigned])
 
         response = await client.get(
-            "/reftool/day-strip?start_date=2026-04-01&days=1",
+            "/reftool/day-strip?year=2026&month=4",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
 
@@ -375,19 +375,19 @@ class TestReftoolDayStripEndpoint:
         assert day["unassigned"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_day_strip_invalid_date_returns_400(self, client: AsyncClient, mongodb, admin_token):
-        """GET /reftool/day-strip with invalid date returns HTTP 400"""
+    async def test_get_day_strip_missing_params_returns_422(self, client: AsyncClient, mongodb, admin_token):
+        """GET /reftool/day-strip without required params returns HTTP 422"""
         response = await client.get(
-            "/reftool/day-strip?start_date=invalid-date",
+            "/reftool/day-strip",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_get_day_strip_days_exceeds_max_returns_400(self, client: AsyncClient, mongodb, admin_token):
-        """GET /reftool/day-strip with days > 30 returns HTTP 400"""
+    async def test_get_day_strip_invalid_month_returns_400(self, client: AsyncClient, mongodb, admin_token):
+        """GET /reftool/day-strip with invalid month returns HTTP 400"""
         response = await client.get(
-            "/reftool/day-strip?start_date=2026-03-01&days=31",
+            "/reftool/day-strip?year=2026&month=13",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert response.status_code == 400
@@ -406,7 +406,7 @@ class TestReftoolDayStripEndpoint:
         token = auth.encode_token(user)
 
         response = await client.get(
-            "/reftool/day-strip?start_date=2026-03-01",
+            "/reftool/day-strip?year=2026&month=3",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 403
@@ -415,7 +415,7 @@ class TestReftoolDayStripEndpoint:
     async def test_get_day_strip_empty_results_valid(self, client: AsyncClient, mongodb, admin_token):
         """GET /reftool/day-strip with no matches returns empty list"""
         response = await client.get(
-            "/reftool/day-strip?start_date=2020-01-01&days=3",
+            "/reftool/day-strip?year=2020&month=1",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
 
@@ -437,7 +437,7 @@ class TestReftoolDayStripEndpoint:
         token = auth.encode_token(user)
 
         response = await client.get(
-            "/reftool/day-strip?start_date=2020-01-01&days=3",
+            "/reftool/day-strip?year=2020&month=1",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200

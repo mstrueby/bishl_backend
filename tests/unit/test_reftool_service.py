@@ -408,7 +408,7 @@ class TestGetDaySummaries:
             ]
         )
 
-        result = await assignment_service.get_day_summaries(start_date=start, days=3)
+        result = await assignment_service.get_day_summaries(year=2026, month=3)
 
         assert len(result) == 3
 
@@ -429,17 +429,15 @@ class TestGetDaySummaries:
     @pytest.mark.asyncio
     async def test_days_with_no_matches_have_zero_counts(self, assignment_service, mock_db):
         """Days with no matches are not included in results"""
-        start = date(2026, 3, 1)
         mock_db._matches_find.to_list = AsyncMock(return_value=[])
 
-        result = await assignment_service.get_day_summaries(start_date=start, days=3)
+        result = await assignment_service.get_day_summaries(year=2026, month=3)
 
         assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_single_day_summary(self, assignment_service, mock_db):
-        """Single day range works correctly"""
-        start = date(2026, 5, 15)
+        """Single day with match works correctly"""
         mock_db._matches_find.to_list = AsyncMock(
             return_value=[
                 {
@@ -451,7 +449,7 @@ class TestGetDaySummaries:
             ]
         )
 
-        result = await assignment_service.get_day_summaries(start_date=start, days=1)
+        result = await assignment_service.get_day_summaries(year=2026, month=5)
 
         assert len(result) == 1
         assert result[0]["date"] == "2026-05-15"
