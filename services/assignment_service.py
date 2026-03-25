@@ -138,7 +138,6 @@ class AssignmentService:
             clubId=club_info.get("clubId"),
             clubName=club_info.get("clubName"),
             logoUrl=club_info.get("logoUrl"),
-            points=ref_user.get("referee", {}).get("points", 0),
             level=ref_user.get("referee", {}).get("level", "n/a"),
         )
 
@@ -166,6 +165,7 @@ class AssignmentService:
                         "clubId": referee["clubId"],
                         "clubName": referee["clubName"],
                         "logoUrl": referee["logoUrl"],
+                        "level": referee.get("level"),
                     }
                 }
             },
@@ -513,7 +513,6 @@ class AssignmentService:
                     }
                 }
             },
-            {"$unset": "_assignments"},
         ]
 
         cursor = self.db["matches"].aggregate(pipeline)
@@ -522,6 +521,21 @@ class AssignmentService:
         day_map: dict[str, dict] = {}
         for raw in results:
             match = dict(raw)
+
+            # Enrich referee1/referee2 with their assignment status from the joined _assignments
+            assignments = match.pop("_assignments", [])
+            assignment_by_user: dict[str, str] = {
+                a["referee"]["userId"]: a["status"]
+                for a in assignments
+                if a.get("referee") and a["referee"].get("userId")
+            }
+            for ref_key in ("referee1", "referee2"):
+                ref = match.get(ref_key)
+                if ref and isinstance(ref, dict):
+                    user_id = ref.get("userId")
+                    if user_id and user_id in assignment_by_user:
+                        ref["assignmentStatus"] = assignment_by_user[user_id]
+
             match_dt = match.get("startDate")
             if isinstance(match_dt, datetime):
                 day_key = match_dt.date().isoformat()

@@ -209,8 +209,8 @@ class TestCreateRefereeObject:
         assert result.firstName == "John"
         assert result.lastName == "Doe"
         assert result.clubId == "club-456"
-        assert result.points == 100
         assert result.level == "S2"
+        assert result.points == 0
 
     @pytest.mark.asyncio
     async def test_create_referee_user_not_found(self, assignment_service, mock_db):

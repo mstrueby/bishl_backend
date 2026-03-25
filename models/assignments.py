@@ -60,8 +60,9 @@ class Referee(BaseModel):
     clubId: str | None = None
     clubName: str | None = None
     logoUrl: str | None = None
-    points: int = 0
     level: RefereeLevel | None = RefereeLevel.NA
+    points: int = 0
+    assignmentStatus: str | None = None
 
 
 class AssignmentBase(MongoBaseModel):
