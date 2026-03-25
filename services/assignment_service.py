@@ -529,7 +529,7 @@ class AssignmentService:
             elif match_dt:
                 day_key = str(match_dt)[:10]
             else:
-                continue
+                continue  # skip matches with no startDate — no valid day to group under
 
             if day_key not in day_map:
                 day_map[day_key] = {"date": day_key, "matches": [], "_tournament_counts": {}}
