@@ -109,6 +109,46 @@ class TestReftoolMatchesEndpoint:
         assert target["refSummary"]["requestedCount"] == 1
 
     @pytest.mark.asyncio
+    async def test_get_matches_referee_assignment_status_enriched(self, client: AsyncClient, mongodb, admin_token):
+        """GET /reftool/matches enriches referee1/referee2 with their assignmentStatus"""
+        match_dt = datetime.now() + timedelta(days=1)
+        ref_id = _oid()
+        match = create_test_match()
+        match["startDate"] = match_dt
+        match["referee1"] = {
+            "userId": ref_id,
+            "firstName": "Ref",
+            "lastName": "One",
+            "clubId": None,
+            "clubName": None,
+            "logoUrl": None,
+            "level": "S2",
+        }
+        await mongodb["matches"].insert_one(match)
+
+        ref = make_test_referee(ref_id=ref_id)
+        await mongodb["users"].insert_one(ref)
+
+        assignment = make_assignment(match["_id"], ref_id, status="ASSIGNED", position=1)
+        await mongodb["assignments"].insert_one(assignment)
+
+        start = datetime.now().strftime("%Y-%m-%d")
+        end = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
+
+        response = await client.get(
+            f"/reftool/matches?start_date={start}&end_date={end}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        all_matches = [m for group in response.json()["data"] for m in group["matches"]]
+        target = next((m for m in all_matches if m["_id"] == match["_id"]), None)
+        assert target is not None
+        assert target["referee1"] is not None
+        assert target["referee1"]["assignmentStatus"] == "ASSIGNED"
+        assert target.get("referee2") is None or target["referee2"] is None or target["referee2"].get("assignmentStatus") is None
+
+    @pytest.mark.asyncio
     async def test_get_matches_tournament_summary_counts(self, client: AsyncClient, mongodb, admin_token):
         """GET /reftool/matches tournamentSummary totals are correct per tournament alias"""
         target_dt = datetime.now() + timedelta(days=2)
