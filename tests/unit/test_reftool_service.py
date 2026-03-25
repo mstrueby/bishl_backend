@@ -71,13 +71,13 @@ class TestGetMatchesByDayRange:
 
     The service uses a MongoDB aggregation pipeline which is mocked at the
     aggregate cursor level. The mock returns pre-computed refSummary objects
-    as MongoDB would, allowing us to verify the service wires inputs correctly
-    and passes results through without modification.
+    as MongoDB would. The service then groups results by date and adds
+    tournamentSummary per day group.
     """
 
     @pytest.mark.asyncio
-    async def test_returns_matches_with_ref_summary(self, assignment_service, mock_db):
-        """Normal result: aggregate returns matches with refSummary attached"""
+    async def test_returns_grouped_days_with_matches_and_tournament_summary(self, assignment_service, mock_db):
+        """Normal result: returns per-day groups with matches and tournamentSummary"""
         start = date(2026, 3, 1)
         end = date(2026, 3, 7)
 
@@ -86,6 +86,7 @@ class TestGetMatchesByDayRange:
             {
                 "_id": "match-1",
                 "startDate": match_dt,
+                "tournament": {"name": "Test League", "alias": "test-league"},
                 "refSummary": {
                     "assignedCount": 1,
                     "requestedCount": 1,
@@ -100,17 +101,20 @@ class TestGetMatchesByDayRange:
         result = await assignment_service.get_matches_by_day_range(start, end)
 
         assert len(result) == 1
-        assert result[0]["_id"] == "match-1"
-        summary = result[0]["refSummary"]
-        assert summary["assignedCount"] == 1
-        assert summary["requestedCount"] == 1
-        assert summary["availableCount"] == 8
-        assert summary["requestsByLevel"] == {"S1": 1}
+        day = result[0]
+        assert day["date"] == "2026-03-03"
+        assert len(day["matches"]) == 1
+        assert day["matches"][0]["_id"] == "match-1"
+        ref_summary = day["matches"][0]["refSummary"]
+        assert ref_summary["assignedCount"] == 1
+        assert ref_summary["requestedCount"] == 1
+        assert ref_summary["availableCount"] == 8
+        assert ref_summary["requestsByLevel"] == {"S1": 1}
         mock_db._matches_collection.aggregate.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_empty_date_range_returns_empty_list(self, assignment_service, mock_db):
-        """No matches in range: aggregate returns empty list"""
+        """No matches in range: returns empty list"""
         mock_db._matches_aggregate.to_list = AsyncMock(return_value=[])
         mock_db._users_collection.count_documents = AsyncMock(return_value=5)
 
@@ -122,12 +126,13 @@ class TestGetMatchesByDayRange:
 
     @pytest.mark.asyncio
     async def test_zero_counts_when_no_assignments(self, assignment_service, mock_db):
-        """All counts are zero when aggregate returns zero-count refSummary"""
+        """All refSummary counts are zero when aggregate returns zero-count refSummary"""
         match_dt = datetime(2026, 3, 5, 10, 0)
         pipeline_result = [
             {
                 "_id": "match-2",
                 "startDate": match_dt,
+                "tournament": {"name": "Test League", "alias": "test-league"},
                 "refSummary": {
                     "assignedCount": 0,
                     "requestedCount": 0,
@@ -144,7 +149,7 @@ class TestGetMatchesByDayRange:
         )
 
         assert len(result) == 1
-        summary = result[0]["refSummary"]
+        summary = result[0]["matches"][0]["refSummary"]
         assert summary["assignedCount"] == 0
         assert summary["requestedCount"] == 0
         assert summary["availableCount"] == 5
@@ -158,6 +163,7 @@ class TestGetMatchesByDayRange:
             {
                 "_id": "match-3",
                 "startDate": match_dt,
+                "tournament": {"name": "Test League", "alias": "test-league"},
                 "refSummary": {
                     "assignedCount": 0,
                     "requestedCount": 3,
@@ -173,7 +179,7 @@ class TestGetMatchesByDayRange:
             date(2026, 3, 1), date(2026, 3, 7)
         )
 
-        summary = result[0]["refSummary"]
+        summary = result[0]["matches"][0]["refSummary"]
         assert summary["requestsByLevel"] == {"S2": 2, "S1": 1}
 
     @pytest.mark.asyncio
@@ -184,6 +190,7 @@ class TestGetMatchesByDayRange:
             {
                 "_id": "match-4",
                 "startDate": match_dt,
+                "tournament": {"name": "Test League", "alias": "test-league"},
                 "refSummary": {
                     "assignedCount": 1,
                     "requestedCount": 0,
@@ -199,7 +206,7 @@ class TestGetMatchesByDayRange:
             date(2026, 3, 1), date(2026, 3, 7)
         )
 
-        assert result[0]["refSummary"]["assignedCount"] == 1
+        assert result[0]["matches"][0]["refSummary"]["assignedCount"] == 1
 
     @pytest.mark.asyncio
     async def test_date_range_exceeds_30_days_raises_validation_error(self, assignment_service, mock_db):
@@ -225,6 +232,102 @@ class TestGetMatchesByDayRange:
         pipeline = mock_db._matches_collection.aggregate.call_args[0][0]
         assert pipeline[0]["$match"]["startDate"]["$gte"].date() == date(2026, 3, 1)
         assert pipeline[0]["$match"]["startDate"]["$lte"].date() == date(2026, 3, 7)
+
+    @pytest.mark.asyncio
+    async def test_tournament_summary_counts_per_tournament(self, assignment_service, mock_db):
+        """tournamentSummary counts fullyAssigned/partiallyAssigned/unassigned per tournament alias"""
+        match_dt = datetime(2026, 3, 3, 10, 0)
+        pipeline_result = [
+            {
+                "_id": "m1",
+                "startDate": match_dt,
+                "tournament": {"name": "League A", "alias": "league-a"},
+                "refSummary": {"assignedCount": 2, "requestedCount": 0, "availableCount": 3, "requestsByLevel": {}},
+            },
+            {
+                "_id": "m2",
+                "startDate": match_dt,
+                "tournament": {"name": "League A", "alias": "league-a"},
+                "refSummary": {"assignedCount": 1, "requestedCount": 0, "availableCount": 3, "requestsByLevel": {}},
+            },
+            {
+                "_id": "m3",
+                "startDate": match_dt,
+                "tournament": {"name": "League B", "alias": "league-b"},
+                "refSummary": {"assignedCount": 0, "requestedCount": 0, "availableCount": 5, "requestsByLevel": {}},
+            },
+        ]
+        mock_db._matches_aggregate.to_list = AsyncMock(return_value=pipeline_result)
+        mock_db._users_collection.count_documents = AsyncMock(return_value=5)
+
+        result = await assignment_service.get_matches_by_day_range(date(2026, 3, 1), date(2026, 3, 7))
+
+        assert len(result) == 1
+        day = result[0]
+        assert day["date"] == "2026-03-03"
+        assert len(day["matches"]) == 3
+
+        ts = {entry["tournamentAlias"]: entry["counts"] for entry in day["tournamentSummary"]}
+        assert set(ts.keys()) == {"league-a", "league-b"}
+
+        assert ts["league-a"]["totalMatches"] == 2
+        assert ts["league-a"]["fullyAssigned"] == 1
+        assert ts["league-a"]["partiallyAssigned"] == 1
+        assert ts["league-a"]["unassigned"] == 0
+
+        assert ts["league-b"]["totalMatches"] == 1
+        assert ts["league-b"]["fullyAssigned"] == 0
+        assert ts["league-b"]["partiallyAssigned"] == 0
+        assert ts["league-b"]["unassigned"] == 1
+
+    @pytest.mark.asyncio
+    async def test_tournament_summary_only_includes_tournaments_with_matches(self, assignment_service, mock_db):
+        """tournamentSummary contains only tournaments present on that day"""
+        match_dt = datetime(2026, 3, 3, 10, 0)
+        pipeline_result = [
+            {
+                "_id": "m1",
+                "startDate": match_dt,
+                "tournament": {"name": "Only League", "alias": "only-league"},
+                "refSummary": {"assignedCount": 2, "requestedCount": 0, "availableCount": 3, "requestsByLevel": {}},
+            },
+        ]
+        mock_db._matches_aggregate.to_list = AsyncMock(return_value=pipeline_result)
+        mock_db._users_collection.count_documents = AsyncMock(return_value=5)
+
+        result = await assignment_service.get_matches_by_day_range(date(2026, 3, 1), date(2026, 3, 7))
+
+        day = result[0]
+        assert len(day["tournamentSummary"]) == 1
+        assert day["tournamentSummary"][0]["tournamentAlias"] == "only-league"
+
+    @pytest.mark.asyncio
+    async def test_matches_grouped_by_day_across_multiple_days(self, assignment_service, mock_db):
+        """Matches on different days produce separate day entries, each with tournamentSummary"""
+        pipeline_result = [
+            {
+                "_id": "m1",
+                "startDate": datetime(2026, 3, 1, 10, 0),
+                "tournament": {"name": "League A", "alias": "league-a"},
+                "refSummary": {"assignedCount": 0, "requestedCount": 0, "availableCount": 5, "requestsByLevel": {}},
+            },
+            {
+                "_id": "m2",
+                "startDate": datetime(2026, 3, 3, 14, 0),
+                "tournament": {"name": "League A", "alias": "league-a"},
+                "refSummary": {"assignedCount": 2, "requestedCount": 0, "availableCount": 3, "requestsByLevel": {}},
+            },
+        ]
+        mock_db._matches_aggregate.to_list = AsyncMock(return_value=pipeline_result)
+        mock_db._users_collection.count_documents = AsyncMock(return_value=5)
+
+        result = await assignment_service.get_matches_by_day_range(date(2026, 3, 1), date(2026, 3, 7))
+
+        assert len(result) == 2
+        assert result[0]["date"] == "2026-03-01"
+        assert result[1]["date"] == "2026-03-03"
+        assert result[0]["tournamentSummary"][0]["counts"]["unassigned"] == 1
+        assert result[1]["tournamentSummary"][0]["counts"]["fullyAssigned"] == 1
 
 
 class TestGetRefereeOptionsForMatch:

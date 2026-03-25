@@ -50,7 +50,7 @@ class TestReftoolMatchesEndpoint:
 
     @pytest.mark.asyncio
     async def test_get_matches_returns_200_with_correct_shape(self, client: AsyncClient, mongodb, admin_token):
-        """GET /reftool/matches returns HTTP 200 with grouped matches and refSummary"""
+        """GET /reftool/matches returns HTTP 200 with grouped matches, refSummary, and tournamentSummary"""
         match_dt = datetime.now() + timedelta(days=1)
         match = create_test_match()
         match["startDate"] = match_dt
@@ -68,6 +68,13 @@ class TestReftoolMatchesEndpoint:
         data = response.json()
         assert data["success"] is True
         assert isinstance(data["data"], list)
+        day_groups = data["data"]
+        assert len(day_groups) >= 1
+        day = day_groups[0]
+        assert "date" in day
+        assert "matches" in day
+        assert "tournamentSummary" in day
+        assert isinstance(day["tournamentSummary"], list)
 
     @pytest.mark.asyncio
     async def test_get_matches_ref_summary_counts(self, client: AsyncClient, mongodb, admin_token):
@@ -100,6 +107,58 @@ class TestReftoolMatchesEndpoint:
         target = next((m for m in all_matches if m["_id"] == match["_id"]), None)
         assert target is not None
         assert target["refSummary"]["requestedCount"] == 1
+
+    @pytest.mark.asyncio
+    async def test_get_matches_tournament_summary_counts(self, client: AsyncClient, mongodb, admin_token):
+        """GET /reftool/matches tournamentSummary totals are correct per tournament alias"""
+        target_dt = datetime.now() + timedelta(days=2)
+
+        match_a1 = create_test_match()
+        match_a1["startDate"] = target_dt
+        match_a1["tournament"] = {"name": "League A", "alias": "league-a"}
+
+        match_a2 = create_test_match()
+        match_a2["startDate"] = target_dt
+        match_a2["tournament"] = {"name": "League A", "alias": "league-a"}
+
+        match_b1 = create_test_match()
+        match_b1["startDate"] = target_dt
+        match_b1["tournament"] = {"name": "League B", "alias": "league-b"}
+
+        await mongodb["matches"].insert_many([match_a1, match_a2, match_b1])
+
+        ref = make_test_referee()
+        await mongodb["users"].insert_one(ref)
+
+        await mongodb["assignments"].insert_many([
+            make_assignment(match_a1["_id"], ref["_id"], status="ASSIGNED"),
+            make_assignment(match_a1["_id"], ref["_id"], status="ASSIGNED"),
+        ])
+
+        start = datetime.now().strftime("%Y-%m-%d")
+        end = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
+
+        response = await client.get(
+            f"/reftool/matches?start_date={start}&end_date={end}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        day_groups = response.json()["data"]
+        target_day = next(
+            (d for d in day_groups if any(
+                m["_id"] in (match_a1["_id"], match_a2["_id"], match_b1["_id"])
+                for m in d["matches"]
+            )),
+            None,
+        )
+        assert target_day is not None
+
+        ts = {entry["tournamentAlias"]: entry["counts"] for entry in target_day["tournamentSummary"]}
+        assert "league-a" in ts
+        assert "league-b" in ts
+        assert ts["league-a"]["totalMatches"] == 2
+        assert ts["league-b"]["totalMatches"] == 1
 
     @pytest.mark.asyncio
     async def test_get_matches_invalid_date_returns_400(self, client: AsyncClient, mongodb, admin_token):

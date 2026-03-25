@@ -352,11 +352,12 @@ class AssignmentService:
         filters: dict | None = None,
     ) -> list[dict]:
         """
-        Fetch matches in a date range with aggregated refSummary counts.
+        Fetch matches in a date range grouped by day, with refSummary and tournamentSummary.
 
         Uses a MongoDB aggregation pipeline to join with the assignments collection
         and compute refSummary (assignedCount, requestedCount, availableCount,
-        unavailableCount, requestsByLevel) in a single database pass.
+        unavailableCount, requestsByLevel) in a single database pass. Results are
+        then grouped by calendar day and enriched with a per-tournament breakdown.
 
         Args:
             start_date: Start of date range (inclusive)
@@ -367,7 +368,11 @@ class AssignmentService:
             ValidationException: If date range exceeds 30 days
 
         Returns:
-            List of match dicts with refSummary aggregations
+            List of per-day dicts ordered by date, each containing:
+              - date: ISO date string (YYYY-MM-DD)
+              - matches: list of match dicts with refSummary
+              - tournamentSummary: list of per-tournament assignment counts
+                (only tournaments with at least one match on that day are included)
         """
         if (end_date - start_date).days >= 30:
             raise ValidationException(
@@ -513,7 +518,55 @@ class AssignmentService:
 
         cursor = self.db["matches"].aggregate(pipeline)
         results = await cursor.to_list(length=None)
-        return [dict(r) for r in results]
+
+        day_map: dict[str, dict] = {}
+        for raw in results:
+            match = dict(raw)
+            match_dt = match.get("startDate")
+            if isinstance(match_dt, datetime):
+                day_key = match_dt.date().isoformat()
+                match["startDate"] = match_dt.isoformat()
+            elif match_dt:
+                day_key = str(match_dt)[:10]
+            else:
+                continue
+
+            if day_key not in day_map:
+                day_map[day_key] = {"date": day_key, "matches": [], "_tournament_counts": {}}
+
+            day_map[day_key]["matches"].append(match)
+
+            tournament_alias = (match.get("tournament") or {}).get("alias", "unknown")
+            t_counts = day_map[day_key]["_tournament_counts"]
+            if tournament_alias not in t_counts:
+                t_counts[tournament_alias] = {
+                    "totalMatches": 0,
+                    "fullyAssigned": 0,
+                    "partiallyAssigned": 0,
+                    "unassigned": 0,
+                }
+            t_counts[tournament_alias]["totalMatches"] += 1
+            assigned_count = (match.get("refSummary") or {}).get("assignedCount", 0)
+            if assigned_count >= 2:
+                t_counts[tournament_alias]["fullyAssigned"] += 1
+            elif assigned_count == 1:
+                t_counts[tournament_alias]["partiallyAssigned"] += 1
+            else:
+                t_counts[tournament_alias]["unassigned"] += 1
+
+        grouped = []
+        for day_key in sorted(day_map.keys()):
+            day_data = day_map[day_key]
+            tournament_summary = [
+                {"tournamentAlias": alias, "counts": counts}
+                for alias, counts in day_data["_tournament_counts"].items()
+            ]
+            grouped.append({
+                "date": day_data["date"],
+                "matches": day_data["matches"],
+                "tournamentSummary": tournament_summary,
+            })
+        return grouped
 
     async def get_referee_options_for_match(
         self,

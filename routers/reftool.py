@@ -5,7 +5,7 @@ Provides three endpoints designed for day-view and sidepanel UI patterns,
 replacing the heavy all-referees pattern in /assignments/matches/{match_id}.
 """
 
-from datetime import date, datetime
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Request
 
@@ -65,26 +65,7 @@ async def get_matches_with_ref_summary(
             details={"start_date": start_date, "end_date": end_date},
         )
 
-    matches = await assignment_service.get_matches_by_day_range(start, end)
-
-    grouped: dict[str, list] = {}
-    for match in matches:
-        match_dt = match.get("startDate")
-        if isinstance(match_dt, datetime):
-            day_key = match_dt.date().isoformat()
-        elif match_dt:
-            day_key = str(match_dt)[:10]
-        else:
-            day_key = "unknown"
-
-        if day_key not in grouped:
-            grouped[day_key] = []
-
-        match_out = {k: v for k, v in match.items() if k != "startDate"}
-        match_out["startDate"] = match_dt.isoformat() if isinstance(match_dt, datetime) else match_dt
-        grouped[day_key].append(match_out)
-
-    data = [{"date": day, "matches": ms} for day, ms in sorted(grouped.items())]
+    data = await assignment_service.get_matches_by_day_range(start, end)
 
     return StandardResponse(
         success=True,
