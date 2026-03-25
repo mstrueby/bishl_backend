@@ -356,7 +356,7 @@ class AssignmentService:
 
         Uses a MongoDB aggregation pipeline to join with the assignments collection
         and compute refSummary (assignedCount, requestedCount, availableCount,
-        requestsByLevel) in a single database pass.
+        unavailableCount, requestsByLevel) in a single database pass.
 
         Args:
             start_date: Start of date range (inclusive)
@@ -430,6 +430,15 @@ class AssignmentService:
                                     ]
                                 },
                             ]
+                        },
+                        "unavailableCount": {
+                            "$size": {
+                                "$filter": {
+                                    "input": "$_assignments",
+                                    "as": "a",
+                                    "cond": {"$eq": ["$$a.status", "UNAVAILABLE"]},
+                                }
+                            }
                         },
                         "requestsByLevel": {
                             "$arrayToObject": {
