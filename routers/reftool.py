@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ValidationException
 from models.responses import StandardResponse
+from models.reftool import DayGroupResponse
 from services.assignment_service import AssignmentService
 
 router = APIRouter()
@@ -52,7 +53,7 @@ async def get_matches_with_ref_summary(
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
     assignment_service: AssignmentService = Depends(get_assignment_service),
-) -> StandardResponse:
+) -> StandardResponse[list[DayGroupResponse]]:
     _require_reftool_role(token_payload)
 
     start = _parse_date(start_date, "start_date")
