@@ -511,8 +511,6 @@ class TestGetDaySummaries:
     @pytest.mark.asyncio
     async def test_returns_per_day_totals(self, assignment_service, mock_db):
         """Normal result: per-day summaries covering requested range"""
-        start = date(2026, 3, 1)
-
         mock_db._matches_find.to_list = AsyncMock(
             return_value=[
                 {
