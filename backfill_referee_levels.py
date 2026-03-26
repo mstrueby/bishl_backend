@@ -21,7 +21,7 @@ Usage:
 import argparse
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import certifi
 import motor.motor_asyncio
@@ -109,7 +109,7 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
             )
         asgn_updated += 1
 
-    print(f"\n  Assignments summary:")
+    print("\n  Assignments summary:")
     print(f"    Checked:          {asgn_checked}")
     print(f"    Already correct:  {asgn_already_correct}")
     print(f"    Updated:          {asgn_updated}")
@@ -120,7 +120,7 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
     #    — level from users, assignmentStatus from assignments collection
     # ------------------------------------------------------------------
     print("\nProcessing future matches...")
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     matches = await db["matches"].find(
         {
@@ -214,7 +214,7 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
             )
         match_updated += 1
 
-    print(f"\n  Matches summary:")
+    print("\n  Matches summary:")
     print(f"    Checked:          {match_checked}")
     print(f"    Already correct:  {match_already_correct}")
     print(f"    Updated:          {match_updated}")

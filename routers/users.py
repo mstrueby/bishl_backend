@@ -1,6 +1,6 @@
 # filename routers/users.py
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, status
@@ -273,7 +273,7 @@ async def update_user(
                 new_level = (user_to_update["referee"] or {}).get("level")
                 if new_level is not None and new_level != old_level:
                     new_level_str = new_level if isinstance(new_level, str) else new_level.value
-                    now = datetime.now(tz=timezone.utc)
+                    now = datetime.now(tz=UTC)
                     try:
                         await mongodb["assignments"].update_many(
                             {"referee.userId": user_id, "status": {"$ne": "UNAVAILABLE"}},

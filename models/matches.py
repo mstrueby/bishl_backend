@@ -275,7 +275,7 @@ class RosterUpdate(BaseModel):
     eligibilityValidator: str | None = None
     coach: Coach | None = None
     staff: list[Staff] | None = None
-    
+
 
 class RosterSummary(BaseModel):
     """Lightweight roster summary for list views (no player details)."""

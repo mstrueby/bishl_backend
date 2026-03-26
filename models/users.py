@@ -68,7 +68,7 @@ class Club(BaseModel):
     logoUrl: str | None = None
 
 
-class Referee(BaseModel):
+class UserReferee(BaseModel):
     level: RefereeLevel = Field(default=RefereeLevel.NA)
     passNo: str | None = None
     ishdLevel: int | None = None
@@ -84,7 +84,7 @@ class UserBase(MongoBaseModel):
     lastName: str = Field(...)
     club: Club | None = None
     roles: list[Role] | None = Field(default_factory=list)
-    referee: Referee | None = None
+    referee: UserReferee | None = None
 
     @field_validator("email")
     @classmethod
@@ -103,7 +103,7 @@ class UserUpdate(MongoBaseModel):
     lastName: str | None = None
     club: Club | None = None
     roles: list[Role] | None = Field(default_factory=list)
-    referee: Referee | None = None
+    referee: UserReferee | None = None
     """
   @validator('email')
   def email_is_valid(cls, v):
@@ -127,4 +127,4 @@ class CurrentUser(MongoBaseModel):
     lastName: str = Field(...)
     club: Club | None = None
     roles: list[Role] | None = Field(default_factory=list)
-    referee: Referee | None = None
+    referee: UserReferee | None = None

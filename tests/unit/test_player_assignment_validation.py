@@ -824,6 +824,7 @@ class TestDamenHerrenWkoRules:
         validate correctly marks it INVALID[MULTIPLE_PRIMARY].
         """
         from unittest.mock import AsyncMock
+
         from bson import ObjectId
 
         player_id = str(ObjectId())

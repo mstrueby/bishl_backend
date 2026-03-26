@@ -2,7 +2,6 @@
 
 from models.matches import CalledFromTeam, EventPlayer, LicenseStatus, RosterPlayer
 from models.players import LicenseInvalidReasonCode
-from models.tournaments import CallUpType
 from routers.roster import (
     _count_called_matches,
     _extract_status_and_reasons,

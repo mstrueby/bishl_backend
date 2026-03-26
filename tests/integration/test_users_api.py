@@ -1,7 +1,7 @@
 """Integration tests for users API endpoints"""
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from bson import ObjectId
@@ -276,14 +276,14 @@ class TestUsersAPI:
 
         # Future match (startDate >= now) — should be updated
         future_match = create_test_match()
-        future_match["startDate"] = datetime.now(tz=timezone.utc) + timedelta(days=7)
+        future_match["startDate"] = datetime.now(tz=UTC) + timedelta(days=7)
         future_match["referee1"] = {"userId": ref_id, "firstName": "Level", "lastName": "Test",
                                     "level": "S2", "assignmentStatus": "ASSIGNED"}
         await mongodb["matches"].insert_one(future_match)
 
         # Past match (startDate < now) — must NOT be updated
         past_match = create_test_match()
-        past_match["startDate"] = datetime.now(tz=timezone.utc) - timedelta(days=7)
+        past_match["startDate"] = datetime.now(tz=UTC) - timedelta(days=7)
         past_match["referee2"] = {"userId": ref_id, "firstName": "Level", "lastName": "Test",
                                   "level": "S2", "assignmentStatus": "ACCEPTED"}
         await mongodb["matches"].insert_one(past_match)

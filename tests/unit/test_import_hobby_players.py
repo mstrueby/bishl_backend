@@ -3,7 +3,6 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-import pytest
 from bson import ObjectId
 
 CLUB_ID = str(ObjectId())

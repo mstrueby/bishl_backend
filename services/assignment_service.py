@@ -16,6 +16,7 @@ from exceptions import (
 )
 from logging_config import logger
 from models.assignments import AssignmentDB, Referee, Status, StatusHistory
+from models.reftool import DayGroupResponse, TournamentSummaryEntry, TournamentSummaryCounts
 
 
 class AssignmentService:
@@ -366,7 +367,7 @@ class AssignmentService:
         start_date: date,
         end_date: date,
         filters: dict | None = None,
-    ) -> list[dict]:
+    ) -> list[DayGroupResponse]:
         """
         Fetch matches in a date range grouped by day, with refSummary and tournamentSummary.
 
@@ -572,18 +573,23 @@ class AssignmentService:
             else:
                 t_counts[tournament_alias]["unassigned"] += 1
 
-        grouped = []
+        grouped: list[DayGroupResponse] = []
         for day_key in sorted(day_map.keys()):
             day_data = day_map[day_key]
             tournament_summary = [
-                {"tournamentAlias": alias, "counts": counts}
+                TournamentSummaryEntry(
+                    tournamentAlias=alias,
+                    counts=TournamentSummaryCounts(**counts),
+                )
                 for alias, counts in day_data["_tournament_counts"].items()
             ]
-            grouped.append({
-                "date": day_data["date"],
-                "matches": day_data["matches"],
-                "tournamentSummary": tournament_summary,
-            })
+            grouped.append(
+                DayGroupResponse(
+                    date=day_data["date"],
+                    matches=day_data["matches"],
+                    tournamentSummary=tournament_summary,
+                )
+            )
         return grouped
 
     async def get_referee_options_for_match(

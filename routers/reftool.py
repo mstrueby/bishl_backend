@@ -11,8 +11,8 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ValidationException
-from models.responses import StandardResponse
 from models.reftool import DayGroupResponse
+from models.responses import StandardResponse
 from services.assignment_service import AssignmentService
 
 router = APIRouter()
@@ -41,7 +41,7 @@ def _parse_date(value: str, field_name: str) -> date:
         raise ValidationException(
             field=field_name,
             message=f"Invalid date format '{value}'. Expected YYYY-MM-DD.",
-        )
+    )
 
 
 @router.get(

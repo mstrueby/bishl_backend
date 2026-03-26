@@ -101,7 +101,7 @@ class CallUpType(str, Enum):
 class MinimumStartingStrength(BaseModel):
     skater: int | None = Field(default=4)
     goalie: int | None = Field(default=1)
-    
+
 # settings on round and matchday level
 class MatchSettings(BaseModel):
     numOfPeriods: int | None = Field(default=0)

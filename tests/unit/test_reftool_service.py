@@ -1,7 +1,7 @@
 """Unit tests for AssignmentService reftool methods"""
 
-from datetime import date, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import date, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

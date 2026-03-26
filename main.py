@@ -17,7 +17,6 @@ from config import settings
 from exceptions import BISHLException
 from logging_config import logger
 from routers.assignments import router as assignments_router
-from routers.reftool import router as reftool_router
 from routers.clubs import router as clubs_router
 from routers.configs import router as configs_router
 from routers.documents import router as documents_router
@@ -27,6 +26,7 @@ from routers.messages import router as messages_router
 from routers.penalties import router as penalties_router
 from routers.players import router as players_router
 from routers.posts import router as posts_router
+from routers.reftool import router as reftool_router
 
 # import uvicorn
 from routers.root import router as root_router
