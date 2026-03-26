@@ -123,6 +123,7 @@ class TestReftoolMatchesEndpoint:
             "clubName": None,
             "logoUrl": None,
             "level": "S2",
+            "assignmentStatus": "ASSIGNED",
         }
         await mongodb["matches"].insert_one(match)
 

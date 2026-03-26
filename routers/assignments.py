@@ -274,6 +274,7 @@ async def create_assignment(
                         match_id,
                         jsonable_encoder(referee),
                         assignment_data.position,
+                        assignmentStatus="ASSIGNED",
                         session=session,
                     )
 
@@ -498,6 +499,7 @@ async def update_assignment(
                                     match_id,
                                     update_data["referee"],
                                     position,
+                                    assignmentStatus=update_data["status"].value,
                                     session=session,
                                 )
                         # Transaction commits automatically on success
@@ -593,17 +595,42 @@ async def update_assignment(
                 assignment["status"] == Status.assigned and update_data["status"] == Status.accepted
             )
         ):
-            # print("do update")
-            result = await mongodb["assignments"].update_one(
-                {"_id": assignment_id}, {"$set": update_data}
-            )
-            # Add status history entry
-            await assignment_service.add_status_history(
-                assignment_id,
-                update_data["status"],
-                user_id,
-                f"{assignment['referee']['firstName']} {assignment['referee']['lastName']}",
-            )
+            if update_data["status"] == Status.accepted:
+                # ASSIGNED → ACCEPTED: update assignment AND match.referee{n}.assignmentStatus
+                position = assignment.get("position")
+                async with await request.app.state.mongodb.client.start_session() as session:
+                    async with session.start_transaction():
+                        try:
+                            result = await mongodb["assignments"].update_one(
+                                {"_id": assignment_id}, {"$set": update_data}, session=session
+                            )
+                            await assignment_service.add_status_history(
+                                assignment_id,
+                                update_data["status"],
+                                user_id,
+                                f"{assignment['referee']['firstName']} {assignment['referee']['lastName']}",
+                                session=session,
+                            )
+                            if position:
+                                await assignment_service.update_match_ref_assignment_status(
+                                    match_id, position, update_data["status"].value, session=session
+                                )
+                        except Exception as e:
+                            raise HTTPException(
+                                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Failed to update assignment: {str(e)}",
+                            ) from e
+            else:
+                # UNAVAILABLE ↔ REQUESTED transitions: assignment only, no match update needed
+                result = await mongodb["assignments"].update_one(
+                    {"_id": assignment_id}, {"$set": update_data}
+                )
+                await assignment_service.add_status_history(
+                    assignment_id,
+                    update_data["status"],
+                    user_id,
+                    f"{assignment['referee']['firstName']} {assignment['referee']['lastName']}",
+                )
 
             if result.modified_count == 1:
                 updated_assignment = await mongodb["assignments"].find_one({"_id": assignment_id})

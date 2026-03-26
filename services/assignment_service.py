@@ -146,6 +146,7 @@ class AssignmentService:
         match_id: str,
         referee: dict,
         position: int,
+        assignmentStatus: str | None = None,
         session: AsyncIOMotorClientSession | None = None,
     ) -> None:
         """Update match document with referee assignment"""
@@ -166,6 +167,7 @@ class AssignmentService:
                         "clubName": referee["clubName"],
                         "logoUrl": referee["logoUrl"],
                         "level": referee.get("level"),
+                        "assignmentStatus": assignmentStatus,
                     }
                 }
             },
@@ -183,6 +185,20 @@ class AssignmentService:
         """Remove referee from match document"""
         await self.db["matches"].update_one(
             {"_id": match_id}, {"$set": {f"referee{position}": None}}, session=session
+        )
+
+    async def update_match_ref_assignment_status(
+        self,
+        match_id: str,
+        position: int,
+        assignment_status: str,
+        session: AsyncIOMotorClientSession | None = None,
+    ) -> None:
+        """Update only the assignmentStatus field of a referee slot in the match document"""
+        await self.db["matches"].update_one(
+            {"_id": match_id},
+            {"$set": {f"referee{position}.assignmentStatus": assignment_status}},
+            session=session,
         )
 
     async def create_assignment(
@@ -522,19 +538,7 @@ class AssignmentService:
         for raw in results:
             match = dict(raw)
 
-            # Enrich referee1/referee2 with their assignment status from the joined _assignments
-            assignments = match.pop("_assignments", [])
-            assignment_by_user: dict[str, str] = {
-                a["referee"]["userId"]: a["status"]
-                for a in assignments
-                if a.get("referee") and a["referee"].get("userId")
-            }
-            for ref_key in ("referee1", "referee2"):
-                ref = match.get(ref_key)
-                if ref and isinstance(ref, dict):
-                    user_id = ref.get("userId")
-                    if user_id and user_id in assignment_by_user:
-                        ref["assignmentStatus"] = assignment_by_user[user_id]
+            match.pop("_assignments", None)
 
             match_dt = match.get("startDate")
             if isinstance(match_dt, datetime):

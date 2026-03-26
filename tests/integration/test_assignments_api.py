@@ -251,6 +251,16 @@ class TestAssignmentsAPI:
         await mongodb["users"].insert_one(referee)
 
         match = create_test_match()
+        match["referee1"] = {
+            "userId": referee["_id"],
+            "firstName": "John",
+            "lastName": "Referee",
+            "clubId": None,
+            "clubName": None,
+            "logoUrl": None,
+            "level": "S2",
+            "assignmentStatus": "ASSIGNED",
+        }
         await mongodb["matches"].insert_one(match)
 
         assignment = {

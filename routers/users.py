@@ -1,6 +1,6 @@
 # filename routers/users.py
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, status
@@ -267,6 +267,30 @@ async def update_user(
         )
 
         if update_result.modified_count == 1:
+            # Propagate referee level change to assignments and future matches
+            if "referee" in user_to_update:
+                old_level = (existing_user.get("referee") or {}).get("level")
+                new_level = (user_to_update["referee"] or {}).get("level")
+                if new_level is not None and new_level != old_level:
+                    new_level_str = new_level if isinstance(new_level, str) else new_level.value
+                    now = datetime.now(tz=timezone.utc)
+                    await mongodb["assignments"].update_many(
+                        {"referee.userId": user_id, "status": {"$ne": "UNAVAILABLE"}},
+                        {"$set": {"referee.level": new_level_str}},
+                    )
+                    await mongodb["matches"].update_many(
+                        {"startDate": {"$gte": now}, "referee1.userId": user_id},
+                        {"$set": {"referee1.level": new_level_str}},
+                    )
+                    await mongodb["matches"].update_many(
+                        {"startDate": {"$gte": now}, "referee2.userId": user_id},
+                        {"$set": {"referee2.level": new_level_str}},
+                    )
+                    logger.info(
+                        "Referee level propagated to assignments and matches",
+                        extra={"user_id": user_id, "old_level": old_level, "new_level": new_level_str},
+                    )
+
             updated_user = await mongodb["users"].find_one({"_id": user_id})
             response = StandardResponse(
                 success=True, data=CurrentUser(**updated_user), message="User updated successfully"
@@ -306,8 +330,6 @@ async def get_assigned_matches(
         )
 
     # Fetch matches assigned to me as referee using MatchService
-    from datetime import datetime
-
     current_date = datetime.combine(date.today(), datetime.min.time())
     matches = await match_service.get_matches_for_referee(user_id, current_date)
 
