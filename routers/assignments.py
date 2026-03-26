@@ -598,6 +598,11 @@ async def update_assignment(
             if update_data["status"] == Status.accepted:
                 # ASSIGNED → ACCEPTED: update assignment AND match.referee{n}.assignmentStatus
                 position = assignment.get("position")
+                if not position:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Cannot accept assignment: position is not set on the assignment",
+                    )
                 async with await request.app.state.mongodb.client.start_session() as session:
                     async with session.start_transaction():
                         try:
@@ -611,10 +616,11 @@ async def update_assignment(
                                 f"{assignment['referee']['firstName']} {assignment['referee']['lastName']}",
                                 session=session,
                             )
-                            if position:
-                                await assignment_service.update_match_ref_assignment_status(
-                                    match_id, position, update_data["status"].value, session=session
-                                )
+                            await assignment_service.update_match_ref_assignment_status(
+                                match_id, position, update_data["status"].value, session=session
+                            )
+                        except HTTPException:
+                            raise
                         except Exception as e:
                             raise HTTPException(
                                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

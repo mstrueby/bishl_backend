@@ -274,22 +274,28 @@ async def update_user(
                 if new_level is not None and new_level != old_level:
                     new_level_str = new_level if isinstance(new_level, str) else new_level.value
                     now = datetime.now(tz=timezone.utc)
-                    await mongodb["assignments"].update_many(
-                        {"referee.userId": user_id, "status": {"$ne": "UNAVAILABLE"}},
-                        {"$set": {"referee.level": new_level_str}},
-                    )
-                    await mongodb["matches"].update_many(
-                        {"startDate": {"$gte": now}, "referee1.userId": user_id},
-                        {"$set": {"referee1.level": new_level_str}},
-                    )
-                    await mongodb["matches"].update_many(
-                        {"startDate": {"$gte": now}, "referee2.userId": user_id},
-                        {"$set": {"referee2.level": new_level_str}},
-                    )
-                    logger.info(
-                        "Referee level propagated to assignments and matches",
-                        extra={"user_id": user_id, "old_level": old_level, "new_level": new_level_str},
-                    )
+                    try:
+                        await mongodb["assignments"].update_many(
+                            {"referee.userId": user_id, "status": {"$ne": "UNAVAILABLE"}},
+                            {"$set": {"referee.level": new_level_str}},
+                        )
+                        await mongodb["matches"].update_many(
+                            {"startDate": {"$gte": now}, "referee1.userId": user_id},
+                            {"$set": {"referee1.level": new_level_str}},
+                        )
+                        await mongodb["matches"].update_many(
+                            {"startDate": {"$gte": now}, "referee2.userId": user_id},
+                            {"$set": {"referee2.level": new_level_str}},
+                        )
+                        logger.info(
+                            "Referee level propagated to assignments and matches",
+                            extra={"user_id": user_id, "old_level": old_level, "new_level": new_level_str},
+                        )
+                    except Exception as prop_err:
+                        logger.error(
+                            "Failed to propagate referee level change; run backfill_referee_levels.py to repair",
+                            extra={"user_id": user_id, "old_level": old_level, "new_level": new_level_str, "error": str(prop_err)},
+                        )
 
             updated_user = await mongodb["users"].find_one({"_id": user_id})
             response = StandardResponse(

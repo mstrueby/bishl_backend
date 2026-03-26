@@ -1,9 +1,13 @@
 """Integration tests for users API endpoints"""
 
+import json
+from datetime import datetime, timedelta, timezone
+
 import pytest
+from bson import ObjectId
 from httpx import AsyncClient
 
-from tests.fixtures.data_fixtures import create_test_user
+from tests.fixtures.data_fixtures import create_test_match, create_test_user
 
 
 @pytest.mark.asyncio
@@ -233,3 +237,79 @@ class TestUsersAPI:
         response = await client.post("/users/register", json=user_data)
 
         assert response.status_code == 403
+
+    async def test_update_referee_level_propagates_to_assignments_and_matches(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
+        """Changing a referee's level propagates to non-UNAVAILABLE assignments and future matches"""
+        ref_id = str(ObjectId())
+
+        referee = {
+            "_id": ref_id,
+            "email": f"{ref_id}@test.com",
+            "firstName": "Level",
+            "lastName": "Test",
+            "roles": ["REFEREE"],
+            "referee": {"level": "S2", "active": True, "points": 0},
+        }
+        await mongodb["users"].insert_one(referee)
+
+        # Assignment that should be updated (ASSIGNED, non-UNAVAILABLE)
+        assigned_asgn = {
+            "_id": str(ObjectId()),
+            "matchId": str(ObjectId()),
+            "status": "ASSIGNED",
+            "position": 1,
+            "referee": {"userId": ref_id, "firstName": "Level", "lastName": "Test",
+                        "clubId": None, "clubName": None, "logoUrl": None, "level": "S2"},
+        }
+        # Assignment that must NOT be updated (UNAVAILABLE)
+        unavailable_asgn = {
+            "_id": str(ObjectId()),
+            "matchId": str(ObjectId()),
+            "status": "UNAVAILABLE",
+            "position": None,
+            "referee": {"userId": ref_id, "firstName": "Level", "lastName": "Test",
+                        "clubId": None, "clubName": None, "logoUrl": None, "level": "S2"},
+        }
+        await mongodb["assignments"].insert_many([assigned_asgn, unavailable_asgn])
+
+        # Future match (startDate >= now) — should be updated
+        future_match = create_test_match()
+        future_match["startDate"] = datetime.now(tz=timezone.utc) + timedelta(days=7)
+        future_match["referee1"] = {"userId": ref_id, "firstName": "Level", "lastName": "Test",
+                                    "level": "S2", "assignmentStatus": "ASSIGNED"}
+        await mongodb["matches"].insert_one(future_match)
+
+        # Past match (startDate < now) — must NOT be updated
+        past_match = create_test_match()
+        past_match["startDate"] = datetime.now(tz=timezone.utc) - timedelta(days=7)
+        past_match["referee2"] = {"userId": ref_id, "firstName": "Level", "lastName": "Test",
+                                  "level": "S2", "assignmentStatus": "ACCEPTED"}
+        await mongodb["matches"].insert_one(past_match)
+
+        # PATCH the user's referee level to S1
+        response = await client.patch(
+            f"/users/{ref_id}",
+            data={"referee": json.dumps({"level": "S1", "active": True})},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["referee"]["level"] == "S1"
+
+        # ASSIGNED assignment must reflect new level
+        updated_asgn = await mongodb["assignments"].find_one({"_id": assigned_asgn["_id"]})
+        assert updated_asgn["referee"]["level"] == "S1"
+
+        # UNAVAILABLE assignment must remain unchanged
+        unchanged_asgn = await mongodb["assignments"].find_one({"_id": unavailable_asgn["_id"]})
+        assert unchanged_asgn["referee"]["level"] == "S2"
+
+        # Future match's referee1 must reflect new level
+        updated_future = await mongodb["matches"].find_one({"_id": future_match["_id"]})
+        assert updated_future["referee1"]["level"] == "S1"
+
+        # Past match must remain unchanged
+        unchanged_past = await mongodb["matches"].find_one({"_id": past_match["_id"]})
+        assert unchanged_past["referee2"]["level"] == "S2"
