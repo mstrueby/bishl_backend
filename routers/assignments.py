@@ -475,6 +475,11 @@ async def update_assignment(
                                 match_id, assignment["position"], session=session
                             )
                         else:
+                            if update_data["status"] in [Status.assigned, Status.accepted]:
+                                # Re-fetch current referee data to pick up the latest level
+                                fresh_referee = await assignment_service.create_referee_object(ref_id)
+                                update_data["referee"] = jsonable_encoder(fresh_referee)
+
                             result = await mongodb["assignments"].update_one(
                                 {"_id": assignment_id}, {"$set": update_data}, session=session
                             )
@@ -491,7 +496,7 @@ async def update_assignment(
                                 position = update_data.get("position", assignment["position"])
                                 await assignment_service.set_referee_in_match(
                                     match_id,
-                                    assignment["referee"],
+                                    update_data["referee"],
                                     position,
                                     session=session,
                                 )
