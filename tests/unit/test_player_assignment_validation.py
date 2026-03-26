@@ -714,21 +714,8 @@ class TestDamenHerrenWkoRules:
         ageGroup is DAMEN (edge-case / wrong data) with a HERREN SECONDARY should be
         blocked by step 8 with AGE_GROUP_VIOLATION.
         """
-        # Force a male player into DAMEN age group by using a very old birthdate
-        # and setting sex=MALE manually (edge-case / corrupted data scenario).
-        player = self._make_player_dict(
-            datetime(2000, 1, 1),
-            [
-                self._make_club(
-                    "clubA",
-                    [self._make_team("t1", "HERREN", "SECONDARY")],
-                )
-            ],
-            sex=Sex.MALE,
-        )
-        # Override sex to MALE so ageGroup=HERREN (males born <=2007 are HERREN)
-        # We need to force ageGroup=DAMEN for a male to test the sex filter directly
-        # on _is_secondary_allowed. Call it directly.
+        # Call _is_secondary_allowed directly to test the sex filter in isolation,
+        # bypassing age-group derivation (which would map a male to HERREN, not DAMEN).
         from models.players import Sex as SexModel
 
         result = service._is_secondary_allowed("DAMEN", "HERREN", SexModel.MALE)
