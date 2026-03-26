@@ -37,11 +37,11 @@ def _require_reftool_role(token_payload: TokenPayload) -> None:
 def _parse_date(value: str, field_name: str) -> date:
     try:
         return date.fromisoformat(value)
-    except ValueError:
+    except ValueError as err:
         raise ValidationException(
             field=field_name,
             message=f"Invalid date format '{value}'. Expected YYYY-MM-DD.",
-    )
+        ) from err
 
 
 @router.get(

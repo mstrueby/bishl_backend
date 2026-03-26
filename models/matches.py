@@ -5,9 +5,10 @@ from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
 
-from models.assignments import Referee
+from models.assignments import AssignmentStatus
 from models.players import LicenseInvalidReasonCode, LicenseType, Source
 from models.tournaments import CallUpMode, CallUpType, MatchSettings
+from models.users import RefereeLevel
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 
 
@@ -389,6 +390,16 @@ class SupplementarySheet(BaseModel):
     crowd: int | None = 0
     isSaved: bool | None = False
 
+class MatchReferee(BaseModel):
+    userId: str = Field(...)
+    firstName: str = Field(...)
+    lastName: str = Field(...)
+    clubId: str | None = None
+    clubName: str | None = None
+    logoUrl: str | None = None
+    level: RefereeLevel | None = RefereeLevel.NA
+    points: int = 0
+    assignentStatus: AssignmentStatus = Field(default=AssignmentStatus.assigned)
 
 # --- main document
 
@@ -401,8 +412,8 @@ class MatchBase(MongoBaseModel):
     matchday: MatchMatchday | None = None
     home: MatchTeam | None = None
     away: MatchTeam | None = None
-    referee1: Referee | None = None
-    referee2: Referee | None = None
+    referee1: MatchReferee | None = None
+    referee2: MatchReferee | None = None
     matchStatus: KeyValue = Field(
         default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt")
     )
@@ -448,8 +459,8 @@ class MatchListBase(MongoBaseModel):
     matchday: MatchMatchday | None = None
     home: MatchListTeam | None = None
     away: MatchListTeam | None = None
-    referee1: Referee | None = None
-    referee2: Referee | None = None
+    referee1: MatchReferee | None = None
+    referee2: MatchReferee | None = None
     matchStatus: KeyValue = Field(
         default_factory=lambda: KeyValue(key="SCHEDULED", value="angesetzt")
     )
@@ -470,8 +481,8 @@ class MatchUpdate(MongoBaseModel):
     matchday: MatchMatchday | None = None
     home: MatchTeamUpdate | None = None
     away: MatchTeamUpdate | None = None
-    referee1: Referee | None = None
-    referee2: Referee | None = None
+    referee1: MatchReferee | None = None
+    referee2: MatchReferee | None = None
     matchStatus: KeyValue | None = None
     finishType: KeyValue | None = None
     venue: MatchVenue | None = None

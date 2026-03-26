@@ -39,7 +39,7 @@ class MongoBaseModel(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 
 
-class Status(str, Enum):
+class AssignmentStatus(str, Enum):
     requested = "REQUESTED"
     unavailable = "UNAVAILABLE"
     assigned = "ASSIGNED"
@@ -47,13 +47,13 @@ class Status(str, Enum):
 
 
 class StatusHistory(BaseModel):
-    status: Status = Field(...)
+    status: AssignmentStatus = Field(...)
     updateDate: datetime = Field(...)
     updatedBy: str | None = None
     updatedByName: str | None = None
 
 
-class Referee(BaseModel):
+class AssignmentReferee(BaseModel):
     userId: str = Field(...)
     firstName: str = Field(...)
     lastName: str = Field(...)
@@ -62,12 +62,11 @@ class Referee(BaseModel):
     logoUrl: str | None = None
     level: RefereeLevel | None = RefereeLevel.NA
     points: int = 0
-    assignmentStatus: str | None = None
 
 
 class AssignmentBase(MongoBaseModel):
     matchId: str = Field(...)
-    status: Status = Field(...)
+    status: AssignmentStatus = Field(...)
     userId: str | None = None
     refAdmin: bool = False
     position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
@@ -75,14 +74,14 @@ class AssignmentBase(MongoBaseModel):
 
 class AssignmentDB(MongoBaseModel):
     matchId: str = Field(...)
-    status: Status = Field(...)
-    referee: Referee = Field(...)
+    status: AssignmentStatus = Field(...)
+    referee: AssignmentReferee = Field(...)
     position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
     statusHistory: list[StatusHistory] | None = Field(default_factory=list)
 
 
 class AssignmentUpdate(MongoBaseModel):
-    status: Status | None = None
+    status: AssignmentStatus | None = None
     refAdmin: bool | None = False
     position: int | None = Field(None, description="Possible values are 1 and 2", ge=1, le=2)
 

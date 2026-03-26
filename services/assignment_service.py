@@ -16,7 +16,7 @@ from exceptions import (
 )
 from logging_config import logger
 from models.assignments import AssignmentDB, Referee, Status, StatusHistory
-from models.reftool import DayGroupResponse, TournamentSummaryEntry, TournamentSummaryCounts
+from models.reftool import DayGroupResponse, TournamentSummaryCounts, TournamentSummaryEntry
 
 
 class AssignmentService:
