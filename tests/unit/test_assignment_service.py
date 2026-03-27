@@ -1,4 +1,5 @@
 """Unit tests for AssignmentService"""
+from models.users import RefereeLevel
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -8,7 +9,7 @@ from exceptions import (
     ResourceNotFoundException,
     ValidationException,
 )
-from models.assignments import Referee, Status
+from models.assignments import AssignmentReferee, AssignmentStatus, RefereeLevel
 from services.assignment_service import AssignmentService
 
 
@@ -142,13 +143,13 @@ class TestValidateStatusTransition:
         """Test valid transitions for REF_ADMIN"""
         # Test requested -> assigned
         result = await assignment_service.validate_assignment_status_transition(
-            Status.requested, Status.assigned, is_ref_admin=True
+            AssignmentStatus.requested, AssignmentStatus.assigned, is_ref_admin=True
         )
         assert result is True
 
         # Test assigned -> unavailable
         result = await assignment_service.validate_assignment_status_transition(
-            Status.assigned, Status.unavailable, is_ref_admin=True
+            AssignmentStatus.assigned, AssignmentStatus.unavailable, is_ref_admin=True
         )
         assert result is True
 
@@ -157,13 +158,13 @@ class TestValidateStatusTransition:
         """Test valid transitions for REFEREE"""
         # Test unavailable -> requested
         result = await assignment_service.validate_assignment_status_transition(
-            Status.unavailable, Status.requested, is_ref_admin=False
+            AssignmentStatus.unavailable, AssignmentStatus.requested, is_ref_admin=False
         )
         assert result is True
 
         # Test assigned -> accepted
         result = await assignment_service.validate_assignment_status_transition(
-            Status.assigned, Status.accepted, is_ref_admin=False
+            AssignmentStatus.assigned, AssignmentStatus.accepted, is_ref_admin=False
         )
         assert result is True
 
@@ -172,7 +173,7 @@ class TestValidateStatusTransition:
         """Test invalid status transition"""
         with pytest.raises(ValidationException) as exc_info:
             await assignment_service.validate_assignment_status_transition(
-                Status.accepted, Status.requested, is_ref_admin=False
+                AssignmentStatus.accepted, AssignmentStatus.requested, is_ref_admin=False
             )
 
         assert "Invalid status transition" in str(exc_info.value)
@@ -204,7 +205,7 @@ class TestCreateRefereeObject:
 
         result = await assignment_service.create_referee_object("user-123")
 
-        assert isinstance(result, Referee)
+        assert isinstance(result, AssignmentReferee)
         assert result.userId == "user-123"
         assert result.firstName == "John"
         assert result.lastName == "Doe"
@@ -294,7 +295,7 @@ class TestCreateAssignment:
     @pytest.mark.asyncio
     async def test_create_assignment_success(self, assignment_service, mock_db):
         """Test successful assignment creation"""
-        referee = Referee(
+        referee = AssignmentReferee(
             userId="ref-123",
             firstName="John",
             lastName="Doe",
@@ -302,7 +303,7 @@ class TestCreateAssignment:
             clubName="Test Club",
             logoUrl=None,
             points=100,
-            level="S2",
+            level=RefereeLevel.S2,
         )
 
         mock_insert_result = MagicMock()
@@ -320,7 +321,7 @@ class TestCreateAssignment:
         result = await assignment_service.create_assignment(
             match_id="match-123",
             referee=referee,
-            status=Status.requested,
+            status=AssignmentStatus.requested,
             position=None,
             updated_by="admin-123",
             updated_by_name="Admin User",
@@ -459,7 +460,7 @@ class TestAddStatusHistory:
         """Test adding status history entry"""
         await assignment_service.add_status_history(
             assignment_id="assign-123",
-            new_status=Status.accepted,
+            new_status=AssignmentStatus.accepted,
             updated_by="ref-456",
             updated_by_name="John Referee",
         )
