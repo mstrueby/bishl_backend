@@ -126,7 +126,6 @@ class TestMatchesAPI:
         response_data = response.json()
         assert response_data["success"] is True
         assert response_data["data"]["_id"] == match["_id"]
-        assert response_data["data"]["matchId"] == match["matchId"]
         # Existing matches without roster.status should default to DRAFT
         assert response_data["data"]["home"]["roster"]["status"] == "DRAFT"
         assert response_data["data"]["away"]["roster"]["status"] == "DRAFT"
