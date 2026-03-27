@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from models.matches import MatchListBase
 from models.assignments import AssignmentReferee
@@ -11,7 +11,8 @@ class RefToolReferee(AssignmentReferee):
 
 
 class RefereeOptions(BaseModel):
-    matchId: str
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(..., alias="_id")
     assigned: list[RefToolReferee]
     requested: list[RefToolReferee]
     available: list[RefToolReferee]

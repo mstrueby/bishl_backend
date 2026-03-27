@@ -16,7 +16,7 @@ from exceptions import (
 )
 from logging_config import logger
 from models.assignments import AssignmentDB, AssignmentReferee, AssignmentStatus, StatusHistory
-from models.reftool import DayGroupResponse, RefereeOptions, RefToolReferee, SummaryCounts, TournamentSummary
+from models.reftool import RefereeOptions, RefToolReferee
 
 
 class AssignmentService:
@@ -367,7 +367,7 @@ class AssignmentService:
         start_date: date,
         end_date: date,
         filters: dict | None = None,
-    ) -> list[DayGroupResponse]:
+    ) -> list[dict]:
         """
         Fetch matches in a date range grouped by day, with refSummary and tournamentSummary.
 
@@ -576,22 +576,19 @@ class AssignmentService:
             else:
                 t_counts[tournament_alias]["unassigned"] += 1
 
-        grouped: list[DayGroupResponse] = []
+        grouped: list[dict] = []
         for day_key in sorted(day_map.keys()):
             day_data = day_map[day_key]
             tournament_summary = [
-                TournamentSummary(
-                    tournamentAlias=alias,
-                    counts=SummaryCounts(**counts),
-                )
+                {"tournamentAlias": alias, "counts": counts}
                 for alias, counts in day_data["_tournament_counts"].items()
             ]
             grouped.append(
-                DayGroupResponse(
-                    date=day_data["date"],
-                    matches=day_data["matches"],
-                    tournamentSummary=tournament_summary,
-                )
+                {
+                    "date": day_data["date"],
+                    "matches": day_data["matches"],
+                    "tournamentSummary": tournament_summary,
+                }
             )
         return grouped
 
@@ -672,7 +669,7 @@ class AssignmentService:
                 available.append(RefToolReferee(**base_fields))
 
         return RefereeOptions(
-            matchId=match_id,
+            id=match_id,
             assigned=assigned,
             requested=requested,
             available=available,

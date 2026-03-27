@@ -461,16 +461,16 @@ class TestGetRefereeOptionsForMatch:
 
         result = await assignment_service.get_referee_options_for_match("match-1")
 
-        assert result["matchId"] == "match-1"
-        assert len(result["assigned"]) == 1
-        assert result["assigned"][0]["userId"] == "ref-1"
-        assert len(result["requested"]) == 1
-        assert result["requested"][0]["userId"] == "ref-2"
-        assert len(result["available"]) == 1
-        assert result["available"][0]["userId"] == "ref-3"
-        assert len(result["unavailable"]) == 1
-        assert result["unavailable"][0]["userId"] == "ref-4"
-        assert result["unavailable"][0]["status"] == "UNAVAILABLE"
+        assert result.id == "match-1"
+        assert len(result.assigned) == 1
+        assert result.assigned[0].userId == "ref-1"
+        assert len(result.requested) == 1
+        assert result.requested[0].userId == "ref-2"
+        assert len(result.available) == 1
+        assert result.available[0].userId == "ref-3"
+        assert len(result.unavailable) == 1
+        assert result.unavailable[0].userId == "ref-4"
+        assert result.unavailable[0].status == "UNAVAILABLE"
 
     @pytest.mark.asyncio
     async def test_match_not_found_raises_exception(self, assignment_service, mock_db):
@@ -535,9 +535,9 @@ class TestGetRefereeOptionsForMatch:
 
         result = await assignment_service.get_referee_options_for_match("match-1")
 
-        assert result["assigned"] == []
-        assert result["requested"] == []
-        assert result["available"] == []
+        assert result.assigned == []
+        assert result.requested == []
+        assert result.available == []
 
 
 class TestGetDaySummaries:
