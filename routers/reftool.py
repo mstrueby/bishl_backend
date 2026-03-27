@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ValidationException
-from models.reftool import DayGroupResponse, DayStripResponse, SummaryCounts
+from models.reftool import DayGroupResponse, DayStripResponse, RefereeOptions, SummaryCounts
 from models.responses import StandardResponse
 from services.assignment_service import AssignmentService
 
@@ -89,7 +89,7 @@ async def get_match_referee_options(
     ),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
     assignment_service: AssignmentService = Depends(get_assignment_service),
-) -> StandardResponse:
+) -> StandardResponse[RefereeOptions]:
     _require_reftool_role(token_payload)
 
     data = await assignment_service.get_referee_options_for_match(

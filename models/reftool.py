@@ -1,6 +1,21 @@
 from pydantic import BaseModel, Field
 
 from models.matches import MatchListBase
+from models.assignments import AssignmentReferee
+
+
+class RefToolReferee(AssignmentReferee):
+    assignmentId: str | None = None
+    status: str | None = None
+    position: int | None = None
+
+
+class RefereeOptions(BaseModel):
+    matchId: str
+    assigned: list[RefToolReferee]
+    requested: list[RefToolReferee]
+    available: list[RefToolReferee]
+    unavailable: list[RefToolReferee]
 
 
 class RefSummary(BaseModel):

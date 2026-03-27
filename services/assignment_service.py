@@ -16,7 +16,7 @@ from exceptions import (
 )
 from logging_config import logger
 from models.assignments import AssignmentDB, AssignmentReferee, AssignmentStatus, StatusHistory
-from models.reftool import DayGroupResponse, SummaryCounts, TournamentSummary
+from models.reftool import DayGroupResponse, RefereeOptions, RefToolReferee, SummaryCounts, TournamentSummary
 
 
 class AssignmentService:
@@ -600,7 +600,7 @@ class AssignmentService:
         match_id: str,
         scope: str | None = None,
         level_filter: str | None = None,
-    ) -> dict:
+    ) -> RefereeOptions:
         """
         Return assigned, requested, and available referee lists for a match.
 
@@ -613,7 +613,7 @@ class AssignmentService:
                           (e.g. "S1", "S2").
 
         Returns:
-            Dict with keys 'matchId', 'assigned', 'requested', 'available'
+            RefereeOptions with matchId, assigned, requested, available, unavailable lists
 
         Raises:
             ResourceNotFoundException: If match is not found
@@ -636,32 +636,32 @@ class AssignmentService:
             await self.db["users"].find(user_query, {"password": 0}).to_list(length=None)
         )
 
-        assigned: list[dict] = []
-        requested: list[dict] = []
-        available: list[dict] = []
-        unavailable: list[dict] = []
+        assigned: list[RefToolReferee] = []
+        requested: list[RefToolReferee] = []
+        available: list[RefToolReferee] = []
+        unavailable: list[RefToolReferee] = []
 
         for referee in active_referees:
             ref_id = referee["_id"]
             club_info = referee.get("referee", {}).get("club", {}) or {}
-            ref_obj = {
-                "userId": ref_id,
-                "firstName": referee["firstName"],
-                "lastName": referee["lastName"],
-                "clubId": club_info.get("clubId"),
-                "clubName": club_info.get("clubName"),
-                "logoUrl": club_info.get("logoUrl"),
-                "level": referee.get("referee", {}).get("level", "n/a"),
-            }
+            base_fields = dict(
+                userId=ref_id,
+                firstName=referee["firstName"],
+                lastName=referee["lastName"],
+                clubId=club_info.get("clubId"),
+                clubName=club_info.get("clubName"),
+                logoUrl=club_info.get("logoUrl"),
+                level=referee.get("referee", {}).get("level", "n/a"),
+            )
             if ref_id in assignment_dict:
                 a = assignment_dict[ref_id]
                 status = a.get("status")
-                entry = {
-                    **ref_obj,
-                    "_id": a.get("_id"),
-                    "status": status,
-                    "position": a.get("position"),
-                }
+                entry = RefToolReferee(
+                    **base_fields,
+                    assignmentId=a.get("_id"),
+                    status=status,
+                    position=a.get("position"),
+                )
                 if status in ("ASSIGNED", "ACCEPTED"):
                     assigned.append(entry)
                 elif status == "REQUESTED":
@@ -669,15 +669,15 @@ class AssignmentService:
                 elif status == "UNAVAILABLE":
                     unavailable.append(entry)
             else:
-                available.append(ref_obj)
+                available.append(RefToolReferee(**base_fields))
 
-        return {
-            "matchId": match_id,
-            "assigned": assigned,
-            "requested": requested,
-            "available": available,
-            "unavailable": unavailable,
-        }
+        return RefereeOptions(
+            matchId=match_id,
+            assigned=assigned,
+            requested=requested,
+            available=available,
+            unavailable=unavailable,
+        )
 
     async def get_day_summaries(
         self,
