@@ -102,6 +102,7 @@ class MinimumStartingStrength(BaseModel):
     skater: int | None = Field(default=4)
     goalie: int | None = Field(default=1)
 
+
 # settings on round and matchday level
 class MatchSettings(BaseModel):
     numOfPeriods: int | None = Field(default=0)
@@ -124,7 +125,9 @@ class MatchSettings(BaseModel):
     callUpType: CallUpType | None = Field(default=CallUpType.MATCH)
     maxCallUpAppearances: int | None = Field(default=5)
     maxCallUpPlayers: int | None = Field(default=5)
-    minimumStartingStrength: MinimumStartingStrength | None = Field(default_factory=MinimumStartingStrength)
+    minimumStartingStrength: MinimumStartingStrength | None = Field(
+        default_factory=MinimumStartingStrength
+    )
 
 
 # ------------

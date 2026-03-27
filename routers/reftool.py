@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import AuthorizationException, ValidationException
-from models.reftool import DayGroupResponse
+from models.reftool import DayGroupResponse, DayStripResponse, SummaryCounts
 from models.responses import StandardResponse
 from services.assignment_service import AssignmentService
 
@@ -81,8 +81,12 @@ async def get_matches_with_ref_summary(
 )
 async def get_match_referee_options(
     match_id: str,
-    scope: str | None = Query(None, description="Optional club-ID scope filter for available referees"),
-    levelFilter: str | None = Query(None, description="Optional referee level filter (e.g. S1, S2)"),
+    scope: str | None = Query(
+        None, description="Optional club-ID scope filter for available referees"
+    ),
+    levelFilter: str | None = Query(
+        None, description="Optional referee level filter (e.g. S1, S2)"
+    ),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
     assignment_service: AssignmentService = Depends(get_assignment_service),
 ) -> StandardResponse:
@@ -110,7 +114,7 @@ async def get_day_strip(
     month: int = Query(..., description="Calendar month (1-12)"),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
     assignment_service: AssignmentService = Depends(get_assignment_service),
-) -> StandardResponse:
+) -> StandardResponse[list[DayStripResponse]]:
     _require_reftool_role(token_payload)
 
     if month < 1 or month > 12:
@@ -122,8 +126,21 @@ async def get_day_strip(
 
     summaries = await assignment_service.get_day_summaries(year=year, month=month)
 
+    day_strips = [
+        DayStripResponse(
+            date=s["date"],
+            counts=SummaryCounts(
+                totalMatches=s.get("totalMatches", 0),
+                fullyAssigned=s.get("fullyAssigned", 0),
+                partiallyAssigned=s.get("partiallyAssigned", 0),
+                unassigned=s.get("unassigned", 0),
+            ),
+        )
+        for s in summaries
+    ]
+
     return StandardResponse(
         success=True,
-        data=summaries,
+        data=day_strips,
         message="Day summaries retrieved successfully",
     )

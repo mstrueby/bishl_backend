@@ -260,8 +260,15 @@ class TestUsersAPI:
             "matchId": str(ObjectId()),
             "status": "ASSIGNED",
             "position": 1,
-            "referee": {"userId": ref_id, "firstName": "Level", "lastName": "Test",
-                        "clubId": None, "clubName": None, "logoUrl": None, "level": "S2"},
+            "referee": {
+                "userId": ref_id,
+                "firstName": "Level",
+                "lastName": "Test",
+                "clubId": None,
+                "clubName": None,
+                "logoUrl": None,
+                "level": "S2",
+            },
         }
         # Assignment that must NOT be updated (UNAVAILABLE)
         unavailable_asgn = {
@@ -269,23 +276,40 @@ class TestUsersAPI:
             "matchId": str(ObjectId()),
             "status": "UNAVAILABLE",
             "position": None,
-            "referee": {"userId": ref_id, "firstName": "Level", "lastName": "Test",
-                        "clubId": None, "clubName": None, "logoUrl": None, "level": "S2"},
+            "referee": {
+                "userId": ref_id,
+                "firstName": "Level",
+                "lastName": "Test",
+                "clubId": None,
+                "clubName": None,
+                "logoUrl": None,
+                "level": "S2",
+            },
         }
         await mongodb["assignments"].insert_many([assigned_asgn, unavailable_asgn])
 
         # Future match (startDate >= now) — should be updated
         future_match = create_test_match()
         future_match["startDate"] = datetime.now(tz=UTC) + timedelta(days=7)
-        future_match["referee1"] = {"userId": ref_id, "firstName": "Level", "lastName": "Test",
-                                    "level": "S2", "assignmentStatus": "ASSIGNED"}
+        future_match["referee1"] = {
+            "userId": ref_id,
+            "firstName": "Level",
+            "lastName": "Test",
+            "level": "S2",
+            "assignmentStatus": "ASSIGNED",
+        }
         await mongodb["matches"].insert_one(future_match)
 
         # Past match (startDate < now) — must NOT be updated
         past_match = create_test_match()
         past_match["startDate"] = datetime.now(tz=UTC) - timedelta(days=7)
-        past_match["referee2"] = {"userId": ref_id, "firstName": "Level", "lastName": "Test",
-                                  "level": "S2", "assignmentStatus": "ACCEPTED"}
+        past_match["referee2"] = {
+            "userId": ref_id,
+            "firstName": "Level",
+            "lastName": "Test",
+            "level": "S2",
+            "assignmentStatus": "ACCEPTED",
+        }
         await mongodb["matches"].insert_one(past_match)
 
         # PATCH the user's referee level to S1

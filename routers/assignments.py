@@ -15,7 +15,7 @@ from exceptions import (
 )
 from logging_config import logger
 from mail_service import send_email
-from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, Status
+from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, AssignmentStatus
 from models.responses import StandardResponse
 from services.assignment_service import AssignmentService
 from services.message_service import MessageService
@@ -90,7 +90,9 @@ async def get_assignments_by_match(
 
     # Get all active users with role REFEREE
     referees = (
-        await mongodb["users"].find({"roles": "REFEREE", "referee.active": True}, {"password": 0}).to_list(length=None)
+        await mongodb["users"]
+        .find({"roles": "REFEREE", "referee.active": True}, {"password": 0})
+        .to_list(length=None)
     )
 
     # Get all assignments for the match with optional status filter
@@ -239,7 +241,7 @@ async def create_assignment(
                 detail=f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}",
             )
         # check proper status
-        if assignment_data.status != Status.assigned:
+        if assignment_data.status != AssignmentStatus.assigned:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Invalid status. Only 'ASSIGNED' is allowed",
@@ -325,7 +327,7 @@ async def create_assignment(
                 detail=f"Assignment already exists for match Id {match_id} and referee user Id {ref_id}",
             )
         # check proper status
-        if assignment_data.status not in [Status.requested, Status.unavailable]:
+        if assignment_data.status not in [AssignmentStatus.requested, AssignmentStatus.unavailable]:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid assignment status"
             )
@@ -416,7 +418,7 @@ async def update_assignment(
             update_data.pop(key)
 
         # check if position is set if status in assigned or accepted
-        if assignment_data.status in [Status.assigned, Status.accepted]:
+        if assignment_data.status in [AssignmentStatus.assigned, AssignmentStatus.accepted]:
             if not assignment_data.position:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -435,16 +437,16 @@ async def update_assignment(
         elif (
             update_data.get("status")
             and (
-                assignment["status"] == Status.requested
-                and update_data["status"] == Status.assigned
+                assignment["status"] == AssignmentStatus.requested
+                and update_data["status"] == AssignmentStatus.assigned
             )
             or (
-                assignment["status"] == Status.assigned
-                and update_data["status"] == Status.unavailable
+                assignment["status"] == AssignmentStatus.assigned
+                and update_data["status"] == AssignmentStatus.unavailable
             )
             or (
-                assignment["status"] == Status.accepted
-                and update_data["status"] == Status.unavailable
+                assignment["status"] == AssignmentStatus.accepted
+                and update_data["status"] == AssignmentStatus.unavailable
             )
         ):
             # print("do update")
@@ -455,7 +457,10 @@ async def update_assignment(
             async with await request.app.state.mongodb.client.start_session() as session:
                 async with session.start_transaction():
                     try:
-                        if update_data["status"] not in [Status.assigned, Status.accepted]:
+                        if update_data["status"] not in [
+                            AssignmentStatus.assigned,
+                            AssignmentStatus.accepted,
+                        ]:
                             # Ref wurde aus Ansetzung entfernt
                             update_data_with_unset = {**update_data}
                             result = await mongodb["assignments"].update_one(
@@ -476,9 +481,14 @@ async def update_assignment(
                                 match_id, assignment["position"], session=session
                             )
                         else:
-                            if update_data["status"] in [Status.assigned, Status.accepted]:
+                            if update_data["status"] in [
+                                AssignmentStatus.assigned,
+                                AssignmentStatus.accepted,
+                            ]:
                                 # Re-fetch current referee data to pick up the latest level
-                                fresh_referee = await assignment_service.create_referee_object(ref_id)
+                                fresh_referee = await assignment_service.create_referee_object(
+                                    ref_id
+                                )
                                 update_data["referee"] = jsonable_encoder(fresh_referee)
 
                             result = await mongodb["assignments"].update_one(
@@ -492,7 +502,10 @@ async def update_assignment(
                                 f"{token_payload.firstName} {token_payload.lastName}",
                                 session=session,
                             )
-                            if update_data["status"] in [Status.assigned, Status.accepted]:
+                            if update_data["status"] in [
+                                AssignmentStatus.assigned,
+                                AssignmentStatus.accepted,
+                            ]:
                                 # Use position from update_data if provided, otherwise from existing assignment
                                 position = update_data.get("position", assignment["position"])
                                 await assignment_service.set_referee_in_match(
@@ -511,7 +524,7 @@ async def update_assignment(
                         ) from e
 
             # Send notifications after transaction commits
-            if update_data["status"] not in [Status.assigned, Status.accepted]:
+            if update_data["status"] not in [AssignmentStatus.assigned, AssignmentStatus.accepted]:
                 await send_message_to_referee(
                     message_service=message_service,
                     match=match,
@@ -520,7 +533,7 @@ async def update_assignment(
                     sender_id=token_payload.sub,
                     sender_name=f"{token_payload.firstName} {token_payload.lastName}",
                 )
-            elif update_data["status"] in [Status.assigned, Status.accepted]:
+            elif update_data["status"] in [AssignmentStatus.assigned, AssignmentStatus.accepted]:
                 await send_message_to_referee(
                     message_service=message_service,
                     match=match,
@@ -584,18 +597,18 @@ async def update_assignment(
         elif (
             update_data.get("status")
             and (
-                assignment["status"] == Status.unavailable
-                and update_data["status"] == Status.requested
+                assignment["status"] == AssignmentStatus.unavailable
+                and update_data["status"] == AssignmentStatus.requested
             )
             or (
-                assignment["status"] == Status.requested
-                and update_data["status"] == Status.unavailable
+                assignment["status"] == AssignmentStatus.requested
+                and update_data["status"] == AssignmentStatus.unavailable
             )
             or (
-                assignment["status"] == Status.assigned and update_data["status"] == Status.accepted
+                assignment["status"] == AssignmentStatus.assigned and update_data["status"] == AssignmentStatus.accepted
             )
         ):
-            if update_data["status"] == Status.accepted:
+            if update_data["status"] == AssignmentStatus.accepted:
                 # ASSIGNED → ACCEPTED: update assignment AND match.referee{n}.assignmentStatus
                 position = assignment.get("position")
                 if not position:
@@ -687,7 +700,7 @@ async def get_unassigned_matches_in_14_days(
             "$and": [
                 {"$or": [{"referee1": {"$exists": False}}, {"referee1": None}]},
                 {"$or": [{"referee2": {"$exists": False}}, {"referee2": None}]},
-                {"tournament.alias": {"$nin": ["bambini", "bambini-lk2" "mini"]}},
+                {"tournament.alias": {"$nin": ["bambini", "bambini-lk2mini"]}},
             ],
         }
     )
@@ -732,9 +745,7 @@ async def get_unassigned_matches_in_14_days(
                 result = await mongodb["tournaments"].aggregate(pipeline).to_list(length=1)
                 owner = result[0].get("owner") if result else None
                 matchday_owner_cache[key] = owner if (owner and owner.get("clubId")) else None
-                logger.debug(
-                    f"Matchday owner cache: {key} -> {matchday_owner_cache[key]}"
-                )
+                logger.debug(f"Matchday owner cache: {key} -> {matchday_owner_cache[key]}")
             except Exception as e:
                 logger.warning(f"Failed to fetch matchday owner for key {key}: {str(e)}")
                 matchday_owner_cache[key] = None
@@ -797,8 +808,13 @@ async def get_unassigned_matches_in_14_days(
 
                 if start_date:
                     weekdays_german = [
-                        "Montag", "Dienstag", "Mittwoch", "Donnerstag",
-                        "Freitag", "Samstag", "Sonntag",
+                        "Montag",
+                        "Dienstag",
+                        "Mittwoch",
+                        "Donnerstag",
+                        "Freitag",
+                        "Samstag",
+                        "Sonntag",
                     ]
                     weekday = weekdays_german[start_date.weekday()]
                     formatted_date = start_date.strftime("%d.%m.%Y")
@@ -839,7 +855,7 @@ async def get_unassigned_matches_in_14_days(
                     </table>
 
                     <p>Als Veranstalter des Spieltags ist <strong>{club_name}</strong> dafür verantwortlich, dass für alle Spiele des Spieltags Schiedsrichter gestellt werden.</p>
-                    <p>Bis zum {(target_date - timedelta(days=7)).strftime('%d.%m.')} können nur Schiedsrichter der beteiligten Vereine anfragen. Ab dem {(target_date - timedelta(days=6)).strftime('%d.%m.')} können wieder alle Schiedsrichter anfragen.</p>
+                    <p>Bis zum {(target_date - timedelta(days=7)).strftime("%d.%m.")} können nur Schiedsrichter der beteiligten Vereine anfragen. Ab dem {(target_date - timedelta(days=6)).strftime("%d.%m.")} können wieder alle Schiedsrichter anfragen.</p>
                     <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
                     <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
                     <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
@@ -865,7 +881,7 @@ async def get_unassigned_matches_in_14_days(
                         </tbody>
                     </table>
 
-                    <p>Bis zum {(target_date - timedelta(days=7)).strftime('%d.%m.')} können nur Schiedsrichter der beteiligten Vereine anfragen. Als Heimverein ist <strong>{club_name}</strong> nun in der Verantwortung, zwei Schiedsrichter für diese Spiele zu stellen. Ab dem {(target_date - timedelta(days=6)).strftime('%d.%m.')} können wieder alle Schiedsrichter anfragen.</p>
+                    <p>Bis zum {(target_date - timedelta(days=7)).strftime("%d.%m.")} können nur Schiedsrichter der beteiligten Vereine anfragen. Als Heimverein ist <strong>{club_name}</strong> nun in der Verantwortung, zwei Schiedsrichter für diese Spiele zu stellen. Ab dem {(target_date - timedelta(days=6)).strftime("%d.%m.")} können wieder alle Schiedsrichter anfragen.</p>
                     <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
                     <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
                     <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
@@ -876,8 +892,7 @@ async def get_unassigned_matches_in_14_days(
             logger.info(
                 f"[unassigned-14d] Email preview | club={club_name} ({club_id}) role={role_label} "
                 f"recipients={admin_emails} cc={[ligenleitung_email] if ligenleitung_email else []} "
-                f"send_emails={send_emails} matches={len(club_matches)}\n"
-                + "\n".join(log_lines)
+                f"send_emails={send_emails} matches={len(club_matches)}\n" + "\n".join(log_lines)
             )
 
             if not admin_emails:
@@ -914,7 +929,9 @@ async def get_unassigned_matches_in_14_days(
                     )
 
         except Exception as e:
-            logger.opt(exception=True).error(f"[unassigned-14d] Failed processing club {club_id}: {str(e)}")
+            logger.opt(exception=True).error(
+                f"[unassigned-14d] Failed processing club {club_id}: {str(e)}"
+            )
 
     # Return the matches and email status
     match_list = []

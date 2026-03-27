@@ -346,14 +346,10 @@ async def validate_roster(
         else 5
     )
     call_up_type = (
-        match_settings.callUpType or CallUpType.MATCH
-        if match_settings
-        else CallUpType.MATCH
+        match_settings.callUpType or CallUpType.MATCH if match_settings else CallUpType.MATCH
     )
     call_up_mode = (
-        match_settings.callUpMode or CallUpMode.LOCKED
-        if match_settings
-        else CallUpMode.LOCKED
+        match_settings.callUpMode or CallUpMode.LOCKED if match_settings else CallUpMode.LOCKED
     )
 
     team_data = match.get(team_flag, {})
@@ -448,7 +444,9 @@ async def update_goalie_appearance(
     match_id: str = Path(..., description="The match id"),
     team_flag: str = Path(..., description="The team flag (home/away)"),
     player_id: str = Path(..., description="The player id"),
-    appearance_update: GoalieAppearanceUpdate = Body(..., description="Periods played by the goalie"),
+    appearance_update: GoalieAppearanceUpdate = Body(
+        ..., description="Periods played by the goalie"
+    ),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> StandardResponse[RosterPlayer]:
     """

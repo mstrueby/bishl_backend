@@ -51,10 +51,14 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
     # 1. Build userId → level map from the users collection
     # ------------------------------------------------------------------
     print("Loading referee levels from users...")
-    referee_users = await db["users"].find(
-        {"roles": "REFEREE"},
-        {"_id": 1, "firstName": 1, "lastName": 1, "referee.level": 1},
-    ).to_list(None)
+    referee_users = (
+        await db["users"]
+        .find(
+            {"roles": "REFEREE"},
+            {"_id": 1, "firstName": 1, "lastName": 1, "referee.level": 1},
+        )
+        .to_list(None)
+    )
 
     level_map: dict[str, str] = {}
     for u in referee_users:
@@ -67,11 +71,21 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
     # 2. Update assignments (skip UNAVAILABLE)
     # ------------------------------------------------------------------
     print("Processing assignments...")
-    assignments = await db["assignments"].find(
-        {"status": {"$ne": "UNAVAILABLE"}},
-        {"_id": 1, "status": 1, "referee.userId": 1, "referee.level": 1,
-         "referee.firstName": 1, "referee.lastName": 1},
-    ).to_list(None)
+    assignments = (
+        await db["assignments"]
+        .find(
+            {"status": {"$ne": "UNAVAILABLE"}},
+            {
+                "_id": 1,
+                "status": 1,
+                "referee.userId": 1,
+                "referee.level": 1,
+                "referee.firstName": 1,
+                "referee.lastName": 1,
+            },
+        )
+        .to_list(None)
+    )
 
     asgn_checked = 0
     asgn_updated = 0
@@ -86,7 +100,9 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
         name = f"{ref.get('firstName', '')} {ref.get('lastName', '')}".strip()
 
         if user_id not in level_map:
-            print(f"  ⚠️  Assignment {asgn['_id']} — userId {user_id!r} not found in users, skipping")
+            print(
+                f"  ⚠️  Assignment {asgn['_id']} — userId {user_id!r} not found in users, skipping"
+            )
             asgn_skipped_no_user += 1
             continue
 
@@ -122,40 +138,48 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
     print("\nProcessing future matches...")
     now = datetime.now(tz=UTC)
 
-    matches = await db["matches"].find(
-        {
-            "startDate": {"$gte": now},
-            "$or": [
-                {"referee1": {"$ne": None}},
-                {"referee2": {"$ne": None}},
-            ],
-        },
-        {
-            "_id": 1,
-            "matchId": 1,
-            "startDate": 1,
-            "referee1.userId": 1,
-            "referee1.level": 1,
-            "referee1.assignmentStatus": 1,
-            "referee2.userId": 1,
-            "referee2.level": 1,
-            "referee2.assignmentStatus": 1,
-        },
-    ).to_list(None)
+    matches = (
+        await db["matches"]
+        .find(
+            {
+                "startDate": {"$gte": now},
+                "$or": [
+                    {"referee1": {"$ne": None}},
+                    {"referee2": {"$ne": None}},
+                ],
+            },
+            {
+                "_id": 1,
+                "matchId": 1,
+                "startDate": 1,
+                "referee1.userId": 1,
+                "referee1.level": 1,
+                "referee1.assignmentStatus": 1,
+                "referee2.userId": 1,
+                "referee2.level": 1,
+                "referee2.assignmentStatus": 1,
+            },
+        )
+        .to_list(None)
+    )
 
     # Build a (matchId, userId) → canonical assignmentStatus map from the
     # assignments collection for all future match IDs in one batch query.
     future_match_ids = [m["_id"] for m in matches]
     status_map: dict[tuple, str] = {}
     if future_match_ids:
-        positioned_asgns = await db["assignments"].find(
-            {
-                "matchId": {"$in": future_match_ids},
-                "status": {"$in": ["ASSIGNED", "ACCEPTED"]},
-                "position": {"$in": [1, 2]},
-            },
-            {"_id": 0, "matchId": 1, "referee.userId": 1, "status": 1},
-        ).to_list(None)
+        positioned_asgns = (
+            await db["assignments"]
+            .find(
+                {
+                    "matchId": {"$in": future_match_ids},
+                    "status": {"$in": ["ASSIGNED", "ACCEPTED"]},
+                    "position": {"$in": [1, 2]},
+                },
+                {"_id": 0, "matchId": 1, "referee.userId": 1, "status": 1},
+            )
+            .to_list(None)
+        )
         for a in positioned_asgns:
             m_id = a.get("matchId")
             u_id = (a.get("referee") or {}).get("userId")
@@ -183,7 +207,9 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
             # --- level ---
             current_level = ref.get("level", "n/a")
             if user_id not in level_map:
-                print(f"  ⚠️  {match_label} {slot} userId {user_id!r} not found in users, skipping slot")
+                print(
+                    f"  ⚠️  {match_label} {slot} userId {user_id!r} not found in users, skipping slot"
+                )
                 match_skipped_no_user += 1
                 continue
             correct_level = level_map[user_id]
@@ -196,7 +222,9 @@ async def backfill(is_prod: bool, dry_run: bool) -> None:
             correct_status = status_map.get((match["_id"], user_id))
             if correct_status and current_status != correct_status:
                 updates[f"{slot}.assignmentStatus"] = correct_status
-                change_notes.append(f"{slot}.assignmentStatus: {current_status!r} → {correct_status!r}")
+                change_notes.append(
+                    f"{slot}.assignmentStatus: {current_status!r} → {correct_status!r}"
+                )
 
         if not updates:
             match_already_correct += 1
@@ -239,8 +267,9 @@ def main() -> None:
         "--prod", action="store_true", help="Use production database (default: development)"
     )
     parser.add_argument(
-        "--apply", action="store_true",
-        help="Actually write changes (default is dry-run — prints what would change)"
+        "--apply",
+        action="store_true",
+        help="Actually write changes (default is dry-run — prints what would change)",
     )
     args = parser.parse_args()
 

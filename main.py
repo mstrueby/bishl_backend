@@ -129,7 +129,10 @@ All errors return a standardized format with correlation IDs for debugging:
             "description": "User authentication, registration, and referee management",
         },
         {"name": "assignments", "description": "Referee assignment and scheduling"},
-        {"name": "reftool", "description": "Optimized read-only endpoints for referee scheduling UX"},
+        {
+            "name": "reftool",
+            "description": "Optimized read-only endpoints for referee scheduling UX",
+        },
         {"name": "posts", "description": "News posts and announcements"},
         {"name": "documents", "description": "Document management and downloads"},
         {"name": "venues", "description": "Venue and location management"},

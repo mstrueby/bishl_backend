@@ -11,16 +11,21 @@ class RefSummary(BaseModel):
     requestsByLevel: dict[str, int] = Field(default_factory=dict)
 
 
-class TournamentSummaryCounts(BaseModel):
+class SummaryCounts(BaseModel):
     totalMatches: int = 0
     fullyAssigned: int = 0
     partiallyAssigned: int = 0
     unassigned: int = 0
 
 
-class TournamentSummaryEntry(BaseModel):
+class DayStripResponse(BaseModel):
+    date: str
+    counts: SummaryCounts
+
+
+class TournamentSummary(BaseModel):
     tournamentAlias: str
-    counts: TournamentSummaryCounts
+    counts: SummaryCounts
 
 
 class MatchWithRefSummary(MatchListBase):
@@ -30,4 +35,4 @@ class MatchWithRefSummary(MatchListBase):
 class DayGroupResponse(BaseModel):
     date: str
     matches: list[MatchWithRefSummary]
-    tournamentSummary: list[TournamentSummaryEntry]
+    tournamentSummary: list[TournamentSummary]

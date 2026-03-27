@@ -15,8 +15,8 @@ from exceptions import (
     ValidationException,
 )
 from logging_config import logger
-from models.assignments import AssignmentDB, Referee, Status, StatusHistory
-from models.reftool import DayGroupResponse, TournamentSummaryCounts, TournamentSummaryEntry
+from models.assignments import AssignmentDB, AssignmentReferee, AssignmentStatus, StatusHistory
+from models.reftool import DayGroupResponse, SummaryCounts, TournamentSummary
 
 
 class AssignmentService:
@@ -43,7 +43,7 @@ class AssignmentService:
         return list(assignments)
 
     async def validate_assignment_status_transition(
-        self, current_status: Status, new_status: Status, is_ref_admin: bool
+        self, current_status: AssignmentStatus, new_status: AssignmentStatus, is_ref_admin: bool
     ) -> bool:
         """
         Validate if status transition is allowed
@@ -62,16 +62,16 @@ class AssignmentService:
         if is_ref_admin:
             # REF_ADMIN allowed transitions
             valid_transitions = {
-                Status.requested: [Status.assigned],
-                Status.assigned: [Status.unavailable],
-                Status.accepted: [Status.unavailable],
+                AssignmentStatus.requested: [AssignmentStatus.assigned],
+                AssignmentStatus.assigned: [AssignmentStatus.unavailable],
+                AssignmentStatus.accepted: [AssignmentStatus.unavailable],
             }
         else:
             # REFEREE allowed transitions
             valid_transitions = {
-                Status.unavailable: [Status.requested],
-                Status.requested: [Status.unavailable],
-                Status.assigned: [Status.accepted],
+                AssignmentStatus.unavailable: [AssignmentStatus.requested],
+                AssignmentStatus.requested: [AssignmentStatus.unavailable],
+                AssignmentStatus.assigned: [AssignmentStatus.accepted],
             }
 
         allowed = valid_transitions.get(current_status, [])
@@ -90,7 +90,7 @@ class AssignmentService:
     async def add_status_history(
         self,
         assignment_id: str,
-        new_status: Status,
+        new_status: AssignmentStatus,
         updated_by: str | None = None,
         updated_by_name: str | None = None,
         session: AsyncIOMotorClientSession | None = None,
@@ -109,7 +109,7 @@ class AssignmentService:
             session=session,
         )
 
-    async def create_referee_object(self, user_id: str) -> Referee:
+    async def create_referee_object(self, user_id: str) -> AssignmentReferee:
         """
         Create referee object from user data
 
@@ -132,7 +132,7 @@ class AssignmentService:
 
         club_info = ref_user.get("referee", {}).get("club", {})
 
-        return Referee(
+        return AssignmentReferee(
             userId=user_id,
             firstName=ref_user["firstName"],
             lastName=ref_user["lastName"],
@@ -205,8 +205,8 @@ class AssignmentService:
     async def create_assignment(
         self,
         match_id: str,
-        referee: Referee,
-        status: Status,
+        referee: AssignmentReferee,
+        status: AssignmentStatus,
         position: int | None = None,
         updated_by: str | None = None,
         updated_by_name: str | None = None,
@@ -427,9 +427,7 @@ class AssignmentService:
                                 "$filter": {
                                     "input": "$_assignments",
                                     "as": "a",
-                                    "cond": {
-                                        "$in": ["$$a.status", ["ASSIGNED", "ACCEPTED"]]
-                                    },
+                                    "cond": {"$in": ["$$a.status", ["ASSIGNED", "ACCEPTED"]]},
                                 }
                             }
                         },
@@ -489,7 +487,12 @@ class AssignmentService:
                                                         "$cond": {
                                                             "if": {"$in": ["$$lvl", "$$value"]},
                                                             "then": "$$value",
-                                                            "else": {"$concatArrays": ["$$value", ["$$lvl"]]},
+                                                            "else": {
+                                                                "$concatArrays": [
+                                                                    "$$value",
+                                                                    ["$$lvl"],
+                                                                ]
+                                                            },
                                                         }
                                                     },
                                                 }
@@ -577,9 +580,9 @@ class AssignmentService:
         for day_key in sorted(day_map.keys()):
             day_data = day_map[day_key]
             tournament_summary = [
-                TournamentSummaryEntry(
+                TournamentSummary(
                     tournamentAlias=alias,
-                    counts=TournamentSummaryCounts(**counts),
+                    counts=SummaryCounts(**counts),
                 )
                 for alias, counts in day_data["_tournament_counts"].items()
             ]
@@ -629,9 +632,9 @@ class AssignmentService:
         if scope:
             user_query["referee.club.clubId"] = scope
 
-        active_referees = await self.db["users"].find(
-            user_query, {"password": 0}
-        ).to_list(length=None)
+        active_referees = (
+            await self.db["users"].find(user_query, {"password": 0}).to_list(length=None)
+        )
 
         assigned: list[dict] = []
         requested: list[dict] = []
@@ -704,9 +707,11 @@ class AssignmentService:
         else:
             end_dt = datetime(year, month + 1, 1, 0, 0, 0) - timedelta(seconds=1)
 
-        matches = await self.db["matches"].find(
-            {"startDate": {"$gte": start_dt, "$lte": end_dt}}
-        ).to_list(length=None)
+        matches = (
+            await self.db["matches"]
+            .find({"startDate": {"$gte": start_dt, "$lte": end_dt}})
+            .to_list(length=None)
+        )
 
         day_map: dict[str, dict] = {}
 

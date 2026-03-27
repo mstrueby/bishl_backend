@@ -200,7 +200,7 @@ async def get_wko_rules(request: Request):
                     "target_group": "U19",
                     "female": {"year_of_birth": current_year - 16},
                     "male": "Not eligible",
-                }
+                },
             ],
         },
     }

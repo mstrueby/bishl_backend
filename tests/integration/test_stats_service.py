@@ -477,7 +477,6 @@ class TestStatsServiceIntegration:
             ), f"Occurrence type should be MATCH, got: {occ.get('type')}"
             assert occ.get("matchId"), f"Occurrence should have matchId, got: {occ}"
 
-
     async def test_called_players_tournament_matchday_tracking(
         self, mongodb, client: AsyncClient, admin_token
     ):
@@ -601,7 +600,6 @@ class TestStatsServiceIntegration:
             occ.get("matchdayName") == md_name
         ), f"matchdayName mismatch: {occ.get('matchdayName')}"
         assert occ.get("matchdayStartDate") is not None, "matchdayStartDate should be set"
-
 
     async def test_standings_recalculated_on_match_finished(
         self, mongodb, client: AsyncClient, admin_token

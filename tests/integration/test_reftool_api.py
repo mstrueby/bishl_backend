@@ -49,7 +49,9 @@ def make_assignment(match_id, ref_id, status="REQUESTED", level="S2", position=N
 class TestReftoolMatchesEndpoint:
 
     @pytest.mark.asyncio
-    async def test_get_matches_returns_200_with_correct_shape(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_matches_returns_200_with_correct_shape(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches returns HTTP 200 with grouped matches, refSummary, and tournamentSummary"""
         match_dt = datetime.now() + timedelta(days=1)
         match = create_test_match()
@@ -109,7 +111,9 @@ class TestReftoolMatchesEndpoint:
         assert target["refSummary"]["requestedCount"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_matches_referee_assignment_status_enriched(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_matches_referee_assignment_status_enriched(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches enriches referee1/referee2 with their assignmentStatus"""
         match_dt = datetime.now() + timedelta(days=1)
         ref_id = _oid()
@@ -147,10 +151,16 @@ class TestReftoolMatchesEndpoint:
         assert target is not None
         assert target["referee1"] is not None
         assert target["referee1"]["assignmentStatus"] == "ASSIGNED"
-        assert target.get("referee2") is None or target["referee2"] is None or target["referee2"].get("assignmentStatus") is None
+        assert (
+            target.get("referee2") is None
+            or target["referee2"] is None
+            or target["referee2"].get("assignmentStatus") is None
+        )
 
     @pytest.mark.asyncio
-    async def test_get_matches_tournament_summary_counts(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_matches_tournament_summary_counts(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches tournamentSummary totals are correct per tournament alias"""
         target_dt = datetime.now() + timedelta(days=2)
 
@@ -171,10 +181,12 @@ class TestReftoolMatchesEndpoint:
         ref = make_test_referee()
         await mongodb["users"].insert_one(ref)
 
-        await mongodb["assignments"].insert_many([
-            make_assignment(match_a1["_id"], ref["_id"], status="ASSIGNED"),
-            make_assignment(match_a1["_id"], ref["_id"], status="ASSIGNED"),
-        ])
+        await mongodb["assignments"].insert_many(
+            [
+                make_assignment(match_a1["_id"], ref["_id"], status="ASSIGNED"),
+                make_assignment(match_a1["_id"], ref["_id"], status="ASSIGNED"),
+            ]
+        )
 
         start = datetime.now().strftime("%Y-%m-%d")
         end = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
@@ -187,22 +199,30 @@ class TestReftoolMatchesEndpoint:
         assert response.status_code == 200
         day_groups = response.json()["data"]
         target_day = next(
-            (d for d in day_groups if any(
-                m["_id"] in (match_a1["_id"], match_a2["_id"], match_b1["_id"])
-                for m in d["matches"]
-            )),
+            (
+                d
+                for d in day_groups
+                if any(
+                    m["_id"] in (match_a1["_id"], match_a2["_id"], match_b1["_id"])
+                    for m in d["matches"]
+                )
+            ),
             None,
         )
         assert target_day is not None
 
-        ts = {entry["tournamentAlias"]: entry["counts"] for entry in target_day["tournamentSummary"]}
+        ts = {
+            entry["tournamentAlias"]: entry["counts"] for entry in target_day["tournamentSummary"]
+        }
         assert "league-a" in ts
         assert "league-b" in ts
         assert ts["league-a"]["totalMatches"] == 2
         assert ts["league-b"]["totalMatches"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_matches_invalid_date_returns_400(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_matches_invalid_date_returns_400(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches with invalid date format returns HTTP 400"""
         response = await client.get(
             "/reftool/matches?start_date=not-a-date&end_date=2026-03-07",
@@ -211,7 +231,9 @@ class TestReftoolMatchesEndpoint:
         assert response.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_get_matches_range_exceeds_30_days_returns_400(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_matches_range_exceeds_30_days_returns_400(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches with range >= 30 days returns HTTP 400"""
         response = await client.get(
             "/reftool/matches?start_date=2026-01-01&end_date=2026-01-31",
@@ -239,7 +261,9 @@ class TestReftoolMatchesEndpoint:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_get_matches_empty_returns_valid_structure(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_matches_empty_returns_valid_structure(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches with no matches returns empty data list"""
         response = await client.get(
             "/reftool/matches?start_date=2020-01-01&end_date=2020-01-07",
@@ -273,7 +297,9 @@ class TestReftoolMatchesEndpoint:
 class TestReftoolMatchSidepanelEndpoint:
 
     @pytest.mark.asyncio
-    async def test_get_match_referee_options_returns_200(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_match_referee_options_returns_200(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches/{match_id} returns 200 with correct shape"""
         match = create_test_match()
         match["startDate"] = datetime.now() + timedelta(days=1)
@@ -300,7 +326,9 @@ class TestReftoolMatchSidepanelEndpoint:
         assert result["matchId"] == match["_id"]
 
     @pytest.mark.asyncio
-    async def test_get_match_referee_options_unknown_id_returns_404(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_match_referee_options_unknown_id_returns_404(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches/{match_id} with unknown ID returns 404"""
         response = await client.get(
             "/reftool/matches/nonexistent-match-id",
@@ -309,7 +337,9 @@ class TestReftoolMatchSidepanelEndpoint:
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_get_match_referee_options_level_filter(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_match_referee_options_level_filter(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches/{match_id} with levelFilter filters available referees"""
         match = create_test_match()
         match["startDate"] = datetime.now() + timedelta(days=1)
@@ -330,7 +360,9 @@ class TestReftoolMatchSidepanelEndpoint:
         assert all(r["level"] == "S2" for r in available)
 
     @pytest.mark.asyncio
-    async def test_get_match_referee_options_unauthorized_returns_403(self, client: AsyncClient, mongodb):
+    async def test_get_match_referee_options_unauthorized_returns_403(
+        self, client: AsyncClient, mongodb
+    ):
         """GET /reftool/matches/{match_id} without correct role returns 403"""
         auth = AuthHandler()
         user = {
@@ -349,7 +381,9 @@ class TestReftoolMatchSidepanelEndpoint:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_get_match_referee_options_scope_filter(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_match_referee_options_scope_filter(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/matches/{match_id} with scope filters available referees by club"""
         match = create_test_match()
         match["startDate"] = datetime.now() + timedelta(days=1)
@@ -362,14 +396,22 @@ class TestReftoolMatchSidepanelEndpoint:
             "firstName": "In",
             "lastName": "Scope",
             "roles": ["REFEREE"],
-            "referee": {"level": "S2", "active": True, "club": {"clubId": club_id, "clubName": "TestClub"}},
+            "referee": {
+                "level": "S2",
+                "active": True,
+                "club": {"clubId": club_id, "clubName": "TestClub"},
+            },
         }
         ref_out_of_scope = {
             "_id": _oid(),
             "firstName": "Out",
             "lastName": "Scope",
             "roles": ["REFEREE"],
-            "referee": {"level": "S2", "active": True, "club": {"clubId": "other-club", "clubName": "Other"}},
+            "referee": {
+                "level": "S2",
+                "active": True,
+                "club": {"clubId": "other-club", "clubName": "Other"},
+            },
         }
         await mongodb["users"].insert_many([ref_in_scope, ref_out_of_scope])
 
@@ -397,7 +439,9 @@ class TestReftoolMatchSidepanelEndpoint:
         available_ref = make_test_referee()
         await mongodb["users"].insert_many([assigned_ref, available_ref])
 
-        assignment = make_assignment(match["_id"], assigned_ref["_id"], status="ASSIGNED", position=1)
+        assignment = make_assignment(
+            match["_id"], assigned_ref["_id"], status="ASSIGNED", position=1
+        )
         await mongodb["assignments"].insert_one(assignment)
 
         response = await client.get(
@@ -416,7 +460,9 @@ class TestReftoolMatchSidepanelEndpoint:
 class TestReftoolDayStripEndpoint:
 
     @pytest.mark.asyncio
-    async def test_get_day_strip_returns_200_with_correct_shape(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_day_strip_returns_200_with_correct_shape(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/day-strip returns HTTP 200 with per-day summaries for days with matches"""
         # Insert a match on the first day only
         test_match = create_test_match()
@@ -469,13 +515,15 @@ class TestReftoolDayStripEndpoint:
         assert len(data) == 1
         day = data[0]
         assert day["date"] == "2026-04-01"
-        assert day["totalMatches"] == 3
-        assert day["fullyAssigned"] == 1
-        assert day["partiallyAssigned"] == 1
-        assert day["unassigned"] == 1
+        assert day["counts"]["totalMatches"] == 3
+        assert day["counts"]["fullyAssigned"] == 1
+        assert day["counts"]["partiallyAssigned"] == 1
+        assert day["counts"]["unassigned"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_day_strip_missing_params_returns_422(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_day_strip_missing_params_returns_422(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/day-strip without required params returns HTTP 422"""
         response = await client.get(
             "/reftool/day-strip",
@@ -484,7 +532,9 @@ class TestReftoolDayStripEndpoint:
         assert response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_get_day_strip_invalid_month_returns_400(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_day_strip_invalid_month_returns_400(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/day-strip with invalid month returns HTTP 400"""
         response = await client.get(
             "/reftool/day-strip?year=2026&month=13",
@@ -512,7 +562,9 @@ class TestReftoolDayStripEndpoint:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_get_day_strip_empty_results_valid(self, client: AsyncClient, mongodb, admin_token):
+    async def test_get_day_strip_empty_results_valid(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
         """GET /reftool/day-strip with no matches returns empty list"""
         response = await client.get(
             "/reftool/day-strip?year=2020&month=1",

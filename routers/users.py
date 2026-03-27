@@ -289,12 +289,21 @@ async def update_user(
                         )
                         logger.info(
                             "Referee level propagated to assignments and matches",
-                            extra={"user_id": user_id, "old_level": old_level, "new_level": new_level_str},
+                            extra={
+                                "user_id": user_id,
+                                "old_level": old_level,
+                                "new_level": new_level_str,
+                            },
                         )
                     except Exception as prop_err:
                         logger.error(
                             "Failed to propagate referee level change; run backfill_referee_levels.py to repair",
-                            extra={"user_id": user_id, "old_level": old_level, "new_level": new_level_str, "error": str(prop_err)},
+                            extra={
+                                "user_id": user_id,
+                                "old_level": old_level,
+                                "new_level": new_level_str,
+                                "error": str(prop_err),
+                            },
                         )
 
             updated_user = await mongodb["users"].find_one({"_id": user_id})
@@ -409,7 +418,12 @@ async def get_all_referees(
     logger.debug(f"Query: {query}")
     if all:
         # Fetch all referees without pagination
-        items = await mongodb["users"].find(query).sort([("lastName", 1), ("firstName", 1)]).to_list(None)
+        items = (
+            await mongodb["users"]
+            .find(query)
+            .sort([("lastName", 1), ("firstName", 1)])
+            .to_list(None)
+        )
         total_count = len(items)
     else:
         # Use pagination helper

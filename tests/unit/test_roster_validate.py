@@ -216,9 +216,7 @@ class TestCountCalledMatches:
                 }
             ]
         }
-        assert (
-            _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 5
-        )
+        assert _count_called_matches(player, "team-higher", "test-tournament", "test-season") == 5
 
 
 class TestValidateCalledPlayer:

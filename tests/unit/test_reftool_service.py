@@ -76,7 +76,9 @@ class TestGetMatchesByDayRange:
     """
 
     @pytest.mark.asyncio
-    async def test_returns_grouped_days_with_matches_and_tournament_summary(self, assignment_service, mock_db):
+    async def test_returns_grouped_days_with_matches_and_tournament_summary(
+        self, assignment_service, mock_db
+    ):
         """Normal result: returns per-day groups with matches and tournamentSummary"""
         start = date(2026, 3, 1)
         end = date(2026, 3, 7)
@@ -209,12 +211,12 @@ class TestGetMatchesByDayRange:
         assert result[0]["matches"][0]["refSummary"]["assignedCount"] == 1
 
     @pytest.mark.asyncio
-    async def test_date_range_exceeds_30_days_raises_validation_error(self, assignment_service, mock_db):
+    async def test_date_range_exceeds_30_days_raises_validation_error(
+        self, assignment_service, mock_db
+    ):
         """Date range >= 30 days raises ValidationException at service layer"""
         with pytest.raises(ValidationException) as exc_info:
-            await assignment_service.get_matches_by_day_range(
-                date(2026, 1, 1), date(2026, 1, 31)
-            )
+            await assignment_service.get_matches_by_day_range(date(2026, 1, 1), date(2026, 1, 31))
 
         assert "30 days" in str(exc_info.value)
 
@@ -224,9 +226,7 @@ class TestGetMatchesByDayRange:
         mock_db._matches_aggregate.to_list = AsyncMock(return_value=[])
         mock_db._users_collection.count_documents = AsyncMock(return_value=0)
 
-        await assignment_service.get_matches_by_day_range(
-            date(2026, 3, 1), date(2026, 3, 7)
-        )
+        await assignment_service.get_matches_by_day_range(date(2026, 3, 1), date(2026, 3, 7))
 
         mock_db._matches_collection.aggregate.assert_called_once()
         pipeline = mock_db._matches_collection.aggregate.call_args[0][0]
@@ -242,25 +242,42 @@ class TestGetMatchesByDayRange:
                 "_id": "m1",
                 "startDate": match_dt,
                 "tournament": {"name": "League A", "alias": "league-a"},
-                "refSummary": {"assignedCount": 2, "requestedCount": 0, "availableCount": 3, "requestsByLevel": {}},
+                "refSummary": {
+                    "assignedCount": 2,
+                    "requestedCount": 0,
+                    "availableCount": 3,
+                    "requestsByLevel": {},
+                },
             },
             {
                 "_id": "m2",
                 "startDate": match_dt,
                 "tournament": {"name": "League A", "alias": "league-a"},
-                "refSummary": {"assignedCount": 1, "requestedCount": 0, "availableCount": 3, "requestsByLevel": {}},
+                "refSummary": {
+                    "assignedCount": 1,
+                    "requestedCount": 0,
+                    "availableCount": 3,
+                    "requestsByLevel": {},
+                },
             },
             {
                 "_id": "m3",
                 "startDate": match_dt,
                 "tournament": {"name": "League B", "alias": "league-b"},
-                "refSummary": {"assignedCount": 0, "requestedCount": 0, "availableCount": 5, "requestsByLevel": {}},
+                "refSummary": {
+                    "assignedCount": 0,
+                    "requestedCount": 0,
+                    "availableCount": 5,
+                    "requestsByLevel": {},
+                },
             },
         ]
         mock_db._matches_aggregate.to_list = AsyncMock(return_value=pipeline_result)
         mock_db._users_collection.count_documents = AsyncMock(return_value=5)
 
-        result = await assignment_service.get_matches_by_day_range(date(2026, 3, 1), date(2026, 3, 7))
+        result = await assignment_service.get_matches_by_day_range(
+            date(2026, 3, 1), date(2026, 3, 7)
+        )
 
         assert len(result) == 1
         day = result[0]
@@ -281,7 +298,9 @@ class TestGetMatchesByDayRange:
         assert ts["league-b"]["unassigned"] == 1
 
     @pytest.mark.asyncio
-    async def test_tournament_summary_only_includes_tournaments_with_matches(self, assignment_service, mock_db):
+    async def test_tournament_summary_only_includes_tournaments_with_matches(
+        self, assignment_service, mock_db
+    ):
         """tournamentSummary contains only tournaments present on that day"""
         match_dt = datetime(2026, 3, 3, 10, 0)
         pipeline_result = [
@@ -289,13 +308,20 @@ class TestGetMatchesByDayRange:
                 "_id": "m1",
                 "startDate": match_dt,
                 "tournament": {"name": "Only League", "alias": "only-league"},
-                "refSummary": {"assignedCount": 2, "requestedCount": 0, "availableCount": 3, "requestsByLevel": {}},
+                "refSummary": {
+                    "assignedCount": 2,
+                    "requestedCount": 0,
+                    "availableCount": 3,
+                    "requestsByLevel": {},
+                },
             },
         ]
         mock_db._matches_aggregate.to_list = AsyncMock(return_value=pipeline_result)
         mock_db._users_collection.count_documents = AsyncMock(return_value=5)
 
-        result = await assignment_service.get_matches_by_day_range(date(2026, 3, 1), date(2026, 3, 7))
+        result = await assignment_service.get_matches_by_day_range(
+            date(2026, 3, 1), date(2026, 3, 7)
+        )
 
         day = result[0]
         assert len(day["tournamentSummary"]) == 1
@@ -309,19 +335,31 @@ class TestGetMatchesByDayRange:
                 "_id": "m1",
                 "startDate": datetime(2026, 3, 1, 10, 0),
                 "tournament": {"name": "League A", "alias": "league-a"},
-                "refSummary": {"assignedCount": 0, "requestedCount": 0, "availableCount": 5, "requestsByLevel": {}},
+                "refSummary": {
+                    "assignedCount": 0,
+                    "requestedCount": 0,
+                    "availableCount": 5,
+                    "requestsByLevel": {},
+                },
             },
             {
                 "_id": "m2",
                 "startDate": datetime(2026, 3, 3, 14, 0),
                 "tournament": {"name": "League A", "alias": "league-a"},
-                "refSummary": {"assignedCount": 2, "requestedCount": 0, "availableCount": 3, "requestsByLevel": {}},
+                "refSummary": {
+                    "assignedCount": 2,
+                    "requestedCount": 0,
+                    "availableCount": 3,
+                    "requestsByLevel": {},
+                },
             },
         ]
         mock_db._matches_aggregate.to_list = AsyncMock(return_value=pipeline_result)
         mock_db._users_collection.count_documents = AsyncMock(return_value=5)
 
-        result = await assignment_service.get_matches_by_day_range(date(2026, 3, 1), date(2026, 3, 7))
+        result = await assignment_service.get_matches_by_day_range(
+            date(2026, 3, 1), date(2026, 3, 7)
+        )
 
         assert len(result) == 2
         assert result[0]["date"] == "2026-03-01"
@@ -453,9 +491,7 @@ class TestGetRefereeOptionsForMatch:
         mock_db._assignments_find.to_list = AsyncMock(return_value=[])
         mock_db._users_find.to_list = AsyncMock(return_value=[])
 
-        await assignment_service.get_referee_options_for_match(
-            "match-1", level_filter="S2"
-        )
+        await assignment_service.get_referee_options_for_match("match-1", level_filter="S2")
 
         find_call_args = mock_db._users_collection.find.call_args[0][0]
         assert find_call_args.get("referee.level") == "S2"
@@ -468,9 +504,7 @@ class TestGetRefereeOptionsForMatch:
         mock_db._assignments_find.to_list = AsyncMock(return_value=[])
         mock_db._users_find.to_list = AsyncMock(return_value=[])
 
-        await assignment_service.get_referee_options_for_match(
-            "match-1", scope="club-abc"
-        )
+        await assignment_service.get_referee_options_for_match("match-1", scope="club-abc")
 
         find_call_args = mock_db._users_collection.find.call_args[0][0]
         assert find_call_args.get("referee.club.clubId") == "club-abc"

@@ -905,9 +905,7 @@ class StatsService:
             self.db, t_alias, s_alias, r_alias, md_alias
         )
         call_up_type = (
-            match_settings.callUpType or CallUpType.MATCH
-            if match_settings
-            else CallUpType.MATCH
+            match_settings.callUpType or CallUpType.MATCH if match_settings else CallUpType.MATCH
         )
 
         # Process round statistics
@@ -1125,7 +1123,6 @@ class StatsService:
             stats["assists"] += roster_player.get("assists", 0)
             stats["points"] += roster_player.get("points", 0)
             stats["penaltyMinutes"] += roster_player.get("penaltyMinutes", 0)
-
 
     @monitor_query("save_player_stats_to_db")
     async def _save_player_stats_to_db(
