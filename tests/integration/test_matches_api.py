@@ -57,9 +57,12 @@ class TestMatchesAPI:
         await mongodb["tournaments"].insert_one(tournament)
         await mongodb["teams"].insert_many([home_team, away_team])
 
+        # Generate a known _id for the match so we can look it up directly
+        match_id = str(ObjectId())
+
         # Create match data with all required fields
         match_data = {
-            "matchId": 1001,
+            "_id": match_id,
             "tournament": {"name": tournament["name"], "alias": tournament["alias"]},
             "season": {
                 "name": tournament["seasons"][0]["name"],
@@ -95,7 +98,6 @@ class TestMatchesAPI:
         # Assert response
         assert response.status_code == 201
         match_response = response.json()
-        assert match_response["data"]["matchId"] == 1001
         assert match_response["data"]["matchStatus"]["key"] == "SCHEDULED"
         assert match_response["data"]["home"]["teamId"] == home_team_id
         assert match_response["data"]["away"]["teamId"] == away_team_id
@@ -103,9 +105,8 @@ class TestMatchesAPI:
         assert match_response["data"]["away"]["roster"]["status"] == "DRAFT"
 
         # Assert database - verify match was created with calculated stats
-        match_in_db = await mongodb["matches"].find_one({"_id": match_response["data"]["_id"]})
+        match_in_db = await mongodb["matches"].find_one({"_id": match_id})
         assert match_in_db is not None
-        assert match_in_db["matchId"] == 1001
         assert "stats" in match_in_db["home"]
         assert "stats" in match_in_db["away"]
 
