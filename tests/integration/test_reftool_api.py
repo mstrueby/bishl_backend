@@ -323,7 +323,7 @@ class TestReftoolMatchSidepanelEndpoint:
         assert "assigned" in result
         assert "requested" in result
         assert "available" in result
-        assert result["matchId"] == match["_id"]
+        assert result["_id"] == match["_id"]
 
     @pytest.mark.asyncio
     async def test_get_match_referee_options_unknown_id_returns_404(
