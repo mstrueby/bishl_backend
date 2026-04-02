@@ -640,10 +640,6 @@ class AssignmentService:
         unavailable: list[RefToolReferee] = []
 
         for referee in active_referees:
-            # debug if lastName is "Teubner"
-            if referee["lastName"] == "Teubner":
-                logger.debug(f"referee: {json.dumps(assignment_dict, indent=2, default=str)}")
-                
             ref_id = referee["_id"]
             club_info = referee.get("referee", {}).get("club", {}) or {}
             base_fields = dict(
