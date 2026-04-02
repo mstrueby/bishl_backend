@@ -100,7 +100,8 @@ async def get_assignments_by_match(
     query = {"matchId": match_id}
     assignments = await mongodb["assignments"].find(query).to_list(length=None)
     assignment_dict = {assignment["referee"]["userId"]: assignment for assignment in assignments}
-    logger.debug(f"assignment_dict: {json.dumps(assignment_dict, indent=2, default=str)}")
+    if any(assignment.get("referee", {}).get("lastName") == "Teubner" for assignment in assignments):
+        logger.debug(f"assignment_dict: {json.dumps(assignment_dict, indent=2, default=str)}")
 
     # Prepare the status of each referee
     assignment_list = []
@@ -135,6 +136,7 @@ async def get_assignments_by_match(
             ref_status.get("position", None) if isinstance(ref_status, dict) else None
         )
         assignment_list.append(assignment_obj)
+        logger.debug(f"assignment_obj: {json.dumps(assignment_obj, indent=2, default=str)}")
 
     # Filter the list by status
     if assignmentStatus:
