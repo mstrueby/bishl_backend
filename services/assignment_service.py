@@ -4,6 +4,7 @@ Assignment Service - Business logic for referee assignment management
 Handles assignment creation, updates, validation, and synchronization with matches.
 """
 
+import json
 from datetime import date, datetime, timedelta
 
 from fastapi.encoders import jsonable_encoder
@@ -639,6 +640,10 @@ class AssignmentService:
         unavailable: list[RefToolReferee] = []
 
         for referee in active_referees:
+            # debug if lastName is "Teubner"
+            if referee["lastName"] == "Teubner":
+                logger.debug(f"referee: {json.dumps(assignment_dict, indent=2, default=str)}")
+                
             ref_id = referee["_id"]
             club_info = referee.get("referee", {}).get("club", {}) or {}
             base_fields = dict(
@@ -669,7 +674,7 @@ class AssignmentService:
                 available.append(RefToolReferee(**base_fields))
 
         return RefereeOptions(
-            id=match_id,
+            _id=match_id,
             assigned=assigned,
             requested=requested,
             available=available,
