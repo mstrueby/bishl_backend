@@ -1,4 +1,5 @@
 # filename: routers/assignments.py
+import json
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -94,11 +95,12 @@ async def get_assignments_by_match(
         .find({"roles": "REFEREE", "referee.active": True}, {"password": 0})
         .to_list(length=None)
     )
-
+    
     # Get all assignments for the match with optional status filter
     query = {"matchId": match_id}
     assignments = await mongodb["assignments"].find(query).to_list(length=None)
     assignment_dict = {assignment["referee"]["userId"]: assignment for assignment in assignments}
+    logger.debug(f"assignment_dict: {json.dumps(assignment_dict, indent=2, default=str)}")
 
     # Prepare the status of each referee
     assignment_list = []
