@@ -794,11 +794,11 @@ async def get_unassigned_matches_in_14_days(
 
             admin_emails = [a.get("email") for a in club_admins if a.get("email")]
             ligenleitung_email = settings.LIGENLEITUNG_EMAIL
-            ref_admin_email = settings.REF_ADMiN_EMAIL
+            ref_admin_email = settings.REF_ADMIN_EMAIL
 
             # Fetch club document and extract refereeContact
             referee_contact_email: str | None = None
-            club_doc = await mongodb["clubs"].find_one({"clubId": club_id})
+            club_doc = await mongodb["clubs"].find_one({"_id": club_id})
             if club_doc:
                 referee_contact = club_doc.get("refereeContact", {}) or {}
                 referee_contact_email = referee_contact.get("email") or None
@@ -911,7 +911,7 @@ async def get_unassigned_matches_in_14_days(
                     <p>Bis zum {(target_date - timedelta(days=7)).strftime("%d.%m.")} können nur Schiedsrichter der beteiligten Vereine anfragen. Ab dem {(target_date - timedelta(days=6)).strftime("%d.%m.")} können wieder alle Schiedsrichter anfragen.</p>
                     <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
                     <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
-                    <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
+                    <p>Bei Fragen wendet euch gerne an das BISHL-Schiedsrichterwesen.</p>
                     """
             else:
                 email_content = f"""
@@ -940,7 +940,7 @@ async def get_unassigned_matches_in_14_days(
                     <p>Bis zum {(target_date - timedelta(days=7)).strftime("%d.%m.")} können nur Schiedsrichter der beteiligten Vereine anfragen. Als Heimverein ist <strong>{club_name}</strong> nun in der Verantwortung, zwei Schiedsrichter für diese Spiele zu stellen. Ab dem {(target_date - timedelta(days=6)).strftime("%d.%m.")} können wieder alle Schiedsrichter anfragen.</p>
                     <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
                     <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
-                    <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
+                    <p>Bei Fragen wendet euch gerne an das BISHL-Schiedsrichterwesen.</p>
                     """
 
             # Always log full recipient details regardless of send_emails or environment
