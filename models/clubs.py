@@ -6,10 +6,8 @@ from pydantic_core import core_schema
 
 
 class PyObjectId(ObjectId):
-
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):
-
         def validate_object_id(value, _info):
             if isinstance(value, ObjectId):
                 return value
@@ -147,6 +145,12 @@ class TeamUpdate(MongoBaseModel):
   """
 
 
+class RefereeContact(BaseModel):
+    firstName: str | None = None
+    lastName: str | None = None
+    email: EmailStr | None = None
+
+
 class ClubBase(MongoBaseModel):
     name: str = Field(...)
     alias: str = Field(...)
@@ -164,6 +168,7 @@ class ClubBase(MongoBaseModel):
     teams: list[TeamBase] | None = Field(default_factory=list)
     legacyId: int | None = None
     logoUrl: HttpUrl | None = None
+    refereeContact: RefereeContact | None = None
 
     @field_validator(
         "addressName",
@@ -212,6 +217,7 @@ class ClubUpdate(MongoBaseModel):
     active: bool | None = None
     legacyId: int | None = None
     logoUrl: str | None = None
+    refereeContact: RefereeContact | None = None
 
     @field_validator(
         "addressName",

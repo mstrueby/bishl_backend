@@ -1,3 +1,4 @@
+import json
 import cloudinary
 import cloudinary.uploader
 from fastapi import (
@@ -146,6 +147,7 @@ async def create_club(
     ishdId: int = Form(None),
     active: bool = Form(False),
     logo: UploadFile = File(None),
+    refereeContact: str = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ) -> JSONResponse:
     mongodb = request.app.state.mongodb
@@ -154,7 +156,6 @@ async def create_club(
             message="Admin role required to create clubs",
             details={"user_role": token_payload.roles},
         )
-
     club = ClubBase(
         name=name,
         alias=alias,
@@ -169,6 +170,7 @@ async def create_club(
         website=website,
         ishdId=ishdId,
         active=active,
+        refereeContact=json.loads(refereeContact) if refereeContact else None
     )
     club_data = jsonable_encoder(club)
 
@@ -250,6 +252,7 @@ async def update_club(
     active: bool | None = Form(None),
     logo: UploadFile | None = File(None),
     logoUrl: str | None = Form(None),
+    refereeContact: str | None = Form(None),
     token_payload: TokenPayload = Depends(auth.auth_wrapper),
 ):
     mongodb = request.app.state.mongodb
@@ -278,6 +281,7 @@ async def update_club(
         website=website,
         ishdId=ishdId,
         active=active,
+        refereeContact=json.loads(refereeContact) if refereeContact else None
     ).model_dump(exclude_none=True)
     club_data.pop("id", None)
 
