@@ -794,8 +794,56 @@ async def get_unassigned_matches_in_14_days(
 
             admin_emails = [a.get("email") for a in club_admins if a.get("email")]
             ligenleitung_email = settings.LIGENLEITUNG_EMAIL
+            ref_admin_email = settings.REF_ADMIN_EMAIL
 
-            email_subject = f"BISHL - Keine Schiedsrichter eingeteilt für {club_name}"
+            # Fetch club document and extract refereeContact
+            referee_contact_email: str | None = None
+            club_doc = await mongodb["clubs"].find_one({"_id": club_id})
+            if club_doc:
+                referee_contact = club_doc.get("refereeContact", {}) or {}
+                referee_contact_email = referee_contact.get("email") or None
+                if not referee_contact_email:
+                    logger.warning(
+                        f"[unassigned-14d] Club {club_name} ({club_id}) has no refereeContact.email"
+                    )
+            else:
+                logger.warning(
+                    f"[unassigned-14d] No club document found for clubId={club_id} ({club_name})"
+                )
+
+            # Resolve recipients / CC / reply_to
+            reply_to = [ref_admin_email] if ref_admin_email else []
+
+            if referee_contact_email:
+                # Primary: refereeContact is the main recipient; club admins + ligenleitung in CC
+                recipients = [referee_contact_email]
+                cc_emails = [e for e in admin_emails if e != referee_contact_email]
+                if ligenleitung_email:
+                    cc_emails.append(ligenleitung_email)
+            elif admin_emails:
+                # Fallback: club admins as recipients, ligenleitung in CC
+                recipients = admin_emails
+                cc_emails = [ligenleitung_email] if ligenleitung_email else []
+            elif ligenleitung_email:
+                # Final fallback: only ligenleitung
+                recipients = [ligenleitung_email]
+                cc_emails = []
+            else:
+                recipients = []
+                cc_emails = []
+
+            # Dev-mode override: collapse everything to ADMIN_USER (only when mail sending is enabled)
+            is_dev = settings.ENVIRONMENT == "development"
+            if is_dev and settings.MAIL_ENABLED and settings.ADMIN_USER:
+                recipients = [settings.ADMIN_USER]
+                cc_emails = []
+
+            role_label = "matchday-owner" if is_matchday_owner else "home-club"
+
+            if is_matchday_owner:
+                email_subject = f"BISHL - Schiedsrichter-Einteilung erforderlich (Spieltag {club_name})"
+            else:
+                email_subject = f"BISHL - Schiedsrichter-Einteilung erforderlich (Heimspiele {club_name})"
 
             # Build match table rows and plain-text summary for logging
             match_rows = ""
@@ -828,6 +876,8 @@ async def get_unassigned_matches_in_14_days(
                             <td style="padding: 8px; border: 1px solid #ddd;">{weekday}, {formatted_date}</td>
                             <td style="padding: 8px; border: 1px solid #ddd;">{formatted_time}</td>
                             <td style="padding: 8px; border: 1px solid #ddd;">{venue_name}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; min-width: 120px;"></td>
+                            <td style="padding: 8px; border: 1px solid #ddd; min-width: 120px;"></td>
                         </tr>
                         """
                     log_lines.append(
@@ -838,7 +888,7 @@ async def get_unassigned_matches_in_14_days(
                 email_content = f"""
                     <h2>BISHL - Schiedsrichter-Einteilung erforderlich</h2>
                     <p>Hallo,</p>
-                    <p>für den Spieltag des Vereins <strong>{club_name}</strong> sind für folgende Spiele noch keine Schiedsrichter eingeteilt:</p>
+                    <p>als Veranstalter des Spieltags ist <strong>{club_name}</strong> dafür verantwortlich, dass für alle Spiele des Spieltags Schiedsrichter gestellt werden. Für folgende Spiele sind noch keine Schiedsrichter eingeteilt:</p>
 
                     <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
                         <thead>
@@ -848,6 +898,8 @@ async def get_unassigned_matches_in_14_days(
                                 <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Datum</th>
                                 <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Zeit</th>
                                 <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Ort</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left; min-width: 120px;">SR 1</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left; min-width: 120px;">SR 2</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -855,11 +907,11 @@ async def get_unassigned_matches_in_14_days(
                         </tbody>
                     </table>
 
-                    <p>Als Veranstalter des Spieltags ist <strong>{club_name}</strong> dafür verantwortlich, dass für alle Spiele des Spieltags Schiedsrichter gestellt werden.</p>
+                    <p><strong>Bitte antwortet auf diese E-Mail</strong> und tragt eure Schiedsrichter-Vorschläge direkt in die Felder "SR 1" und "SR 2" in der Tabelle ein. Wir werden die Einteilung anschließend vornehmen.</p>
                     <p>Bis zum {(target_date - timedelta(days=7)).strftime("%d.%m.")} können nur Schiedsrichter der beteiligten Vereine anfragen. Ab dem {(target_date - timedelta(days=6)).strftime("%d.%m.")} können wieder alle Schiedsrichter anfragen.</p>
                     <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
                     <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
-                    <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
+                    <p>Bei Fragen wendet euch gerne an das BISHL-Schiedsrichterwesen.</p>
                     """
             else:
                 email_content = f"""
@@ -875,6 +927,8 @@ async def get_unassigned_matches_in_14_days(
                                 <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Datum</th>
                                 <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Zeit</th>
                                 <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Ort</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left; min-width: 120px;">SR 1</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left; min-width: 120px;">SR 2</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -882,51 +936,44 @@ async def get_unassigned_matches_in_14_days(
                         </tbody>
                     </table>
 
+                    <p><strong>Bitte antwortet auf diese E-Mail</strong> und tragt eure Schiedsrichter-Vorschläge direkt in die Felder "SR 1" und "SR 2" in der Tabelle ein. Wir werden die Einteilung anschließend vornehmen.</p>
                     <p>Bis zum {(target_date - timedelta(days=7)).strftime("%d.%m.")} können nur Schiedsrichter der beteiligten Vereine anfragen. Als Heimverein ist <strong>{club_name}</strong> nun in der Verantwortung, zwei Schiedsrichter für diese Spiele zu stellen. Ab dem {(target_date - timedelta(days=6)).strftime("%d.%m.")} können wieder alle Schiedsrichter anfragen.</p>
                     <p>Werden erst in den letzten 7 Tagen vor Spielbeginn Schiedsrichter eingeteilt, entstehen höhere Spielgebühren.</p>
                     <p>Sind drei Tage vor Spielbeginn keine Schiedsrichter eingeteilt, wird das Spiel gewertet.</p>
-                    <p>Bei Fragen wendet euch gerne an das BISHL-Team.</p>
+                    <p>Bei Fragen wendet euch gerne an das BISHL-Schiedsrichterwesen.</p>
                     """
 
-            # Always log the email table so the content is visible regardless of send_emails
-            role_label = "matchday-owner" if is_matchday_owner else "home-club"
+            # Always log full recipient details regardless of send_emails or environment
             logger.info(
                 f"[unassigned-14d] Email preview | club={club_name} ({club_id}) role={role_label} "
-                f"recipients={admin_emails} cc={[ligenleitung_email] if ligenleitung_email else []} "
-                f"send_emails={send_emails} matches={len(club_matches)}\n" + "\n".join(log_lines)
+                f"refereeContact={referee_contact_email} adminEmails={admin_emails} "
+                f"recipients={recipients} cc={cc_emails} reply_to={reply_to} "
+                f"dev_override={is_dev} send_emails={send_emails} matches={len(club_matches)}\n"
+                + "\n".join(log_lines)
             )
 
-            if not admin_emails:
+            if not recipients:
                 logger.warning(
-                    f"[unassigned-14d] No club admin emails for club {club_name} ({club_id})"
+                    f"[unassigned-14d] No recipients resolved for club {club_name} ({club_id}) — skipping"
                 )
 
             if send_emails:
-                if admin_emails:
-                    cc_emails = [ligenleitung_email] if ligenleitung_email else []
+                if recipients:
                     await send_email(
                         subject=email_subject,
-                        recipients=admin_emails,
+                        recipients=recipients,
                         cc=cc_emails,
+                        reply_to=reply_to,
                         body=email_content,
                     )
-                    emails_sent += len(admin_emails)
+                    emails_sent += len(recipients)
                     logger.info(
-                        f"[unassigned-14d] Email sent to {len(admin_emails)} admin(s) for {club_name} cc={cc_emails}"
-                    )
-                elif ligenleitung_email:
-                    await send_email(
-                        subject=email_subject,
-                        recipients=[ligenleitung_email],
-                        body=email_content,
-                    )
-                    emails_sent += 1
-                    logger.info(
-                        f"[unassigned-14d] Email sent to LIGENLEITUNG for {club_name} (no club admin emails)"
+                        f"[unassigned-14d] Email sent for {club_name} | recipients={recipients} "
+                        f"cc={cc_emails} reply_to={reply_to}"
                     )
                 else:
                     logger.warning(
-                        f"[unassigned-14d] No recipients at all for club {club_name} ({club_id})"
+                        f"[unassigned-14d] No recipients at all for club {club_name} ({club_id}) — email not sent"
                     )
 
         except Exception as e:

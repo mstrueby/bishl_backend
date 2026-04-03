@@ -74,6 +74,7 @@ class Settings(BaseSettings):
 
     # Admin & Notification
     LIGENLEITUNG_EMAIL: str = Field(default="", description="Liga management email address")
+    REF_ADMIN_EMAIL: str = Field(default="", description="Referee admins mailing list")
     ADMIN_USER: str = Field(default="", description="Admin user email for dev notifications")
     MAIL_TEST_RECEIPIENT: str = Field(default="", description="Test email recipient")
     SYS_ADMIN_EMAIL: str = Field(default="", description="System admin email for import scripts")
