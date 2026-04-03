@@ -832,9 +832,9 @@ async def get_unassigned_matches_in_14_days(
                 recipients = []
                 cc_emails = []
 
-            # Dev-mode override: collapse everything to ADMIN_USER
+            # Dev-mode override: collapse everything to ADMIN_USER (only when mail sending is enabled)
             is_dev = settings.ENVIRONMENT == "development"
-            if is_dev and settings.ADMIN_USER:
+            if is_dev and settings.MAIL_ENABLED and settings.ADMIN_USER:
                 recipients = [settings.ADMIN_USER]
                 cc_emails = []
 
