@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 
 from bson import ObjectId
@@ -349,9 +349,15 @@ class PlayerDB(PlayerBase):
             return "U16"
         elif birth_year >= current_year - 18:  # for year 2026: from 2008 to 2010
             return "U19"
-        elif birth_year >= current_year - 20:  # for year 2026: from 2006 to 2007
-            return "U21"
         else:
+            # U21: a player is U21 until their exact 21st birthday
+            try:
+                birthday_21 = self.birthdate.replace(year=self.birthdate.year + 21)
+            except ValueError:
+                # Feb 29 birthday in a non-leap target year → treat Mar 1 as the 21st birthday
+                birthday_21 = self.birthdate.replace(year=self.birthdate.year + 21, month=3, day=1)
+            if date.today() < birthday_21.date():
+                return "U21"
             return "HERREN" if self.sex == Sex.MALE else "DAMEN"
 
     @property
