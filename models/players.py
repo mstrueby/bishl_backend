@@ -331,7 +331,7 @@ class PlayerDB(PlayerBase):
 
     @property
     def ageGroup(self) -> str:
-        """Determine age group dynamically based on birth year"""
+        """Determine age group dynamically. U8-U19 use birth year; U21 uses exact 21st birthday comparison."""
         if self.birthdate is None:
             return "UNKNOWN"
 
