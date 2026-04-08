@@ -341,15 +341,15 @@ class PlayerDB(PlayerBase):
         # Determine age group classification using birth year and current year
         if birth_year >= current_year - 7:  # for year 2025: 2018 and above
             return "U8"
-        elif birth_year >= current_year - 9:  # for year 2025: from 2016 to 2017
+        elif birth_year >= current_year - 9:  # for year 2026: from 2017 to 2018
             return "U10"
-        elif birth_year >= current_year - 12:  # for year 2025: from 2013 to 2015
+        elif birth_year >= current_year - 12:  # for year 20265: from 2014 to 2016
             return "U13"
-        elif birth_year >= current_year - 15:  # for year 2025: from 2010 to 2012
+        elif birth_year >= current_year - 15:  # for year 2026: from 2011 to 2013
             return "U16"
-        elif birth_year >= current_year - 18:  # for year 2025: from 2007 to 2009
+        elif birth_year >= current_year - 18:  # for year 2026: from 2008 to 2010
             return "U19"
-        elif birth_year >= current_year - 20:  # for year 2025: from 2005 to 2006
+        elif birth_year >= current_year - 20:  # for year 2026: from 2006 to 2007
             return "U21"
         else:
             return "HERREN" if self.sex == Sex.MALE else "DAMEN"

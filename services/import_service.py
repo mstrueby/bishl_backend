@@ -1091,7 +1091,7 @@ class ImportService:
                             "source": "BISHL",
                         }
                         create_response = self.session.post(
-                            f"{self.base_url}/players/",
+                            f"{self.base_url}/players",
                             data=form_data,
                             headers={"Content-Type": "application/x-www-form-urlencoded"},
                         )
