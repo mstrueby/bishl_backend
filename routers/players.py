@@ -170,17 +170,17 @@ async def get_wko_rules(request: Request):
         "ageGroups": {
             "description": "Age group calculation: U8-U19 use birth year relative to current year; U21 uses exact birthday comparison",
             "logic": [
-                {"year_range": f">= {current_year - 7}", "group": "U8"},
-                {"year_range": f"{current_year - 9} - {current_year - 8}", "group": "U10"},
-                {"year_range": f"{current_year - 12} - {current_year - 10}", "group": "U13"},
-                {"year_range": f"{current_year - 15} - {current_year - 13}", "group": "U16"},
-                {"year_range": f"{current_year - 18} - {current_year - 16}", "group": "U19"},
+                {"group": "U8", "rule": f">= {current_year - 7}"},
+                {"group": "U10", "rule": f"{current_year - 9} - {current_year - 8}"},
+                {"group": "U13", "rule": f"{current_year - 12} - {current_year - 10}"},
+                {"group": "U16", "rule": f"{current_year - 15} - {current_year - 13}"},
+                {"group": "U19", "rule": f"{current_year - 18} - {current_year - 16}"},
                 {
                     "group": "U21",
-                    "rule": "Date-based: player is U21 if today is strictly before their 21st birthday",
+                    "rule": f"{current_year - 19} - vor Vollendung des 21. Lebensjahres",
                 },
-                {"rule": "Turned 21 on or before today", "group": "HERREN"},
-                {"rule": "Turned 21 on or before today", "group": "DAMEN"},
+                {"group": "HERREN", "rule": "Nach Vollendung des 21. Lebensjahres"},
+                {"group": "DAMEN", "rule": "Nach Vollendung des 21. Lebensjahres"},
             ],
         },
         "overAgeRules": {
