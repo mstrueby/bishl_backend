@@ -168,7 +168,7 @@ async def get_wko_rules(request: Request):
             "threshold_date": "1993-01-01",
         },
         "ageGroups": {
-            "description": "Age group calculation based on birth year relative to current year",
+            "description": "Age group calculation: U8-U19 use birth year relative to current year; U21 uses exact birthday comparison",
             "logic": [
                 {"year_range": f">= {current_year - 7}", "group": "U8"},
                 {"year_range": f"{current_year - 9} - {current_year - 8}", "group": "U10"},
@@ -177,11 +177,10 @@ async def get_wko_rules(request: Request):
                 {"year_range": f"{current_year - 18} - {current_year - 16}", "group": "U19"},
                 {
                     "group": "U21",
-                    "rule": "Date-based: player is U21 until their exact 21st birthday",
-                    "note": f"Born on or after {current_year - 20}-01-01 but not yet turned 21 (exact date check)",
+                    "rule": "Date-based: player is U21 if today is strictly before their 21st birthday",
                 },
-                {"year_range": f"turned 21 on or before today", "group": "HERREN"},
-                {"year_range": f"turned 21 on or before today", "group": "DAMEN"},
+                {"rule": "Turned 21 on or before today", "group": "HERREN"},
+                {"rule": "Turned 21 on or before today", "group": "DAMEN"},
             ],
         },
         "overAgeRules": {
