@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
 
 from models.assignments import AssignmentStatus, AssignmentReferee
+from models.clubs import TeamPartnerships
 from models.players import LicenseInvalidReasonCode, LicenseType, Source
 from models.tournaments import CallUpMode, CallUpType, MatchSettings
 from models.users import RefereeLevel
@@ -297,6 +298,10 @@ class MatchTeam(BaseModel):
     shortName: str = Field(...)
     tinyName: str = Field(...)
     logo: HttpUrl | None = None
+    teamPartnership: list[TeamPartnerships] = Field(
+        default_factory=list,
+        description="Partner teams whose players are eligible for this team's roster",
+    )
     roster: Roster = Field(default_factory=Roster)
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)
@@ -320,6 +325,7 @@ class MatchTeamUpdate(BaseModel):
     shortName: str | None = "DEFAULT"
     tinyName: str | None = "DEFAULT"
     logo: HttpUrl | None = None
+    teamPartnership: list[TeamPartnerships] | None = None
     roster: RosterUpdate | None = None
     scores: list[ScoresBase] | None = Field(default_factory=list)
     penalties: list[PenaltiesBase] | None = Field(default_factory=list)

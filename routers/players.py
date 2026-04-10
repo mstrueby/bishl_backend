@@ -1661,6 +1661,107 @@ async def get_players_for_team(
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(paginated_result))
 
 
+# GET MERGED PLAYER POOL FOR TEAM (including partnership teams)
+# -------------------------------------------------------------
+@router.get(
+    "/clubs/{club_alias}/teams/{team_alias}/pool",
+    response_description="Get the merged player pool for a team (primary + partnership teams)",
+    response_model=StandardResponse[list[Any]],
+)
+async def get_player_pool_for_team(
+    request: Request,
+    club_alias: str,
+    team_alias: str,
+    active: bool | None = None,
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+) -> JSONResponse:
+    """Return a deduplicated list of all players eligible for the team's roster.
+
+    The list merges the primary team's players with players from every partnership
+    team.  Each entry carries ``sourceClubAlias`` and ``sourceTeamAlias`` to let
+    the frontend indicate where the player normally plays.
+    """
+    mongodb = request.app.state.mongodb
+
+    if not any(role in token_payload.roles for role in ["ADMIN", "CLUB_ADMIN", "LEAGUE_ADMIN"]):
+        raise AuthorizationException(
+            message="Admin, Club Admin, or League Admin role required",
+            details={"user_roles": token_payload.roles},
+        )
+
+    # Look up primary club / team
+    primary_club = await mongodb["clubs"].find_one({"alias": club_alias})
+    if not primary_club:
+        raise ResourceNotFoundException(resource_type="Club", resource_id=club_alias)
+
+    primary_team = None
+    for t in primary_club.get("teams", []):
+        if t["alias"] == team_alias:
+            primary_team = t
+            break
+    if not primary_team:
+        raise ResourceNotFoundException(
+            resource_type="Team", resource_id=team_alias, details={"club_alias": club_alias}
+        )
+
+    # Build the list of (clubAlias, teamAlias) pairs to collect, starting with the primary team
+    team_sources: list[tuple[str, str]] = [(club_alias, team_alias)]
+    for partnership in primary_team.get("teamPartnership", []):
+        p_club_alias = partnership.get("clubAlias")
+        p_team_alias = partnership.get("teamAlias")
+        if p_club_alias and p_team_alias:
+            team_sources.append((p_club_alias, p_team_alias))
+
+    assignment_service = PlayerAssignmentService(mongodb)
+
+    seen_ids: set[str] = set()
+    pool: list[dict] = []
+
+    for src_club_alias, src_team_alias in team_sources:
+        result = await get_paginated_players(
+            mongodb,
+            None,
+            1,
+            src_club_alias,
+            src_team_alias,
+            "lastName",
+            True,
+            active,
+        )
+        for player_data in result.get("results", []):
+            player_id = str(player_data.get("_id", ""))
+            if player_id in seen_ids:
+                continue
+            seen_ids.add(player_id)
+
+            # Re-validate to refresh licence status
+            fresh_player = await assignment_service.update_player_validation_in_db(
+                player_id, reset=True
+            )
+            if fresh_player:
+                player_dict = PlayerDB(**fresh_player).model_dump(by_alias=True)
+            else:
+                player_dict = player_data
+
+            player_dict["sourceClubAlias"] = src_club_alias
+            player_dict["sourceTeamAlias"] = src_team_alias
+            pool.append(player_dict)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(
+            StandardResponse[list[Any]](
+                success=True,
+                message=(
+                    f"Retrieved {len(pool)} players in pool for team {team_alias} "
+                    f"in club {club_alias} ({len(team_sources)} source team(s))"
+                ),
+                data=pool,
+            )
+        ),
+    )
+
+
 # GET ALL PLAYERS
 # -------------------
 @router.get("", response_description="Get all players", response_model=PaginatedResponse[PlayerDB])

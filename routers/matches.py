@@ -44,6 +44,19 @@ stats_service = None  # Will be initialized with MongoDB instance
 DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 
+async def _resolve_team_partnership(mongodb, club_id: str | None, team_id: str | None) -> list[dict]:
+    """Look up a team's teamPartnership list from the clubs collection."""
+    if not club_id or not team_id:
+        return []
+    club = await mongodb["clubs"].find_one({"_id": club_id})
+    if not club:
+        return []
+    for team in club.get("teams", []):
+        if team.get("_id") == team_id:
+            return team.get("teamPartnership", [])
+    return []
+
+
 # Prepare to convert matchSeconds to seconds for accurate comparison
 def convert_times_to_seconds(data):
     for score in data.get("home", {}).get("scores", []) or []:
@@ -791,6 +804,15 @@ async def create_match(
 
         match_data.pop("matchSettingsSource", None)
 
+        # Inject teamPartnership from the clubs definition so roster validation
+        # can resolve partnership player eligibility without extra DB calls.
+        for team_flag in ("home", "away"):
+            team_sect = match_data.get(team_flag)
+            if isinstance(team_sect, dict):
+                team_sect["teamPartnership"] = await _resolve_team_partnership(
+                    mongodb, team_sect.get("clubId"), team_sect.get("teamId")
+                )
+
         if DEBUG_LEVEL > 10:
             logger.debug(f"match_data: {match_data}")
 
@@ -1072,6 +1094,16 @@ async def update_match(
                 if "referee2" not in match_data:
                     match_data["referee2"] = {}
                 match_data["referee2"]["points"] = ref_points
+
+    # Inject teamPartnership when home/away teamId is being changed so that
+    # roster validation always has up-to-date partnership information.
+    for team_flag in ("home", "away"):
+        team_sect = match_data.get(team_flag)
+        if isinstance(team_sect, dict) and "teamId" in team_sect:
+            club_id = team_sect.get("clubId") or existing_match.get(team_flag, {}).get("clubId")
+            team_sect["teamPartnership"] = await _resolve_team_partnership(
+                mongodb, club_id, team_sect["teamId"]
+            )
 
     if DEBUG_LEVEL > 10:
         print("match_data: ", match_data)

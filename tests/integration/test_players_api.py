@@ -369,3 +369,169 @@ class TestPlayersAPI:
         response = await client.get(f"/players/{player['_id']}")
 
         assert response.status_code == 403
+
+
+class TestPlayerPoolAPI:
+    """Tests for the merged player pool endpoint."""
+
+    def _make_assigned_teams(self, club_alias: str, team_alias: str) -> list[dict]:
+        return [{"clubAlias": club_alias, "teams": [{"teamAlias": team_alias, "active": True}]}]
+
+    def _make_player(self, pid: str, first: str, club_alias: str, team_alias: str) -> dict:
+        return {
+            "_id": pid,
+            "firstName": first,
+            "lastName": "Pooltest",
+            "displayFirstName": first,
+            "displayLastName": "Pooltest",
+            "birthdate": datetime(2005, 1, 1),
+            "nationality": "deutsch",
+            "position": "Skater",
+            "sex": "männlich",
+            "fullFaceReq": False,
+            "managedByISHD": False,
+            "source": "BISHL",
+            "published": True,
+            "assignedTeams": self._make_assigned_teams(club_alias, team_alias),
+            "stats": [],
+            "createdAt": datetime(2024, 1, 1),
+            "updatedAt": datetime(2024, 1, 1),
+        }
+
+    @pytest.mark.asyncio
+    async def test_pool_primary_only(self, client: AsyncClient, mongodb, admin_token):
+        """Pool with no partnership returns only primary team players."""
+        club = {
+            "_id": "pool-club-1",
+            "name": "Pool Club 1",
+            "alias": "pool-club-1",
+            "teams": [
+                {
+                    "_id": "pool-team-a",
+                    "name": "Team A",
+                    "alias": "team-a",
+                    "ageGroup": "HERREN",
+                    "teamPartnership": [],
+                }
+            ],
+        }
+        await mongodb["clubs"].insert_one(club)
+
+        p1 = self._make_player("pool-p1", "Alice", "pool-club-1", "team-a")
+        p2 = self._make_player("pool-p2", "Bob", "pool-club-1", "team-a")
+        await mongodb["players"].insert_many([p1, p2])
+
+        response = await client.get(
+            "/players/clubs/pool-club-1/teams/team-a/pool",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert len(data["data"]) == 2
+        for entry in data["data"]:
+            assert entry["sourceClubAlias"] == "pool-club-1"
+            assert entry["sourceTeamAlias"] == "team-a"
+
+    @pytest.mark.asyncio
+    async def test_pool_with_partnership_merges_and_deduplicates(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
+        """Pool merges players from partnership teams and deduplicates shared players."""
+        club_a = {
+            "_id": "ptn-club-a",
+            "name": "Club A",
+            "alias": "ptn-club-a",
+            "teams": [
+                {
+                    "_id": "ptn-team-1",
+                    "name": "Team 1",
+                    "alias": "ptn-team-1",
+                    "ageGroup": "HERREN",
+                    "teamPartnership": [
+                        {"clubAlias": "ptn-club-b", "teamAlias": "ptn-team-2"}
+                    ],
+                }
+            ],
+        }
+        club_b = {
+            "_id": "ptn-club-b",
+            "name": "Club B",
+            "alias": "ptn-club-b",
+            "teams": [
+                {
+                    "_id": "ptn-team-2",
+                    "name": "Team 2",
+                    "alias": "ptn-team-2",
+                    "ageGroup": "HERREN",
+                    "teamPartnership": [],
+                }
+            ],
+        }
+        await mongodb["clubs"].insert_many([club_a, club_b])
+
+        # primary player only on team-1
+        primary = self._make_player("ptn-p1", "Primary", "ptn-club-a", "ptn-team-1")
+        # partnership player only on team-2
+        partner = self._make_player("ptn-p2", "Partner", "ptn-club-b", "ptn-team-2")
+        # player assigned to BOTH teams (should appear only once)
+        shared = {
+            **self._make_player("ptn-p3", "Shared", "ptn-club-a", "ptn-team-1"),
+            "assignedTeams": [
+                {"clubAlias": "ptn-club-a", "teams": [{"teamAlias": "ptn-team-1", "active": True}]},
+                {"clubAlias": "ptn-club-b", "teams": [{"teamAlias": "ptn-team-2", "active": True}]},
+            ],
+        }
+        await mongodb["players"].insert_many([primary, partner, shared])
+
+        response = await client.get(
+            "/players/clubs/ptn-club-a/teams/ptn-team-1/pool",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+        pool_ids = [e["_id"] for e in data["data"]]
+        # All three players must appear exactly once
+        assert set(pool_ids) == {"ptn-p1", "ptn-p2", "ptn-p3"}
+        assert len(pool_ids) == len(set(pool_ids)), "Duplicate players in pool"
+
+        # Each entry carries source annotation
+        for entry in data["data"]:
+            assert "sourceClubAlias" in entry
+            assert "sourceTeamAlias" in entry
+
+    @pytest.mark.asyncio
+    async def test_pool_404_unknown_club(self, client: AsyncClient, mongodb, admin_token):
+        """Returns 404 when the club does not exist."""
+        response = await client.get(
+            "/players/clubs/no-such-club/teams/no-such-team/pool",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_pool_404_unknown_team(self, client: AsyncClient, mongodb, admin_token):
+        """Returns 404 when the team does not exist within the club."""
+        club = {
+            "_id": "pool-404-club",
+            "name": "Pool 404 Club",
+            "alias": "pool-404-club",
+            "teams": [],
+        }
+        await mongodb["clubs"].insert_one(club)
+
+        response = await client.get(
+            "/players/clubs/pool-404-club/teams/ghost-team/pool",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_pool_requires_auth(self, client: AsyncClient, mongodb):
+        """Pool endpoint requires authentication."""
+        response = await client.get("/players/clubs/any-club/teams/any-team/pool")
+        assert response.status_code == 403
