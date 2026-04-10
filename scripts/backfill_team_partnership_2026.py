@@ -9,11 +9,11 @@ teamPartnership from the clubs collection and writes it into each affected
 match document.
 
 Usage:
-    python scripts/backfill_team_partnership_2026.py [--dry-run] [--production] [--verbose]
+    python scripts/backfill_team_partnership_2026.py [--dry-run] [--prod] [--verbose]
 
 Options:
     --dry-run     Preview changes without modifying the database
-    --production  Run against production database (uses DB_URL_PROD)
+    --prod        Run against production database (uses DB_URL_PROD)
     --verbose     Print per-match per-side resolution details
 """
 
@@ -36,11 +36,14 @@ INDEX_SAMPLE_SIZE = 5   # How many index entries to print during diagnosis
 # Database connection
 # ---------------------------------------------------------------------------
 
-async def get_database(use_production: bool = False):
+async def get_database(use_production: bool = False, use_demo: bool = False):
     """Connect to MongoDB and return the target database."""
     if use_production:
         db_url = os.getenv("DB_URL_PROD")
         db_name = "bishl"
+    elif use_demo:
+        db_url = os.getenv("DB_URL_DEMO")
+        db_name = os.getenv("DB_NAME_DEMO", "bishl_demo")
     else:
         db_url = os.getenv("DB_URL")
         db_name = os.getenv("DB_NAME", "bishl_dev")
@@ -48,7 +51,7 @@ async def get_database(use_production: bool = False):
     if not db_url:
         raise ValueError(
             f"Database URL not found. "
-            f"Set {'DB_URL_PROD' if use_production else 'DB_URL'} environment variable."
+            f"Set {'DB_URL_PROD' if use_production else ('DB_URL_DEMO' if use_demo else 'DB_URL')} environment variable."
         )
 
     client = AsyncIOMotorClient(db_url, tlsCAFile=certifi.where())
@@ -159,29 +162,27 @@ def fmt_side(side: str, team_data: dict) -> str:
 async def run_migration(
     dry_run: bool = False,
     use_production: bool = False,
+    use_demo: bool = False,
     verbose: bool = False,
 ):
     print(f"\n{'=' * 70}")
     print(f"Backfill teamPartnership — season {SEASON_ALIAS}")
     print(f"{'=' * 70}")
     print(f"Mode:    {'DRY RUN (no writes)' if dry_run else 'LIVE'}")
-    print(f"Target:  {'PRODUCTION' if use_production else 'DEVELOPMENT'}")
+    target = 'PRODUCTION' if use_production else ('DEMO' if use_demo else 'DEVELOPMENT')
+    print(f"Target:  {target}")
     print(f"Verbose: {verbose}")
     print(f"Started: {datetime.now().isoformat()}")
     print(f"{'=' * 70}\n")
 
-    db = await get_database(use_production)
+    db = await get_database(use_production, use_demo)
 
-    # ------------------------------------------------------------------
-    # 1. Build index — sample a few entries so we can verify ID format
-    # ------------------------------------------------------------------
     print("Building club/team partnership index …")
     if verbose:
         print(f"  (showing first {INDEX_SAMPLE_SIZE} entries)")
     partnership_index = await build_team_partnership_index(db, verbose=verbose)
     print()
 
-    # Cross-check: how many teams in the index actually have partners?
     with_partners = sum(1 for v in partnership_index.values() if v)
     without_partners = len(partnership_index) - with_partners
     print(f"  Index breakdown:")
@@ -189,9 +190,6 @@ async def run_migration(
     print(f"    Teams WITHOUT any partner        : {without_partners}")
     print()
 
-    # ------------------------------------------------------------------
-    # 2. Sample a match from the DB to cross-check ID format
-    # ------------------------------------------------------------------
     sample_match = await db["matches"].find_one({"season.alias": SEASON_ALIAS})
     if sample_match:
         print("Sample match (for ID format cross-check):")
@@ -212,19 +210,15 @@ async def run_migration(
             )
         print()
 
-    # ------------------------------------------------------------------
-    # 3. Process all 2026 matches
-    # ------------------------------------------------------------------
     query = {"season.alias": SEASON_ALIAS}
     total_count = await db["matches"].count_documents(query)
     print(f"Total matches with season.alias == {SEASON_ALIAS!r}: {total_count}\n")
 
-    # Counters
-    already_done = 0          # both sides already have the field
-    updated_with_data = 0     # at least one side resolved to a non-empty list
-    updated_empty_only = 0    # updated but all sides resolved to []
-    partially_done = 0        # one side already had field, other was missing
-    unresolvable = 0          # at least one side could not be looked up
+    already_done = 0
+    updated_with_data = 0
+    updated_empty_only = 0
+    partially_done = 0
+    unresolvable = 0
     errors = 0
 
     async for match in db["matches"].find(query):
@@ -232,12 +226,11 @@ async def run_migration(
         updates: dict[str, list] = {}
         unresolved_sides: list[str] = []
         already_done_sides: list[str] = []
-        resolved_details: list[str] = []   # for verbose logging
+        resolved_details: list[str] = []
 
         for side in ("home", "away"):
             team_data: dict = match.get(side) or {}
 
-            # Skip sides that already carry the field
             if already_has_partnership(team_data):
                 already_done_sides.append(side)
                 resolved_details.append(
@@ -269,7 +262,6 @@ async def run_migration(
                     f"(clubId={club_id!r}, teamId={team_id!r})"
                 )
 
-        # Diagnostics: did we find anything?
         if unresolved_sides:
             unresolvable += 1
             print(
@@ -277,7 +269,6 @@ async def run_migration(
                 + ", ".join(unresolved_sides)
             )
 
-        # Determine skip / partial / full scenarios
         all_sides_done = len(already_done_sides) == 2
         if all_sides_done:
             already_done += 1
@@ -288,7 +279,6 @@ async def run_migration(
             continue
 
         if not updates:
-            # No new data to write (all remaining sides were unresolvable)
             if verbose:
                 print(f"  SKIP  match {match_id}: nothing to write (unresolvable or already done)")
                 for d in resolved_details:
@@ -298,7 +288,6 @@ async def run_migration(
         if already_done_sides:
             partially_done += 1
 
-        # Classify by whether any resolved side has actual partners
         has_real_partners = any(len(v) > 0 for v in updates.values())
 
         try:
@@ -335,9 +324,6 @@ async def run_migration(
             errors += 1
             print(f"  ERROR match {match_id}: {exc}")
 
-    # ------------------------------------------------------------------
-    # 4. Final summary
-    # ------------------------------------------------------------------
     print(f"\n{'=' * 70}")
     print("Backfill complete")
     print(f"{'=' * 70}")
@@ -374,9 +360,14 @@ def main():
         help="Preview changes without modifying the database",
     )
     parser.add_argument(
-        "--production",
+        "--prod",
         action="store_true",
         help="Run against production database (DB_URL_PROD)",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run against demo database (DB_URL_DEMO)",
     )
     parser.add_argument(
         "--verbose",
@@ -388,7 +379,10 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.production and not args.dry_run:
+    if args.prod and args.demo:
+        raise ValueError("Choose only one of --prod or --demo")
+
+    if args.prod and not args.dry_run:
         confirm = input(
             "\n⚠️  WARNING: You are about to modify PRODUCTION data.\n"
             "Type 'yes' to continue: "
@@ -400,7 +394,8 @@ def main():
     asyncio.run(
         run_migration(
             dry_run=args.dry_run,
-            use_production=args.production,
+            use_production=args.prod,
+            use_demo=args.demo,
             verbose=args.verbose,
         )
     )
