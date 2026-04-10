@@ -373,8 +373,14 @@ class TestMatchTeamPartnership:
         # Home team has one partnership
         await self._insert_club_with_partnership(
             mongodb, home_club_id, "ptn-home-club", home_team_id, "ptn-home-team",
-            partnership=[{"clubAlias": "ptn-away-club", "teamAlias": "ptn-away-team",
-                          "clubId": partner_club_id, "teamId": partner_team_id}],
+            partnership=[{
+                "clubId": partner_club_id,
+                "clubAlias": "ptn-away-club",
+                "clubName": "Partnership Away Club",
+                "teamId": partner_team_id,
+                "teamAlias": "ptn-away-team",
+                "teamName": "1. Herren",
+            }],
         )
         # Away team has no partnership
         await self._insert_club_with_partnership(

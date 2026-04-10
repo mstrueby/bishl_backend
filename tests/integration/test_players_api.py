@@ -450,7 +450,14 @@ class TestPlayerPoolAPI:
                     "alias": "ptn-team-1",
                     "ageGroup": "HERREN",
                     "teamPartnership": [
-                        {"clubAlias": "ptn-club-b", "teamAlias": "ptn-team-2"}
+                        {
+                            "clubId": "ptn-club-b",
+                            "clubAlias": "ptn-club-b",
+                            "clubName": "Club B",
+                            "teamId": "ptn-team-2",
+                            "teamAlias": "ptn-team-2",
+                            "teamName": "Team 2",
+                        }
                     ],
                 }
             ],
