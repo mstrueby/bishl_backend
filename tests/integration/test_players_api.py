@@ -3,6 +3,7 @@
 from datetime import datetime
 
 import pytest
+from bson import ObjectId
 from httpx import AsyncClient
 
 
@@ -375,11 +376,32 @@ class TestPlayerPoolAPI:
     """Tests for the merged player pool endpoint."""
 
     def _make_assigned_teams(self, club_alias: str, team_alias: str) -> list[dict]:
-        return [{"clubAlias": club_alias, "teams": [{"teamAlias": team_alias, "active": True}]}]
+        """Build a minimal but fully valid AssignedClubs + AssignedTeams structure."""
+        return [
+            {
+                "clubId": club_alias,           # str field — any non-empty string is fine
+                "clubName": club_alias.replace("-", " ").title(),
+                "clubAlias": club_alias,
+                "teams": [
+                    {
+                        "teamId": team_alias,   # str field — any non-empty string is fine
+                        "teamName": team_alias.replace("-", " ").title(),
+                        "teamAlias": team_alias,
+                        "teamAgeGroup": "HERREN",
+                        "active": True,
+                    }
+                ],
+            }
+        ]
 
-    def _make_player(self, pid: str, first: str, club_alias: str, team_alias: str) -> dict:
+    def _make_player(self, oid: str, first: str, club_alias: str, team_alias: str) -> dict:
+        """Build a minimal but fully valid player document.
+
+        ``oid`` must be a 24-character hex string (valid ObjectId format) because
+        PlayerDB validates _id through PyObjectId.
+        """
         return {
-            "_id": pid,
+            "_id": oid,
             "firstName": first,
             "lastName": "Pooltest",
             "displayFirstName": first,
@@ -417,8 +439,10 @@ class TestPlayerPoolAPI:
         }
         await mongodb["clubs"].insert_one(club)
 
-        p1 = self._make_player("pool-p1", "Alice", "pool-club-1", "team-a")
-        p2 = self._make_player("pool-p2", "Bob", "pool-club-1", "team-a")
+        p1_id = str(ObjectId())
+        p2_id = str(ObjectId())
+        p1 = self._make_player(p1_id, "Alice", "pool-club-1", "team-a")
+        p2 = self._make_player(p2_id, "Bob", "pool-club-1", "team-a")
         await mongodb["players"].insert_many([p1, p2])
 
         response = await client.get(
@@ -478,17 +502,22 @@ class TestPlayerPoolAPI:
         }
         await mongodb["clubs"].insert_many([club_a, club_b])
 
+        # Generate valid ObjectId strings for each player
+        primary_id = str(ObjectId())
+        partner_id = str(ObjectId())
+        shared_id = str(ObjectId())
+
         # primary player only on team-1
-        primary = self._make_player("ptn-p1", "Primary", "ptn-club-a", "ptn-team-1")
+        primary = self._make_player(primary_id, "Primary", "ptn-club-a", "ptn-team-1")
         # partnership player only on team-2
-        partner = self._make_player("ptn-p2", "Partner", "ptn-club-b", "ptn-team-2")
+        partner = self._make_player(partner_id, "Partner", "ptn-club-b", "ptn-team-2")
         # player assigned to BOTH teams (should appear only once)
         shared = {
-            **self._make_player("ptn-p3", "Shared", "ptn-club-a", "ptn-team-1"),
-            "assignedTeams": [
-                {"clubAlias": "ptn-club-a", "teams": [{"teamAlias": "ptn-team-1", "active": True}]},
-                {"clubAlias": "ptn-club-b", "teams": [{"teamAlias": "ptn-team-2", "active": True}]},
-            ],
+            **self._make_player(shared_id, "Shared", "ptn-club-a", "ptn-team-1"),
+            "assignedTeams": (
+                self._make_assigned_teams("ptn-club-a", "ptn-team-1")
+                + self._make_assigned_teams("ptn-club-b", "ptn-team-2")
+            ),
         }
         await mongodb["players"].insert_many([primary, partner, shared])
 
@@ -503,7 +532,7 @@ class TestPlayerPoolAPI:
 
         pool_ids = [e["_id"] for e in data["data"]]
         # All three players must appear exactly once
-        assert set(pool_ids) == {"ptn-p1", "ptn-p2", "ptn-p3"}
+        assert set(pool_ids) == {primary_id, partner_id, shared_id}
         assert len(pool_ids) == len(set(pool_ids)), "Duplicate players in pool"
 
         # Each entry carries source annotation
