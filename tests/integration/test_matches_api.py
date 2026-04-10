@@ -323,3 +323,116 @@ class TestMatchesAPI:
         # Verify deleted from database
         deleted = await mongodb["matches"].find_one({"_id": match["_id"]})
         assert deleted is None
+
+
+@pytest.mark.asyncio
+class TestMatchTeamPartnership:
+    """Verify that teamPartnership is embedded into match home/away on create and update."""
+
+    async def _insert_club_with_partnership(self, mongodb, club_id: str, club_alias: str,
+                                            team_id: str, team_alias: str,
+                                            partnership: list[dict]) -> None:
+        await mongodb["clubs"].insert_one({
+            "_id": club_id,
+            "name": f"Club {club_alias}",
+            "alias": club_alias,
+            "teams": [
+                {
+                    "_id": team_id,
+                    "name": f"Team {team_alias}",
+                    "alias": team_alias,
+                    "ageGroup": "HERREN",
+                    "teamPartnership": partnership,
+                }
+            ],
+        })
+
+    async def _insert_tournament(self, mongodb) -> dict:
+        from tests.fixtures.data_fixtures import create_test_tournament
+        tournament = create_test_tournament()
+        if tournament.get("seasons"):
+            tournament["seasons"][0]["standingsSettings"] = {
+                "pointsWinReg": 3, "pointsLossReg": 0, "pointsDrawReg": 1,
+                "pointsWinOvertime": 2, "pointsLossOvertime": 1,
+                "pointsWinShootout": 2, "pointsLossShootout": 1,
+            }
+        await mongodb["tournaments"].insert_one(tournament)
+        return tournament
+
+    async def test_create_match_embeds_team_partnership(
+        self, client: AsyncClient, mongodb, admin_token
+    ):
+        """teamPartnership from clubs collection is embedded into home/away on match create."""
+        home_club_id = str(ObjectId())
+        home_team_id = str(ObjectId())
+        away_club_id = str(ObjectId())
+        away_team_id = str(ObjectId())
+        partner_club_id = str(ObjectId())
+        partner_team_id = str(ObjectId())
+
+        # Home team has one partnership
+        await self._insert_club_with_partnership(
+            mongodb, home_club_id, "ptn-home-club", home_team_id, "ptn-home-team",
+            partnership=[{"clubAlias": "ptn-away-club", "teamAlias": "ptn-away-team",
+                          "clubId": partner_club_id, "teamId": partner_team_id}],
+        )
+        # Away team has no partnership
+        await self._insert_club_with_partnership(
+            mongodb, away_club_id, "ptn-away-club", away_team_id, "ptn-away-team",
+            partnership=[],
+        )
+
+        tournament = await self._insert_tournament(mongodb)
+        match_id = str(ObjectId())
+        match_data = {
+            "_id": match_id,
+            "tournament": {"name": tournament["name"], "alias": tournament["alias"]},
+            "season": {
+                "name": tournament["seasons"][0]["name"],
+                "alias": tournament["seasons"][0]["alias"],
+            },
+            "round": {"name": "Hauptrunde", "alias": "hauptrunde"},
+            "matchday": {"name": "1. Spieltag", "alias": "1-spieltag"},
+            "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
+            "home": {
+                "clubId": home_club_id,
+                "clubAlias": "ptn-home-club",
+                "teamId": home_team_id,
+                "teamAlias": "ptn-home-team",
+                "name": "Partnership Home",
+                "fullName": "Partnership Home Full",
+                "shortName": "PHOM",
+                "tinyName": "PHM",
+            },
+            "away": {
+                "clubId": away_club_id,
+                "clubAlias": "ptn-away-club",
+                "teamId": away_team_id,
+                "teamAlias": "ptn-away-team",
+                "name": "Partnership Away",
+                "fullName": "Partnership Away Full",
+                "shortName": "PAWY",
+                "tinyName": "PAW",
+            },
+        }
+
+        response = await client.post(
+            "/matches", json=match_data, headers={"Authorization": f"Bearer {admin_token}"}
+        )
+
+        assert response.status_code == 201
+
+        # Verify in DB that teamPartnership was persisted
+        match_in_db = await mongodb["matches"].find_one({"_id": match_id})
+        assert match_in_db is not None
+
+        home_partnership = match_in_db["home"].get("teamPartnership", [])
+        assert len(home_partnership) == 1, (
+            f"Expected home.teamPartnership with 1 entry, got: {home_partnership}"
+        )
+        assert home_partnership[0]["teamAlias"] == "ptn-away-team"
+
+        away_partnership = match_in_db["away"].get("teamPartnership", [])
+        assert away_partnership == [], (
+            f"Expected away.teamPartnership to be empty, got: {away_partnership}"
+        )
