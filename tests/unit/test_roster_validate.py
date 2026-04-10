@@ -501,10 +501,96 @@ class TestValidateRegularPlayer:
         }
         status, codes = _validate_regular_player(validated_player, "p1", "team-a")
         assert status == LicenseStatus.INVALID
-        assert codes == []
+        assert LicenseInvalidReasonCode.NOT_ASSIGNED_TO_TEAM in codes
 
     def test_no_team_id(self):
         validated_player = {"assignedTeams": []}
         status, codes = _validate_regular_player(validated_player, "p1", "")
         assert status == LicenseStatus.INVALID
+        assert LicenseInvalidReasonCode.NOT_ASSIGNED_TO_TEAM in codes
+
+    def test_partnership_player_valid(self):
+        validated_player = {
+            "assignedTeams": [
+                {
+                    "clubId": "club-partner",
+                    "clubName": "Partner Club",
+                    "teams": [
+                        {"teamId": "team-partner", "status": "VALID", "invalidReasonCodes": []},
+                    ],
+                }
+            ]
+        }
+        status, codes = _validate_regular_player(
+            validated_player, "p1", "team-primary", partnership_team_ids={"team-partner"}
+        )
+        assert status == LicenseStatus.VALID
+        assert codes == []
+
+    def test_partnership_player_invalid_inherits_reason_codes(self):
+        validated_player = {
+            "assignedTeams": [
+                {
+                    "clubId": "club-partner",
+                    "clubName": "Partner Club",
+                    "teams": [
+                        {
+                            "teamId": "team-partner",
+                            "status": "INVALID",
+                            "invalidReasonCodes": ["SUSPENDED"],
+                        },
+                    ],
+                }
+            ]
+        }
+        status, codes = _validate_regular_player(
+            validated_player, "p1", "team-primary", partnership_team_ids={"team-partner"}
+        )
+        assert status == LicenseStatus.INVALID
+        assert LicenseInvalidReasonCode.SUSPENDED in codes
+
+    def test_player_not_found_in_primary_or_partnership(self):
+        validated_player = {
+            "assignedTeams": _make_assigned_teams(
+                [{"teamId": "team-unrelated", "status": "VALID", "invalidReasonCodes": []}]
+            )
+        }
+        status, codes = _validate_regular_player(
+            validated_player,
+            "p1",
+            "team-primary",
+            partnership_team_ids={"team-partner-a", "team-partner-b"},
+        )
+        assert status == LicenseStatus.INVALID
+        assert LicenseInvalidReasonCode.NOT_ASSIGNED_TO_TEAM in codes
+
+    def test_partnership_team_ids_none_falls_back_to_primary_only(self):
+        validated_player = {
+            "assignedTeams": _make_assigned_teams(
+                [{"teamId": "team-a", "status": "VALID", "invalidReasonCodes": []}]
+            )
+        }
+        status, codes = _validate_regular_player(
+            validated_player, "p1", "team-a", partnership_team_ids=None
+        )
+        assert status == LicenseStatus.VALID
+        assert codes == []
+
+    def test_primary_team_takes_precedence_over_partnership(self):
+        validated_player = {
+            "assignedTeams": [
+                {
+                    "clubId": "club1",
+                    "clubName": "Primary Club",
+                    "teams": [
+                        {"teamId": "team-primary", "status": "VALID", "invalidReasonCodes": []},
+                        {"teamId": "team-partner", "status": "INVALID", "invalidReasonCodes": ["SUSPENDED"]},
+                    ],
+                }
+            ]
+        }
+        status, codes = _validate_regular_player(
+            validated_player, "p1", "team-primary", partnership_team_ids={"team-partner"}
+        )
+        assert status == LicenseStatus.VALID
         assert codes == []

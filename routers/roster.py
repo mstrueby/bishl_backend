@@ -272,18 +272,31 @@ def _validate_regular_player(
     validated_player: dict,
     player_id: str,
     team_id: str,
+    partnership_team_ids: set[str] | None = None,
 ) -> tuple[LicenseStatus, list[LicenseInvalidReasonCode]]:
     assigned_teams = validated_player.get("assignedTeams", [])
 
     if not team_id:
-        return LicenseStatus.INVALID, []
+        return LicenseStatus.INVALID, [LicenseInvalidReasonCode.NOT_ASSIGNED_TO_TEAM]
 
     team = _find_team_in_assigned_teams(assigned_teams, team_id)
-    if not team:
-        logger.warning(f"Player {player_id} not assigned to team {team_id}, marking as INVALID")
-        return LicenseStatus.INVALID, []
+    if team:
+        return _extract_status_and_reasons(team)
 
-    return _extract_status_and_reasons(team)
+    if partnership_team_ids:
+        for partner_team_id in partnership_team_ids:
+            partner_team = _find_team_in_assigned_teams(assigned_teams, partner_team_id)
+            if partner_team:
+                logger.info(
+                    f"Player {player_id} found via partnership team {partner_team_id}"
+                )
+                return _extract_status_and_reasons(partner_team)
+
+    logger.warning(
+        f"Player {player_id} not assigned to team {team_id} or any of its partnership teams, "
+        f"marking as INVALID"
+    )
+    return LicenseStatus.INVALID, [LicenseInvalidReasonCode.NOT_ASSIGNED_TO_TEAM]
 
 
 @router.post(
@@ -354,9 +367,27 @@ async def validate_roster(
 
     team_data = match.get(team_flag, {})
     team_id = team_data.get("teamId")
+    club_id = team_data.get("clubId")
 
     if not team_id:
         logger.warning(f"No teamId found for {team_flag} team in match {match_id}")
+
+    partnership_team_ids: set[str] = set()
+    if club_id and team_id:
+        club = await mongodb["clubs"].find_one({"_id": club_id})
+        if club:
+            for club_team in club.get("teams", []):
+                if club_team.get("_id") == team_id:
+                    for partnership in club_team.get("teamPartnership", []):
+                        p_id = partnership.get("teamId")
+                        if p_id:
+                            partnership_team_ids.add(p_id)
+                    break
+        if partnership_team_ids:
+            logger.info(
+                f"Resolved {len(partnership_team_ids)} partnership team(s) for {team_flag} "
+                f"team {team_id} in match {match_id}: {partnership_team_ids}"
+            )
 
     all_valid = True
     updated_players = []
@@ -385,7 +416,7 @@ async def validate_roster(
             )
         else:
             player_status, reason_codes = _validate_regular_player(
-                validated_player, player_id, team_id
+                validated_player, player_id, team_id, partnership_team_ids
             )
 
         roster_player.eligibilityStatus = player_status

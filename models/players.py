@@ -155,6 +155,7 @@ class LicenseInvalidReasonCode(str, Enum):
     HOBBY_PLAYER_CONFLICT = "HOBBY_PLAYER_CONFLICT"
     SUSPENDED = "SUSPENDED"
     CALLED_LIMIT_EXCEEDED = "CALLED_LIMIT_EXCEEDED"
+    NOT_ASSIGNED_TO_TEAM = "NOT_ASSIGNED_TO_TEAM"
 
 
 class PlayUpOccurrenceType(str, Enum):
