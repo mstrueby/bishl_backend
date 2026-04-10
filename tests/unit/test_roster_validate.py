@@ -576,6 +576,42 @@ class TestValidateRegularPlayer:
         assert status == LicenseStatus.VALID
         assert codes == []
 
+    def test_valid_partnership_preferred_over_invalid_partnership(self):
+        validated_player = {
+            "assignedTeams": [
+                {
+                    "clubId": "club-partner-a",
+                    "clubName": "Partner Club A",
+                    "teams": [
+                        {
+                            "teamId": "team-partner-invalid",
+                            "status": "INVALID",
+                            "invalidReasonCodes": ["SUSPENDED"],
+                        },
+                    ],
+                },
+                {
+                    "clubId": "club-partner-b",
+                    "clubName": "Partner Club B",
+                    "teams": [
+                        {
+                            "teamId": "team-partner-valid",
+                            "status": "VALID",
+                            "invalidReasonCodes": [],
+                        },
+                    ],
+                },
+            ]
+        }
+        status, codes = _validate_regular_player(
+            validated_player,
+            "p1",
+            "team-primary",
+            partnership_team_ids={"team-partner-invalid", "team-partner-valid"},
+        )
+        assert status == LicenseStatus.VALID
+        assert codes == []
+
     def test_primary_team_takes_precedence_over_partnership(self):
         validated_player = {
             "assignedTeams": [

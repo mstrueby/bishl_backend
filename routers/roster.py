@@ -284,13 +284,24 @@ def _validate_regular_player(
         return _extract_status_and_reasons(team)
 
     if partnership_team_ids:
-        for partner_team_id in partnership_team_ids:
+        first_invalid_result: tuple[LicenseStatus, list[LicenseInvalidReasonCode]] | None = None
+        for partner_team_id in sorted(partnership_team_ids):
             partner_team = _find_team_in_assigned_teams(assigned_teams, partner_team_id)
             if partner_team:
-                logger.info(
-                    f"Player {player_id} found via partnership team {partner_team_id}"
-                )
-                return _extract_status_and_reasons(partner_team)
+                status, reasons = _extract_status_and_reasons(partner_team)
+                if status == LicenseStatus.VALID:
+                    logger.info(
+                        f"Player {player_id} found via partnership team {partner_team_id}: VALID"
+                    )
+                    return LicenseStatus.VALID, []
+                if first_invalid_result is None:
+                    first_invalid_result = (status, reasons)
+
+        if first_invalid_result is not None:
+            logger.info(
+                f"Player {player_id} found in a partnership team but license is INVALID"
+            )
+            return first_invalid_result
 
     logger.warning(
         f"Player {player_id} not assigned to team {team_id} or any of its partnership teams, "
