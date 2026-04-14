@@ -938,15 +938,14 @@ async def update_match(
                 MatchAction.EDIT_STATUS_RESULT,
                 matchday_owner,
             )
-        if any(
-            k in match_data_provided
-            for k in [
-                "supplementarySheet",
-                "referee1",
-                "referee2",
-                "matchSheetComplete",
-            ]
-        ):
+        if "supplementarySheet" in match_data_provided:
+            perm_service.check_permission(
+                token_payload,
+                existing_match_for_perms,
+                MatchAction.EDIT_SUPPLEMENTARY,
+                matchday_owner,
+            )
+        if any(k in match_data_provided for k in ["referee1", "referee2", "matchSheetComplete"]):
             perm_service.check_permission(
                 token_payload,
                 existing_match_for_perms,
