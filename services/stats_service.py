@@ -1115,8 +1115,11 @@ class StatsService:
         team_key = team["fullName"]
         self._initialize_player_stats(player_id, team_key, team, match_info, player_card_stats)
 
-        # Only count stats for finished/active matches
-        if match_info.get("match_status", {}).get("key") in ["FINISHED", "INPROGRESS", "FORFEITED"]:
+        # Only count stats for finished/active matches.
+        # FORFEITED matches are intentionally excluded: player events remain stored
+        # in the match document (so a forfeit can be reversed) but must not contribute
+        # to player statistics.
+        if match_info.get("match_status", {}).get("key") in ["FINISHED", "INPROGRESS"]:
             stats = player_card_stats[player_id][team_key]
             stats["gamesPlayed"] += 1
             stats["goals"] += roster_player.get("goals", 0)

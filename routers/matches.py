@@ -28,6 +28,11 @@ from models.matches import (
 from models.responses import PaginatedResponse, StandardResponse
 from services.match_permission_service import MatchAction, MatchPermissionService
 from services.match_settings_service import resolve_match_settings, resolve_match_settings_batch
+from services.match_transition_service import (
+    STATUS_LABELS,
+    get_allowed_transitions,
+    validate_match_transition,
+)
 from services.pagination import PaginationHelper
 from services.stats_service import StatsService
 from services.tournament_service import TournamentService
@@ -886,6 +891,52 @@ async def create_match(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+# ------ allowed transitions for a match
+@router.get(
+    "/{match_id}/allowed-transitions",
+    response_description="Get allowed status transitions for the current user",
+)
+async def get_allowed_transitions_for_match(
+    request: Request,
+    match_id: str,
+    token_payload: TokenPayload = Depends(auth_handler.auth_wrapper),
+) -> JSONResponse:
+    """
+    Return the list of match statuses the authenticated user is permitted to transition
+    this match to, given its current status and the user's role.
+    """
+    mongodb = request.app.state.mongodb
+    if not any(role in token_payload.roles for role in ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"]):
+        raise AuthorizationException(
+            message="Admin, League Admin, or Club Admin role required",
+            details={
+                "user_roles": token_payload.roles,
+                "required_roles": ["ADMIN", "LEAGUE_ADMIN", "CLUB_ADMIN"],
+            },
+        )
+
+    match = await mongodb["matches"].find_one({"_id": match_id})
+    if not match:
+        raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
+
+    current_status = (match.get("matchStatus") or {}).get("key", "SCHEDULED")
+    allowed_keys = get_allowed_transitions(current_status, token_payload.roles)
+
+    result = [
+        {"key": key, "value": STATUS_LABELS.get(key, key)} for key in allowed_keys
+    ]
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(
+            {
+                "success": True,
+                "data": result,
+                "message": f"Allowed transitions from {current_status}",
+            }
+        ),
+    )
+
+
 # ------ update match
 @router.patch(
     "/{match_id}", response_description="Update match", response_model=StandardResponse[MatchDB]
@@ -943,6 +994,12 @@ async def update_match(
             MatchAction.EDIT_STATUS_RESULT,
             matchday_owner,
         )
+    if "matchStatus" in match_data_provided:
+        _current_status = (existing_match_for_perms.get("matchStatus") or {}).get(
+            "key", "SCHEDULED"
+        )
+        _new_status = match.matchStatus.key if match.matchStatus else _current_status
+        validate_match_transition(_current_status, _new_status, token_payload.roles)
     if "supplementarySheet" in match_data_provided:
         perm_service.check_permission(
             token_payload,
@@ -1274,11 +1331,15 @@ async def update_match(
 
     updated_match = await get_match_object(mongodb, match_id)
 
-    # PHASE 1 OPTIMIZATION: Skip player card stats calculation during match creation
-    # Player stats will be calculated when match status changes to FINISHED
+    # Recalculate standings and player card stats whenever a terminal status
+    # (FINISHED or FORFEITED) is involved — either as the old or new status.
+    _stats_trigger_statuses = {"FINISHED", "FORFEITED"}
+    _stats_trigger_hit = bool(
+        _stats_trigger_statuses & {new_match_status, current_match_status}
+    )
     if (
         stats_change_detected
-        and "FINISHED" in {new_match_status, current_match_status}
+        and _stats_trigger_hit
         and t_alias
         and s_alias
         and r_alias
@@ -1309,7 +1370,7 @@ async def update_match(
         player_ids = home_players + away_players
         if player_ids and DEBUG_LEVEL > 0:
             logger.debug(
-                f"Stats change detected on finished match - calculating player card stats for {len(player_ids)} players..."
+                f"Stats change detected on finished/forfeited match - calculating player card stats for {len(player_ids)} players..."
             )
         if player_ids:
             await stats_service.calculate_player_card_stats(
@@ -1320,7 +1381,7 @@ async def update_match(
         change_type = "stats-affecting" if stats_change_detected else "minor"
         player_calc_note = (
             " + player stats calculated"
-            if (stats_change_detected and "FINISHED" in {new_match_status, current_match_status})
+            if (stats_change_detected and _stats_trigger_hit)
             else ""
         )
         logger.debug(
