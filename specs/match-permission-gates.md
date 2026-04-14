@@ -188,15 +188,15 @@ Applied when `isMatchFinished`. Overrides all previous rules for the affected ga
 | Gate | Result |
 |------|--------|
 | `canEditMatch` | Revoked → `false` |
-| `canChangeStatus` | Revoked → `false` |
+| `canChangeStatus` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
 | `canEditRosterHome` | Revoked → `false` |
 | `canEditRosterAway` | Revoked → `false` |
-| `canAccessMatchCenter` | Revoked → `false` |
+| `canAccessMatchCenter` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
 | `canEditSupplementary` | Revoked → `false` |
 | `canEditScoresHome/Away` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
 | `canEditPenaltiesHome/Away` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
 
-Score and penalty editing after the final whistle is limited to the **same match day** so that late corrections (e.g. scoresheet review) are possible while preventing retroactive edits on other days.
+Status/result, match center, score and penalty editing after the final whistle is limited to the **same match day** so that late corrections (e.g. setting `finishType`, scoresheet review) are possible while preventing retroactive edits on other days.
 
 ---
 
@@ -214,11 +214,11 @@ All ten gates → `false`, unconditionally. This overrides **every** other rule,
 1. Unauthenticated              → deny all, stop
 2. isMatchInPast + non-admin    → deny all, skip to Rule 9
 3. Admin/LeagueAdmin baseline   → set scheduling + status always; roster/center on match day
-4. Home CLUB_ADMIN              → home roster always; extra gates on match day if no owner
+4. Home CLUB_ADMIN              → home roster always; full match-day gates on match day
 5. Away CLUB_ADMIN              → away roster before/on match day (pre-kickoff only)
 6. Matchday owner CLUB_ADMIN    → full gate set on match day
 7. Non-prod environment         → home/owner admin gets scheduling regardless of day
-8. isMatchFinished override     → admin gets all; non-admin scores/penalties only on match day
+8. isMatchFinished override     → admin gets all; home/owner admin gets status+center+scores+penalties on match day
 9. NOT isCurrentSeason          → deny all (final override, no exceptions)
 ```
 
@@ -231,15 +231,15 @@ All ten gates → `false`, unconditionally. This overrides **every** other rule,
 | Gate | ADMIN / LEAGUE_ADMIN | Home CLUB_ADMIN | Away CLUB_ADMIN | Matchday Owner |
 |------|---------------------|-----------------|-----------------|----------------|
 | canEditMatch | ✓ always | ✓ non-prod only (md/any) | — | ✓ non-prod only |
-| canChangeStatus | ✓ always | ✓ (md, no owner) | — | ✓ (md) |
+| canChangeStatus | ✓ always | ✓ (md; or finished+md) | — | ✓ (md; or finished+md) |
 | canEditRosterHome | ✓ (md/ip) | ✓ always | — | ✓ (md) |
-| canEditRosterAway | ✓ (md/ip) | ✓ (md, no owner) | ✓ future/pre-kickoff | ✓ (md) |
-| canEditScoresHome | ✓ (md/ip or finished) | ✓ (md, no owner; or finished) | — | ✓ (md; or finished) |
-| canEditScoresAway | ✓ (md/ip or finished) | ✓ (md, no owner; or finished) | — | ✓ (md; or finished) |
-| canEditPenaltiesHome | ✓ (md/ip or finished) | ✓ (md, no owner; or finished) | — | ✓ (md; or finished) |
-| canEditPenaltiesAway | ✓ (md/ip or finished) | ✓ (md, no owner; or finished) | — | ✓ (md; or finished) |
-| canAccessMatchCenter | ✓ (md/ip) | ✓ (md, no owner) | — | ✓ (md) |
-| canEditSupplementary | ✓ (md/ip) | ✓ (md, no owner) | — | ✓ (md) |
+| canEditRosterAway | ✓ (md/ip) | ✓ (md) | ✓ future/pre-kickoff | ✓ (md) |
+| canEditScoresHome | ✓ (md/ip or finished) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
+| canEditScoresAway | ✓ (md/ip or finished) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
+| canEditPenaltiesHome | ✓ (md/ip or finished) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
+| canEditPenaltiesAway | ✓ (md/ip or finished) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
+| canAccessMatchCenter | ✓ (md/ip) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
+| canEditSupplementary | ✓ (md/ip) | ✓ (md) | — | ✓ (md) |
 
 > **Season lock (Rule 9):** All cells above become `—` when the match belongs to a non-current season.
 

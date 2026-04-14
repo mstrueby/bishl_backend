@@ -267,16 +267,15 @@ class TestRule4HomeClubAdmin:
         assert is_allowed(token, match, MatchAction.ACCESS_MATCH_CENTER, owner) is True
         assert is_allowed(token, match, MatchAction.EDIT_SUPPLEMENTARY, owner) is True
 
-    def test_home_admin_on_match_day_with_matchday_owner_limited(self):
-        """Rule 4: when a matchday owner is set, home admin does NOT get those extra gates."""
+    def test_home_admin_on_match_day_with_matchday_owner_gets_full_set(self):
+        """Rule 4: home admin gets full match-day gates even when a matchday owner is assigned."""
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         match = make_match(match_date=date.today(), status="SCHEDULED")
         owner = make_matchday_owner("matchday-owner-club")
-        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_AWAY, owner) is False
-        assert is_allowed(token, match, MatchAction.EDIT_STATUS_RESULT, owner) is False
-        assert is_allowed(token, match, MatchAction.ACCESS_MATCH_CENTER, owner) is False
-        assert is_allowed(token, match, MatchAction.EDIT_SUPPLEMENTARY, owner) is False
-        # BUT home roster editing is always allowed for home admin
+        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_AWAY, owner) is True
+        assert is_allowed(token, match, MatchAction.EDIT_STATUS_RESULT, owner) is True
+        assert is_allowed(token, match, MatchAction.ACCESS_MATCH_CENTER, owner) is True
+        assert is_allowed(token, match, MatchAction.EDIT_SUPPLEMENTARY, owner) is True
         assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME, owner) is True
 
     def test_home_admin_off_match_day_no_extra_gates(self):
@@ -366,15 +365,13 @@ class TestRule6MatchdayOwner:
         assert is_allowed(token, match, MatchAction.EDIT_STATUS_RESULT, owner) is False
         assert is_allowed(token, match, MatchAction.EDIT_SUPPLEMENTARY, owner) is False
 
-    def test_matchday_owner_supersedes_home_admin_on_match_day(self):
-        """When a matchday owner is set, the home admin does NOT get change-status etc."""
+    def test_home_admin_and_matchday_owner_both_get_full_set(self):
+        """Home admin retains full match-day gates even when a matchday owner is assigned (Rules 4+6 coexist)."""
         home_token = make_token(["CLUB_ADMIN"], club_id="home-club")
         match = make_match(match_date=date.today(), home_club_id="home-club")
         owner = make_matchday_owner("owner-club")
-        # Home admin loses status/match center when a matchday owner is assigned
-        assert is_allowed(home_token, match, MatchAction.EDIT_STATUS_RESULT, owner) is False
-        assert is_allowed(home_token, match, MatchAction.ACCESS_MATCH_CENTER, owner) is False
-        # But home admin keeps home roster editing
+        assert is_allowed(home_token, match, MatchAction.EDIT_STATUS_RESULT, owner) is True
+        assert is_allowed(home_token, match, MatchAction.ACCESS_MATCH_CENTER, owner) is True
         assert is_allowed(home_token, match, MatchAction.EDIT_ROSTER_HOME, owner) is True
 
     def test_non_owner_club_admin_denied_matchday_owner_gates(self):
@@ -474,14 +471,15 @@ class TestRule8FinishedMatch:
         assert is_allowed(token, match, MatchAction.EDIT_PENALTIES_HOME) is True
         assert is_allowed(token, match, MatchAction.EDIT_PENALTIES_AWAY) is True
 
-    def test_home_admin_finished_match_on_match_day_cannot_edit_roster_or_status(self):
-        """Rule 8: roster/status/match-center revoked for non-admins in finished match."""
+    def test_home_admin_finished_match_on_match_day_gets_status_and_center(self):
+        """Rule 8: home admin on match day + finished can edit status/result and access match center."""
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         match = make_match(match_date=date.today(), status="FINISHED")
+        assert is_allowed(token, match, MatchAction.EDIT_STATUS_RESULT) is True
+        assert is_allowed(token, match, MatchAction.ACCESS_MATCH_CENTER) is True
+        # Roster and supplementary remain revoked
         assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is False
         assert is_allowed(token, match, MatchAction.EDIT_ROSTER_AWAY) is False
-        assert is_allowed(token, match, MatchAction.EDIT_STATUS_RESULT) is False
-        assert is_allowed(token, match, MatchAction.ACCESS_MATCH_CENTER) is False
         assert is_allowed(token, match, MatchAction.EDIT_SUPPLEMENTARY) is False
 
     def test_matchday_owner_finished_match_on_match_day_gets_scores_penalties(self):
