@@ -44,8 +44,8 @@ class TestGetAllowedTransitions:
         assert allowed == ["INPROGRESS"]
 
     def test_club_admin_inprogress(self):
-        allowed = get_allowed_transitions("CLUB_ADMIN", ["CLUB_ADMIN"])
-        assert allowed == []
+        allowed = get_allowed_transitions("INPROGRESS", ["CLUB_ADMIN"])
+        assert allowed == ["FINISHED"]
 
     def test_club_admin_finished_no_transitions(self):
         allowed = get_allowed_transitions("FINISHED", ["CLUB_ADMIN"])
