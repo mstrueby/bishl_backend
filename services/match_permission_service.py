@@ -137,7 +137,7 @@ class MatchPermissionService:
             # Rule 4 — Home CLUB_ADMIN
             if is_home_club_admin:
                 perms[MatchAction.EDIT_ROSTER_HOME] = True
-                if is_match_day and not has_matchday_owner:
+                if is_match_day:
                     perms[MatchAction.EDIT_ROSTER_AWAY] = True
                     perms[MatchAction.EDIT_STATUS_RESULT] = True
                     perms[MatchAction.ACCESS_MATCH_CENTER] = True

@@ -122,14 +122,14 @@ All ten gates → `false`. No further rules are evaluated.
 | Gate | Granted when |
 |------|-------------|
 | `canEditRosterHome` | Always (regardless of match day) |
-| `canEditRosterAway` | `isMatchDay AND NOT hasMatchdayOwner` |
-| `canChangeStatus` | `isMatchDay AND NOT hasMatchdayOwner` |
-| `canAccessMatchCenter` | `isMatchDay AND NOT hasMatchdayOwner` |
-| `canEditSupplementary` | `isMatchDay AND NOT hasMatchdayOwner` |
+| `canEditRosterAway` | `isMatchDay` |
+| `canChangeStatus` | `isMatchDay` |
+| `canAccessMatchCenter` | `isMatchDay` |
+| `canEditSupplementary` | `isMatchDay` |
 | `canEditScoresHome/Away` | Via `canAccessMatchCenter` (same condition) |
 | `canEditPenaltiesHome/Away` | Via `canAccessMatchCenter` (same condition) |
 
-When a matchday owner is assigned, the home club admin retains **only** `canEditRosterHome`. All match-day management roles shift to the matchday owner (Rule 6).
+The home club admin always receives full match-day privileges, regardless of whether a matchday owner is assigned. When both are present, Rule 4 and Rule 6 grant the same set of permissions and do not conflict.
 
 ---
 
