@@ -189,14 +189,14 @@ Applied when `isMatchFinished`. Overrides all previous rules for the affected ga
 |------|--------|
 | `canEditMatch` | Revoked → `false` |
 | `canChangeStatus` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
-| `canEditRosterHome` | Revoked → `false` |
-| `canEditRosterAway` | Revoked → `false` |
+| `canEditRosterHome` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
+| `canEditRosterAway` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
 | `canAccessMatchCenter` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
-| `canEditSupplementary` | Revoked → `false` |
+| `canEditSupplementary` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
 | `canEditScoresHome/Away` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
 | `canEditPenaltiesHome/Away` | `true` only if `isMatchDay AND (isHomeClubAdmin OR isMatchdayOwner)` |
 
-Status/result, match center, score and penalty editing after the final whistle is limited to the **same match day** so that late corrections (e.g. setting `finishType`, scoresheet review) are possible while preventing retroactive edits on other days.
+All match-day gates (status, rosters, match center, supplementary, scores, penalties) are restored to the home club admin and matchday owner on the same match day, allowing late corrections (e.g. fixing `finishType`, updating the scoresheet) while preventing retroactive edits on other days.
 
 ---
 
@@ -232,14 +232,14 @@ All ten gates → `false`, unconditionally. This overrides **every** other rule,
 |------|---------------------|-----------------|-----------------|----------------|
 | canEditMatch | ✓ always | ✓ non-prod only (md/any) | — | ✓ non-prod only |
 | canChangeStatus | ✓ always | ✓ (md; or finished+md) | — | ✓ (md; or finished+md) |
-| canEditRosterHome | ✓ (md/ip) | ✓ always | — | ✓ (md) |
-| canEditRosterAway | ✓ (md/ip) | ✓ (md) | ✓ future/pre-kickoff | ✓ (md) |
+| canEditRosterHome | ✓ (md/ip) | ✓ always; or finished+md | — | ✓ (md or finished+md) |
+| canEditRosterAway | ✓ (md/ip) | ✓ (md or finished+md) | ✓ future/pre-kickoff | ✓ (md or finished+md) |
 | canEditScoresHome | ✓ (md/ip or finished) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
 | canEditScoresAway | ✓ (md/ip or finished) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
 | canEditPenaltiesHome | ✓ (md/ip or finished) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
 | canEditPenaltiesAway | ✓ (md/ip or finished) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
 | canAccessMatchCenter | ✓ (md/ip) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
-| canEditSupplementary | ✓ (md/ip) | ✓ (md) | — | ✓ (md) |
+| canEditSupplementary | ✓ (md/ip) | ✓ (md or finished+md) | — | ✓ (md or finished+md) |
 
 > **Season lock (Rule 9):** All cells above become `—` when the match belongs to a non-current season.
 

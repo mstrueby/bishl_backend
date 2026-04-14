@@ -190,11 +190,13 @@ class MatchPermissionService:
                     perms[MatchAction.ACCESS_MATCH_CENTER] = False
                     perms[MatchAction.EDIT_SUPPLEMENTARY] = False
                     perms[MatchAction.EDIT_MATCH_DATA] = False
-                    # Grant status/result, match center, scores and penalties
-                    # to home club admin or matchday owner on match day
+                    # Restore full match-day gates to home club admin or matchday owner
                     if is_match_day and (is_home_club_admin or is_matchday_owner):
                         perms[MatchAction.EDIT_STATUS_RESULT] = True
                         perms[MatchAction.ACCESS_MATCH_CENTER] = True
+                        perms[MatchAction.EDIT_ROSTER_HOME] = True
+                        perms[MatchAction.EDIT_ROSTER_AWAY] = True
+                        perms[MatchAction.EDIT_SUPPLEMENTARY] = True
                         perms[MatchAction.EDIT_SCORES_HOME] = True
                         perms[MatchAction.EDIT_SCORES_AWAY] = True
                         perms[MatchAction.EDIT_PENALTIES_HOME] = True

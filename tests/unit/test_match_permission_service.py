@@ -471,16 +471,17 @@ class TestRule8FinishedMatch:
         assert is_allowed(token, match, MatchAction.EDIT_PENALTIES_HOME) is True
         assert is_allowed(token, match, MatchAction.EDIT_PENALTIES_AWAY) is True
 
-    def test_home_admin_finished_match_on_match_day_gets_status_and_center(self):
-        """Rule 8: home admin on match day + finished can edit status/result and access match center."""
+    def test_home_admin_finished_match_on_match_day_gets_full_set(self):
+        """Rule 8: home admin on match day + finished gets all match-day gates restored."""
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         match = make_match(match_date=date.today(), status="FINISHED")
         assert is_allowed(token, match, MatchAction.EDIT_STATUS_RESULT) is True
         assert is_allowed(token, match, MatchAction.ACCESS_MATCH_CENTER) is True
-        # Roster and supplementary remain revoked
-        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is False
-        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_AWAY) is False
-        assert is_allowed(token, match, MatchAction.EDIT_SUPPLEMENTARY) is False
+        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is True
+        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_AWAY) is True
+        assert is_allowed(token, match, MatchAction.EDIT_SUPPLEMENTARY) is True
+        # Scheduling remains revoked
+        assert is_allowed(token, match, MatchAction.EDIT_SCHEDULING) is False
 
     def test_matchday_owner_finished_match_on_match_day_gets_scores_penalties(self):
         """Matchday owner on match day + finished can edit scores/penalties (Rule 8)."""
@@ -513,16 +514,18 @@ class TestRule8FinishedMatch:
         """CANCELLED status is treated as finished (not SCHEDULED/INPROGRESS)."""
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         match = make_match(match_date=date.today(), status="CANCELLED")
-        # Non-admin on finished match: scores/penalties granted for home admin on match day
+        # Home admin on match day gets full set restored even for finished/cancelled matches
         assert is_allowed(token, match, MatchAction.EDIT_SCORES_HOME) is True
-        # Roster revoked
-        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is False
+        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is True
+        # Scheduling always revoked for non-admins
+        assert is_allowed(token, match, MatchAction.EDIT_SCHEDULING) is False
 
     def test_forfeited_match_treated_as_finished(self):
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         match = make_match(match_date=date.today(), status="FORFEITED")
         assert is_allowed(token, match, MatchAction.EDIT_SCORES_HOME) is True
-        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is False
+        assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is True
+        assert is_allowed(token, match, MatchAction.EDIT_SCHEDULING) is False
 
 
 # ---------------------------------------------------------------------------
