@@ -910,13 +910,16 @@ async def update_match(
     if existing_match_for_perms is None:
         raise ResourceNotFoundException(resource_type="Match", resource_id=match_id)
 
-    if "CLUB_ADMIN" in token_payload.roles and not any(
-        r in token_payload.roles for r in ["ADMIN", "LEAGUE_ADMIN"]
-    ):
-        perm_service = MatchPermissionService(mongodb)
-        matchday_owner = await perm_service.get_matchday_owner(existing_match_for_perms)
-        match_data_provided = match.model_dump(exclude_unset=True)
+    perm_service = MatchPermissionService(mongodb)
+    matchday_owner = await perm_service.get_matchday_owner(existing_match_for_perms)
+    match_data_provided = match.model_dump(exclude_unset=True)
 
+    is_club_admin_only = "CLUB_ADMIN" in token_payload.roles and not any(
+        r in token_payload.roles for r in ["ADMIN", "LEAGUE_ADMIN"]
+    )
+
+    # Structural fields that only ADMIN/LEAGUE_ADMIN may touch
+    if is_club_admin_only:
         admin_only_fields = ["tournament", "season", "round", "matchday", "published", "matchId"]
         if any(k in match_data_provided for k in admin_only_fields):
             raise AuthorizationException(
@@ -924,34 +927,90 @@ async def update_match(
                 details={"fields": [k for k in admin_only_fields if k in match_data_provided]},
             )
 
-        if any(k in match_data_provided for k in ["startDate", "venue"]):
-            perm_service.check_permission(
-                token_payload,
-                existing_match_for_perms,
-                MatchAction.EDIT_SCHEDULING,
-                matchday_owner,
-            )
-        if any(k in match_data_provided for k in ["matchStatus", "finishType"]):
-            perm_service.check_permission(
-                token_payload,
-                existing_match_for_perms,
-                MatchAction.EDIT_STATUS_RESULT,
-                matchday_owner,
-            )
-        if "supplementarySheet" in match_data_provided:
-            perm_service.check_permission(
-                token_payload,
-                existing_match_for_perms,
-                MatchAction.EDIT_SUPPLEMENTARY,
-                matchday_owner,
-            )
-        if any(k in match_data_provided for k in ["referee1", "referee2", "matchSheetComplete"]):
-            perm_service.check_permission(
-                token_payload,
-                existing_match_for_perms,
-                MatchAction.EDIT_MATCH_DATA,
-                matchday_owner,
-            )
+    # Field-level permission gates enforced for ALL roles (including ADMIN/LEAGUE_ADMIN)
+    # so that Rule 9 (season restriction) is respected unconditionally.
+    if any(k in match_data_provided for k in ["startDate", "venue"]):
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_SCHEDULING,
+            matchday_owner,
+        )
+    if any(k in match_data_provided for k in ["matchStatus", "finishType"]):
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_STATUS_RESULT,
+            matchday_owner,
+        )
+    if "supplementarySheet" in match_data_provided:
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_SUPPLEMENTARY,
+            matchday_owner,
+        )
+    if any(k in match_data_provided for k in ["referee1", "referee2", "matchSheetComplete"]):
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_MATCH_DATA,
+            matchday_owner,
+        )
+
+    # Nested home/away field-level gates
+    home_data: dict = match_data_provided.get("home") or {}
+    away_data: dict = match_data_provided.get("away") or {}
+
+    if "timeouts" in home_data or "timeouts" in away_data:
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.ACCESS_MATCH_CENTER,
+            matchday_owner,
+        )
+    if "scores" in home_data:
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_SCORES_HOME,
+            matchday_owner,
+        )
+    if "scores" in away_data:
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_SCORES_AWAY,
+            matchday_owner,
+        )
+    if "penalties" in home_data:
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_PENALTIES_HOME,
+            matchday_owner,
+        )
+    if "penalties" in away_data:
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_PENALTIES_AWAY,
+            matchday_owner,
+        )
+    if "roster" in home_data:
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_ROSTER_HOME,
+            matchday_owner,
+        )
+    if "roster" in away_data:
+        perm_service.check_permission(
+            token_payload,
+            existing_match_for_perms,
+            MatchAction.EDIT_ROSTER_AWAY,
+            matchday_owner,
+        )
 
     # Helper function to add _id to new nested documents and clean up ObjectId id fields
     def add_id_to_scores_and_penalties(items):
