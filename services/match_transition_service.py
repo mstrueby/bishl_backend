@@ -1,11 +1,11 @@
 from fastapi import HTTPException, status
 
 STATUS_LABELS: dict[str, str] = {
-    "SCHEDULED": "Angesetzt",
+    "SCHEDULED": "angesetzt",
     "INPROGRESS": "Live",
-    "FINISHED": "Beendet",
-    "CANCELLED": "Abgesagt",
-    "FORFEITED": "Gewertet",
+    "FINISHED": "beendet",
+    "CANCELLED": "abgesagt",
+    "FORFEITED": "gewertet",
 }
 
 ALL_STATUSES: list[str] = list(STATUS_LABELS.keys())
