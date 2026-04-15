@@ -7,7 +7,14 @@ from typing import Any
 from bson import ObjectId
 from faker import Faker
 
+from config import settings
+
 fake = Faker()
+
+# Use the configured current season so that permission Rule 9 (season lock)
+# does not block test operations that require admin/league-admin access.
+_CURRENT_SEASON_ALIAS: str = settings.CURRENT_SEASON or "2026"
+_CURRENT_SEASON_NAME: str = _CURRENT_SEASON_ALIAS
 
 
 def generate_test_id() -> str:
@@ -63,8 +70,8 @@ def create_test_tournament():
         "seasons": [
             {
                 "_id": str(ObjectId()),
-                "name": "2024",
-                "alias": "2024",
+                "name": _CURRENT_SEASON_NAME,
+                "alias": _CURRENT_SEASON_ALIAS,
                 "published": True,
                 "standingsSettings": {
                     "pointsWinReg": 3,
@@ -132,7 +139,7 @@ def create_test_match(match_id=None, status="SCHEDULED"):
         "_id": match_id,
         "matchId": fake.random_int(1000, 9999),
         "tournament": {"name": "Test League", "alias": "test-league"},
-        "season": {"name": "2024", "alias": "2024"},
+        "season": {"name": _CURRENT_SEASON_NAME, "alias": _CURRENT_SEASON_ALIAS},
         "round": {"name": "Hauptrunde", "alias": "hauptrunde"},
         "matchday": {"name": "1. Spieltag", "alias": "1-spieltag"},
         "matchStatus": {
