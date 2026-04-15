@@ -130,10 +130,15 @@ def create_test_team(team_id=None):
     }
 
 
-def create_test_match(match_id=None, status="SCHEDULED"):
+def create_test_match(match_id=None, status="SCHEDULED", start_date=None):
     """Create a test match document with valid ObjectId and all required fields"""
     # Use valid ObjectId string
     match_id = match_id or str(ObjectId())
+
+    # Default to today so permission checks that require is_match_day pass.
+    # Tests that need a future or past date can pass start_date explicitly.
+    if start_date is None:
+        start_date = datetime.now()
 
     return {
         "_id": match_id,
@@ -147,7 +152,7 @@ def create_test_match(match_id=None, status="SCHEDULED"):
             "value": "angesetzt" if status == "SCHEDULED" else "beendet",
         },
         "finishType": {"key": "REGULAR", "value": "Regulär"},
-        "startDate": datetime.now() + timedelta(days=7),
+        "startDate": start_date,
         "venue": {"venueId": str(ObjectId()), "name": "Test Arena", "alias": "test-arena"},
         "home": {
             "clubId": str(ObjectId()),
