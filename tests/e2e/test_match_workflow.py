@@ -6,6 +6,8 @@ import pytest
 from bson import ObjectId
 from httpx import AsyncClient
 
+from config import settings
+
 
 @pytest.mark.asyncio
 class TestMatchWorkflow:
@@ -25,9 +27,9 @@ class TestMatchWorkflow:
             "published": True,
             "seasons": [
                 {
-                    "name": "2024/25",
-                    "alias": "2024-25",
-                    "year": 2024,
+                    "name": settings.CURRENT_SEASON,
+                    "alias": settings.CURRENT_SEASON,
+                    "year": int(settings.CURRENT_SEASON),
                     "published": True,
                     "isCurrent": True,
                     "standingsSettings": {
@@ -49,7 +51,7 @@ class TestMatchWorkflow:
                                     "name": "1. Spieltag",
                                     "alias": "1-spieltag",
                                     "published": True,
-                                    "date": datetime.now() + timedelta(days=7),
+                                    "date": datetime.now(),
                                 }
                             ],
                         }
@@ -148,7 +150,7 @@ class TestMatchWorkflow:
             "matchStatus": {"key": "SCHEDULED", "value": "angesetzt"},
             "finishType": {"key": "REGULAR", "value": "Regulär"},
             "venue": {"venueId": "venue-1", "name": "Test Arena", "alias": "test-arena"},
-            "startDate": (datetime.now() + timedelta(days=7)).isoformat(),
+            "startDate": datetime.now().isoformat(),
             "home": {
                 "teamId": home_team_id,
                 "teamAlias": home_team["teamAlias"],
