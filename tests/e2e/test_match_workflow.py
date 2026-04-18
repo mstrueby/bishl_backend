@@ -1,6 +1,6 @@
 """End-to-end tests for match workflow"""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from bson import ObjectId

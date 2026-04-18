@@ -1,5 +1,4 @@
 # filename: routers/assignments.py
-import json
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -16,7 +15,7 @@ from exceptions import (
 )
 from logging_config import logger
 from mail_service import send_email
-from models.assignments import AssignmentBase, AssignmentDB, AssignmentUpdate, AssignmentStatus
+from models.assignments import AssignmentBase, AssignmentDB, AssignmentStatus, AssignmentUpdate
 from models.responses import StandardResponse
 from services.assignment_service import AssignmentService
 from services.message_service import MessageService
@@ -95,7 +94,7 @@ async def get_assignments_by_match(
         .find({"roles": "REFEREE", "referee.active": True}, {"password": 0})
         .to_list(length=None)
     )
-    
+
     # Get all assignments for the match with optional status filter
     query = {"matchId": match_id}
     assignments = await mongodb["assignments"].find(query).to_list(length=None)

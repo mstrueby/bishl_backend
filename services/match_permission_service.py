@@ -109,7 +109,7 @@ class MatchPermissionService:
         is_current_season = not current_season or not match_season or match_season == current_season
 
         # All permissions default to False (deny by default)
-        perms: dict[MatchAction, bool] = {a: False for a in MatchAction}
+        perms: dict[MatchAction, bool] = dict.fromkeys(MatchAction, False)
 
         # Rule 1 — Unauthenticated: no roles → deny everything (handled by auth_wrapper upstream,
         # but if someone has no meaningful role they won't match any grant below)

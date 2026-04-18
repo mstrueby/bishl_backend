@@ -1,6 +1,4 @@
 """Unit tests for AssignmentService"""
-from models.users import RefereeLevel
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

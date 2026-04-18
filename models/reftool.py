@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from models.matches import MatchListBase
 from models.assignments import AssignmentReferee
+from models.matches import MatchListBase
 
 
 class RefToolReferee(AssignmentReferee):

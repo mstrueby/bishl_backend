@@ -5,11 +5,10 @@ from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from pydantic_core import core_schema
 
-from models.assignments import AssignmentStatus, AssignmentReferee
+from models.assignments import AssignmentReferee, AssignmentStatus
 from models.clubs import TeamPartnerships
 from models.players import LicenseInvalidReasonCode, LicenseType, Source
 from models.tournaments import CallUpMode, CallUpType, MatchSettings
-from models.users import RefereeLevel
 from utils import prevent_empty_str, validate_dict_of_strings, validate_match_time
 
 

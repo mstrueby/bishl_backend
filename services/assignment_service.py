@@ -4,7 +4,6 @@ Assignment Service - Business logic for referee assignment management
 Handles assignment creation, updates, validation, and synchronization with matches.
 """
 
-import json
 from datetime import date, datetime, timedelta
 
 from fastapi.encoders import jsonable_encoder
@@ -642,15 +641,15 @@ class AssignmentService:
         for referee in active_referees:
             ref_id = referee["_id"]
             club_info = referee.get("referee", {}).get("club", {}) or {}
-            base_fields = dict(
-                userId=ref_id,
-                firstName=referee["firstName"],
-                lastName=referee["lastName"],
-                clubId=club_info.get("clubId"),
-                clubName=club_info.get("clubName"),
-                logoUrl=club_info.get("logoUrl"),
-                level=referee.get("referee", {}).get("level", "n/a"),
-            )
+            base_fields = {
+                "userId": ref_id,
+                "firstName": referee["firstName"],
+                "lastName": referee["lastName"],
+                "clubId": club_info.get("clubId"),
+                "clubName": club_info.get("clubName"),
+                "logoUrl": club_info.get("logoUrl"),
+                "level": referee.get("referee", {}).get("level", "n/a"),
+            }
             if ref_id in assignment_dict:
                 a = assignment_dict[ref_id]
                 status = a.get("status")

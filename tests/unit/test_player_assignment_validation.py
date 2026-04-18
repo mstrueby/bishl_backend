@@ -1,6 +1,6 @@
 """Unit tests for Player Assignment Service"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -1385,7 +1385,7 @@ class TestPrimaryConsistencySortKey:
 
         Ensures the already-aware path does not interfere with the datetime.max fallback.
         """
-        aware_dt = datetime(2024, 5, 20, 12, 0, 0, tzinfo=timezone.utc)
+        aware_dt = datetime(2024, 5, 20, 12, 0, 0, tzinfo=UTC)
         player = self._make_player_dict(
             [
                 self._make_club(
@@ -1516,10 +1516,10 @@ class TestLicenseSortKeyDirect:
     def test_missing_modify_date_falls_back_to_datetime_max(self):
         item = self._item()
         _, modify_date, _ = self._sort_key(item)
-        assert modify_date == datetime.max.replace(tzinfo=timezone.utc)
+        assert modify_date == datetime.max.replace(tzinfo=UTC)
 
     def test_aware_datetime_returned_unchanged(self):
-        aware = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        aware = datetime(2024, 6, 1, tzinfo=UTC)
         item = self._item(modify_date=aware)
         _, modify_date, _ = self._sort_key(item)
         assert modify_date == aware
@@ -1530,25 +1530,25 @@ class TestLicenseSortKeyDirect:
         item = self._item(modify_date=naive)
         _, modify_date, _ = self._sort_key(item)
         assert modify_date.tzinfo is not None
-        assert modify_date == naive.replace(tzinfo=timezone.utc)
+        assert modify_date == naive.replace(tzinfo=UTC)
 
     def test_iso_string_with_offset_parsed_correctly(self):
         item = self._item(modify_date="2023-03-15T08:00:00+00:00")
         _, modify_date, _ = self._sort_key(item)
-        assert modify_date == datetime(2023, 3, 15, 8, 0, 0, tzinfo=timezone.utc)
+        assert modify_date == datetime(2023, 3, 15, 8, 0, 0, tzinfo=UTC)
 
     def test_iso_string_with_z_suffix_parsed_correctly(self):
         item = self._item(modify_date="2023-11-01T09:30:00Z")
         _, modify_date, _ = self._sort_key(item)
-        assert modify_date == datetime(2023, 11, 1, 9, 30, 0, tzinfo=timezone.utc)
+        assert modify_date == datetime(2023, 11, 1, 9, 30, 0, tzinfo=UTC)
 
     def test_invalid_string_falls_back_to_datetime_max(self):
         item = self._item(modify_date="not-a-date")
         _, modify_date, _ = self._sort_key(item)
-        assert modify_date == datetime.max.replace(tzinfo=timezone.utc)
+        assert modify_date == datetime.max.replace(tzinfo=UTC)
 
     def test_datetime_min_aware_does_not_raise(self):
-        min_dt = datetime.min.replace(tzinfo=timezone.utc)
+        min_dt = datetime.min.replace(tzinfo=UTC)
         item = self._item(modify_date=min_dt)
         result = self._sort_key(item)
         assert result[1] == min_dt
@@ -1559,8 +1559,8 @@ class TestLicenseSortKeyDirect:
         assert self._sort_key(a) < self._sort_key(z)
 
     def test_earlier_date_sorts_before_later_date(self):
-        early = self._item(modify_date=datetime(2020, 1, 1, tzinfo=timezone.utc))
-        late = self._item(modify_date=datetime(2024, 12, 31, tzinfo=timezone.utc))
+        early = self._item(modify_date=datetime(2020, 1, 1, tzinfo=UTC))
+        late = self._item(modify_date=datetime(2024, 12, 31, tzinfo=UTC))
         assert self._sort_key(early) < self._sort_key(late)
 
     def test_missing_source_treated_as_non_bishl(self):

@@ -14,7 +14,7 @@ import json
 import os
 import ssl
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import aiohttp
@@ -916,14 +916,14 @@ class PlayerAssignmentService:
         """
         team = item["team"]
         source_pref = 0 if team.get("source") == Source.BISHL else 1
-        modify_date = team.get("modifyDate") or datetime.max.replace(tzinfo=timezone.utc)
+        modify_date = team.get("modifyDate") or datetime.max.replace(tzinfo=UTC)
         if isinstance(modify_date, str):
             try:
                 modify_date = datetime.fromisoformat(modify_date.replace("Z", "+00:00"))
             except (ValueError, TypeError):
-                modify_date = datetime.max.replace(tzinfo=timezone.utc)
+                modify_date = datetime.max.replace(tzinfo=UTC)
         if isinstance(modify_date, datetime) and modify_date.tzinfo is None:
-            modify_date = modify_date.replace(tzinfo=timezone.utc)
+            modify_date = modify_date.replace(tzinfo=UTC)
         return (source_pref, modify_date, team.get("teamAlias", ""))
 
     def _validate_primary_consistency(self, player: dict) -> None:

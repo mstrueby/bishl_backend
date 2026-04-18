@@ -6,7 +6,7 @@ Tests are self-contained — they mock the settings object and require no databa
 """
 
 from datetime import date, datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
