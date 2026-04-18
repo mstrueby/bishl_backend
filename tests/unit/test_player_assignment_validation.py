@@ -1,6 +1,6 @@
 """Unit tests for Player Assignment Service"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -1222,3 +1222,272 @@ class TestAnchorOverage:
             t1["status"] == "VALID"
         ), "Single OVERAGE anchor license must be VALID without overAge flag"
         assert "OVERAGE_NOT_ALLOWED" not in t1["invalidReasonCodes"]
+
+
+class TestPrimaryConsistencySortKey:
+    """Tests that the sort_key closure in _validate_primary_consistency handles
+    missing, naive, and ISO-string modifyDate values without raising TypeError,
+    and that the correct licence is selected as VALID after sorting."""
+
+    @pytest.fixture
+    def mock_db(self, mocker):
+        mock_db = MagicMock()
+        mock_db["players"].update_one = mocker.AsyncMock()
+        return mock_db
+
+    @pytest.fixture
+    def service(self, mock_db):
+        return PlayerAssignmentService(mock_db)
+
+    def _make_player_dict(self, teams_by_club: list[dict]) -> dict:
+        return {
+            "_id": str(ObjectId()),
+            "firstName": "Test",
+            "lastName": "Player",
+            "birthdate": datetime(2011, 1, 1),
+            "displayFirstName": "Test",
+            "displayLastName": "Player",
+            "sex": Sex.MALE,
+            "position": "Skater",
+            "managedByISHD": False,
+            "assignedTeams": teams_by_club,
+        }
+
+    def _make_club(self, club_id: str, teams: list[dict]) -> dict:
+        return {
+            "clubId": club_id,
+            "clubName": f"Club {club_id}",
+            "clubAlias": club_id,
+            "clubType": "MAIN",
+            "teams": teams,
+        }
+
+    def _make_team(
+        self,
+        team_id: str,
+        license_type: str = "PRIMARY",
+        source: str = "BISHL",
+        modify_date=None,
+    ) -> dict:
+        team = {
+            "teamId": team_id,
+            "teamName": f"Team {team_id}",
+            "teamAlias": team_id,
+            "teamType": "COMPETITIVE",
+            "teamAgeGroup": "U16",
+            "licenseType": license_type,
+            "status": "VALID",
+            "invalidReasonCodes": [],
+            "source": source,
+            "passNo": "12345",
+            "adminOverride": False,
+        }
+        if modify_date is not None:
+            team["modifyDate"] = modify_date
+        return team
+
+    @pytest.mark.asyncio
+    async def test_no_crash_when_both_modify_dates_missing(self, service):
+        """Two PRIMARY licences with no modifyDate must not raise TypeError.
+
+        Both fall back to datetime.max (UTC-aware); sort is stable and the
+        BISHL licence wins via source_pref=0.
+        """
+        player = self._make_player_dict(
+            [
+                self._make_club(
+                    "club1",
+                    [
+                        self._make_team("t1", source="BISHL"),
+                        self._make_team("t2", source="ISHD"),
+                    ],
+                )
+            ]
+        )
+
+        result = await service.validate_licenses_for_player(player)
+
+        t1 = result["assignedTeams"][0]["teams"][0]
+        t2 = result["assignedTeams"][0]["teams"][1]
+        assert t1["status"] == LicenseStatus.VALID, "BISHL team must be kept VALID"
+        assert t2["status"] == LicenseStatus.INVALID, "ISHD team must be invalidated"
+        assert LicenseInvalidReasonCode.MULTIPLE_PRIMARY in t2["invalidReasonCodes"]
+
+    @pytest.mark.asyncio
+    async def test_no_crash_with_iso_string_date_and_missing(self, service):
+        """One PRIMARY has an ISO-string modifyDate, the other has no modifyDate.
+
+        The sort_key must parse the string into a timezone-aware datetime and
+        compare it without TypeError against the datetime.max fallback.
+        The team with an actual (earlier) date sorts first and stays VALID.
+        """
+        player = self._make_player_dict(
+            [
+                self._make_club(
+                    "club1",
+                    [
+                        self._make_team(
+                            "t_dated",
+                            source="BISHL",
+                            modify_date="2024-06-15T10:00:00+00:00",
+                        ),
+                        self._make_team("t_no_date", source="BISHL"),
+                    ],
+                )
+            ]
+        )
+
+        result = await service.validate_licenses_for_player(player)
+
+        t_dated = result["assignedTeams"][0]["teams"][0]
+        t_no_date = result["assignedTeams"][0]["teams"][1]
+        assert t_dated["status"] == LicenseStatus.VALID, (
+            "Team with actual modifyDate must sort first (earlier date) and stay VALID"
+        )
+        assert t_no_date["status"] == LicenseStatus.INVALID, (
+            "Team with missing modifyDate falls back to datetime.max and sorts last (INVALID)"
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_crash_with_naive_datetime_and_missing(self, service):
+        """One PRIMARY has a naive (timezone-unaware) datetime, the other has no date.
+
+        The sort_key must inject UTC tzinfo before comparing; no TypeError should occur.
+        """
+        player = self._make_player_dict(
+            [
+                self._make_club(
+                    "club1",
+                    [
+                        self._make_team(
+                            "t_naive",
+                            source="BISHL",
+                            modify_date=datetime(2024, 3, 1, 8, 0, 0),
+                        ),
+                        self._make_team("t_no_date", source="BISHL"),
+                    ],
+                )
+            ]
+        )
+
+        result = await service.validate_licenses_for_player(player)
+
+        t_naive = result["assignedTeams"][0]["teams"][0]
+        t_no_date = result["assignedTeams"][0]["teams"][1]
+        assert t_naive["status"] == LicenseStatus.VALID, (
+            "Team with naive datetime (treated as UTC) must sort first and stay VALID"
+        )
+        assert t_no_date["status"] == LicenseStatus.INVALID
+
+    @pytest.mark.asyncio
+    async def test_no_crash_with_aware_datetime_and_missing(self, service):
+        """One PRIMARY has a timezone-aware datetime object, the other has no date.
+
+        Ensures the already-aware path does not interfere with the datetime.max fallback.
+        """
+        aware_dt = datetime(2024, 5, 20, 12, 0, 0, tzinfo=timezone.utc)
+        player = self._make_player_dict(
+            [
+                self._make_club(
+                    "club1",
+                    [
+                        self._make_team("t_aware", source="BISHL", modify_date=aware_dt),
+                        self._make_team("t_no_date", source="BISHL"),
+                    ],
+                )
+            ]
+        )
+
+        result = await service.validate_licenses_for_player(player)
+
+        t_aware = result["assignedTeams"][0]["teams"][0]
+        t_no_date = result["assignedTeams"][0]["teams"][1]
+        assert t_aware["status"] == LicenseStatus.VALID
+        assert t_no_date["status"] == LicenseStatus.INVALID
+
+    @pytest.mark.asyncio
+    async def test_no_crash_with_iso_z_suffix_and_missing(self, service):
+        """ISO string with 'Z' suffix (UTC shorthand) mixed with a missing modifyDate.
+
+        The sort_key replaces 'Z' with '+00:00' before parsing; no ValueError/TypeError.
+        """
+        player = self._make_player_dict(
+            [
+                self._make_club(
+                    "club1",
+                    [
+                        self._make_team(
+                            "t_zulu",
+                            source="BISHL",
+                            modify_date="2023-11-01T09:30:00Z",
+                        ),
+                        self._make_team("t_no_date", source="BISHL"),
+                    ],
+                )
+            ]
+        )
+
+        result = await service.validate_licenses_for_player(player)
+
+        t_zulu = result["assignedTeams"][0]["teams"][0]
+        t_no_date = result["assignedTeams"][0]["teams"][1]
+        assert t_zulu["status"] == LicenseStatus.VALID
+        assert t_no_date["status"] == LicenseStatus.INVALID
+
+    @pytest.mark.asyncio
+    async def test_missing_date_loses_to_real_date_same_source(self, service):
+        """When both licences share the same source (BISHL), modifyDate alone breaks the tie.
+
+        The team with an actual (earlier) date must win regardless of list order.
+        Team with real date sorts first → VALID; team with no date → INVALID.
+        """
+        player = self._make_player_dict(
+            [
+                self._make_club(
+                    "club1",
+                    [
+                        self._make_team("t_early", source="BISHL", modify_date="2022-01-01T00:00:00+00:00"),
+                        self._make_team("t_no_date", source="BISHL"),
+                    ],
+                )
+            ]
+        )
+
+        result = await service.validate_licenses_for_player(player)
+
+        t_early = result["assignedTeams"][0]["teams"][0]
+        t_no_date = result["assignedTeams"][0]["teams"][1]
+        assert t_early["status"] == LicenseStatus.VALID
+        assert t_no_date["status"] == LicenseStatus.INVALID
+        assert LicenseInvalidReasonCode.MULTIPLE_PRIMARY in t_no_date["invalidReasonCodes"]
+
+    @pytest.mark.asyncio
+    async def test_sort_order_not_insertion_order_determines_winner(self, service):
+        """The winner must be determined by sort_key, not by which team appears first in the list.
+
+        The team with no modifyDate is placed FIRST in the input list; the team with
+        an actual earlier date is placed SECOND.  After sorting, the dated team must
+        still sort first (smaller datetime) and be kept VALID, proving the sort_key
+        drives the outcome rather than original list position.
+        """
+        player = self._make_player_dict(
+            [
+                self._make_club(
+                    "club1",
+                    [
+                        self._make_team("t_no_date", source="BISHL"),
+                        self._make_team("t_dated", source="BISHL", modify_date="2022-06-01T00:00:00+00:00"),
+                    ],
+                )
+            ]
+        )
+
+        result = await service.validate_licenses_for_player(player)
+
+        statuses = {t["teamId"]: t["status"] for t in result["assignedTeams"][0]["teams"]}
+        assert statuses["t_dated"] == LicenseStatus.VALID, (
+            "t_dated must be VALID even though it was second in the input list"
+        )
+        assert statuses["t_no_date"] == LicenseStatus.INVALID, (
+            "t_no_date must be INVALID even though it was first in the input list"
+        )
