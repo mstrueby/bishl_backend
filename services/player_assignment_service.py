@@ -946,6 +946,9 @@ class PlayerAssignmentService:
                             modify_date = datetime.fromisoformat(modify_date.replace("Z", "+00:00"))
                         except (ValueError, TypeError):
                             modify_date = datetime.max.replace(tzinfo=timezone.utc)
+                    # Ensure datetime is timezone-aware (Motor may return naive datetimes)
+                    if isinstance(modify_date, datetime) and modify_date.tzinfo is None:
+                        modify_date = modify_date.replace(tzinfo=timezone.utc)
                     return (source_pref, modify_date, team.get("teamAlias", ""))
 
                 licenses.sort(key=sort_key)
