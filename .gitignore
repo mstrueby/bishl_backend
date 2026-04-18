@@ -22,10 +22,8 @@ ENV/
 *~
 
 # Replit
-.replit
 .breakpoints
 .upm/
-replit.nix
 
 # Data files (sensitive)
 *.csv
@@ -50,7 +48,6 @@ Thumbs.db
 attached_assets/
 
 # Poetry
-poetry.lock
 # Python
 __pycache__/
 *.py[cod]
