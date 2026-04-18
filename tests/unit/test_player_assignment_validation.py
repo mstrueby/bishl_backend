@@ -1491,3 +1491,80 @@ class TestPrimaryConsistencySortKey:
         assert statuses["t_no_date"] == LicenseStatus.INVALID, (
             "t_no_date must be INVALID even though it was first in the input list"
         )
+
+
+class TestLicenseSortKeyDirect:
+    """Direct unit tests for PlayerAssignmentService._license_sort_key.
+
+    These tests call the static method in isolation with arbitrary inputs,
+    without needing a database, a service instance, or a full player dict.
+    """
+
+    _sort_key = staticmethod(PlayerAssignmentService._license_sort_key)
+
+    def _item(self, source: str = "BISHL", modify_date=None, alias: str = "team") -> dict:
+        team: dict = {"source": source, "teamAlias": alias}
+        if modify_date is not None:
+            team["modifyDate"] = modify_date
+        return {"club": {}, "team": team}
+
+    def test_bishl_source_beats_other_source(self):
+        bishl = self._item(source="BISHL")
+        ishd = self._item(source="ISHD")
+        assert self._sort_key(bishl) < self._sort_key(ishd)
+
+    def test_missing_modify_date_falls_back_to_datetime_max(self):
+        item = self._item()
+        _, modify_date, _ = self._sort_key(item)
+        assert modify_date == datetime.max.replace(tzinfo=timezone.utc)
+
+    def test_aware_datetime_returned_unchanged(self):
+        aware = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        item = self._item(modify_date=aware)
+        _, modify_date, _ = self._sort_key(item)
+        assert modify_date == aware
+        assert modify_date.tzinfo is not None
+
+    def test_naive_datetime_gets_utc_tzinfo(self):
+        naive = datetime(2024, 6, 1, 12, 0, 0)
+        item = self._item(modify_date=naive)
+        _, modify_date, _ = self._sort_key(item)
+        assert modify_date.tzinfo is not None
+        assert modify_date == naive.replace(tzinfo=timezone.utc)
+
+    def test_iso_string_with_offset_parsed_correctly(self):
+        item = self._item(modify_date="2023-03-15T08:00:00+00:00")
+        _, modify_date, _ = self._sort_key(item)
+        assert modify_date == datetime(2023, 3, 15, 8, 0, 0, tzinfo=timezone.utc)
+
+    def test_iso_string_with_z_suffix_parsed_correctly(self):
+        item = self._item(modify_date="2023-11-01T09:30:00Z")
+        _, modify_date, _ = self._sort_key(item)
+        assert modify_date == datetime(2023, 11, 1, 9, 30, 0, tzinfo=timezone.utc)
+
+    def test_invalid_string_falls_back_to_datetime_max(self):
+        item = self._item(modify_date="not-a-date")
+        _, modify_date, _ = self._sort_key(item)
+        assert modify_date == datetime.max.replace(tzinfo=timezone.utc)
+
+    def test_datetime_min_aware_does_not_raise(self):
+        min_dt = datetime.min.replace(tzinfo=timezone.utc)
+        item = self._item(modify_date=min_dt)
+        result = self._sort_key(item)
+        assert result[1] == min_dt
+
+    def test_alias_used_as_tiebreaker(self):
+        a = self._item(alias="alpha")
+        z = self._item(alias="zeta")
+        assert self._sort_key(a) < self._sort_key(z)
+
+    def test_earlier_date_sorts_before_later_date(self):
+        early = self._item(modify_date=datetime(2020, 1, 1, tzinfo=timezone.utc))
+        late = self._item(modify_date=datetime(2024, 12, 31, tzinfo=timezone.utc))
+        assert self._sort_key(early) < self._sort_key(late)
+
+    def test_missing_source_treated_as_non_bishl(self):
+        item: dict = {"club": {}, "team": {"teamAlias": "t"}}
+        _, _, _ = self._sort_key(item)
+        source_pref, _, _ = self._sort_key(item)
+        assert source_pref == 1

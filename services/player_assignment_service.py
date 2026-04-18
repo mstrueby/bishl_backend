@@ -902,6 +902,30 @@ class PlayerAssignmentService:
                             LicenseInvalidReasonCode.UNKNOWN_LICENCE_TYPE
                         )
 
+    @staticmethod
+    def _license_sort_key(item: dict) -> tuple:
+        """Return a sort key for a PRIMARY licence item used in _validate_primary_consistency.
+
+        Sorting priority (ascending — lowest value wins / sorts first):
+          1. source_pref: 0 for BISHL, 1 for anything else
+          2. modify_date: earlier date wins; missing/unparseable falls back to datetime.max (UTC)
+          3. teamAlias: alphabetical tie-breaker
+
+        The ``item`` dict must have the shape ``{"club": ..., "team": ...}`` where
+        ``team`` is the raw team sub-document from the player's ``assignedTeams`` list.
+        """
+        team = item["team"]
+        source_pref = 0 if team.get("source") == Source.BISHL else 1
+        modify_date = team.get("modifyDate") or datetime.max.replace(tzinfo=timezone.utc)
+        if isinstance(modify_date, str):
+            try:
+                modify_date = datetime.fromisoformat(modify_date.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                modify_date = datetime.max.replace(tzinfo=timezone.utc)
+        if isinstance(modify_date, datetime) and modify_date.tzinfo is None:
+            modify_date = modify_date.replace(tzinfo=timezone.utc)
+        return (source_pref, modify_date, team.get("teamAlias", ""))
+
     def _validate_primary_consistency(self, player: dict) -> None:
         """
         Validate PRIMARY licenses: at most one per clubType (MAIN/DEVELOPMENT).
@@ -936,22 +960,7 @@ class PlayerAssignmentService:
         for club_type, licenses in primary_by_type.items():
             if len(licenses) > 1:
                 # Sort licenses to pick the "best" one to keep valid
-                def sort_key(item):
-                    team = item["team"]
-                    source_pref = 0 if team.get("source") == Source.BISHL else 1
-                    modify_date = team.get("modifyDate") or datetime.max.replace(tzinfo=timezone.utc)
-                    # Handle case where modifyDate might be a string (from jsonable_encoder)
-                    if isinstance(modify_date, str):
-                        try:
-                            modify_date = datetime.fromisoformat(modify_date.replace("Z", "+00:00"))
-                        except (ValueError, TypeError):
-                            modify_date = datetime.max.replace(tzinfo=timezone.utc)
-                    # Ensure datetime is timezone-aware (Motor may return naive datetimes)
-                    if isinstance(modify_date, datetime) and modify_date.tzinfo is None:
-                        modify_date = modify_date.replace(tzinfo=timezone.utc)
-                    return (source_pref, modify_date, team.get("teamAlias", ""))
-
-                licenses.sort(key=sort_key)
+                licenses.sort(key=PlayerAssignmentService._license_sort_key)
 
                 # Mark all but the first one as INVALID
                 for item in licenses[1:]:
