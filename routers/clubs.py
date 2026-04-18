@@ -171,7 +171,7 @@ async def create_club(
         website=website,
         ishdId=ishdId,
         active=active,
-        refereeContact=json.loads(refereeContact) if refereeContact else None
+        refereeContact=json.loads(refereeContact) if refereeContact else None,
     )
     club_data = jsonable_encoder(club)
 
@@ -282,7 +282,7 @@ async def update_club(
         website=website,
         ishdId=ishdId,
         active=active,
-        refereeContact=json.loads(refereeContact) if refereeContact else None
+        refereeContact=json.loads(refereeContact) if refereeContact else None,
     ).model_dump(exclude_none=True)
     club_data.pop("id", None)
 

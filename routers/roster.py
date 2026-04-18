@@ -298,9 +298,7 @@ def _validate_regular_player(
                     first_invalid_result = (status, reasons)
 
         if first_invalid_result is not None:
-            logger.info(
-                f"Player {player_id} found in a partnership team but license is INVALID"
-            )
+            logger.info(f"Player {player_id} found in a partnership team but license is INVALID")
             return first_invalid_result
 
     logger.warning(

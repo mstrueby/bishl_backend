@@ -379,12 +379,12 @@ class TestPlayerPoolAPI:
         """Build a minimal but fully valid AssignedClubs + AssignedTeams structure."""
         return [
             {
-                "clubId": club_alias,           # str field — any non-empty string is fine
+                "clubId": club_alias,  # str field — any non-empty string is fine
                 "clubName": club_alias.replace("-", " ").title(),
                 "clubAlias": club_alias,
                 "teams": [
                     {
-                        "teamId": team_alias,   # str field — any non-empty string is fine
+                        "teamId": team_alias,  # str field — any non-empty string is fine
                         "teamName": team_alias.replace("-", " ").title(),
                         "teamAlias": team_alias,
                         "teamAgeGroup": "HERREN",

@@ -46,9 +46,7 @@ def get_allowed_transitions(current_status: str, user_roles: list[str]) -> list[
     return []
 
 
-def validate_match_transition(
-    current_status: str, new_status: str, user_roles: list[str]
-) -> None:
+def validate_match_transition(current_status: str, new_status: str, user_roles: list[str]) -> None:
     """
     Validate that the transition from current_status → new_status is permitted
     for the given roles.  No-op when current == new.

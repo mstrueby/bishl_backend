@@ -1341,12 +1341,12 @@ class TestPrimaryConsistencySortKey:
 
         t_dated = result["assignedTeams"][0]["teams"][0]
         t_no_date = result["assignedTeams"][0]["teams"][1]
-        assert t_dated["status"] == LicenseStatus.VALID, (
-            "Team with actual modifyDate must sort first (earlier date) and stay VALID"
-        )
-        assert t_no_date["status"] == LicenseStatus.INVALID, (
-            "Team with missing modifyDate falls back to datetime.max and sorts last (INVALID)"
-        )
+        assert (
+            t_dated["status"] == LicenseStatus.VALID
+        ), "Team with actual modifyDate must sort first (earlier date) and stay VALID"
+        assert (
+            t_no_date["status"] == LicenseStatus.INVALID
+        ), "Team with missing modifyDate falls back to datetime.max and sorts last (INVALID)"
 
     @pytest.mark.asyncio
     async def test_no_crash_with_naive_datetime_and_missing(self, service):
@@ -1374,9 +1374,9 @@ class TestPrimaryConsistencySortKey:
 
         t_naive = result["assignedTeams"][0]["teams"][0]
         t_no_date = result["assignedTeams"][0]["teams"][1]
-        assert t_naive["status"] == LicenseStatus.VALID, (
-            "Team with naive datetime (treated as UTC) must sort first and stay VALID"
-        )
+        assert (
+            t_naive["status"] == LicenseStatus.VALID
+        ), "Team with naive datetime (treated as UTC) must sort first and stay VALID"
         assert t_no_date["status"] == LicenseStatus.INVALID
 
     @pytest.mark.asyncio
@@ -1446,7 +1446,9 @@ class TestPrimaryConsistencySortKey:
                 self._make_club(
                     "club1",
                     [
-                        self._make_team("t_early", source="BISHL", modify_date="2022-01-01T00:00:00+00:00"),
+                        self._make_team(
+                            "t_early", source="BISHL", modify_date="2022-01-01T00:00:00+00:00"
+                        ),
                         self._make_team("t_no_date", source="BISHL"),
                     ],
                 )
@@ -1476,7 +1478,9 @@ class TestPrimaryConsistencySortKey:
                     "club1",
                     [
                         self._make_team("t_no_date", source="BISHL"),
-                        self._make_team("t_dated", source="BISHL", modify_date="2022-06-01T00:00:00+00:00"),
+                        self._make_team(
+                            "t_dated", source="BISHL", modify_date="2022-06-01T00:00:00+00:00"
+                        ),
                     ],
                 )
             ]
@@ -1485,12 +1489,12 @@ class TestPrimaryConsistencySortKey:
         result = await service.validate_licenses_for_player(player)
 
         statuses = {t["teamId"]: t["status"] for t in result["assignedTeams"][0]["teams"]}
-        assert statuses["t_dated"] == LicenseStatus.VALID, (
-            "t_dated must be VALID even though it was second in the input list"
-        )
-        assert statuses["t_no_date"] == LicenseStatus.INVALID, (
-            "t_no_date must be INVALID even though it was first in the input list"
-        )
+        assert (
+            statuses["t_dated"] == LicenseStatus.VALID
+        ), "t_dated must be VALID even though it was second in the input list"
+        assert (
+            statuses["t_no_date"] == LicenseStatus.INVALID
+        ), "t_no_date must be INVALID even though it was first in the input list"
 
 
 class TestLicenseSortKeyDirect:

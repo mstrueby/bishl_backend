@@ -605,7 +605,8 @@ async def update_assignment(
                 and update_data["status"] == AssignmentStatus.unavailable
             )
             or (
-                assignment["status"] == AssignmentStatus.assigned and update_data["status"] == AssignmentStatus.accepted
+                assignment["status"] == AssignmentStatus.assigned
+                and update_data["status"] == AssignmentStatus.accepted
             )
         ):
             if update_data["status"] == AssignmentStatus.accepted:
@@ -840,9 +841,13 @@ async def get_unassigned_matches_in_14_days(
             role_label = "matchday-owner" if is_matchday_owner else "home-club"
 
             if is_matchday_owner:
-                email_subject = f"BISHL - Schiedsrichter-Einteilung erforderlich (Spieltag {club_name})"
+                email_subject = (
+                    f"BISHL - Schiedsrichter-Einteilung erforderlich (Spieltag {club_name})"
+                )
             else:
-                email_subject = f"BISHL - Schiedsrichter-Einteilung erforderlich (Heimspiele {club_name})"
+                email_subject = (
+                    f"BISHL - Schiedsrichter-Einteilung erforderlich (Heimspiele {club_name})"
+                )
 
             # Build match table rows and plain-text summary for logging
             match_rows = ""

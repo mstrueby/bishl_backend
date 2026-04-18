@@ -29,12 +29,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 SEASON_ALIAS = "2026"
-INDEX_SAMPLE_SIZE = 5   # How many index entries to print during diagnosis
+INDEX_SAMPLE_SIZE = 5  # How many index entries to print during diagnosis
 
 
 # ---------------------------------------------------------------------------
 # Database connection
 # ---------------------------------------------------------------------------
+
 
 async def get_database(use_production: bool = False, use_demo: bool = False):
     """Connect to MongoDB and return the target database."""
@@ -62,6 +63,7 @@ async def get_database(use_production: bool = False, use_demo: bool = False):
 # Index build
 # ---------------------------------------------------------------------------
 
+
 async def build_team_partnership_index(
     db, verbose: bool = False
 ) -> dict[tuple[str, str], list[dict]]:
@@ -87,7 +89,9 @@ async def build_team_partnership_index(
             team_id = str(raw_team_id) if raw_team_id else ""
             if not team_id:
                 if verbose:
-                    print(f"    SKIP  club={club_alias!r}: team has no _id — {team.get('alias','?')!r}")
+                    print(
+                        f"    SKIP  club={club_alias!r}: team has no _id — {team.get('alias','?')!r}"
+                    )
                 continue
 
             key = (club_id, team_id)
@@ -97,9 +101,9 @@ async def build_team_partnership_index(
             if verbose and teams_indexed <= INDEX_SAMPLE_SIZE:
                 tp = index[key]
                 tp_summary = (
-                    f"{len(tp)} partner(s): "
-                    + ", ".join(p.get("teamAlias", "?") for p in tp)
-                    if tp else "no partners"
+                    f"{len(tp)} partner(s): " + ", ".join(p.get("teamAlias", "?") for p in tp)
+                    if tp
+                    else "no partners"
                 )
                 print(
                     f"    IDX   club={club_alias!r} ({type(raw_club_id).__name__} {club_id!r})"
@@ -110,16 +114,14 @@ async def build_team_partnership_index(
     if verbose and teams_indexed > INDEX_SAMPLE_SIZE:
         print(f"    … {teams_indexed - INDEX_SAMPLE_SIZE} more teams not shown")
 
-    print(
-        f"  → {clubs_scanned} club(s) scanned, "
-        f"{teams_indexed} team(s) indexed."
-    )
+    print(f"  → {clubs_scanned} club(s) scanned, " f"{teams_indexed} team(s) indexed.")
     return index
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def resolve_partnership(
     index: dict[tuple[str, str], list[dict]],
@@ -159,6 +161,7 @@ def fmt_side(side: str, team_data: dict) -> str:
 # Migration core
 # ---------------------------------------------------------------------------
 
+
 async def run_migration(
     dry_run: bool = False,
     use_production: bool = False,
@@ -169,7 +172,7 @@ async def run_migration(
     print(f"Backfill teamPartnership — season {SEASON_ALIAS}")
     print(f"{'=' * 70}")
     print(f"Mode:    {'DRY RUN (no writes)' if dry_run else 'LIVE'}")
-    target = 'PRODUCTION' if use_production else ('DEMO' if use_demo else 'DEVELOPMENT')
+    target = "PRODUCTION" if use_production else ("DEMO" if use_demo else "DEVELOPMENT")
     print(f"Target:  {target}")
     print(f"Verbose: {verbose}")
     print(f"Started: {datetime.now().isoformat()}")
@@ -200,10 +203,7 @@ async def run_migration(
             cid = str(raw_cid) if raw_cid else None
             tid = str(raw_tid) if raw_tid else None
             found = resolve_partnership(partnership_index, cid, tid)
-            status = (
-                "NOT IN INDEX" if found is None
-                else f"found — {len(found)} partner(s)"
-            )
+            status = "NOT IN INDEX" if found is None else f"found — {len(found)} partner(s)"
             print(
                 f"  {side}: clubId={raw_cid!r} ({type(raw_cid).__name__}), "
                 f"teamId={raw_tid!r} ({type(raw_tid).__name__}) → {status}"
@@ -255,7 +255,8 @@ async def run_migration(
                 n = len(partnership)
                 partners = (
                     ", ".join(p.get("teamAlias", "?") for p in partnership)
-                    if partnership else "none"
+                    if partnership
+                    else "none"
                 )
                 resolved_details.append(
                     f"    {side}: OK  → {n} partner(s): [{partners}]  "
@@ -264,10 +265,7 @@ async def run_migration(
 
         if unresolved_sides:
             unresolvable += 1
-            print(
-                f"  WARN  match {match_id}: could not resolve "
-                + ", ".join(unresolved_sides)
-            )
+            print(f"  WARN  match {match_id}: could not resolve " + ", ".join(unresolved_sides))
 
         all_sides_done = len(already_done_sides) == 2
         if all_sides_done:
@@ -297,9 +295,7 @@ async def run_migration(
                     {"$set": updates},
                 )
             sides_updated = [k.split(".")[0] for k in updates]
-            partner_counts = {
-                k.split(".")[0]: len(v) for k, v in updates.items()
-            }
+            partner_counts = {k.split(".")[0]: len(v) for k, v in updates.items()}
             prefix = "[DRY RUN]" if dry_run else "[UPDATED]"
 
             if has_real_partners:
@@ -348,11 +344,10 @@ async def run_migration(
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
-        description=(
-            f"Backfill home/away.teamPartnership for all season {SEASON_ALIAS} matches."
-        )
+        description=(f"Backfill home/away.teamPartnership for all season {SEASON_ALIAS} matches.")
     )
     parser.add_argument(
         "--dry-run",
@@ -384,8 +379,7 @@ def main():
 
     if args.prod and not args.dry_run:
         confirm = input(
-            "\n⚠️  WARNING: You are about to modify PRODUCTION data.\n"
-            "Type 'yes' to continue: "
+            "\n⚠️  WARNING: You are about to modify PRODUCTION data.\n" "Type 'yes' to continue: "
         )
         if confirm.lower() != "yes":
             print("Aborted.")

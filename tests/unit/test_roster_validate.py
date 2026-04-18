@@ -620,7 +620,11 @@ class TestValidateRegularPlayer:
                     "clubName": "Primary Club",
                     "teams": [
                         {"teamId": "team-primary", "status": "VALID", "invalidReasonCodes": []},
-                        {"teamId": "team-partner", "status": "INVALID", "invalidReasonCodes": ["SUSPENDED"]},
+                        {
+                            "teamId": "team-partner",
+                            "status": "INVALID",
+                            "invalidReasonCodes": ["SUSPENDED"],
+                        },
                     ],
                 }
             ]

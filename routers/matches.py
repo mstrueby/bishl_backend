@@ -49,7 +49,9 @@ stats_service = None  # Will be initialized with MongoDB instance
 DEBUG_LEVEL = settings.DEBUG_LEVEL
 
 
-async def _resolve_team_partnership(mongodb, club_id: str | None, team_id: str | None) -> list[dict]:
+async def _resolve_team_partnership(
+    mongodb, club_id: str | None, team_id: str | None
+) -> list[dict]:
     """Look up a team's teamPartnership list from the clubs collection."""
     if not club_id or not team_id:
         return []
@@ -922,9 +924,7 @@ async def get_allowed_transitions_for_match(
     current_status = (match.get("matchStatus") or {}).get("key", "SCHEDULED")
     allowed_keys = get_allowed_transitions(current_status, token_payload.roles)
 
-    result = [
-        {"key": key, "value": STATUS_LABELS.get(key, key)} for key in allowed_keys
-    ]
+    result = [{"key": key, "value": STATUS_LABELS.get(key, key)} for key in allowed_keys]
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content=jsonable_encoder(
@@ -1334,9 +1334,7 @@ async def update_match(
     # Recalculate standings and player card stats whenever a terminal status
     # (FINISHED or FORFEITED) is involved — either as the old or new status.
     _stats_trigger_statuses = {"FINISHED", "FORFEITED"}
-    _stats_trigger_hit = bool(
-        _stats_trigger_statuses & {new_match_status, current_match_status}
-    )
+    _stats_trigger_hit = bool(_stats_trigger_statuses & {new_match_status, current_match_status})
     if (
         stats_change_detected
         and _stats_trigger_hit
@@ -1380,9 +1378,7 @@ async def update_match(
     if DEBUG_LEVEL > 0:
         change_type = "stats-affecting" if stats_change_detected else "minor"
         player_calc_note = (
-            " + player stats calculated"
-            if (stats_change_detected and _stats_trigger_hit)
-            else ""
+            " + player stats calculated" if (stats_change_detected and _stats_trigger_hit) else ""
         )
         logger.debug(
             f"Match updated - {change_type} change detected for match {match_id}{player_calc_note}"

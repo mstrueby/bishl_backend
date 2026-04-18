@@ -329,32 +329,45 @@ class TestMatchesAPI:
 class TestMatchTeamPartnership:
     """Verify that teamPartnership is embedded into match home/away on create and update."""
 
-    async def _insert_club_with_partnership(self, mongodb, club_id: str, club_alias: str,
-                                            team_id: str, team_alias: str,
-                                            partnership: list[dict]) -> None:
-        await mongodb["clubs"].insert_one({
-            "_id": club_id,
-            "name": f"Club {club_alias}",
-            "alias": club_alias,
-            "teams": [
-                {
-                    "_id": team_id,
-                    "name": f"Team {team_alias}",
-                    "alias": team_alias,
-                    "ageGroup": "HERREN",
-                    "teamPartnership": partnership,
-                }
-            ],
-        })
+    async def _insert_club_with_partnership(
+        self,
+        mongodb,
+        club_id: str,
+        club_alias: str,
+        team_id: str,
+        team_alias: str,
+        partnership: list[dict],
+    ) -> None:
+        await mongodb["clubs"].insert_one(
+            {
+                "_id": club_id,
+                "name": f"Club {club_alias}",
+                "alias": club_alias,
+                "teams": [
+                    {
+                        "_id": team_id,
+                        "name": f"Team {team_alias}",
+                        "alias": team_alias,
+                        "ageGroup": "HERREN",
+                        "teamPartnership": partnership,
+                    }
+                ],
+            }
+        )
 
     async def _insert_tournament(self, mongodb) -> dict:
         from tests.fixtures.data_fixtures import create_test_tournament
+
         tournament = create_test_tournament()
         if tournament.get("seasons"):
             tournament["seasons"][0]["standingsSettings"] = {
-                "pointsWinReg": 3, "pointsLossReg": 0, "pointsDrawReg": 1,
-                "pointsWinOvertime": 2, "pointsLossOvertime": 1,
-                "pointsWinShootout": 2, "pointsLossShootout": 1,
+                "pointsWinReg": 3,
+                "pointsLossReg": 0,
+                "pointsDrawReg": 1,
+                "pointsWinOvertime": 2,
+                "pointsLossOvertime": 1,
+                "pointsWinShootout": 2,
+                "pointsLossShootout": 1,
             }
         await mongodb["tournaments"].insert_one(tournament)
         return tournament
@@ -372,19 +385,29 @@ class TestMatchTeamPartnership:
 
         # Home team has one partnership
         await self._insert_club_with_partnership(
-            mongodb, home_club_id, "ptn-home-club", home_team_id, "ptn-home-team",
-            partnership=[{
-                "clubId": partner_club_id,
-                "clubAlias": "ptn-away-club",
-                "clubName": "Partnership Away Club",
-                "teamId": partner_team_id,
-                "teamAlias": "ptn-away-team",
-                "teamName": "1. Herren",
-            }],
+            mongodb,
+            home_club_id,
+            "ptn-home-club",
+            home_team_id,
+            "ptn-home-team",
+            partnership=[
+                {
+                    "clubId": partner_club_id,
+                    "clubAlias": "ptn-away-club",
+                    "clubName": "Partnership Away Club",
+                    "teamId": partner_team_id,
+                    "teamAlias": "ptn-away-team",
+                    "teamName": "1. Herren",
+                }
+            ],
         )
         # Away team has no partnership
         await self._insert_club_with_partnership(
-            mongodb, away_club_id, "ptn-away-club", away_team_id, "ptn-away-team",
+            mongodb,
+            away_club_id,
+            "ptn-away-club",
+            away_team_id,
+            "ptn-away-team",
             partnership=[],
         )
 
@@ -433,12 +456,12 @@ class TestMatchTeamPartnership:
         assert match_in_db is not None
 
         home_partnership = match_in_db["home"].get("teamPartnership", [])
-        assert len(home_partnership) == 1, (
-            f"Expected home.teamPartnership with 1 entry, got: {home_partnership}"
-        )
+        assert (
+            len(home_partnership) == 1
+        ), f"Expected home.teamPartnership with 1 entry, got: {home_partnership}"
         assert home_partnership[0]["teamAlias"] == "ptn-away-team"
 
         away_partnership = match_in_db["away"].get("teamPartnership", [])
-        assert away_partnership == [], (
-            f"Expected away.teamPartnership to be empty, got: {away_partnership}"
-        )
+        assert (
+            away_partnership == []
+        ), f"Expected away.teamPartnership to be empty, got: {away_partnership}"

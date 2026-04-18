@@ -106,9 +106,9 @@ class TestRule9SeasonRestriction:
         token = make_token(["ADMIN"])
         match = make_match(match_date=date.today(), status="SCHEDULED", season_alias=OTHER_SEASON)
         for action in EDIT_ACTIONS:
-            assert is_allowed(token, match, action, current_season=CURRENT_SEASON) is False, (
-                f"{action} should be denied for admin on non-current season"
-            )
+            assert (
+                is_allowed(token, match, action, current_season=CURRENT_SEASON) is False
+            ), f"{action} should be denied for admin on non-current season"
 
     def test_league_admin_non_current_season_denied_all(self):
         token = make_token(["LEAGUE_ADMIN"])
@@ -144,15 +144,16 @@ class TestRule2PastMatchBlocking:
 
     def _past_date(self) -> date:
         from datetime import timedelta
+
         return date.today() - timedelta(days=1)
 
     def test_club_admin_blocked_on_past_match(self):
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         match = make_match(match_date=self._past_date(), status="SCHEDULED")
         for action in EDIT_ACTIONS:
-            assert is_allowed(token, match, action) is False, (
-                f"{action} should be denied for club admin on past match"
-            )
+            assert (
+                is_allowed(token, match, action) is False
+            ), f"{action} should be denied for club admin on past match"
 
     def test_admin_allowed_on_past_scheduled_match(self):
         """ADMIN can edit scheduling and change status even for past scheduled matches."""
@@ -171,9 +172,9 @@ class TestRule2PastMatchBlocking:
         token = make_token(["ADMIN"])
         match = make_match(match_date=self._past_date(), status="FINISHED")
         for action in EDIT_ACTIONS:
-            assert is_allowed(token, match, action) is True, (
-                f"{action} should be granted to admin on past finished match"
-            )
+            assert (
+                is_allowed(token, match, action) is True
+            ), f"{action} should be granted to admin on past finished match"
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +209,7 @@ class TestRule3AdminBaseline:
     def test_admin_gets_roster_when_in_progress(self):
         """isMatchInProgress also triggers admin roster/match center access."""
         from datetime import timedelta
+
         token = make_token(["ADMIN"])
         match = make_match(match_date=date.today() - timedelta(days=1), status="INPROGRESS")
         assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is True
@@ -216,6 +218,7 @@ class TestRule3AdminBaseline:
     def test_admin_denied_roster_on_future_scheduled_match(self):
         """Admin does NOT get roster editing for a future scheduled match (Rule 3)."""
         from datetime import timedelta
+
         token = make_token(["ADMIN"])
         future_date = date.today() + timedelta(days=3)
         match = make_match(match_date=future_date, status="SCHEDULED")
@@ -226,6 +229,7 @@ class TestRule3AdminBaseline:
 
     def test_admin_scheduling_allowed_on_future_match(self):
         from datetime import timedelta
+
         token = make_token(["ADMIN"])
         future_date = date.today() + timedelta(days=3)
         match = make_match(match_date=future_date, status="SCHEDULED")
@@ -249,13 +253,14 @@ class TestRule4HomeClubAdmin:
     def test_home_admin_always_gets_edit_roster_home(self):
         """Home admin can always edit home roster (regardless of match day, Rule 4)."""
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         for delta_days in [-0, 1, 3]:
             match_date = date.today() + timedelta(days=delta_days)
             match = make_match(match_date=match_date, status="SCHEDULED")
-            assert is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is True, (
-                f"Home admin should edit home roster (delta={delta_days})"
-            )
+            assert (
+                is_allowed(token, match, MatchAction.EDIT_ROSTER_HOME) is True
+            ), f"Home admin should edit home roster (delta={delta_days})"
 
     def test_home_admin_on_match_day_no_matchday_owner_gets_all(self):
         """Rule 4: on match day with no matchday owner, home admin gets full set."""
@@ -281,6 +286,7 @@ class TestRule4HomeClubAdmin:
     def test_home_admin_off_match_day_no_extra_gates(self):
         """Home admin on a non-match-day has only home roster editing."""
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         future_date = date.today() + timedelta(days=2)
         match = make_match(match_date=future_date, status="SCHEDULED")
@@ -302,6 +308,7 @@ class TestRule5AwayClubAdmin:
     def test_away_admin_can_edit_roster_before_match_day(self):
         """Away admin can edit their roster for a future match (not past, not today)."""
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="away-club")
         future_date = date.today() + timedelta(days=2)
         match = make_match(match_date=future_date, status="SCHEDULED")
@@ -327,6 +334,7 @@ class TestRule5AwayClubAdmin:
     def test_away_admin_no_match_center_access(self):
         """Away admin never gets match center, status, or supplementary access."""
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="away-club")
         for delta in [0, 1, 3]:
             match_date = date.today() + timedelta(days=delta)
@@ -357,6 +365,7 @@ class TestRule6MatchdayOwner:
     def test_matchday_owner_off_match_day_gets_nothing_extra(self):
         """Matchday owner gets no extra gates outside of match day."""
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="owner-club")
         future_date = date.today() + timedelta(days=2)
         match = make_match(match_date=future_date, status="SCHEDULED")
@@ -400,13 +409,17 @@ class TestRule7NonProductionScheduling:
 
     def test_home_admin_can_reschedule_in_non_prod(self):
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         future_date = date.today() + timedelta(days=3)
         match = make_match(match_date=future_date, status="SCHEDULED")
-        assert is_allowed(token, match, MatchAction.EDIT_SCHEDULING, environment="development") is True
+        assert (
+            is_allowed(token, match, MatchAction.EDIT_SCHEDULING, environment="development") is True
+        )
 
     def test_matchday_owner_can_reschedule_in_non_prod(self):
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="owner-club")
         future_date = date.today() + timedelta(days=3)
         match = make_match(match_date=future_date, status="SCHEDULED")
@@ -418,25 +431,34 @@ class TestRule7NonProductionScheduling:
 
     def test_home_admin_cannot_reschedule_in_production(self):
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         future_date = date.today() + timedelta(days=3)
         match = make_match(match_date=future_date, status="SCHEDULED")
-        assert is_allowed(token, match, MatchAction.EDIT_SCHEDULING, environment="production") is False
+        assert (
+            is_allowed(token, match, MatchAction.EDIT_SCHEDULING, environment="production") is False
+        )
 
     def test_away_admin_cannot_reschedule_even_in_non_prod(self):
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="away-club")
         future_date = date.today() + timedelta(days=3)
         match = make_match(match_date=future_date, status="SCHEDULED")
-        assert is_allowed(token, match, MatchAction.EDIT_SCHEDULING, environment="development") is False
+        assert (
+            is_allowed(token, match, MatchAction.EDIT_SCHEDULING, environment="development")
+            is False
+        )
 
     def test_non_prod_does_not_override_season_lock(self):
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         future_date = date.today() + timedelta(days=3)
         match = make_match(match_date=future_date, status="SCHEDULED", season_alias=OTHER_SEASON)
         assert (
-            is_allowed(token, match, MatchAction.EDIT_SCHEDULING, environment="development") is False
+            is_allowed(token, match, MatchAction.EDIT_SCHEDULING, environment="development")
+            is False
         )
 
 
@@ -452,9 +474,9 @@ class TestRule8FinishedMatch:
         token = make_token(["ADMIN"])
         match = make_match(match_date=date.today(), status="FINISHED")
         for action in EDIT_ACTIONS:
-            assert is_allowed(token, match, action) is True, (
-                f"Admin should have {action} on finished match"
-            )
+            assert (
+                is_allowed(token, match, action) is True
+            ), f"Admin should have {action} on finished match"
 
     def test_league_admin_finished_match_gets_all_ten(self):
         token = make_token(["LEAGUE_ADMIN"])
@@ -503,6 +525,7 @@ class TestRule8FinishedMatch:
     def test_home_admin_finished_match_off_match_day_no_scores_penalties(self):
         """Rule 8: home admin + finished but NOT match day → no scores/penalties."""
         from datetime import timedelta
+
         token = make_token(["CLUB_ADMIN"], club_id="home-club")
         yesterday = date.today() - timedelta(days=1)
         match = make_match(match_date=yesterday, status="FINISHED")
