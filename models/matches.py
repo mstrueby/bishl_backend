@@ -96,7 +96,7 @@ class CalledFromTeam(BaseModel):
 class RosterPlayer(BaseModel):
     player: EventPlayer = Field(...)
     playerPosition: dict[str, str] = Field(...)
-    passNumber: str = Field(...)
+    passNumber: str | None = Field(default=None)
     goals: int = 0
     assists: int = 0
     points: int = 0
