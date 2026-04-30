@@ -679,6 +679,137 @@ class TestStatsServiceIntegration:
         assert md_standings[md_teams[0]]["points"] == 3
         assert md_standings[md_teams[1]]["points"] == 0
 
+    async def test_player_card_stats_updated_on_finished_match_score_edit(
+        self, mongodb, client: AsyncClient, admin_token
+    ):
+        """Test that player card stats are recalculated when scores are edited on a FINISHED match.
+        Bug fix: previously only roster stats updated but player.stats[] stayed stale."""
+        from tests.fixtures.data_fixtures import (
+            create_test_match,
+            create_test_player,
+            create_test_roster_player,
+            create_test_tournament,
+        )
+
+        tournament = create_test_tournament()
+        tournament["seasons"][0]["rounds"][0]["createStats"] = True
+        await mongodb["tournaments"].insert_one(tournament)
+
+        t_alias = tournament["alias"]
+        s_alias = tournament["seasons"][0]["alias"]
+        r_alias = tournament["seasons"][0]["rounds"][0]["alias"]
+        md_alias = tournament["seasons"][0]["rounds"][0]["matchdays"][0]["alias"]
+
+        player = create_test_player("player-edit-1")
+        player["_id"] = "player-edit-1"
+        player["stats"] = []
+        player["assignedTeams"] = []
+        player["playUpTrackings"] = []
+        await mongodb["players"].insert_one(player)
+
+        score_id = str(ObjectId())
+        roster_player = create_test_roster_player("player-edit-1")
+        roster_player["goals"] = 1
+        roster_player["assists"] = 0
+        roster_player["points"] = 1
+
+        match = create_test_match(status="FINISHED")
+        match["tournament"] = {"alias": t_alias, "name": tournament["name"]}
+        match["season"] = {"alias": s_alias, "name": tournament["seasons"][0]["name"]}
+        match["round"] = {
+            "alias": r_alias,
+            "name": tournament["seasons"][0]["rounds"][0]["name"],
+        }
+        match["matchday"] = {
+            "alias": md_alias,
+            "name": tournament["seasons"][0]["rounds"][0]["matchdays"][0]["name"],
+        }
+        match["finishType"] = {"key": "REGULAR", "value": "Regulär"}
+        match["home"]["roster"] = {"players": [roster_player], "status": "SUBMITTED"}
+        match["home"]["scores"] = [
+            {
+                "_id": score_id,
+                "matchTime": "10:30",
+                "matchSeconds": 630,
+                "goalPlayer": {
+                    "playerId": "player-edit-1",
+                    "firstName": "Edit",
+                    "lastName": "Player",
+                },
+                "assistPlayer": None,
+                "isPPG": False,
+                "isSHG": False,
+                "isGWG": False,
+            }
+        ]
+        match["home"]["stats"] = {
+            "gamePlayed": 1,
+            "goalsFor": 1,
+            "goalsAgainst": 0,
+            "points": 3,
+            "win": 1,
+            "loss": 0,
+            "draw": 0,
+            "otWin": 0,
+            "otLoss": 0,
+            "soWin": 0,
+            "soLoss": 0,
+        }
+        match["away"]["stats"] = {
+            "gamePlayed": 1,
+            "goalsFor": 0,
+            "goalsAgainst": 1,
+            "points": 0,
+            "win": 0,
+            "loss": 1,
+            "draw": 0,
+            "otWin": 0,
+            "otLoss": 0,
+            "soWin": 0,
+            "soLoss": 0,
+        }
+        await mongodb["matches"].insert_one(match)
+
+        second_score_id = str(ObjectId())
+        new_scores = [
+            match["home"]["scores"][0],
+            {
+                "_id": second_score_id,
+                "matchTime": "15:00",
+                "matchSeconds": 900,
+                "goalPlayer": {
+                    "playerId": "player-edit-1",
+                    "firstName": "Edit",
+                    "lastName": "Player",
+                },
+                "assistPlayer": None,
+                "isPPG": False,
+                "isSHG": False,
+                "isGWG": False,
+            },
+        ]
+
+        response = await client.patch(
+            f"/matches/{match['_id']}",
+            json={"home": {"scores": new_scores}},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 200, f"PATCH failed: {response.json()}"
+
+        updated_player = await mongodb["players"].find_one({"_id": "player-edit-1"})
+        player_stats = updated_player.get("stats", [])
+        assert len(player_stats) >= 1, f"Player stats should have been calculated, got: {player_stats}"
+
+        round_stat = next(
+            (s for s in player_stats if s.get("round", {}).get("alias") == r_alias),
+            None,
+        )
+        assert round_stat is not None, f"No stats for round {r_alias} found in {player_stats}"
+        assert round_stat["goals"] == 2, (
+            f"Expected 2 goals after editing FINISHED match scores, got {round_stat['goals']}"
+        )
+        assert round_stat["gamesPlayed"] == 1
+
 
 @pytest.mark.asyncio
 class TestStatsServiceEdgeCases:

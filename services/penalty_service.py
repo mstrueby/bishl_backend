@@ -212,6 +212,9 @@ class PenaltyService:
                 details={"match_id": match_id, "penalty_data": penalty_data},
             )
 
+        # Recalculate roster stats to ensure penaltyMinutes are correct regardless of roster format
+        await self.stats_service.calculate_roster_stats(match_id, team_flag)
+
         logger.info(
             "Penalty created with incremental updates",
             extra={
@@ -351,6 +354,9 @@ class PenaltyService:
                 resource_id=penalty_id,
                 details={"match_id": match_id, "team_flag": team_flag},
             )
+
+        # Recalculate roster stats to ensure penaltyMinutes are correct regardless of roster format
+        await self.stats_service.calculate_roster_stats(match_id, team_flag)
 
         logger.info(
             "Penalty deleted with decremental updates",

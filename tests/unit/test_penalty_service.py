@@ -132,11 +132,14 @@ class TestCreatePenalty:
             penaltyMinutes=2,
         )
 
-        with patch.object(penalty_service, "get_penalty_by_id", new_callable=AsyncMock):
-            await penalty_service.create_penalty(match_id, "home", penalty)
+        with patch.object(
+            penalty_service.stats_service, "calculate_roster_stats", new_callable=AsyncMock
+        ):
+            with patch.object(penalty_service, "get_penalty_by_id", new_callable=AsyncMock):
+                await penalty_service.create_penalty(match_id, "home", penalty)
 
-        # Verify update was called with incremental operations
-        update_call = mock_db._matches_collection.update_one.call_args
+        # Verify update was called with incremental operations (first call is the $push)
+        update_call = mock_db._matches_collection.update_one.call_args_list[0]
         update_operations = update_call[0][1]
 
         assert "$push" in update_operations
@@ -184,11 +187,14 @@ class TestCreatePenalty:
             isGM=True,
         )
 
-        with patch.object(penalty_service, "get_penalty_by_id", new_callable=AsyncMock):
-            await penalty_service.create_penalty(match_id, "home", penalty)
+        with patch.object(
+            penalty_service.stats_service, "calculate_roster_stats", new_callable=AsyncMock
+        ):
+            with patch.object(penalty_service, "get_penalty_by_id", new_callable=AsyncMock):
+                await penalty_service.create_penalty(match_id, "home", penalty)
 
-        # Verify 10 minutes were added
-        update_call = mock_db._matches_collection.update_one.call_args
+        # Verify 10 minutes were added (first call is the $push)
+        update_call = mock_db._matches_collection.update_one.call_args_list[0]
         update_operations = update_call[0][1]
         assert (
             update_operations["$inc"]["home.roster.players.$[penaltyPlayer].penaltyMinutes"] == 10

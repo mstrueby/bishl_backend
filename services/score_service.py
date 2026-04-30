@@ -241,6 +241,9 @@ class ScoreService:
                 details={"match_id": match_id, "score_data": score_data},
             )
 
+        # Recalculate roster stats to ensure goals/assists are correct regardless of roster format
+        await self.stats_service.calculate_roster_stats(match_id, team_flag)
+
         # Update standings
         await self.stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
         await self.stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
@@ -395,6 +398,9 @@ class ScoreService:
                 resource_id=score_id,
                 details={"match_id": match_id, "team_flag": team_flag},
             )
+
+        # Recalculate roster stats to ensure goals/assists are correct regardless of roster format
+        await self.stats_service.calculate_roster_stats(match_id, team_flag)
 
         # Update standings
         await self.stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)

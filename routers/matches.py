@@ -1332,17 +1332,14 @@ async def update_match(
     updated_match = await get_match_object(mongodb, match_id)
 
     # Recalculate standings and player card stats whenever a terminal status
-    # (FINISHED or FORFEITED) is involved — either as the old or new status.
+    # (FINISHED or FORFEITED) is involved — either as the old or new status —
+    # OR when scores/penalties are edited on an already-finished match.
     _stats_trigger_statuses = {"FINISHED", "FORFEITED"}
     _stats_trigger_hit = bool(_stats_trigger_statuses & {new_match_status, current_match_status})
-    if (
-        stats_change_detected
-        and _stats_trigger_hit
-        and t_alias
-        and s_alias
-        and r_alias
-        and md_alias
-    ):
+    _player_stats_needed = (stats_change_detected and _stats_trigger_hit) or (
+        stats_recalc_needed and current_match_status in _stats_trigger_statuses
+    )
+    if _player_stats_needed and t_alias and s_alias and r_alias and md_alias:
         stats_service = StatsService(mongodb)
         await stats_service.aggregate_round_standings(t_alias, s_alias, r_alias)
         await stats_service.aggregate_matchday_standings(t_alias, s_alias, r_alias, md_alias)
@@ -1377,9 +1374,7 @@ async def update_match(
 
     if DEBUG_LEVEL > 0:
         change_type = "stats-affecting" if stats_change_detected else "minor"
-        player_calc_note = (
-            " + player stats calculated" if (stats_change_detected and _stats_trigger_hit) else ""
-        )
+        player_calc_note = " + player stats calculated" if _player_stats_needed else ""
         logger.debug(
             f"Match updated - {change_type} change detected for match {match_id}{player_calc_note}"
         )

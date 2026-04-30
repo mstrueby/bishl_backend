@@ -167,16 +167,21 @@ class TestCreateScore:
         match_id = test_match["_id"]
 
         with patch.object(
-            score_service.stats_service, "aggregate_round_standings", new_callable=AsyncMock
+            score_service.stats_service, "calculate_roster_stats", new_callable=AsyncMock
         ):
             with patch.object(
-                score_service.stats_service, "aggregate_matchday_standings", new_callable=AsyncMock
+                score_service.stats_service, "aggregate_round_standings", new_callable=AsyncMock
             ):
-                with patch.object(score_service, "get_score_by_id", new_callable=AsyncMock):
-                    await score_service.create_score(match_id, "home", score)
+                with patch.object(
+                    score_service.stats_service,
+                    "aggregate_matchday_standings",
+                    new_callable=AsyncMock,
+                ):
+                    with patch.object(score_service, "get_score_by_id", new_callable=AsyncMock):
+                        await score_service.create_score(match_id, "home", score)
 
-        # Verify update was called with incremental operations
-        update_call = mock_db._matches_collection.update_one.call_args
+        # Verify update was called with incremental operations (first call is the $push)
+        update_call = mock_db._matches_collection.update_one.call_args_list[0]
         update_operations = update_call[0][1]
 
         assert "$push" in update_operations
@@ -237,15 +242,20 @@ class TestDeleteScore:
         mock_db._matches_collection.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
 
         with patch.object(
-            score_service.stats_service, "aggregate_round_standings", new_callable=AsyncMock
+            score_service.stats_service, "calculate_roster_stats", new_callable=AsyncMock
         ):
             with patch.object(
-                score_service.stats_service, "aggregate_matchday_standings", new_callable=AsyncMock
+                score_service.stats_service, "aggregate_round_standings", new_callable=AsyncMock
             ):
-                await score_service.delete_score(match_id, "home", score_id)
+                with patch.object(
+                    score_service.stats_service,
+                    "aggregate_matchday_standings",
+                    new_callable=AsyncMock,
+                ):
+                    await score_service.delete_score(match_id, "home", score_id)
 
-        # Verify decremental update was called
-        update_call = mock_db._matches_collection.update_one.call_args
+        # Verify decremental update was called (first call is the $pull)
+        update_call = mock_db._matches_collection.update_one.call_args_list[0]
         update_operations = update_call[0][1]
 
         assert "$pull" in update_operations
