@@ -8,9 +8,11 @@ from fastapi.responses import JSONResponse, Response
 
 from authentication import AuthHandler, TokenPayload
 from exceptions import ResourceNotFoundException
+from logging_config import logger
 from models.responses import StandardResponse
 from models.season_responses import SeasonLinks, SeasonResponse
 from models.tournaments import SeasonBase, SeasonDB, SeasonUpdate
+from services.stats_service import StatsService
 
 router = APIRouter()
 auth = AuthHandler()
@@ -314,6 +316,154 @@ async def update_season(
             resource_id=season_id,
             details={"tournament_alias": tournament_alias},
         )
+
+
+# recalculate all player stats for a season
+@router.post(
+    "/{season_alias}/recalc-stats",
+    response_description="Recalculate roster and player card stats for all FINISHED matches in a season",
+    response_model=StandardResponse[dict],
+)
+async def recalc_season_stats(
+    request: Request,
+    tournament_alias: str = Path(..., description="The alias of the tournament"),
+    season_alias: str = Path(..., description="The alias of the season"),
+    token_payload: TokenPayload = Depends(auth.auth_wrapper),
+) -> JSONResponse:
+    mongodb = request.app.state.mongodb
+    if "ADMIN" not in token_payload.roles:
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    tournament = await mongodb["tournaments"].find_one({"alias": tournament_alias})
+    if not tournament:
+        raise ResourceNotFoundException(resource_type="Tournament", resource_id=tournament_alias)
+    season = next(
+        (s for s in tournament.get("seasons", []) if s.get("alias") == season_alias), None
+    )
+    if not season:
+        raise ResourceNotFoundException(
+            resource_type="Season",
+            resource_id=season_alias,
+            details={"tournament_alias": tournament_alias},
+        )
+
+    finished_matches = (
+        await mongodb["matches"]
+        .find(
+            {
+                "tournament.alias": tournament_alias,
+                "season.alias": season_alias,
+                "matchStatus.key": {"$in": ["FINISHED", "FORFEITED"]},
+            }
+        )
+        .to_list(length=None)
+    )
+
+    if not finished_matches:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(
+                StandardResponse(
+                    success=True,
+                    data={"matchesProcessed": 0, "roundMatchdaysProcessed": 0, "playerIdsUpdated": 0},
+                    message="No FINISHED or FORFEITED matches found for this season",
+                )
+            ),
+        )
+
+    logger.info(
+        "Recalculating season stats",
+        extra={
+            "tournament": tournament_alias,
+            "season": season_alias,
+            "match_count": len(finished_matches),
+        },
+    )
+
+    stats_service = StatsService(mongodb)
+
+    # Step 1: Recalculate roster stats for every finished/forfeited match
+    for match in finished_matches:
+        await stats_service.calculate_roster_stats(match["_id"], "home")
+        await stats_service.calculate_roster_stats(match["_id"], "away")
+
+    # Step 2: Collect unique (round, matchday) pairs present in finished matches
+    round_matchday_pairs: set[tuple[str, str]] = set()
+    for match in finished_matches:
+        r_alias = match.get("round", {}).get("alias")
+        md_alias = match.get("matchday", {}).get("alias")
+        if r_alias and md_alias:
+            round_matchday_pairs.add((r_alias, md_alias))
+
+    # Step 3: For each pair, collect all player IDs from every match in that round
+    # (any status) so that all players in the round get their card stats recalculated.
+    all_season_matches = (
+        await mongodb["matches"]
+        .find({"tournament.alias": tournament_alias, "season.alias": season_alias})
+        .to_list(length=None)
+    )
+    players_by_round: dict[str, set[str]] = {}
+    for match in all_season_matches:
+        r_alias = match.get("round", {}).get("alias")
+        if not r_alias:
+            continue
+        if r_alias not in players_by_round:
+            players_by_round[r_alias] = set()
+        for team_flag in ("home", "away"):
+            roster = match.get(team_flag, {}).get("roster", {})
+            roster_players = (
+                roster.get("players", []) if isinstance(roster, dict) else roster
+            )
+            for p in roster_players:
+                player_id = p.get("player", {}).get("playerId")
+                if player_id:
+                    players_by_round[r_alias].add(player_id)
+
+    # Step 4: Recalculate player card stats once per (round, matchday) pair
+    all_updated_player_ids: set[str] = set()
+    for r_alias, md_alias in round_matchday_pairs:
+        player_ids = list(players_by_round.get(r_alias, set()))
+        if not player_ids:
+            continue
+        await stats_service.calculate_player_card_stats(
+            player_ids,
+            tournament_alias,
+            season_alias,
+            r_alias,
+            md_alias,
+            token_payload,
+        )
+        all_updated_player_ids.update(player_ids)
+
+    logger.info(
+        "Season stats recalculation complete",
+        extra={
+            "tournament": tournament_alias,
+            "season": season_alias,
+            "matches_processed": len(finished_matches),
+            "round_matchdays_processed": len(round_matchday_pairs),
+            "players_updated": len(all_updated_player_ids),
+        },
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=jsonable_encoder(
+            StandardResponse(
+                success=True,
+                data={
+                    "matchesProcessed": len(finished_matches),
+                    "roundMatchdaysProcessed": len(round_matchday_pairs),
+                    "playerIdsUpdated": len(all_updated_player_ids),
+                },
+                message=(
+                    f"Stats recalculated for {len(finished_matches)} matches across "
+                    f"{len(round_matchday_pairs)} round/matchday combinations, "
+                    f"{len(all_updated_player_ids)} players updated"
+                ),
+            )
+        ),
+    )
 
 
 # delete season from tournament
